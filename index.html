@@ -1,0 +1,385 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Depot Notes Maker</title>
+  <style>
+    *{box-sizing:border-box} body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;margin:0;background:#0b0d10;color:#e8eaed}
+    header{padding:12px 16px;background:#11151a;border-bottom:1px solid #1f252d;display:flex;gap:8px;align-items:center;justify-content:space-between}
+    header h1{font-size:18px;margin:0;font-weight:600}
+    main{padding:16px;max-width:900px;margin:0 auto;display:grid;gap:16px}
+    .card{background:#11151a;border:1px solid #1f252d;border-radius:12px;padding:14px}
+    .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+    label{font-size:14px;opacity:.9}
+    select,input,textarea,button{font-size:16px;border-radius:10px;border:1px solid #26303b;background:#0b0f14;color:#e8eaed;padding:10px}
+    select,input{min-width:220px}
+    textarea{width:100%;min-height:120px;resize:vertical}
+    button{cursor:pointer}
+    button.primary{border-color:#35507a}
+    .pill{padding:6px 10px;border-radius:999px;border:1px solid #26303b}
+    .stack{display:grid;gap:10px}
+    .two{display:grid;gap:12px;grid-template-columns:1fr 1fr}
+    @media (max-width:800px){.two{grid-template-columns:1fr}}
+    .small{font-size:12px;opacity:.8}
+    .copybox{font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;white-space:pre-wrap;background:#0a0e13;border:1px dashed #2b3542;border-radius:10px;padding:12px}
+    .badge{font-size:12px;padding:2px 8px;border:1px solid #2b3542;border-radius:999px}
+    .ok{border-color:#2e7d32}
+    .warn{border-color:#b28704}
+    .muted{opacity:.7}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Depot Notes Maker</h1>
+    <div class="row small">
+      <span id="sr-badge" class="badge muted">Speech: checking…</span>
+    </div>
+  </header>
+
+  <main>
+    <!-- Step 1: Job basics (spoken or typed) -->
+    <section class="card stack">
+      <div class="row">
+        <label for="customer">Customer</label>
+        <input id="customer" placeholder="e.g., Smith / 12 Oak Rd" />
+        <button id="mic-customer" class="pill" title="Dictate customer">🎤</button>
+      </div>
+      <div class="row">
+        <label for="address">Key site notes</label>
+        <input id="address" placeholder="e.g., narrow alley, front boundary close, etc." />
+        <button id="mic-address" class="pill" title="Dictate site notes">🎤</button>
+      </div>
+      <div class="row">
+        <label>Scenario</label>
+        <select id="from-type">
+          <option>Regular (open-vented)</option>
+          <option>Regular (sealed)</option>
+          <option>System (unvented)</option>
+          <option>System (open cylinder)</option>
+          <option>Combi</option>
+        </select>
+        <span>→</span>
+        <select id="to-type">
+          <option>Combi</option>
+          <option>Regular (sealed)</option>
+          <option>System (unvented)</option>
+        </select>
+      </div>
+      <div class="row">
+        <label>Flue</label>
+        <select id="flue">
+          <option>Fanned horizontal</option>
+          <option>Vertical</option>
+        </select>
+        <label>Location</label>
+        <select id="boiler-location">
+          <option>Kitchen</option>
+          <option>Utility</option>
+          <option>Loft</option>
+          <option>Garage</option>
+        </select>
+      </div>
+      <div class="row">
+        <label>Front/boundary sensitivity?</label>
+        <select id="boundary">
+          <option>None / Rear</option>
+          <option>Front elevation</option>
+          <option>Close to boundary</option>
+          <option>Pathway/door/windows nearby</option>
+        </select>
+      </div>
+      <div class="row">
+        <label>Working at heights?</label>
+        <select id="wah">
+          <option>None</option>
+          <option>Ladder (vertical flue)</option>
+          <option>Scaffold/MEWP</option>
+        </select>
+      </div>
+      <div class="row">
+        <label>Extras</label>
+        <input id="extras" placeholder="e.g., powerflush, TRVs, filter, etc." />
+        <button id="mic-extras" class="pill" title="Dictate extras">🎤</button>
+      </div>
+      <div class="row">
+        <button id="add-free" class="pill">+ Add a free-form note</button>
+        <button id="mic-free" class="pill" title="Dictate free-form">🎤</button>
+      </div>
+    </section>
+
+    <!-- Step 2: Live notes -->
+    <section class="card stack">
+      <div class="row" style="justify-content:space-between;align-items:center">
+        <h3 style="margin:0;font-size:16px">Live Notes (scenario aware)</h3>
+        <div class="row small">
+          <button id="rebuild" class="pill">↻ Rebuild</button>
+        </div>
+      </div>
+      <div id="notes-list" class="stack"></div>
+    </section>
+
+    <!-- Step 3: Outputs -->
+    <section class="card two">
+      <div class="stack">
+        <div class="row" style="justify-content:space-between;align-items:center">
+          <h3 style="margin:0;font-size:16px">Depot paragraph (semicolon linebreaks)</h3>
+          <button id="copy-paragraph" class="pill">Copy</button>
+        </div>
+        <div id="out-paragraph" class="copybox small"></div>
+      </div>
+      <div class="stack">
+        <div class="row" style="justify-content:space-between;align-items:center">
+          <h3 style="margin:0;font-size:16px">Strict JSON (13 sections)</h3>
+          <button id="copy-json" class="pill">Copy</button>
+        </div>
+        <div id="out-json" class="copybox small"></div>
+      </div>
+    </section>
+
+    <section class="card small">
+      <div class="row">
+        <span class="muted">Tip: tap 🎤 then speak after the chime. If speech isn’t available, just type — everything still works.</span>
+      </div>
+    </section>
+  </main>
+
+  <script>
+  // --- Minimal rule engine: add bullets based on scenario + options ---
+  // All bullets MUST start with "↘️ " and end with ";"
+  function bullet(t){ return "↘️ " + t.replace(/[;]+$/,"") + ";"; }
+
+  const rules = {
+    // Scenario keys: FROM -> TO
+    "Regular (open-vented)->Combi": [
+      bullet("Converting vented system to Combi: remove/abandon F&E tank; cap/repurpose cold feed and vent; verify structural/loft access if tank removal"),
+      bullet("DHW expectations: one draw-off at a time delivers best performance; flow/temperature depends on mains; hot is not instant at outlet"),
+      bullet("Confirm mains static/dynamic pressure and flow meet Combi MI; upgrade incoming main if inadequate"),
+      bullet("Decommission cylinder and primary connections; tidy/repurpose space"),
+    ],
+    "Regular (sealed)->Combi": [
+      bullet("Converting sealed system to Combi; cylinder removal and primary reconfiguration required"),
+      bullet("DHW expectations: one draw-off at a time delivers best performance; hot is not instant at outlet"),
+      bullet("Confirm mains static/dynamic pressure and flow meet Combi MI"),
+    ],
+    "System (unvented)->Combi": [
+      bullet("Decommission unvented cylinder (G3 competent engineer); remove/blank primary connections"),
+      bullet("DHW expectations: single-draw best; mains-dependent; not instant at outlet"),
+      bullet("Confirm mains static/dynamic pressure and flow meet Combi MI"),
+    ],
+    "System (open cylinder)->Combi": [
+      bullet("Converting vented system to Combi: remove/abandon F&E tank where present"),
+      bullet("Decommission cylinder and primary connections"),
+      bullet("DHW expectations: single-draw best; mains-dependent; not instant at outlet"),
+    ],
+    "Combi->Regular (sealed)": [
+      bullet("Reintroduce cylinder and sealed primary circuit; size pump/valves per hydraulics"),
+      bullet("Set clear CH/DHW schedules on programmer and room thermostat"),
+    ],
+    "Combi->System (unvented)": [
+      bullet("Introduce unvented cylinder (G3 pack) with D2 discharge to safe termination"),
+      bullet("Confirm mains static/dynamic suitability for unvented operation"),
+    ],
+  };
+
+  // Cross-cutting rules
+  function xrules(state){
+    const out = [];
+    // Flue logic
+    if(state.flue === "Vertical"){
+      out.push(bullet("Vertical balanced flue: verify roof access; add ladder work/roof ladder to WAH plan if required"));
+    } else {
+      if(state.boundary !== "None / Rear"){
+        out.push(bullet("Horizontal balanced flue: check boundary distances and adjacent openings to MI; add terminal guard if <2 m or accessible"));
+      } else {
+        out.push(bullet("Horizontal balanced flue on selected elevation; verify clearances to paths, windows, boundary"));
+      }
+    }
+    // Working at heights
+    if(state.wah === "Ladder (vertical flue)"){
+      out.push(bullet("Working at Heights: ladder to roof standard with linking ladders and suitable footing"));
+    }
+    if(state.wah === "Scaffold/MEWP"){
+      out.push(bullet("Working at Heights: scaffold/MEWP provision — coordinate access and lead times"));
+    }
+    // Boiler location
+    out.push(bullet(`Proposed boiler in ${state.location}; allow for condensate, PRV, and safe routing`));
+    // Extras (simple expansion)
+    if(state.extras){
+      out.push(bullet(`Extras requested: ${state.extras}`));
+    }
+    // Free-form notes captured
+    state.freeNotes.forEach(n => out.push(bullet(n)));
+    return out;
+  }
+
+  // Minimal 13-section JSON scaffold (use "↘️ None recorded;" if empty)
+  const sections = [
+    "Working at heights","Access","System characteristics","Mains & DHW","Controls",
+    "Electrics","Gas","Water & Condensate","Boiler & Location","Commissioning",
+    "Flue & Terminal","Pipework","Customer impacts"
+  ];
+
+  function build13(state, bullets){
+    const map = new Map(sections.map(s=>[s,[]]));
+    // Distribute bullets with simple routing
+    bullets.forEach(b=>{
+      if(b.includes("Working at Heights")) map.get("Working at heights").push(b);
+      else if(b.includes("DHW") || b.includes("Combi MI") || b.includes("unvented")) map.get("Mains & DHW").push(b);
+      else if(b.includes("Vertical balanced flue") || b.includes("Horizontal balanced flue") || b.includes("terminal guard")) map.get("Flue & Terminal").push(b);
+      else if(b.includes("boiler in")) map.get("Boiler & Location").push(b);
+      else if(b.includes("F&E tank") || b.includes("cylinder") || b.includes("hydraulics")) map.get("System characteristics").push(b);
+      else if(b.includes("Controls") || b.includes("schedules")) map.get("Controls").push(b);
+      else if(b.includes("condensate") || b.includes("PRV")) map.get("Water & Condensate").push(b);
+      else if(b.includes("pipe") || b.includes("primary")) map.get("Pipework").push(b);
+      else if(b.includes("Commission")) map.get("Commissioning").push(b);
+      else if(b.includes("Extras")) map.get("Customer impacts").push(b);
+      else map.get("Customer impacts").push(b);
+    });
+    // Required notes the business wants always mentioned:
+    if(state.to.includes("Combi")){
+      map.get("Mains & DHW").push(bullet("DHW expectations reiterated: single draw best; mains-dependent; hot not instant at outlet"));
+    }
+    if(state.from.includes("open-vented") && (state.to.includes("Combi") || state.to.includes("sealed"))){
+      map.get("System characteristics").push(bullet("Vented → sealed/combi: mention F&E tank removal only in this conversion"));
+    }
+    // Fill empties
+    for(const k of sections){
+      if(map.get(k).length===0) map.get(k).push(bullet("None recorded"));
+    }
+    // Return as plain object
+    const obj = {};
+    sections.forEach(s=>obj[s]=map.get(s));
+    return obj;
+  }
+
+  // Speech Recognition wrapper
+  const SR = (() => {
+    const SRClass = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const badge = document.getElementById("sr-badge");
+    if(!SRClass){
+      badge.textContent = "Speech: unavailable";
+      badge.classList.add("warn");
+      return null;
+    }
+    badge.textContent = "Speech: ready";
+    badge.classList.add("ok");
+    const rec = new SRClass();
+    rec.lang = "en-GB";
+    rec.interimResults = false;
+    rec.maxAlternatives = 1;
+    return rec;
+  })();
+
+  function startDictate(intoInput){
+    if(!SR) return alert("Speech unavailable here — please type.");
+    return new Promise(resolve=>{
+      SR.onresult = (e)=>{
+        const t = (e.results[0] && e.results[0][0] && e.results[0][0].transcript) || "";
+        intoInput.value = (intoInput.value ? (intoInput.value + " ") : "") + t.trim();
+        resolve(t);
+      };
+      SR.onerror = ()=>resolve("");
+      SR.onend = ()=>{};
+      try { SR.start(); } catch {}
+    });
+  }
+
+  // State
+  const state = {
+    customer:"", address:"", from:"Regular (open-vented)", to:"Combi",
+    flue:"Fanned horizontal", location:"Kitchen", boundary:"None / Rear",
+    wah:"None", extras:"", freeNotes:[]
+  };
+
+  // Wire UI
+  const $ = id => document.getElementById(id);
+  function sync(){
+    state.customer = $("customer").value.trim();
+    state.address = $("address").value.trim();
+    state.from = $("from-type").value;
+    state.to = $("to-type").value;
+    state.flue = $("flue").value;
+    state.location = $("boiler-location").value;
+    state.boundary = $("boundary").value;
+    state.wah = $("wah").value;
+    state.extras = $("extras").value.trim();
+  }
+
+  ["customer","address","from-type","to-type","flue","boiler-location","boundary","wah","extras"].forEach(id=>{
+    $(id).addEventListener("change", ()=>rebuild());
+    $(id).addEventListener("input", ()=>rebuild());
+  });
+
+  $("mic-customer").onclick = ()=>startDictate($("customer")).then(rebuild);
+  $("mic-address").onclick = ()=>startDictate($("address")).then(rebuild);
+  $("mic-extras").onclick = ()=>startDictate($("extras")).then(rebuild);
+  $("mic-free").onclick = async ()=>{
+    const temp = document.createElement("input");
+    temp.style.position="absolute"; temp.style.left="-9999px";
+    document.body.appendChild(temp);
+    await startDictate(temp);
+    const t = temp.value.trim();
+    document.body.removeChild(temp);
+    if(t) { state.freeNotes.push(t); rebuild(); }
+  };
+  $("add-free").onclick = ()=>{
+    const t = prompt("Add a free-form note:");
+    if(t) { state.freeNotes.push(t.trim()); rebuild(); }
+  };
+  $("rebuild").onclick = rebuild;
+
+  function scenarioKey(from,to){ return `${from}->${to}`; }
+
+  function rebuild(){
+    sync();
+    // Base scenario bullets
+    const base = rules[scenarioKey(state.from,state.to)] || [bullet("Scenario requires surveyor judgement; confirm hydraulics and DHW expectations")];
+    // Cross-cutting
+    const cross = xrules(state);
+    // Boundary emphasis
+    if(state.boundary === "Front elevation" || state.boundary === "Close to boundary" || state.boundary === "Pathway/door/windows nearby"){
+      cross.push(bullet("plume management/deflector if discharge affects paths, windows, or boundary"));
+    }
+    const all = [...base, ...cross];
+    renderNotes(all);
+    renderParagraph(all);
+    renderJSON(build13(state, all));
+  }
+
+  function renderNotes(list){
+    const box = $("notes-list");
+    box.innerHTML = "";
+    list.forEach(line=>{
+      const div = document.createElement("div");
+      div.textContent = line;
+      box.appendChild(div);
+    });
+  }
+
+  function renderParagraph(list){
+    const text = list.join(" ").replace(/\s*;+/g,"; ");
+    $("out-paragraph").textContent = text;
+  }
+
+  function renderJSON(obj){
+    $("out-json").textContent = JSON.stringify(obj, null, 2);
+  }
+
+  // Copy buttons
+  function copyText(el){
+    const r = document.createRange();
+    r.selectNodeContents(el);
+    const sel = window.getSelection();
+    sel.removeAllRanges(); sel.addRange(r);
+    document.execCommand("copy");
+    sel.removeAllRanges();
+  }
+  $("copy-paragraph").onclick = ()=>copyText($("out-paragraph"));
+  $("copy-json").onclick = ()=>copyText($("out-json"));
+
+  // Initial render
+  rebuild();
+  </script>
+</body>
+</html>

@@ -1,385 +1,307 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Depot Notes Maker</title>
-  <style>
-    *{box-sizing:border-box} body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;margin:0;background:#0b0d10;color:#e8eaed}
-    header{padding:12px 16px;background:#11151a;border-bottom:1px solid #1f252d;display:flex;gap:8px;align-items:center;justify-content:space-between}
-    header h1{font-size:18px;margin:0;font-weight:600}
-    main{padding:16px;max-width:900px;margin:0 auto;display:grid;gap:16px}
-    .card{background:#11151a;border:1px solid #1f252d;border-radius:12px;padding:14px}
-    .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-    label{font-size:14px;opacity:.9}
-    select,input,textarea,button{font-size:16px;border-radius:10px;border:1px solid #26303b;background:#0b0f14;color:#e8eaed;padding:10px}
-    select,input{min-width:220px}
-    textarea{width:100%;min-height:120px;resize:vertical}
-    button{cursor:pointer}
-    button.primary{border-color:#35507a}
-    .pill{padding:6px 10px;border-radius:999px;border:1px solid #26303b}
-    .stack{display:grid;gap:10px}
-    .two{display:grid;gap:12px;grid-template-columns:1fr 1fr}
-    @media (max-width:800px){.two{grid-template-columns:1fr}}
-    .small{font-size:12px;opacity:.8}
-    .copybox{font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;white-space:pre-wrap;background:#0a0e13;border:1px dashed #2b3542;border-radius:10px;padding:12px}
-    .badge{font-size:12px;padding:2px 8px;border:1px solid #2b3542;border-radius:999px}
-    .ok{border-color:#2e7d32}
-    .warn{border-color:#b28704}
-    .muted{opacity:.7}
-  </style>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Depot Dictation Notes (Pro-ready)</title>
+<style>
+  :root{--bg:#0b0d10;--card:#11151a;--line:#22303d;--txt:#e8eaed}
+  *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--txt);font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+  header{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--line);background:var(--card)}
+  h1{margin:0;font-size:18px}
+  main{max-width:1100px;margin:0 auto;padding:16px;display:grid;gap:16px}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
+  .section{display:grid;gap:10px}
+  .hint{font-size:12px;opacity:.85}
+  textarea{width:100%;min-height:120px;background:#0a0e13;border:1px solid var(--line);border-radius:10px;color:var(--txt);padding:10px;font-size:15px;resize:vertical}
+  button,input,select{font-size:14px;border-radius:10px;border:1px solid var(--line);background:#0a0e13;color:var(--txt);padding:8px 10px;cursor:pointer}
+  .pill{border-radius:999px}
+  .copy{border-style:dashed}
+  .badge{font-size:12px;border:1px solid var(--line);padding:2px 8px;border-radius:999px}
+  .ok{border-color:#2e7d32}
+  .warn{border-color:#b28704}
+  .label{font-weight:600}
+  .small{font-size:12px;opacity:.75}
+  .pro{border-color:#2e7d32}
+</style>
 </head>
 <body>
-  <header>
-    <h1>Depot Notes Maker</h1>
-    <div class="row small">
-      <span id="sr-badge" class="badge muted">Speech: checking…</span>
+<header>
+  <h1>Depot Dictation Notes</h1>
+  <div class="row small">
+    <span id="license-badge" class="badge">Pro: locked</span>
+    <span id="sr-badge" class="badge">Speech: checking…</span>
+  </div>
+</header>
+
+<main>
+  <!-- Pro / License panel -->
+  <section class="card">
+    <div class="row">
+      <button id="enter-code" class="pill">Enter/Refresh Unlock Code</button>
+      <button id="clear-code" class="pill">Clear Code</button>
+      <span id="license-info" class="small"></span>
     </div>
-  </header>
+    <div class="small">
+      After payment, you’ll receive a code to paste here. Codes are tied to your email and expire periodically.
+    </div>
+  </section>
 
-  <main>
-    <!-- Step 1: Job basics (spoken or typed) -->
-    <section class="card stack">
-      <div class="row">
-        <label for="customer">Customer</label>
-        <input id="customer" placeholder="e.g., Smith / 12 Oak Rd" />
-        <button id="mic-customer" class="pill" title="Dictate customer">🎤</button>
-      </div>
-      <div class="row">
-        <label for="address">Key site notes</label>
-        <input id="address" placeholder="e.g., narrow alley, front boundary close, etc." />
-        <button id="mic-address" class="pill" title="Dictate site notes">🎤</button>
-      </div>
-      <div class="row">
-        <label>Scenario</label>
-        <select id="from-type">
-          <option>Regular (open-vented)</option>
-          <option>Regular (sealed)</option>
-          <option>System (unvented)</option>
-          <option>System (open cylinder)</option>
-          <option>Combi</option>
-        </select>
-        <span>→</span>
-        <select id="to-type">
-          <option>Combi</option>
-          <option>Regular (sealed)</option>
-          <option>System (unvented)</option>
-        </select>
-      </div>
-      <div class="row">
-        <label>Flue</label>
-        <select id="flue">
-          <option>Fanned horizontal</option>
-          <option>Vertical</option>
-        </select>
-        <label>Location</label>
-        <select id="boiler-location">
-          <option>Kitchen</option>
-          <option>Utility</option>
-          <option>Loft</option>
-          <option>Garage</option>
-        </select>
-      </div>
-      <div class="row">
-        <label>Front/boundary sensitivity?</label>
-        <select id="boundary">
-          <option>None / Rear</option>
-          <option>Front elevation</option>
-          <option>Close to boundary</option>
-          <option>Pathway/door/windows nearby</option>
-        </select>
-      </div>
-      <div class="row">
-        <label>Working at heights?</label>
-        <select id="wah">
-          <option>None</option>
-          <option>Ladder (vertical flue)</option>
-          <option>Scaffold/MEWP</option>
-        </select>
-      </div>
-      <div class="row">
-        <label>Extras</label>
-        <input id="extras" placeholder="e.g., powerflush, TRVs, filter, etc." />
-        <button id="mic-extras" class="pill" title="Dictate extras">🎤</button>
-      </div>
-      <div class="row">
-        <button id="add-free" class="pill">+ Add a free-form note</button>
-        <button id="mic-free" class="pill" title="Dictate free-form">🎤</button>
-      </div>
-    </section>
+  <!-- Basics -->
+  <section class="card">
+    <div class="row">
+      <span class="label">Customer</span>
+      <input id="customer" placeholder="Name / site (optional)" style="min-width:260px"/>
+    </div>
+    <div class="row">
+      <span class="label">Scenario</span>
+      <select id="scenario">
+        <option>REGULAR (open) → COMBI</option>
+        <option>REGULAR (sealed) → COMBI</option>
+        <option>SYSTEM (open cyl) → COMBI</option>
+        <option>SYSTEM (unvented) → COMBI</option>
+        <option>COMBI → SYSTEM (unvented)</option>
+        <option>COMBI → REGULAR (sealed)</option>
+        <option>Like-for-like</option>
+      </select>
+      <span class="label">Flue</span>
+      <select id="flue"><option>Fanned horizontal</option><option>Vertical</option></select>
+      <span class="label">Elevation</span>
+      <select id="elevation">
+        <option>Rear / clear</option><option>Front elevation</option>
+        <option>Close to boundary</option><option>Near doors/windows/path</option>
+      </select>
+      <button id="copy-all" class="pill copy" disabled>Copy ALL (Pro)</button>
+    </div>
+    <div class="small">Free: per-section copy & dictation. <b>Pro</b>: “Copy ALL” + (add your own extras here: longer recording, extra hints, export, etc.).</div>
+  </section>
 
-    <!-- Step 2: Live notes -->
-    <section class="card stack">
-      <div class="row" style="justify-content:space-between;align-items:center">
-        <h3 style="margin:0;font-size:16px">Live Notes (scenario aware)</h3>
-        <div class="row small">
-          <button id="rebuild" class="pill">↻ Rebuild</button>
-        </div>
-      </div>
-      <div id="notes-list" class="stack"></div>
-    </section>
+  <div id="sections"></div>
+</main>
 
-    <!-- Step 3: Outputs -->
-    <section class="card two">
-      <div class="stack">
-        <div class="row" style="justify-content:space-between;align-items:center">
-          <h3 style="margin:0;font-size:16px">Depot paragraph (semicolon linebreaks)</h3>
-          <button id="copy-paragraph" class="pill">Copy</button>
-        </div>
-        <div id="out-paragraph" class="copybox small"></div>
-      </div>
-      <div class="stack">
-        <div class="row" style="justify-content:space-between;align-items:center">
-          <h3 style="margin:0;font-size:16px">Strict JSON (13 sections)</h3>
-          <button id="copy-json" class="pill">Copy</button>
-        </div>
-        <div id="out-json" class="copybox small"></div>
-      </div>
-    </section>
+<script>
+/* ====== PRO LICENSE (public-key verify; token in localStorage) ====== */
+/*
+ Token format (stringified JSON, then Base64URL, then signature Base64URL):
+  payload = { email, exp /* ISO datetime */, plan:"pro-v1" }
+  signature = Ed25519(payloadBytes)
+  code = base64url(payload) + "." + base64url(signature)
 
-    <section class="card small">
-      <div class="row">
-        <span class="muted">Tip: tap 🎤 then speak after the chime. If speech isn’t available, just type — everything still works.</span>
-      </div>
-    </section>
-  </main>
+ You keep the PRIVATE key offline (see gen_license.mjs). This app embeds only the PUBLIC key and verifies.
+*/
+const LICENSE_STORAGE_KEY = "depot_license_code";
 
-  <script>
-  // --- Minimal rule engine: add bullets based on scenario + options ---
-  // All bullets MUST start with "↘️ " and end with ";"
-  function bullet(t){ return "↘️ " + t.replace(/[;]+$/,"") + ";"; }
+/* Paste your PUBLIC KEY (from gen_license.mjs output) */
+const PUBLIC_KEY_JWK = {
+  // Example only; replace with your exported public JWK
+  "kty":"OKP",
+  "crv":"Ed25519",
+  "x":"REPLACE_ME_WITH_BASE64URL_X"
+};
 
-  const rules = {
-    // Scenario keys: FROM -> TO
-    "Regular (open-vented)->Combi": [
-      bullet("Converting vented system to Combi: remove/abandon F&E tank; cap/repurpose cold feed and vent; verify structural/loft access if tank removal"),
-      bullet("DHW expectations: one draw-off at a time delivers best performance; flow/temperature depends on mains; hot is not instant at outlet"),
-      bullet("Confirm mains static/dynamic pressure and flow meet Combi MI; upgrade incoming main if inadequate"),
-      bullet("Decommission cylinder and primary connections; tidy/repurpose space"),
-    ],
-    "Regular (sealed)->Combi": [
-      bullet("Converting sealed system to Combi; cylinder removal and primary reconfiguration required"),
-      bullet("DHW expectations: one draw-off at a time delivers best performance; hot is not instant at outlet"),
-      bullet("Confirm mains static/dynamic pressure and flow meet Combi MI"),
-    ],
-    "System (unvented)->Combi": [
-      bullet("Decommission unvented cylinder (G3 competent engineer); remove/blank primary connections"),
-      bullet("DHW expectations: single-draw best; mains-dependent; not instant at outlet"),
-      bullet("Confirm mains static/dynamic pressure and flow meet Combi MI"),
-    ],
-    "System (open cylinder)->Combi": [
-      bullet("Converting vented system to Combi: remove/abandon F&E tank where present"),
-      bullet("Decommission cylinder and primary connections"),
-      bullet("DHW expectations: single-draw best; mains-dependent; not instant at outlet"),
-    ],
-    "Combi->Regular (sealed)": [
-      bullet("Reintroduce cylinder and sealed primary circuit; size pump/valves per hydraulics"),
-      bullet("Set clear CH/DHW schedules on programmer and room thermostat"),
-    ],
-    "Combi->System (unvented)": [
-      bullet("Introduce unvented cylinder (G3 pack) with D2 discharge to safe termination"),
-      bullet("Confirm mains static/dynamic suitability for unvented operation"),
-    ],
-  };
+function b64uToBytes(s){ s=s.replace(/-/g,'+').replace(/_/g,'/'); const pad = s.length%4?4-(s.length%4):0; return Uint8Array.from(atob(s+"=".repeat(pad)), c=>c.charCodeAt(0)); }
+function bytesToB64u(bytes){ const s = btoa(String.fromCharCode(...bytes)); return s.replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); }
 
-  // Cross-cutting rules
-  function xrules(state){
-    const out = [];
-    // Flue logic
-    if(state.flue === "Vertical"){
-      out.push(bullet("Vertical balanced flue: verify roof access; add ladder work/roof ladder to WAH plan if required"));
-    } else {
-      if(state.boundary !== "None / Rear"){
-        out.push(bullet("Horizontal balanced flue: check boundary distances and adjacent openings to MI; add terminal guard if <2 m or accessible"));
-      } else {
-        out.push(bullet("Horizontal balanced flue on selected elevation; verify clearances to paths, windows, boundary"));
-      }
-    }
-    // Working at heights
-    if(state.wah === "Ladder (vertical flue)"){
-      out.push(bullet("Working at Heights: ladder to roof standard with linking ladders and suitable footing"));
-    }
-    if(state.wah === "Scaffold/MEWP"){
-      out.push(bullet("Working at Heights: scaffold/MEWP provision — coordinate access and lead times"));
-    }
-    // Boiler location
-    out.push(bullet(`Proposed boiler in ${state.location}; allow for condensate, PRV, and safe routing`));
-    // Extras (simple expansion)
-    if(state.extras){
-      out.push(bullet(`Extras requested: ${state.extras}`));
-    }
-    // Free-form notes captured
-    state.freeNotes.forEach(n => out.push(bullet(n)));
-    return out;
+async function importPublicKey(jwk){ return crypto.subtle.importKey("jwk", jwk, {name:"Ed25519", namedCurve:"Ed25519"}, false, ["verify"]); }
+
+async function verifyCode(code){
+  try{
+    const [p, sig] = code.split(".");
+    if(!p || !sig) return { ok:false, reason:"Bad format" };
+    const payloadBytes = b64uToBytes(p);
+    const sigBytes = b64uToBytes(sig);
+    const pub = await importPublicKey(PUBLIC_KEY_JWK);
+    const ok = await crypto.subtle.verify("Ed25519", pub, sigBytes, payloadBytes);
+    if(!ok) return { ok:false, reason:"Signature check failed" };
+    const payload = JSON.parse(new TextDecoder().decode(payloadBytes));
+    const exp = Date.parse(payload.exp||"");
+    if(!payload.email || !exp || Number.isNaN(exp)) return { ok:false, reason:"Invalid payload" };
+    const now = Date.now();
+    if(now > exp) return { ok:false, reason:"Expired", payload };
+    const daysLeft = Math.ceil((exp - now)/(1000*60*60*24));
+    return { ok:true, payload, daysLeft };
+  }catch(e){ return { ok:false, reason:e.message }; }
+}
+
+function setProUI(valid, info){
+  const badge = document.getElementById("license-badge");
+  const infoEl = document.getElementById("license-info");
+  const copyAll = document.getElementById("copy-all");
+  if(valid){
+    badge.textContent = "Pro: active"; badge.classList.add("ok"); badge.classList.remove("warn");
+    copyAll.disabled = false; copyAll.classList.add("pro");
+    infoEl.textContent = `Licensed to ${info.payload.email} • expires ${new Date(info.payload.exp).toLocaleDateString()} (${info.daysLeft}d left)`;
+    if(info.daysLeft <= 7) infoEl.textContent += " — refresh soon";
+  }else{
+    badge.textContent = "Pro: locked"; badge.classList.add("warn"); badge.classList.remove("ok");
+    copyAll.disabled = true; copyAll.classList.remove("pro");
+    infoEl.textContent = "Enter unlock code after payment.";
   }
+}
 
-  // Minimal 13-section JSON scaffold (use "↘️ None recorded;" if empty)
-  const sections = [
-    "Working at heights","Access","System characteristics","Mains & DHW","Controls",
-    "Electrics","Gas","Water & Condensate","Boiler & Location","Commissioning",
-    "Flue & Terminal","Pipework","Customer impacts"
-  ];
+async function loadLicense(){
+  const code = localStorage.getItem(LICENSE_STORAGE_KEY);
+  if(!code) return setProUI(false);
+  const res = await verifyCode(code);
+  setProUI(res.ok, res);
+}
+async function promptLicense(){
+  const code = prompt("Paste your unlock code:");
+  if(!code) return;
+  const res = await verifyCode(code.trim());
+  if(!res.ok){ alert("Invalid code: "+(res.reason||"unknown")); setProUI(false); return; }
+  localStorage.setItem(LICENSE_STORAGE_KEY, code.trim());
+  setProUI(true, res);
+}
+function clearLicense(){ localStorage.removeItem(LICENSE_STORAGE_KEY); setProUI(false); }
+document.getElementById("enter-code").onclick = promptLicense;
+document.getElementById("clear-code").onclick = clearLicense;
 
-  function build13(state, bullets){
-    const map = new Map(sections.map(s=>[s,[]]));
-    // Distribute bullets with simple routing
-    bullets.forEach(b=>{
-      if(b.includes("Working at Heights")) map.get("Working at heights").push(b);
-      else if(b.includes("DHW") || b.includes("Combi MI") || b.includes("unvented")) map.get("Mains & DHW").push(b);
-      else if(b.includes("Vertical balanced flue") || b.includes("Horizontal balanced flue") || b.includes("terminal guard")) map.get("Flue & Terminal").push(b);
-      else if(b.includes("boiler in")) map.get("Boiler & Location").push(b);
-      else if(b.includes("F&E tank") || b.includes("cylinder") || b.includes("hydraulics")) map.get("System characteristics").push(b);
-      else if(b.includes("Controls") || b.includes("schedules")) map.get("Controls").push(b);
-      else if(b.includes("condensate") || b.includes("PRV")) map.get("Water & Condensate").push(b);
-      else if(b.includes("pipe") || b.includes("primary")) map.get("Pipework").push(b);
-      else if(b.includes("Commission")) map.get("Commissioning").push(b);
-      else if(b.includes("Extras")) map.get("Customer impacts").push(b);
-      else map.get("Customer impacts").push(b);
-    });
-    // Required notes the business wants always mentioned:
-    if(state.to.includes("Combi")){
-      map.get("Mains & DHW").push(bullet("DHW expectations reiterated: single draw best; mains-dependent; hot not instant at outlet"));
-    }
-    if(state.from.includes("open-vented") && (state.to.includes("Combi") || state.to.includes("sealed"))){
-      map.get("System characteristics").push(bullet("Vented → sealed/combi: mention F&E tank removal only in this conversion"));
-    }
-    // Fill empties
-    for(const k of sections){
-      if(map.get(k).length===0) map.get(k).push(bullet("None recorded"));
-    }
-    // Return as plain object
-    const obj = {};
-    sections.forEach(s=>obj[s]=map.get(s));
-    return obj;
+/* ====== App (same core as free) ====== */
+const SECTION_DEFS = [
+  { id:"Working at heights", hints:[
+    "If vertical flue: ladder to roof standard / linking ladders",
+    "If scaffold/MEWP needed, note lead time & access",
+  ]},
+  { id:"Access", hints:[ "Parking, stairs, tight loft hatch, narrow alley" ]},
+  { id:"System characteristics", hints:[
+    "Describe conversion impact (e.g., F&E removal vented→sealed/combi)",
+    "Cylinder removal / unvented install details",
+  ]},
+  { id:"Mains & DHW", hints:[
+    "Confirm mains static/dynamic & flow vs MI",
+    "COMBI: one draw-off best; hot not instant at outlet",
+    "UNVENTED: G3 pack & D2 safe termination",
+  ]},
+  { id:"Controls", hints:[ "Programmer/room stat setup; clear CH/DHW schedules", "TRVs / load/comp where applicable" ]},
+  { id:"Electrics", hints:[ "Fused spur / supplies / bonding observations (no wiring design)" ]},
+  { id:"Gas", hints:[ "Meter location, pipe run considerations (no calcs here)" ]},
+  { id:"Water & Condensate", hints:[ "Condensate route & PRV safe termination" ]},
+  { id:"Boiler & Location", hints:[ "Proposed location and allowances" ]},
+  { id:"Commissioning", hints:[ "Flush/clean, inhibitor, filter, Benchmark & handover" ]},
+  { id:"Flue & Terminal", hints:[
+    "Horizontal: clearances; guard if <2 m or accessible",
+    "Front/boundary: consider plume/deflector",
+    "Vertical: roof access verified",
+  ]},
+  { id:"Pipework", hints:[ "Primaries adaptation; valve/pump config matches hydraulics" ]},
+  { id:"Customer impacts", hints:[ "Disruption; making good; space from cylinder removal" ]},
+];
+
+const srBadge = document.getElementById("sr-badge");
+const sectionsContainer = document.getElementById("sections");
+const sectionTextareas = new Map();
+const bullet = t => "↘️ " + t.replace(/[;]+$/,"") + ";";
+
+function el(tag, attrs={}, kids=[]){
+  const n = document.createElement(tag);
+  for (const [k,v] of Object.entries(attrs)){
+    if (k==="class") n.className=v; else if (k==="html") n.innerHTML=v; else n.setAttribute(k,v);
   }
-
-  // Speech Recognition wrapper
-  const SR = (() => {
-    const SRClass = window.SpeechRecognition || window.webkitSpeechRecognition;
-    const badge = document.getElementById("sr-badge");
-    if(!SRClass){
-      badge.textContent = "Speech: unavailable";
-      badge.classList.add("warn");
-      return null;
-    }
-    badge.textContent = "Speech: ready";
-    badge.classList.add("ok");
-    const rec = new SRClass();
-    rec.lang = "en-GB";
-    rec.interimResults = false;
-    rec.maxAlternatives = 1;
-    return rec;
-  })();
-
-  function startDictate(intoInput){
-    if(!SR) return alert("Speech unavailable here — please type.");
-    return new Promise(resolve=>{
-      SR.onresult = (e)=>{
-        const t = (e.results[0] && e.results[0][0] && e.results[0][0].transcript) || "";
-        intoInput.value = (intoInput.value ? (intoInput.value + " ") : "") + t.trim();
-        resolve(t);
-      };
-      SR.onerror = ()=>resolve("");
-      SR.onend = ()=>{};
-      try { SR.start(); } catch {}
-    });
-  }
-
-  // State
-  const state = {
-    customer:"", address:"", from:"Regular (open-vented)", to:"Combi",
-    flue:"Fanned horizontal", location:"Kitchen", boundary:"None / Rear",
-    wah:"None", extras:"", freeNotes:[]
-  };
-
-  // Wire UI
-  const $ = id => document.getElementById(id);
-  function sync(){
-    state.customer = $("customer").value.trim();
-    state.address = $("address").value.trim();
-    state.from = $("from-type").value;
-    state.to = $("to-type").value;
-    state.flue = $("flue").value;
-    state.location = $("boiler-location").value;
-    state.boundary = $("boundary").value;
-    state.wah = $("wah").value;
-    state.extras = $("extras").value.trim();
-  }
-
-  ["customer","address","from-type","to-type","flue","boiler-location","boundary","wah","extras"].forEach(id=>{
-    $(id).addEventListener("change", ()=>rebuild());
-    $(id).addEventListener("input", ()=>rebuild());
+  (Array.isArray(kids)?kids:[kids]).forEach(c=>n.appendChild(typeof c==="string"?document.createTextNode(c):c));
+  return n;
+}
+function renderSections(){
+  sectionsContainer.innerHTML = "";
+  SECTION_DEFS.forEach(def=>{
+    const hints = el("div",{class:"hint"}, def.hints.map(h=>el("div",{}, "• "+h)));
+    const ta = el("textarea",{id:"ta-"+def.id});
+    sectionTextareas.set(def.id, ta);
+    const rowBtns = el("div",{class:"row"},[
+      el("button",{class:"pill", id:"mic-"+def.id}, "🎤 Dictate"),
+      el("button",{class:"pill copy", id:"copy-"+def.id}, "Copy section"),
+    ]);
+    const card = el("section",{class:"card section"},[
+      el("div",{class:"label"},def.id),hints,ta,rowBtns
+    ]);
+    sectionsContainer.appendChild(card);
+    rowBtns.querySelector("#copy-"+CSS.escape(def.id)).onclick = ()=>{
+      const text = ta.value.trim();
+      const ready = text.split(/\n+/).map(s=>s.trim()).filter(Boolean).map(bullet).join(" ");
+      copyText(ready);
+    };
+    rowBtns.querySelector("#mic-"+CSS.escape(def.id)).onclick = ()=>dictateWebSpeech(ta);
   });
+}
+renderSections();
 
-  $("mic-customer").onclick = ()=>startDictate($("customer")).then(rebuild);
-  $("mic-address").onclick = ()=>startDictate($("address")).then(rebuild);
-  $("mic-extras").onclick = ()=>startDictate($("extras")).then(rebuild);
-  $("mic-free").onclick = async ()=>{
-    const temp = document.createElement("input");
-    temp.style.position="absolute"; temp.style.left="-9999px";
-    document.body.appendChild(temp);
-    await startDictate(temp);
-    const t = temp.value.trim();
-    document.body.removeChild(temp);
-    if(t) { state.freeNotes.push(t); rebuild(); }
-  };
-  $("add-free").onclick = ()=>{
-    const t = prompt("Add a free-form note:");
-    if(t) { state.freeNotes.push(t.trim()); rebuild(); }
-  };
-  $("rebuild").onclick = rebuild;
+/* Copy ALL (Pro-gated) */
+document.getElementById("copy-all").onclick = ()=>{
+  const btn = document.getElementById("copy-all");
+  if(btn.disabled){ alert("Copy ALL is a Pro feature. Enter your unlock code."); return; }
+  const lines = [];
+  SECTION_DEFS.forEach(def=>{
+    const t = (sectionTextareas.get(def.id).value||"")
+      .split(/\n+/).map(s=>s.trim()).filter(Boolean)
+      .map(bullet);
+    lines.push(...t);
+  });
+  copyText(lines.join(" "));
+};
+function copyText(text){
+  const d = document.createElement("textarea");
+  d.value = text; document.body.appendChild(d); d.select();
+  document.execCommand("copy"); document.body.removeChild(d);
+}
 
-  function scenarioKey(from,to){ return `${from}->${to}`; }
-
-  function rebuild(){
-    sync();
-    // Base scenario bullets
-    const base = rules[scenarioKey(state.from,state.to)] || [bullet("Scenario requires surveyor judgement; confirm hydraulics and DHW expectations")];
-    // Cross-cutting
-    const cross = xrules(state);
-    // Boundary emphasis
-    if(state.boundary === "Front elevation" || state.boundary === "Close to boundary" || state.boundary === "Pathway/door/windows nearby"){
-      cross.push(bullet("plume management/deflector if discharge affects paths, windows, or boundary"));
+/* Nudges (same as free) */
+function pushIfEmpty(id, txts){ const ta=sectionTextareas.get(id); if(!ta.value.trim()) ta.value = txts.map(bullet).join("\n"); }
+["scenario","flue","elevation"].forEach(id=>{
+  document.getElementById(id).addEventListener("change", ()=>{
+    const scen = document.getElementById("scenario").value;
+    const flue = document.getElementById("flue").value;
+    const elev = document.getElementById("elevation").value;
+    if(/→ COMBI/.test(scen)){
+      pushIfEmpty("Mains & DHW",[
+        "DHW expectations: single draw-off best; mains-dependent; hot not instant at outlet",
+        "Confirm mains static/dynamic pressure & flow meet MI"
+      ]);
     }
-    const all = [...base, ...cross];
-    renderNotes(all);
-    renderParagraph(all);
-    renderJSON(build13(state, all));
-  }
+    if(/REGULAR \(open\) →/.test(scen)){
+      pushIfEmpty("System characteristics",[ "Vented → sealed/combi: remove/abandon F&E; cap/repurpose cold feed & vent" ]);
+    }
+    if(/UNVENTED/.test(scen)){
+      pushIfEmpty("Mains & DHW",[ "Unvented: G3 pack; D2 discharge to safe termination; verify mains suitability" ]);
+    }
+    if(flue==="Vertical"){
+      pushIfEmpty("Flue & Terminal",[ "Vertical balanced flue: verify roof access; add WAH plan as needed" ]);
+    } else {
+      const extra = (elev!=="Rear / clear")?["Add terminal guard if <2 m or accessible","Consider plume management/deflector near paths, doors, windows, boundary"]:[];
+      pushIfEmpty("Flue & Terminal",[ "Horizontal balanced flue: verify clearances to openings and boundary", ...extra ]);
+    }
+  });
+});
 
-  function renderNotes(list){
-    const box = $("notes-list");
-    box.innerHTML = "";
-    list.forEach(line=>{
-      const div = document.createElement("div");
-      div.textContent = line;
-      box.appendChild(div);
-    });
+/* Web Speech API */
+const SRClass = window.SpeechRecognition || window.webkitSpeechRecognition;
+let SR = null;
+(function initSR(){
+  if(SRClass){
+    SR = new SRClass();
+    SR.lang = "en-GB";
+    SR.interimResults = false;
+    SR.maxAlternatives = 1;
+    srBadge.textContent = "Speech: ready"; srBadge.classList.add("ok");
+  }else{
+    srBadge.textContent = "Speech: unavailable"; srBadge.classList.add("warn");
   }
+})();
+function dictateWebSpeech(into){
+  return new Promise(resolve=>{
+    if(!SR) { alert("Browser speech not available."); return resolve(""); }
+    SR.onresult = (e)=>{
+      const t = e.results?.[0]?.[0]?.transcript || "";
+      into.value = (into.value? into.value+"\n":"") + t.trim();
+      resolve(t);
+    };
+    SR.onerror = ()=>resolve("");
+    try{ SR.start(); } catch { resolve(""); }
+  });
+}
 
-  function renderParagraph(list){
-    const text = list.join(" ").replace(/\s*;+/g,"; ");
-    $("out-paragraph").textContent = text;
-  }
-
-  function renderJSON(obj){
-    $("out-json").textContent = JSON.stringify(obj, null, 2);
-  }
-
-  // Copy buttons
-  function copyText(el){
-    const r = document.createRange();
-    r.selectNodeContents(el);
-    const sel = window.getSelection();
-    sel.removeAllRanges(); sel.addRange(r);
-    document.execCommand("copy");
-    sel.removeAllRanges();
-  }
-  $("copy-paragraph").onclick = ()=>copyText($("out-paragraph"));
-  $("copy-json").onclick = ()=>copyText($("out-json"));
-
-  // Initial render
-  rebuild();
-  </script>
+/* Boot */
+loadLicense();
+</script>
 </body>
 </html>

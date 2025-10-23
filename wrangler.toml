@@ -1,0 +1,9 @@
+name = "depot-transcribe"
+main = "src/worker.js"
+compatibility_date = "2024-11-08"
+
+[vars]
+ALLOWED_ORIGIN = "https://YOUR-DOMAIN.example"
+PUBLIC_KEY_JWK_X = "REPLACE_WITH_PUBLIC_KEY_X"
+# Optional: comma separate additional origins for testing, e.g.
+# ALLOWED_ORIGIN = "https://YOUR-DOMAIN.example,https://your-pages.github.io"

@@ -1,66 +1,51 @@
 /*
-Generate signed unlock codes (run locally):
+Usage:
+  node gen_license.mjs keygen
   node gen_license.mjs issue --email user@example.com --days 30
 
-First run once to create keys:
-  node gen_license.mjs keygen
-
-It writes:
-  private_key.jwk (keep secret) and public_key.jwk (paste x into index.html PUBLIC_KEY_JWK.x)
+Outputs:
+  - keygen: private_key.jwk (KEEP SECRET), public_key.jwk (share x in app)
+  - issue : prints CODE: <payloadB64u>.<sigB64u>
+Paste the public_key.jwk.x into index.html (PUBLIC_KEY_JWK.x).
 */
 import { readFileSync, writeFileSync, existsSync } from "fs";
-import { webcrypto } from "crypto";
+import { webcrypto as crypto } from "crypto";
+const { subtle } = crypto;
 
-const { subtle } = webcrypto;
-
-function b64u(bytes){
-  const buf = Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes);
-  return buf.toString("base64").replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/g,"");
+function b64u(buf) {
+  const s = Buffer.from(buf).toString("base64");
+  return s.replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
 }
 
-const args = process.argv.slice(2);
-const cmd = args[0];
+const cmd = process.argv[2];
 
-function usage(){
-  console.log("Usage:\n  node gen_license.mjs keygen\n  node gen_license.mjs issue --email user@example.com --days 30");
-}
-
-function getArgValue(flag){
-  const idx = args.indexOf(flag);
-  if(idx === -1 || idx === args.length - 1) return null;
-  return args[idx + 1];
-}
-
-if(cmd === "keygen"){
-  const key = await subtle.generateKey({ name: "Ed25519", namedCurve:"Ed25519" }, true, ["sign","verify"]);
+if (cmd === "keygen") {
+  const key = await subtle.generateKey({ name: "Ed25519" }, true, ["sign","verify"]);
   const priv = await subtle.exportKey("jwk", key.privateKey);
   const pub  = await subtle.exportKey("jwk", key.publicKey);
   writeFileSync("private_key.jwk", JSON.stringify(priv,null,2));
   writeFileSync("public_key.jwk", JSON.stringify(pub,null,2));
   console.log("Wrote private_key.jwk and public_key.jwk");
-  console.log("Public key x:", pub.x);
   process.exit(0);
 }
 
-if(cmd === "issue"){
-  const email = getArgValue("--email");
-  const daysVal = getArgValue("--days");
-  const parsedDays = daysVal === null ? NaN : Number.parseInt(daysVal ?? "", 10);
-  const days = Number.isFinite(parsedDays) ? parsedDays : 30;
-  if(!email){ console.error("Missing --email"); process.exit(1); }
-  if(!existsSync("private_key.jwk")){ console.error("Run keygen first."); process.exit(1); }
+if (cmd === "issue") {
+  const iEmail = process.argv.indexOf("--email");
+  const iDays  = process.argv.indexOf("--days");
+  const email  = iEmail > -1 ? process.argv[iEmail+1] : null;
+  const days   = iDays  > -1 ? parseInt(process.argv[iDays+1]||"30",10) : 30;
+  if (!email) { console.error("Missing --email"); process.exit(1); }
+  if (!existsSync("private_key.jwk")) { console.error("Run keygen first."); process.exit(1); }
   const jwk = JSON.parse(readFileSync("private_key.jwk","utf8"));
-  const key = await subtle.importKey("jwk", jwk, { name:"Ed25519", namedCurve:"Ed25519" }, false, ["sign"]);
-  const exp = new Date(Date.now()+days*24*60*60*1000).toISOString();
-  const payload = { email, exp, plan:"pro-v1" };
+  const key = await subtle.importKey("jwk", jwk, { name: "Ed25519" }, false, ["sign"]);
+  const exp = new Date(Date.now() + days*24*60*60*1000).toISOString();
+  const payload = { email, exp, plan: "pro-v1" };
   const payloadBytes = Buffer.from(JSON.stringify(payload));
-  const sigBuf = Buffer.from(await subtle.sign("Ed25519", key, payloadBytes));
-  const code = b64u(payloadBytes) + "." + b64u(sigBuf);
+  const sig = new Uint8Array(await subtle.sign("Ed25519", key, payloadBytes));
+  const code = `${b64u(payloadBytes)}.${b64u(sig)}`;
   console.log("CODE:", code);
-  console.log("Expires:", exp);
-  console.log("Public key x:", jwk.x);
-  console.log("Paste PUBLIC x into index.html PUBLIC_KEY_JWK.x and wrangler PUBLIC_KEY_JWK_X");
+  console.log("Reminder: paste public_key.jwk.x into PUBLIC_KEY_JWK.x in index.html");
   process.exit(0);
 }
 
-usage();
+console.log("Usage:\n  node gen_license.mjs keygen\n  node gen_license.mjs issue --email user@example.com --days 30");

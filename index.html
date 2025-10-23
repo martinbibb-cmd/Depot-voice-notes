@@ -1,37 +1,166 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Depot Dictation Notes (Pro-ready)</title>
-<style>
-  :root{--bg:#0b0d10;--card:#11151a;--line:#22303d;--txt:#e8eaed}
-  *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--txt);font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
-  header{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--line);background:var(--card)}
-  h1{margin:0;font-size:18px}
-  main{max-width:1100px;margin:0 auto;padding:16px;display:grid;gap:16px}
-  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
-  .section{display:grid;gap:10px}
-  .hint{font-size:12px;opacity:.85}
-  textarea{width:100%;min-height:120px;background:#0a0e13;border:1px solid var(--line);border-radius:10px;color:var(--txt);padding:10px;font-size:15px;resize:vertical}
-  button,input,select{font-size:14px;border-radius:10px;border:1px solid var(--line);background:#0a0e13;color:var(--txt);padding:8px 10px;cursor:pointer}
-  .pill{border-radius:999px}
-  .copy{border-style:dashed}
-  .badge{font-size:12px;border:1px solid var(--line);padding:2px 8px;border-radius:999px}
-  .ok{border-color:#2e7d32}
-  .warn{border-color:#b28704}
-  .label{font-weight:600}
-  .small{font-size:12px;opacity:.75}
-  .pro{border-color:#2e7d32}
-</style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Depot Dictation Notes (Free + Pro)</title>
+  <style>
+    :root {
+      --bg: #090c10;
+      --card: #10161d;
+      --line: #1f2b37;
+      --txt: #e8eaed;
+      --accent: #2e7d32;
+      --warn: #f9a825;
+      --error: #ef5350;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--txt);
+      font-family: "Inter", system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+    }
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--line);
+      background: var(--card);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    h1 {
+      margin: 0;
+      font-size: 18px;
+      letter-spacing: 0.02em;
+    }
+    main {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 18px 16px 48px;
+      display: grid;
+      gap: 18px;
+    }
+    .row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 16px;
+      display: grid;
+      gap: 10px;
+    }
+    .section {
+      gap: 12px;
+    }
+    .hint {
+      font-size: 12px;
+      opacity: 0.85;
+      display: grid;
+      gap: 4px;
+    }
+    textarea {
+      width: 100%;
+      min-height: 130px;
+      background: #0a0f14;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      color: var(--txt);
+      padding: 10px 12px;
+      font-size: 15px;
+      line-height: 1.4;
+      resize: vertical;
+      transition: border 0.2s;
+    }
+    textarea:focus {
+      outline: none;
+      border-color: #2a3f52;
+      box-shadow: 0 0 0 1px #2a3f52;
+    }
+    button, input, select, a.button-link {
+      font-size: 14px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: #0a0f14;
+      color: var(--txt);
+      padding: 8px 14px;
+      cursor: pointer;
+      transition: border 0.2s, background 0.2s, color 0.2s;
+    }
+    button:hover, select:hover, a.button-link:hover {
+      border-color: #375a75;
+    }
+    button:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+    .pill { border-radius: 999px; }
+    .copy { border-style: dashed; }
+    .badge {
+      font-size: 12px;
+      border: 1px solid var(--line);
+      padding: 2px 10px;
+      border-radius: 999px;
+      background: rgba(15, 22, 30, 0.9);
+    }
+    .badge.ok { border-color: var(--accent); color: var(--accent); }
+    .badge.warn { border-color: var(--warn); color: var(--warn); }
+    .badge.error { border-color: var(--error); color: var(--error); }
+    .label { font-weight: 600; }
+    .small { font-size: 12px; opacity: 0.78; }
+    a.button-link {
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    a.button-link svg {
+      width: 14px;
+      height: 14px;
+      fill: currentColor;
+    }
+    #pro-status {
+      min-height: 18px;
+      font-size: 13px;
+    }
+    #pro-status[data-state="ok"] { color: var(--accent); }
+    #pro-status[data-state="recording"] { color: var(--warn); }
+    #pro-status[data-state="error"] { color: var(--error); }
+    .pro-btn.recording {
+      border-color: var(--warn);
+      background: rgba(249, 168, 37, 0.12);
+      color: var(--warn);
+    }
+    .pro-btn.active {
+      border-color: var(--accent);
+    }
+    @media (max-width: 700px) {
+      header { flex-direction: column; align-items: flex-start; gap: 12px; }
+      main { padding: 16px 12px 40px; }
+      textarea { min-height: 150px; }
+    }
+  </style>
 </head>
 <body>
 <header>
-  <h1>Depot Dictation Notes</h1>
+  <div class="row">
+    <h1>Depot Dictation Notes</h1>
+    <a id="buy-pro" class="button-link" href="#" target="_blank" rel="noopener">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l3 7h7l-5.5 4.1L18 21l-6-3.8L6 21l1.5-7.9L2 9h7z"/></svg>
+      Buy Pro
+    </a>
+  </div>
   <div class="row small">
-    <span id="license-badge" class="badge">Pro: locked</span>
-    <span id="sr-badge" class="badge">Speech: checking…</span>
+    <span id="license-badge" class="badge warn">Pro: locked</span>
+    <span id="sr-badge" class="badge warn">Speech: checking…</span>
   </div>
 </header>
 
@@ -39,20 +168,21 @@
   <!-- Pro / License panel -->
   <section class="card">
     <div class="row">
-      <button id="enter-code" class="pill">Enter/Refresh Unlock Code</button>
+      <button id="enter-code" class="pill">Enter / Refresh Unlock Code</button>
       <button id="clear-code" class="pill">Clear Code</button>
-      <span id="license-info" class="small"></span>
+      <span id="license-info" class="small">Enter unlock code after payment.</span>
     </div>
     <div class="small">
-      After payment, you’ll receive a code to paste here. Codes are tied to your email and expire periodically.
+      After payment you’ll receive a signed code. Paste it here to enable Pro features (cloud transcription + “Copy ALL”).
     </div>
+    <div id="pro-status" class="small" data-state="">Pro transcription limited to 20 seconds per clip.</div>
   </section>
 
   <!-- Basics -->
   <section class="card">
     <div class="row">
       <span class="label">Customer</span>
-      <input id="customer" placeholder="Name / site (optional)" style="min-width:260px"/>
+      <input id="customer" placeholder="Name / site (optional)" style="min-width:260px" />
     </div>
     <div class="row">
       <span class="label">Scenario</span>
@@ -66,242 +196,465 @@
         <option>Like-for-like</option>
       </select>
       <span class="label">Flue</span>
-      <select id="flue"><option>Fanned horizontal</option><option>Vertical</option></select>
+      <select id="flue">
+        <option>Fanned horizontal</option>
+        <option>Vertical</option>
+      </select>
       <span class="label">Elevation</span>
       <select id="elevation">
-        <option>Rear / clear</option><option>Front elevation</option>
-        <option>Close to boundary</option><option>Near doors/windows/path</option>
+        <option>Rear / clear</option>
+        <option>Front elevation</option>
+        <option>Close to boundary</option>
+        <option>Near doors/windows/path</option>
       </select>
       <button id="copy-all" class="pill copy" disabled>Copy ALL (Pro)</button>
     </div>
-    <div class="small">Free: per-section copy & dictation. <b>Pro</b>: “Copy ALL” + (add your own extras here: longer recording, extra hints, export, etc.).</div>
+    <div class="small">
+      Free: per-section copy + browser dictation. <strong>Pro</strong>: Copy ALL & Cloudflare Worker transcription (20 s limit).
+    </div>
   </section>
 
   <div id="sections"></div>
 </main>
 
 <script>
-/* ====== PRO LICENSE (public-key verify; token in localStorage) ====== */
-/*
- Token format (stringified JSON, then Base64URL, then signature Base64URL):
-  payload = { email, exp /* ISO datetime */, plan:"pro-v1" }
-  signature = Ed25519(payloadBytes)
-  code = base64url(payload) + "." + base64url(signature)
-
- You keep the PRIVATE key offline (see gen_license.mjs). This app embeds only the PUBLIC key and verifies.
-*/
+/* ====== CONFIG ====== */
 const LICENSE_STORAGE_KEY = "depot_license_code";
+const PRO_MAX_SECONDS = 20;
 
-/* Paste your PUBLIC KEY (from gen_license.mjs output) */
+/* Cloudflare Worker base URL (leave empty if hosting worker on same origin) */
+const CLOUDFLARE_BASE = ""; // e.g. "https://depot-transcribe.your-worker.workers.dev"
+const WORKER_ENDPOINT = (CLOUDFLARE_BASE ? CLOUDFLARE_BASE.replace(/\/$/, "") : "") + "/transcribe";
+
+/* Paste your PUBLIC KEY (from gen_license.mjs public_key.jwk.x) */
 const PUBLIC_KEY_JWK = {
-  // Example only; replace with your exported public JWK
-  "kty":"OKP",
-  "crv":"Ed25519",
-  "x":"REPLACE_ME_WITH_BASE64URL_X"
+  kty: "OKP",
+  crv: "Ed25519",
+  x: "REPLACE_ME_WITH_BASE64URL_X"
 };
 
-function b64uToBytes(s){ s=s.replace(/-/g,'+').replace(/_/g,'/'); const pad = s.length%4?4-(s.length%4):0; return Uint8Array.from(atob(s+"=".repeat(pad)), c=>c.charCodeAt(0)); }
-function bytesToB64u(bytes){ const s = btoa(String.fromCharCode(...bytes)); return s.replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); }
-
-async function importPublicKey(jwk){ return crypto.subtle.importKey("jwk", jwk, {name:"Ed25519", namedCurve:"Ed25519"}, false, ["verify"]); }
-
-async function verifyCode(code){
-  try{
-    const [p, sig] = code.split(".");
-    if(!p || !sig) return { ok:false, reason:"Bad format" };
-    const payloadBytes = b64uToBytes(p);
-    const sigBytes = b64uToBytes(sig);
-    const pub = await importPublicKey(PUBLIC_KEY_JWK);
-    const ok = await crypto.subtle.verify("Ed25519", pub, sigBytes, payloadBytes);
-    if(!ok) return { ok:false, reason:"Signature check failed" };
-    const payload = JSON.parse(new TextDecoder().decode(payloadBytes));
-    const exp = Date.parse(payload.exp||"");
-    if(!payload.email || !exp || Number.isNaN(exp)) return { ok:false, reason:"Invalid payload" };
-    const now = Date.now();
-    if(now > exp) return { ok:false, reason:"Expired", payload };
-    const daysLeft = Math.ceil((exp - now)/(1000*60*60*24));
-    return { ok:true, payload, daysLeft };
-  }catch(e){ return { ok:false, reason:e.message }; }
+/* Optional: set your payment URL */
+const BUY_PRO_URL = "#";
+if (BUY_PRO_URL && BUY_PRO_URL !== "#") {
+  document.getElementById("buy-pro").href = BUY_PRO_URL;
 }
 
-function setProUI(valid, info){
-  const badge = document.getElementById("license-badge");
-  const infoEl = document.getElementById("license-info");
-  const copyAll = document.getElementById("copy-all");
-  if(valid){
-    badge.textContent = "Pro: active"; badge.classList.add("ok"); badge.classList.remove("warn");
-    copyAll.disabled = false; copyAll.classList.add("pro");
-    infoEl.textContent = `Licensed to ${info.payload.email} • expires ${new Date(info.payload.exp).toLocaleDateString()} (${info.daysLeft}d left)`;
-    if(info.daysLeft <= 7) infoEl.textContent += " — refresh soon";
-  }else{
-    badge.textContent = "Pro: locked"; badge.classList.add("warn"); badge.classList.remove("ok");
-    copyAll.disabled = true; copyAll.classList.remove("pro");
-    infoEl.textContent = "Enter unlock code after payment.";
+/* ====== LICENSE HELPERS ====== */
+function b64uToBytes(s) {
+  s = s.replace(/-/g, "+").replace(/_/g, "/");
+  const pad = s.length % 4 ? 4 - (s.length % 4) : 0;
+  const str = atob(s + "=".repeat(pad));
+  return Uint8Array.from(str, c => c.charCodeAt(0));
+}
+
+async function importPublicKey(jwk) {
+  return crypto.subtle.importKey("jwk", jwk, { name: "Ed25519", namedCurve: "Ed25519" }, false, ["verify"]);
+}
+
+async function verifyCode(code) {
+  try {
+    const [payloadPart, sigPart] = code.split(".");
+    if (!payloadPart || !sigPart) return { ok: false, reason: "Bad format" };
+    const payloadBytes = b64uToBytes(payloadPart);
+    const sigBytes = b64uToBytes(sigPart);
+    const key = await importPublicKey(PUBLIC_KEY_JWK);
+    const ok = await crypto.subtle.verify("Ed25519", key, sigBytes, payloadBytes);
+    if (!ok) return { ok: false, reason: "Signature check failed" };
+    const payload = JSON.parse(new TextDecoder().decode(payloadBytes));
+    if (!payload?.email || !payload?.exp) return { ok: false, reason: "Invalid payload" };
+    const exp = Date.parse(payload.exp);
+    if (!Number.isFinite(exp)) return { ok: false, reason: "Invalid expiry", payload };
+    const now = Date.now();
+    if (now > exp) return { ok: false, reason: "Expired", payload };
+    const daysLeft = Math.max(0, Math.ceil((exp - now) / (1000 * 60 * 60 * 24)));
+    return { ok: true, payload, daysLeft };
+  } catch (err) {
+    return { ok: false, reason: err.message };
   }
 }
 
-async function loadLicense(){
-  const code = localStorage.getItem(LICENSE_STORAGE_KEY);
-  if(!code) return setProUI(false);
-  const res = await verifyCode(code);
-  setProUI(res.ok, res);
-}
-async function promptLicense(){
-  const code = prompt("Paste your unlock code:");
-  if(!code) return;
-  const res = await verifyCode(code.trim());
-  if(!res.ok){ alert("Invalid code: "+(res.reason||"unknown")); setProUI(false); return; }
-  localStorage.setItem(LICENSE_STORAGE_KEY, code.trim());
-  setProUI(true, res);
-}
-function clearLicense(){ localStorage.removeItem(LICENSE_STORAGE_KEY); setProUI(false); }
-document.getElementById("enter-code").onclick = promptLicense;
-document.getElementById("clear-code").onclick = clearLicense;
+const proStatusEl = document.getElementById("pro-status");
+const licenseBadge = document.getElementById("license-badge");
+const licenseInfo = document.getElementById("license-info");
+const copyAllBtn = document.getElementById("copy-all");
+const licenseState = { active: false, payload: null, daysLeft: 0 };
 
-/* ====== App (same core as free) ====== */
+function setProStatus(message, state = "") {
+  proStatusEl.textContent = message || "";
+  if (state) {
+    proStatusEl.dataset.state = state;
+  } else {
+    proStatusEl.removeAttribute("data-state");
+  }
+}
+
+function updateProButtons() {
+  document.querySelectorAll(".pro-btn").forEach(btn => {
+    btn.disabled = !licenseState.active;
+    btn.classList.toggle("active", licenseState.active && !btn.disabled);
+  });
+}
+
+function setProUI(valid, info) {
+  licenseState.active = Boolean(valid && info);
+  licenseState.payload = valid ? info.payload : null;
+  licenseState.daysLeft = valid ? info.daysLeft : 0;
+  if (licenseState.active) {
+    licenseBadge.textContent = "Pro: active";
+    licenseBadge.classList.add("ok");
+    licenseBadge.classList.remove("warn", "error");
+    copyAllBtn.disabled = false;
+    copyAllBtn.classList.add("active");
+    const expiryText = new Date(info.payload.exp).toLocaleDateString();
+    licenseInfo.textContent = `Licensed to ${info.payload.email} • expires ${expiryText} (${info.daysLeft} days left)`;
+    if (info.daysLeft <= 7) {
+      licenseInfo.textContent += " — refresh soon";
+      licenseBadge.classList.add("warn");
+    }
+    setProStatus("Pro transcription ready. Clips are capped at 20 seconds.", "ok");
+  } else {
+    licenseBadge.textContent = "Pro: locked";
+    licenseBadge.classList.add("warn");
+    licenseBadge.classList.remove("ok", "error");
+    copyAllBtn.disabled = true;
+    copyAllBtn.classList.remove("active");
+    licenseInfo.textContent = "Enter unlock code after payment.";
+    setProStatus("Pro transcription limited to 20 seconds per clip.");
+  }
+  updateProButtons();
+}
+
+async function loadLicense() {
+  const stored = localStorage.getItem(LICENSE_STORAGE_KEY);
+  if (!stored) {
+    setProUI(false);
+    return;
+  }
+  const result = await verifyCode(stored);
+  if (!result.ok) {
+    setProUI(false);
+    setProStatus(`Stored code invalid: ${result.reason || "unknown"}`, "error");
+    return;
+  }
+  setProUI(true, result);
+}
+
+async function promptLicense() {
+  const code = prompt("Paste your unlock code:");
+  if (!code) return;
+  const trimmed = code.trim();
+  const result = await verifyCode(trimmed);
+  if (!result.ok) {
+    alert("Invalid code: " + (result.reason || "Unknown error"));
+    setProUI(false);
+    setProStatus("Unlock failed. Double-check the code.", "error");
+    return;
+  }
+  localStorage.setItem(LICENSE_STORAGE_KEY, trimmed);
+  setProUI(true, result);
+}
+
+function clearLicense() {
+  localStorage.removeItem(LICENSE_STORAGE_KEY);
+  setProUI(false);
+}
+
+document.getElementById("enter-code").onclick = promptLicense;
+document.getElementById("clear-code").onclick = () => {
+  clearLicense();
+  setProStatus("Pro cleared. Re-enter code to unlock.", "warn");
+};
+
+/* ====== APP CONTENT ====== */
 const SECTION_DEFS = [
-  { id:"Working at heights", hints:[
+  { id: "Working at heights", hints: [
     "If vertical flue: ladder to roof standard / linking ladders",
-    "If scaffold/MEWP needed, note lead time & access",
-  ]},
-  { id:"Access", hints:[ "Parking, stairs, tight loft hatch, narrow alley" ]},
-  { id:"System characteristics", hints:[
+    "If scaffold/MEWP needed, note lead time & access"
+  ] },
+  { id: "Access", hints: ["Parking, stairs, tight loft hatch, narrow alley"] },
+  { id: "System characteristics", hints: [
     "Describe conversion impact (e.g., F&E removal vented→sealed/combi)",
-    "Cylinder removal / unvented install details",
-  ]},
-  { id:"Mains & DHW", hints:[
+    "Cylinder removal / unvented install details"
+  ] },
+  { id: "Mains & DHW", hints: [
     "Confirm mains static/dynamic & flow vs MI",
     "COMBI: one draw-off best; hot not instant at outlet",
-    "UNVENTED: G3 pack & D2 safe termination",
-  ]},
-  { id:"Controls", hints:[ "Programmer/room stat setup; clear CH/DHW schedules", "TRVs / load/comp where applicable" ]},
-  { id:"Electrics", hints:[ "Fused spur / supplies / bonding observations (no wiring design)" ]},
-  { id:"Gas", hints:[ "Meter location, pipe run considerations (no calcs here)" ]},
-  { id:"Water & Condensate", hints:[ "Condensate route & PRV safe termination" ]},
-  { id:"Boiler & Location", hints:[ "Proposed location and allowances" ]},
-  { id:"Commissioning", hints:[ "Flush/clean, inhibitor, filter, Benchmark & handover" ]},
-  { id:"Flue & Terminal", hints:[
+    "UNVENTED: G3 pack & D2 safe termination"
+  ] },
+  { id: "Controls", hints: [
+    "Programmer/room stat setup; clear CH/DHW schedules",
+    "TRVs / load/comp where applicable"
+  ] },
+  { id: "Electrics", hints: ["Fused spur / supplies / bonding observations (no wiring design)"] },
+  { id: "Gas", hints: ["Meter location, pipe run considerations (no calcs here)"] },
+  { id: "Water & Condensate", hints: ["Condensate route & PRV safe termination"] },
+  { id: "Boiler & Location", hints: ["Proposed location and allowances"] },
+  { id: "Commissioning", hints: ["Flush/clean, inhibitor, filter, Benchmark & handover"] },
+  { id: "Flue & Terminal", hints: [
     "Horizontal: clearances; guard if <2 m or accessible",
     "Front/boundary: consider plume/deflector",
-    "Vertical: roof access verified",
-  ]},
-  { id:"Pipework", hints:[ "Primaries adaptation; valve/pump config matches hydraulics" ]},
-  { id:"Customer impacts", hints:[ "Disruption; making good; space from cylinder removal" ]},
+    "Vertical: roof access verified"
+  ] },
+  { id: "Pipework", hints: ["Primaries adaptation; valve/pump config matches hydraulics"] },
+  { id: "Customer impacts", hints: ["Disruption; making good; space from cylinder removal"] }
 ];
 
 const srBadge = document.getElementById("sr-badge");
 const sectionsContainer = document.getElementById("sections");
 const sectionTextareas = new Map();
-const bullet = t => "↘️ " + t.replace(/[;]+$/,"") + ";";
+const bullet = t => "↘️ " + t.replace(/[;]+$/, "") + ";";
 
-function el(tag, attrs={}, kids=[]){
-  const n = document.createElement(tag);
-  for (const [k,v] of Object.entries(attrs)){
-    if (k==="class") n.className=v; else if (k==="html") n.innerHTML=v; else n.setAttribute(k,v);
-  }
-  (Array.isArray(kids)?kids:[kids]).forEach(c=>n.appendChild(typeof c==="string"?document.createTextNode(c):c));
-  return n;
-}
-function renderSections(){
-  sectionsContainer.innerHTML = "";
-  SECTION_DEFS.forEach(def=>{
-    const hints = el("div",{class:"hint"}, def.hints.map(h=>el("div",{}, "• "+h)));
-    const ta = el("textarea",{id:"ta-"+def.id});
-    sectionTextareas.set(def.id, ta);
-    const rowBtns = el("div",{class:"row"},[
-      el("button",{class:"pill", id:"mic-"+def.id}, "🎤 Dictate"),
-      el("button",{class:"pill copy", id:"copy-"+def.id}, "Copy section"),
-    ]);
-    const card = el("section",{class:"card section"},[
-      el("div",{class:"label"},def.id),hints,ta,rowBtns
-    ]);
-    sectionsContainer.appendChild(card);
-    rowBtns.querySelector("#copy-"+CSS.escape(def.id)).onclick = ()=>{
-      const text = ta.value.trim();
-      const ready = text.split(/\n+/).map(s=>s.trim()).filter(Boolean).map(bullet).join(" ");
-      copyText(ready);
-    };
-    rowBtns.querySelector("#mic-"+CSS.escape(def.id)).onclick = ()=>dictateWebSpeech(ta);
+function el(tag, attrs = {}, children = []) {
+  const node = document.createElement(tag);
+  Object.entries(attrs).forEach(([key, value]) => {
+    if (key === "class") node.className = value;
+    else if (key === "html") node.innerHTML = value;
+    else node.setAttribute(key, value);
   });
+  (Array.isArray(children) ? children : [children]).forEach(child => {
+    if (child == null) return;
+    node.appendChild(typeof child === "string" ? document.createTextNode(child) : child);
+  });
+  return node;
 }
+
+function renderSections() {
+  sectionsContainer.innerHTML = "";
+  SECTION_DEFS.forEach(def => {
+    const hints = el("div", { class: "hint" }, def.hints.map(h => el("div", {}, "• " + h)));
+    const textarea = el("textarea", { id: "ta-" + def.id });
+    sectionTextareas.set(def.id, textarea);
+
+    const dictBtn = el("button", { class: "pill", id: "mic-" + def.id }, "🎤 Dictate");
+    const copyBtn = el("button", { class: "pill copy", id: "copy-" + def.id }, "Copy section");
+    const proBtn = el("button", { class: "pill pro-btn", id: "pro-" + def.id, disabled: true }, "Pro transcribe (20s)");
+
+    dictBtn.onclick = () => dictateWebSpeech(textarea);
+    copyBtn.onclick = () => {
+      const text = textarea.value.trim();
+      const ready = text.split(/\n+/).map(s => s.trim()).filter(Boolean).map(bullet).join(" ");
+      copyText(ready || "");
+    };
+    proBtn.onclick = () => handleProTranscribe(def.id, proBtn);
+
+    const buttonRow = el("div", { class: "row" }, [dictBtn, copyBtn, proBtn]);
+    const card = el("section", { class: "card section" }, [
+      el("div", { class: "label" }, def.id),
+      hints,
+      textarea,
+      buttonRow
+    ]);
+
+    sectionsContainer.appendChild(card);
+  });
+  updateProButtons();
+}
+
 renderSections();
 
-/* Copy ALL (Pro-gated) */
-document.getElementById("copy-all").onclick = ()=>{
-  const btn = document.getElementById("copy-all");
-  if(btn.disabled){ alert("Copy ALL is a Pro feature. Enter your unlock code."); return; }
+/* ====== COPY ALL (Pro) ====== */
+document.getElementById("copy-all").onclick = () => {
+  if (!licenseState.active) {
+    alert("Copy ALL is a Pro feature. Enter your unlock code first.");
+    return;
+  }
   const lines = [];
-  SECTION_DEFS.forEach(def=>{
-    const t = (sectionTextareas.get(def.id).value||"")
-      .split(/\n+/).map(s=>s.trim()).filter(Boolean)
-      .map(bullet);
-    lines.push(...t);
+  SECTION_DEFS.forEach(def => {
+    const ta = sectionTextareas.get(def.id);
+    const text = (ta.value || "").split(/\n+/).map(s => s.trim()).filter(Boolean).map(bullet);
+    lines.push(...text);
   });
   copyText(lines.join(" "));
+  setProStatus("Copied all sections.", "ok");
 };
-function copyText(text){
-  const d = document.createElement("textarea");
-  d.value = text; document.body.appendChild(d); d.select();
-  document.execCommand("copy"); document.body.removeChild(d);
+
+function copyText(text) {
+  if (!text) return;
+  const temp = document.createElement("textarea");
+  temp.value = text;
+  document.body.appendChild(temp);
+  temp.select();
+  document.execCommand("copy");
+  document.body.removeChild(temp);
 }
 
-/* Nudges (same as free) */
-function pushIfEmpty(id, txts){ const ta=sectionTextareas.get(id); if(!ta.value.trim()) ta.value = txts.map(bullet).join("\n"); }
-["scenario","flue","elevation"].forEach(id=>{
-  document.getElementById(id).addEventListener("change", ()=>{
+/* ====== NUDGES ====== */
+function pushIfEmpty(id, texts) {
+  const ta = sectionTextareas.get(id);
+  if (!ta || ta.value.trim()) return;
+  ta.value = texts.map(bullet).join("\n");
+}
+
+["scenario", "flue", "elevation"].forEach(id => {
+  document.getElementById(id).addEventListener("change", () => {
     const scen = document.getElementById("scenario").value;
     const flue = document.getElementById("flue").value;
     const elev = document.getElementById("elevation").value;
-    if(/→ COMBI/.test(scen)){
-      pushIfEmpty("Mains & DHW",[
+    if (/→ COMBI/.test(scen)) {
+      pushIfEmpty("Mains & DHW", [
         "DHW expectations: single draw-off best; mains-dependent; hot not instant at outlet",
         "Confirm mains static/dynamic pressure & flow meet MI"
       ]);
     }
-    if(/REGULAR \(open\) →/.test(scen)){
-      pushIfEmpty("System characteristics",[ "Vented → sealed/combi: remove/abandon F&E; cap/repurpose cold feed & vent" ]);
+    if (/REGULAR \(open\) →/.test(scen)) {
+      pushIfEmpty("System characteristics", ["Vented → sealed/combi: remove/abandon F&E; cap/repurpose cold feed & vent"]);
     }
-    if(/UNVENTED/.test(scen)){
-      pushIfEmpty("Mains & DHW",[ "Unvented: G3 pack; D2 discharge to safe termination; verify mains suitability" ]);
+    if (/UNVENTED/.test(scen)) {
+      pushIfEmpty("Mains & DHW", ["Unvented: G3 pack; D2 discharge to safe termination; verify mains suitability"]);
     }
-    if(flue==="Vertical"){
-      pushIfEmpty("Flue & Terminal",[ "Vertical balanced flue: verify roof access; add WAH plan as needed" ]);
+    if (flue === "Vertical") {
+      pushIfEmpty("Flue & Terminal", ["Vertical balanced flue: verify roof access; add WAH plan as needed"]);
     } else {
-      const extra = (elev!=="Rear / clear")?["Add terminal guard if <2 m or accessible","Consider plume management/deflector near paths, doors, windows, boundary"]:[];
-      pushIfEmpty("Flue & Terminal",[ "Horizontal balanced flue: verify clearances to openings and boundary", ...extra ]);
+      const extra = elev !== "Rear / clear"
+        ? ["Add terminal guard if <2 m or accessible", "Consider plume management/deflector near paths, doors, windows, boundary"]
+        : [];
+      pushIfEmpty("Flue & Terminal", ["Horizontal balanced flue: verify clearances to openings and boundary", ...extra]);
     }
   });
 });
 
-/* Web Speech API */
+/* ====== FREE WEB SPEECH ====== */
 const SRClass = window.SpeechRecognition || window.webkitSpeechRecognition;
 let SR = null;
-(function initSR(){
-  if(SRClass){
+(function initSR() {
+  if (SRClass) {
     SR = new SRClass();
     SR.lang = "en-GB";
     SR.interimResults = false;
     SR.maxAlternatives = 1;
-    srBadge.textContent = "Speech: ready"; srBadge.classList.add("ok");
-  }else{
-    srBadge.textContent = "Speech: unavailable"; srBadge.classList.add("warn");
+    srBadge.textContent = "Speech: ready";
+    srBadge.classList.add("ok");
+  } else {
+    srBadge.textContent = "Speech: unavailable";
+    srBadge.classList.add("warn");
   }
 })();
-function dictateWebSpeech(into){
-  return new Promise(resolve=>{
-    if(!SR) { alert("Browser speech not available."); return resolve(""); }
-    SR.onresult = (e)=>{
-      const t = e.results?.[0]?.[0]?.transcript || "";
-      into.value = (into.value? into.value+"\n":"") + t.trim();
-      resolve(t);
+
+function dictateWebSpeech(into) {
+  return new Promise(resolve => {
+    if (!SR) {
+      alert("Browser speech recognition not available.");
+      return resolve("");
+    }
+    SR.onresult = event => {
+      const text = event.results?.[0]?.[0]?.transcript || "";
+      into.value = (into.value ? into.value + "\n" : "") + text.trim();
+      resolve(text);
     };
-    SR.onerror = ()=>resolve("");
-    try{ SR.start(); } catch { resolve(""); }
+    SR.onerror = () => resolve("");
+    try {
+      SR.start();
+    } catch (err) {
+      resolve("");
+    }
   });
 }
 
-/* Boot */
+/* ====== PRO TRANSCRIBE ====== */
+const activeRecordings = new Map();
+
+async function handleProTranscribe(sectionId, button) {
+  if (!licenseState.active) {
+    alert("Pro transcription is locked. Enter your unlock code first.");
+    return;
+  }
+  const active = activeRecordings.get(button);
+  if (active) {
+    active.stop();
+    return;
+  }
+
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch (err) {
+    setProStatus("Microphone access denied.", "error");
+    return;
+  }
+
+  const recorder = new MediaRecorder(stream, { mimeType: "audio/webm;codecs=opus" });
+  const chunks = [];
+  recorder.ondataavailable = evt => {
+    if (evt.data && evt.data.size > 0) chunks.push(evt.data);
+  };
+
+  const startTime = performance.now();
+  const stopRecording = () => {
+    if (recorder.state !== "inactive") recorder.stop();
+  };
+
+  activeRecordings.set(button, { stop: stopRecording });
+  button.textContent = "Stop (Pro)";
+  button.classList.add("recording");
+  setProStatus("Recording… clip auto-stops after 20 s.", "recording");
+
+  const timer = setTimeout(stopRecording, PRO_MAX_SECONDS * 1000);
+  recorder.onstop = () => {
+    clearTimeout(timer);
+    activeRecordings.delete(button);
+    button.textContent = "Pro transcribe (20s)";
+    button.classList.remove("recording");
+    stream.getTracks().forEach(track => track.stop());
+
+    if (!chunks.length) {
+      setProStatus("No audio captured.", "error");
+      return;
+    }
+    const blob = new Blob(chunks, { type: recorder.mimeType });
+    const duration = Math.min((performance.now() - startTime) / 1000, PRO_MAX_SECONDS);
+    sendForTranscription(sectionId, blob, duration);
+  };
+
+  recorder.onerror = () => {
+    setProStatus("Recording error.", "error");
+    stopRecording();
+  };
+
+  recorder.start(250);
+}
+
+async function sendForTranscription(sectionId, blob, durationSeconds) {
+  setProStatus("Uploading clip to Worker…", "recording");
+  const license = localStorage.getItem(LICENSE_STORAGE_KEY);
+  if (!license) {
+    setProStatus("Missing unlock code. Re-enter to continue.", "error");
+    return;
+  }
+
+  const form = new FormData();
+  form.set("license", license);
+  form.set("duration", durationSeconds.toFixed(2));
+  form.set("section", sectionId);
+  form.set("audio", blob, `clip-${Date.now()}.webm`);
+
+  try {
+    const response = await fetch(WORKER_ENDPOINT, {
+      method: "POST",
+      body: form,
+      credentials: "omit"
+    });
+    const data = await response.json().catch(() => null);
+    if (!response.ok || !data) {
+      const message = data?.error || `Worker error (${response.status})`;
+      throw new Error(message);
+    }
+    const text = (data.text || "").trim();
+    if (!text) {
+      setProStatus("Worker returned no text.", "error");
+      return;
+    }
+    const ta = sectionTextareas.get(sectionId);
+    if (!ta) return;
+    ta.value = (ta.value ? ta.value.trim() + "\n" : "") + text;
+    setProStatus(`Transcribed ${Math.round(durationSeconds)} s clip (${text.split(/\s+/).filter(Boolean).length} words).`, "ok");
+  } catch (err) {
+    setProStatus(err.message || "Transcription failed.", "error");
+  }
+}
+
+/* ====== INIT ====== */
 loadLicense();
+setProStatus("Pro transcription limited to 20 seconds per clip.");
 </script>
 </body>
 </html>

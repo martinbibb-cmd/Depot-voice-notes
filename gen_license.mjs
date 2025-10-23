@@ -38,6 +38,7 @@ if(cmd === "keygen"){
   writeFileSync("private_key.jwk", JSON.stringify(priv,null,2));
   writeFileSync("public_key.jwk", JSON.stringify(pub,null,2));
   console.log("Wrote private_key.jwk and public_key.jwk");
+  console.log("Public key x:", pub.x);
   process.exit(0);
 }
 
@@ -56,7 +57,9 @@ if(cmd === "issue"){
   const sigBuf = Buffer.from(await subtle.sign("Ed25519", key, payloadBytes));
   const code = b64u(payloadBytes) + "." + b64u(sigBuf);
   console.log("CODE:", code);
-  console.log("Paste PUBLIC x to index.html PUBLIC_KEY_JWK.x from public_key.jwk");
+  console.log("Expires:", exp);
+  console.log("Public key x:", jwk.x);
+  console.log("Paste PUBLIC x into index.html PUBLIC_KEY_JWK.x and wrangler PUBLIC_KEY_JWK_X");
   process.exit(0);
 }
 

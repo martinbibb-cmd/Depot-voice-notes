@@ -185,16 +185,6 @@
       <input id="customer" placeholder="Name / site (optional)" style="min-width:260px" />
     </div>
     <div class="row">
-      <span class="label">Scenario</span>
-      <select id="scenario">
-        <option>REGULAR (open) → COMBI</option>
-        <option>REGULAR (sealed) → COMBI</option>
-        <option>SYSTEM (open cyl) → COMBI</option>
-        <option>SYSTEM (unvented) → COMBI</option>
-        <option>COMBI → SYSTEM (unvented)</option>
-        <option>COMBI → REGULAR (sealed)</option>
-        <option>Like-for-like</option>
-      </select>
       <span class="label">Flue</span>
       <select id="flue">
         <option>Fanned horizontal</option>
@@ -500,23 +490,10 @@ function pushIfEmpty(id, texts) {
   ta.value = texts.map(bullet).join("\n");
 }
 
-["scenario", "flue", "elevation"].forEach(id => {
+["flue", "elevation"].forEach(id => {
   document.getElementById(id).addEventListener("change", () => {
-    const scen = document.getElementById("scenario").value;
     const flue = document.getElementById("flue").value;
     const elev = document.getElementById("elevation").value;
-    if (/→ COMBI/.test(scen)) {
-      pushIfEmpty("Mains & DHW", [
-        "DHW expectations: single draw-off best; mains-dependent; hot not instant at outlet",
-        "Confirm mains static/dynamic pressure & flow meet MI"
-      ]);
-    }
-    if (/REGULAR \(open\) →/.test(scen)) {
-      pushIfEmpty("System characteristics", ["Vented → sealed/combi: remove/abandon F&E; cap/repurpose cold feed & vent"]);
-    }
-    if (/UNVENTED/.test(scen)) {
-      pushIfEmpty("Mains & DHW", ["Unvented: G3 pack; D2 discharge to safe termination; verify mains suitability"]);
-    }
     if (flue === "Vertical") {
       pushIfEmpty("Flue & Terminal", ["Vertical balanced flue: verify roof access; add WAH plan as needed"]);
     } else {

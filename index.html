@@ -367,36 +367,51 @@ document.getElementById("clear-code").onclick = () => {
 
 /* ====== APP CONTENT ====== */
 const SECTION_DEFS = [
+  { id: "Needs", hints: [
+    "Summarise key requirements, pain points, and desired outcomes"
+  ] },
   { id: "Working at heights", hints: [
     "If vertical flue: ladder to roof standard / linking ladders",
     "If scaffold/MEWP needed, note lead time & access"
   ] },
-  { id: "Access", hints: ["Parking, stairs, tight loft hatch, narrow alley"] },
   { id: "System characteristics", hints: [
     "Describe conversion impact (e.g., F&E removal vented→sealed/combi)",
     "Cylinder removal / unvented install details"
   ] },
-  { id: "Mains & DHW", hints: [
-    "Confirm mains static/dynamic & flow vs MI",
-    "COMBI: one draw-off best; hot not instant at outlet",
-    "UNVENTED: G3 pack & D2 safe termination"
+  { id: "Components that require assistance", hints: [
+    "Highlight heavy/awkward items needing extra labour or lifting aids",
+    "Include delivery timing or special handling instructions"
   ] },
-  { id: "Controls", hints: [
-    "Programmer/room stat setup; clear CH/DHW schedules",
-    "TRVs / load/comp where applicable"
+  { id: "Restrictions and permissions required", hints: [
+    "Parking suspensions, permits, neighbour agreements, conservation checks"
   ] },
-  { id: "Electrics", hints: ["Fused spur / supplies / bonding observations (no wiring design)"] },
-  { id: "Gas", hints: ["Meter location, pipe run considerations (no calcs here)"] },
-  { id: "Water & Condensate", hints: ["Condensate route & PRV safe termination"] },
-  { id: "Boiler & Location", hints: ["Proposed location and allowances"] },
-  { id: "Commissioning", hints: ["Flush/clean, inhibitor, filter, Benchmark & handover"] },
-  { id: "Flue & Terminal", hints: [
-    "Horizontal: clearances; guard if <2 m or accessible",
-    "Front/boundary: consider plume/deflector",
-    "Vertical: roof access verified"
+  { id: "Are there any external work areas that may prove potentially hazardous e.g. require ladder access or scaffolding placement? specific hazards?", hints: [
+    "Detail external hazards, safe access routes, and mitigation plans"
   ] },
-  { id: "Pipework", hints: ["Primaries adaptation; valve/pump config matches hydraulics"] },
-  { id: "Customer impacts", hints: ["Disruption; making good; space from cylinder removal"] }
+  { id: "Additional Delivery Notes", hints: [
+    "Delivery sequencing, storage locations, out-of-hours requirements"
+  ] },
+  { id: "Office Notes", hints: [
+    "Escalations, follow-up actions, or coordination items for office team"
+  ] },
+  { id: "Installer Notes – Boiler/Controls", hints: [
+    "Boiler siting, control strategy, and key commissioning reminders"
+  ] },
+  { id: "Installer Notes - Flue", hints: [
+    "Route, termination clearances, plume management, inspection needs"
+  ] },
+  { id: "Installer Notes - Gas/Water", hints: [
+    "Pipe sizing expectations, isolation points, condensate termination"
+  ] },
+  { id: "Installer Notes - Disruption", hints: [
+    "Work areas, protection needed, expected making good"
+  ] },
+  { id: "Installer Notes - Customer Agreed Actions", hints: [
+    "Customer responsibilities before/during install, confirmed dates"
+  ] },
+  { id: "Installer Notes - Special customer requirements (including details of any planned home improvement work)", hints: [
+    "Note accessibility needs, preferred schedules, linked renovation plans"
+  ] }
 ];
 
 const srBadge = document.getElementById("sr-badge");

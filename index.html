@@ -198,6 +198,7 @@
         <option>Near doors/windows/path</option>
       </select>
       <button id="copy-all" class="pill copy" disabled>Copy ALL (Pro)</button>
+      <button id="export-json" class="pill">Export JSON</button>
     </div>
     <div class="small">
       Free: per-section copy + browser dictation. <strong>Pro</strong>: Copy ALL & Cloudflare Worker transcription (20 s limit).
@@ -471,6 +472,30 @@ document.getElementById("copy-all").onclick = () => {
   });
   copyText(lines.join(" "));
   setProStatus("Copied all sections.", "ok");
+};
+
+document.getElementById("export-json").onclick = () => {
+  const payload = {
+    generatedAt: new Date().toISOString(),
+    customer: document.getElementById("customer").value || "",
+    flue: document.getElementById("flue").value || "",
+    elevation: document.getElementById("elevation").value || "",
+    sections: SECTION_DEFS.map(def => ({
+      id: def.id,
+      text: (sectionTextareas.get(def.id)?.value || "").trim()
+    }))
+  };
+
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  const date = payload.generatedAt.slice(0, 10);
+  link.href = url;
+  link.download = `depot-notes-${date}.json`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
 };
 
 function copyText(text) {

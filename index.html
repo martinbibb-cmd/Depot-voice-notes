@@ -235,13 +235,40 @@
     let WORKER_URL = workerUrlInput.value;
     let mediaRecorder, chunks = [];
 
+    // structured hints to help the worker categorise content
+    const STRUCTURE_HINTS = {
+      expectedSections: [
+        "Working at heights",
+        "Needs",
+        "System characteristics",
+        "Flue",
+        "Gas and water",
+        "Components that require assistance",
+        "Disruption",
+        "Customer actions"
+      ],
+      sectionHints: {
+        "power flush": "Gas and water",
+        "flush": "Gas and water",
+        "magnetic filter": "Gas and water",
+        "filter": "Gas and water",
+        "hive": "System characteristics",
+        "smart control": "System characteristics",
+        "same place": "System characteristics",
+        "reuse flue": "Flue",
+        "new flue": "Flue",
+        "loft": "Working at heights",
+        "ladders": "Working at heights"
+      },
+      forceStructured: true
+    };
+
     saveWorkerBtn.onclick = () => {
       WORKER_URL = workerUrlInput.value.trim();
       statusBar.textContent = "Worker set: " + WORKER_URL;
     };
 
     async function postJSON(path, body) {
-      // try /text first, fallback to root
       const url1 = WORKER_URL.replace(/\/$/, "") + path;
       let res = await fetch(url1, {
         method: "POST",
@@ -267,12 +294,14 @@
         const res = await postJSON("/text", {
           transcript,
           alreadyCaptured: [],
-          expectedSections: []
+          expectedSections: STRUCTURE_HINTS.expectedSections,
+          sectionHints: STRUCTURE_HINTS.sectionHints,
+          forceStructured: STRUCTURE_HINTS.forceStructured
         });
         const txt = await res.text();
         debugBox.textContent = "HTTP " + res.status + "\n" + txt;
-        let data;
-        try { data = JSON.parse(txt); } catch (e) { data = {}; }
+        let data = {};
+        try { data = JSON.parse(txt); } catch (e) {}
         handleBrainResponse(data);
         statusBar.textContent = "Done.";
       } catch (err) {
@@ -284,10 +313,8 @@
     sendTextBtn.onclick = sendText;
 
     function handleBrainResponse(data) {
-      // customer summary
-      customerSummaryEl.textContent = data.customerSummary || "(none)";
+      customerSummaryEl.textContent = data.customerSummary || data.summary || "(none)";
 
-      // clarifications
       clarificationsEl.innerHTML = "";
       if (Array.isArray(data.missingInfo) && data.missingInfo.length) {
         data.missingInfo.forEach(q => {
@@ -301,9 +328,11 @@
         clarificationsEl.innerHTML = `<span class="small">No questions.</span>`;
       }
 
-      // sections
-      const sections = data.depotNotes?.sections || data.depotSectionsSoFar || [];
       sectionsListEl.innerHTML = "";
+      const sections =
+        data.depotNotes?.sections ||
+        data.depotSectionsSoFar ||
+        [];
       if (sections.length) {
         sections.forEach(sec => {
           const div = document.createElement("div");
@@ -320,7 +349,6 @@
       }
     }
 
-    // audio
     micBtn.onclick = async () => {
       if (mediaRecorder && mediaRecorder.state === "recording") {
         mediaRecorder.stop();
@@ -329,11 +357,13 @@
       }
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        mediaRecorder = new MediaRecorder(stream);
+        mediaRecorder = new MediaRecorder(stream, {
+          mimeType: MediaRecorder.isTypeSupported("audio/mp4") ? "audio/mp4" : "audio/webm"
+        });
         chunks = [];
         mediaRecorder.ondataavailable = e => chunks.push(e.data);
         mediaRecorder.onstop = async () => {
-          const blob = new Blob(chunks, { type: "audio/webm" });
+          const blob = new Blob(chunks, { type: mediaRecorder.mimeType });
           await sendAudio(blob);
         };
         mediaRecorder.start();
@@ -347,7 +377,6 @@
     async function sendAudio(blob) {
       statusBar.textContent = "Uploading audio…";
       try {
-        // try /audio, fallback to root
         let res = await fetch(WORKER_URL.replace(/\/$/, "") + "/audio", {
           method: "POST",
           headers: { "Content-Type": blob.type },
@@ -362,8 +391,8 @@
         }
         const txt = await res.text();
         debugBox.textContent = "HTTP " + res.status + "\n" + txt;
-        let data;
-        try { data = JSON.parse(txt); } catch (e) { data = {}; }
+        let data = {};
+        try { data = JSON.parse(txt); } catch (e) {}
         handleBrainResponse(data);
         statusBar.textContent = "Audio processed.";
       } catch (err) {

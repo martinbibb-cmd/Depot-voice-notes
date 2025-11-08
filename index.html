@@ -11,7 +11,6 @@
       --border: #d4dbe5;
       --accent: #0f766e;
       --muted: #64748b;
-      --danger: #b91c1c;
       --radius: 16px;
     }
     * { box-sizing: border-box; }
@@ -20,9 +19,9 @@
       background: var(--bg);
       font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       color: #0f172a;
+      min-height: 100vh;
       display: flex;
       flex-direction: column;
-      min-height: 100vh;
     }
     header {
       background: #0f172a;
@@ -33,11 +32,7 @@
       align-items: center;
       flex-wrap: wrap;
     }
-    header h1 {
-      font-size: 1.1rem;
-      margin: 0;
-      font-weight: 600;
-    }
+    header h1 { margin: 0; font-size: 1.05rem; }
     .worker-input {
       background: rgba(255,255,255,.08);
       border: 1px solid rgba(255,255,255,.15);
@@ -47,13 +42,10 @@
       gap: 6px;
       flex: 1 1 250px;
     }
-    .worker-input label {
-      font-size: .65rem;
-      opacity: .9;
-    }
+    .worker-input label { font-size: .62rem; }
     .worker-input input {
-      background: transparent;
       border: none;
+      background: transparent;
       outline: none;
       color: #fff;
       flex: 1;
@@ -65,51 +57,32 @@
       grid-template-columns: 1.1fr .9fr;
       gap: 14px;
     }
-    @media (max-width: 970px) {
-      main {
-        grid-template-columns: 1fr;
-      }
-    }
-    .column {
-      display: flex;
-      flex-direction: column;
-      gap: 14px;
-    }
+    @media (max-width: 970px) { main { grid-template-columns: 1fr; } }
+    .column { display: flex; flex-direction: column; gap: 14px; }
     .card {
       background: var(--card);
       border: 1px solid var(--border);
       border-radius: var(--radius);
       padding: 12px 14px 10px;
-      box-shadow: 0 1px 2px rgba(15,23,42,.03);
     }
     .card-title {
-      font-size: .78rem;
-      letter-spacing: .03em;
+      font-size: .75rem;
       text-transform: uppercase;
+      letter-spacing: .03em;
       font-weight: 600;
       margin-bottom: 6px;
-      color: #0f172a;
       display: flex;
       justify-content: space-between;
-      align-items: center;
       gap: 8px;
     }
-    .small {
-      font-size: .68rem;
-      color: var(--muted);
-    }
-    textarea, input[type="text"] {
+    .small { font-size: .68rem; color: var(--muted); }
+    textarea {
       width: 100%;
       border-radius: 10px;
       border: 1px solid #cbd5e1;
       padding: 8px 9px;
-      font-size: .78rem;
-      font-family: inherit;
-      background: #fff;
-    }
-    textarea {
+      font-size: .75rem;
       min-height: 90px;
-      resize: vertical;
     }
     button {
       border: none;
@@ -117,146 +90,115 @@
       color: #fff;
       border-radius: 999px;
       padding: 6px 14px 6px;
-      font-size: .72rem;
+      font-size: .7rem;
       font-weight: 600;
       cursor: pointer;
       display: inline-flex;
       gap: 6px;
       align-items: center;
     }
-    button.secondary {
-      background: rgba(15,118,110,0.1);
-      color: #0f766e;
-    }
-    button:disabled {
-      opacity: .5;
-      cursor: not-allowed;
-    }
-    .sections-list {
-      display: flex;
-      flex-direction: column;
-      gap: 7px;
-    }
-    .section-item {
-      background: #f8fafc;
-      border-radius: 12px;
-      padding: 7px 8px 7px;
-      border: 1px solid rgba(100,116,139,.08);
-    }
-    .section-item h4 {
-      margin: 0 0 4px;
-      font-size: .72rem;
-      font-weight: 600;
-    }
-    .section-item pre {
-      margin: 0;
-      white-space: pre-wrap;
-      font-size: .67rem;
-      line-height: 1.35;
-      color: #0f172a;
-    }
-    .clarifications {
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-    }
-    .clar-chip {
-      background: #ecfeff;
-      border: 1px solid #cffafe;
-      border-radius: 12px;
-      padding: 5px 10px;
-      font-size: .68rem;
-    }
-    .clar-chip[data-target="engineer"] {
-      background: #fef9c3;
-      border-color: #fef08a;
-    }
-    .clar-chip strong {
-      display: block;
-      font-size: .6rem;
-      text-transform: uppercase;
-      letter-spacing: .04em;
-      margin-bottom: 2px;
-    }
+    button:disabled { opacity: .5; }
     .mic-btn {
       width: 36px;
       height: 36px;
       border-radius: 999px;
-      border: none;
       background: #ef4444;
       color: #fff;
       display: inline-flex;
       align-items: center;
       justify-content: center;
+      border: none;
       cursor: pointer;
     }
     .mic-btn.active {
       background: #b91c1c;
       box-shadow: 0 0 0 3px rgba(248,113,113,.4);
     }
-    .statusbar {
-      font-size: .6rem;
-      color: var(--muted);
-      margin-top: 4px;
+    .clarifications { display: flex; gap: 10px; flex-wrap: wrap; }
+    .clar-chip {
+      background: #ecfeff;
+      border: 1px solid #cffafe;
+      border-radius: 12px;
+      padding: 5px 10px 6px;
+      font-size: .65rem;
     }
-    code {
-      background: rgba(15,118,110,.08);
-      padding: 1px 6px;
-      border-radius: 6px;
+    .clar-chip[data-target="engineer"] {
+      background: #fef9c3;
+      border-color: #fde68a;
+    }
+    .sections-list { display: flex; flex-direction: column; gap: 7px; }
+    .section-item {
+      background: #f8fafc;
+      border-radius: 12px;
+      border: 1px solid rgba(100,116,139,.06);
+      padding: 6px 8px 6px;
+    }
+    .section-item h4 {
+      margin: 0 0 3px;
       font-size: .7rem;
     }
+    .section-item pre {
+      margin: 0;
+      white-space: pre-wrap;
+      font-size: .64rem;
+    }
+    pre.debug {
+      white-space: pre-wrap;
+      font-size: .61rem;
+      background: #0f172a;
+      color: #fff;
+      border-radius: 10px;
+      padding: 8px;
+      max-height: 200px;
+      overflow: auto;
+    }
+    .statusbar { font-size: .6rem; color: var(--muted); margin-top: 4px; }
   </style>
 </head>
 <body>
   <header>
     <h1>Survey Brain</h1>
     <div class="worker-input">
-      <label for="workerUrl">Worker:</label>
+      <label for="workerUrl">Worker</label>
       <input id="workerUrl" value="https://survey-brain-api.martinbibb.workers.dev" />
     </div>
     <button id="saveWorkerBtn">Use URL</button>
   </header>
 
   <main>
-    <!-- left: input + summaries -->
     <div class="column">
       <div class="card">
         <div class="card-title">
           Live transcript / summary
-          <span class="small">You talk to customer, system listens</span>
+          <span class="small">You talk to customer / system listens</span>
         </div>
-        <textarea id="transcriptInput" placeholder="Tell it what you're doing: 'we're taking out the old highflow, moving boiler upstairs, mixergy in cupboard...'"></textarea>
+        <textarea id="transcriptInput" placeholder="Replace the existing 15ri with a new 15ri ..."></textarea>
         <div style="display:flex;gap:8px;align-items:center;margin-top:6px;">
           <button id="sendTextBtn">Send text</button>
-          <button id="micBtn" class="mic-btn" title="Record voice chunk">
-            🎙
-          </button>
+          <button id="micBtn" class="mic-btn" title="Record voice chunk">🎙</button>
           <span class="statusbar" id="statusBar">Idle</span>
         </div>
       </div>
 
-      <div class="card" id="customerSummaryCard">
+      <div class="card">
         <div class="card-title">
           Customer summary
           <span class="small">Show this to customer</span>
         </div>
-        <p id="customerSummary" class="small" style="line-height:1.4;">
-          (Nothing yet)
-        </p>
+        <p id="customerSummary" class="small">(none)</p>
       </div>
 
       <div class="card">
         <div class="card-title">
           Clarification questions
-          <span class="small">System & Customer</span>
+          <span class="small">System & customer</span>
         </div>
         <div id="clarifications" class="clarifications">
-          <span class="small">No questions yet.</span>
+          <span class="small">No questions.</span>
         </div>
       </div>
     </div>
 
-    <!-- right: depot sections + raw -->
     <div class="column">
       <div class="card">
         <div class="card-title">
@@ -270,18 +212,10 @@
 
       <div class="card">
         <div class="card-title">
-          Raw transcript (from audio)
-          <span class="small">What Whisper heard</span>
+          Debug / raw response
+          <span class="small">for when it “doesn’t work”</span>
         </div>
-        <pre id="rawTranscript" style="white-space:pre-wrap;font-size:.66rem;line-height:1.3;color:#0f172a;">(none)</pre>
-      </div>
-
-      <div class="card" id="finalJSONCard" style="display:none;">
-        <div class="card-title">
-          Final depot JSON
-          <span class="small">Paste into Notes-Elite</span>
-        </div>
-        <pre id="finalJSON" style="white-space:pre-wrap;font-size:.64rem;line-height:1.35;"></pre>
+        <pre id="debugBox" class="debug">(no response yet)</pre>
       </div>
     </div>
   </main>
@@ -294,42 +228,56 @@
     const customerSummaryEl = document.getElementById('customerSummary');
     const clarificationsEl = document.getElementById('clarifications');
     const sectionsListEl = document.getElementById('sectionsList');
-    const rawTranscriptEl = document.getElementById('rawTranscript');
+    const debugBox = document.getElementById('debugBox');
     const statusBar = document.getElementById('statusBar');
     const micBtn = document.getElementById('micBtn');
-    const finalJSONCard = document.getElementById('finalJSONCard');
-    const finalJSONEl = document.getElementById('finalJSON');
 
     let WORKER_URL = workerUrlInput.value;
-    let mediaRecorder = null;
-    let chunks = [];
+    let mediaRecorder, chunks = [];
 
     saveWorkerBtn.onclick = () => {
       WORKER_URL = workerUrlInput.value.trim();
-      statusBar.textContent = "Worker set to: " + WORKER_URL;
+      statusBar.textContent = "Worker set: " + WORKER_URL;
     };
+
+    async function postJSON(path, body) {
+      // try /text first, fallback to root
+      const url1 = WORKER_URL.replace(/\/$/, "") + path;
+      let res = await fetch(url1, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      });
+      if (res.status === 404 || res.status === 405) {
+        const url2 = WORKER_URL.replace(/\/$/, "");
+        res = await fetch(url2, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body)
+        });
+      }
+      return res;
+    }
 
     async function sendText() {
       const transcript = transcriptInput.value.trim();
       if (!transcript) return;
       statusBar.textContent = "Sending text…";
-      finalJSONCard.style.display = "none";
       try {
-        const res = await fetch(WORKER_URL + "/text", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            transcript,
-            alreadyCaptured: [],
-            expectedSections: []
-          })
+        const res = await postJSON("/text", {
+          transcript,
+          alreadyCaptured: [],
+          expectedSections: []
         });
-        const data = await res.json();
+        const txt = await res.text();
+        debugBox.textContent = "HTTP " + res.status + "\n" + txt;
+        let data;
+        try { data = JSON.parse(txt); } catch (e) { data = {}; }
         handleBrainResponse(data);
         statusBar.textContent = "Done.";
       } catch (err) {
-        console.error(err);
-        statusBar.textContent = "Error sending text.";
+        debugBox.textContent = "Error: " + err.message;
+        statusBar.textContent = "Text send failed.";
       }
     }
 
@@ -343,22 +291,19 @@
       clarificationsEl.innerHTML = "";
       if (Array.isArray(data.missingInfo) && data.missingInfo.length) {
         data.missingInfo.forEach(q => {
-          const chip = document.createElement("div");
-          chip.className = "clar-chip";
-          chip.dataset.target = q.target || "engineer";
-          chip.innerHTML = `<strong>${(q.target || "engineer")}</strong>${q.question}`;
-          clarificationsEl.appendChild(chip);
+          const div = document.createElement("div");
+          div.className = "clar-chip";
+          if (q.target) div.dataset.target = q.target;
+          div.innerHTML = `<strong>${q.target || "engineer"}</strong> ${q.question}`;
+          clarificationsEl.appendChild(div);
         });
       } else {
         clarificationsEl.innerHTML = `<span class="small">No questions.</span>`;
       }
 
-      // depot sections
+      // sections
+      const sections = data.depotNotes?.sections || data.depotSectionsSoFar || [];
       sectionsListEl.innerHTML = "";
-      const sections =
-        data.depotNotes?.sections ||
-        data.depotSectionsSoFar ||
-        [];
       if (sections.length) {
         sections.forEach(sec => {
           const div = document.createElement("div");
@@ -366,69 +311,64 @@
           div.innerHTML = `
             <h4>${sec.section}</h4>
             <pre>${sec.plainText || ""}</pre>
-            <p class="small" style="margin-top:4px;">${sec.naturalLanguage || ""}</p>
+            <p class="small" style="margin-top:3px;">${sec.naturalLanguage || ""}</p>
           `;
           sectionsListEl.appendChild(div);
         });
       } else {
         sectionsListEl.innerHTML = `<span class="small">No sections yet.</span>`;
       }
-
-      // raw transcript
-      if (data.transcript) {
-        rawTranscriptEl.textContent = data.transcript;
-      }
-
-      if (data.status === "complete" && data.depotNotes) {
-        finalJSONCard.style.display = "block";
-        finalJSONEl.textContent = JSON.stringify(data.depotNotes, null, 2);
-      }
     }
 
-    // ----- audio recording -> /audio -----
+    // audio
     micBtn.onclick = async () => {
       if (mediaRecorder && mediaRecorder.state === "recording") {
         mediaRecorder.stop();
         micBtn.classList.remove("active");
-        statusBar.textContent = "Uploading audio…";
         return;
       }
-      // start
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         mediaRecorder = new MediaRecorder(stream);
         chunks = [];
-        mediaRecorder.ondataavailable = e => {
-          chunks.push(e.data);
-        };
+        mediaRecorder.ondataavailable = e => chunks.push(e.data);
         mediaRecorder.onstop = async () => {
           const blob = new Blob(chunks, { type: "audio/webm" });
-          await sendAudioBlob(blob);
+          await sendAudio(blob);
         };
         mediaRecorder.start();
         micBtn.classList.add("active");
         statusBar.textContent = "Recording… tap again to send.";
       } catch (err) {
-        console.error(err);
         statusBar.textContent = "Mic error.";
       }
     };
 
-    async function sendAudioBlob(blob) {
+    async function sendAudio(blob) {
+      statusBar.textContent = "Uploading audio…";
       try {
-        const res = await fetch(WORKER_URL + "/audio", {
+        // try /audio, fallback to root
+        let res = await fetch(WORKER_URL.replace(/\/$/, "") + "/audio", {
           method: "POST",
-          headers: {
-            "Content-Type": blob.type
-          },
+          headers: { "Content-Type": blob.type },
           body: blob
         });
-        const data = await res.json();
+        if (res.status === 404 || res.status === 405) {
+          res = await fetch(WORKER_URL.replace(/\/$/, ""), {
+            method: "POST",
+            headers: { "Content-Type": blob.type },
+            body: blob
+          });
+        }
+        const txt = await res.text();
+        debugBox.textContent = "HTTP " + res.status + "\n" + txt;
+        let data;
+        try { data = JSON.parse(txt); } catch (e) { data = {}; }
         handleBrainResponse(data);
         statusBar.textContent = "Audio processed.";
       } catch (err) {
-        console.error(err);
-        statusBar.textContent = "Audio send error.";
+        debugBox.textContent = "Audio error: " + err.message;
+        statusBar.textContent = "Audio failed.";
       } finally {
         micBtn.classList.remove("active");
       }

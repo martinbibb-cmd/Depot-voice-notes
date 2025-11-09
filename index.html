@@ -158,11 +158,12 @@
 <body>
   <header>
     <h1>Survey Brain</h1>
-    <div class="worker-input">
+    <!-- keep the worker input but hide it for future tweaks -->
+    <div class="worker-input" style="display:none;">
       <label for="workerUrl">Worker</label>
       <input id="workerUrl" value="https://survey-brain-api.martinbibb.workers.dev" />
     </div>
-    <button id="saveWorkerBtn">Use URL</button>
+    <button id="exportBtn">Export JSON</button>
   </header>
 
   <main>
@@ -221,8 +222,9 @@
   </main>
 
   <script>
-    const workerUrlInput = document.getElementById('workerUrl');
-    const saveWorkerBtn = document.getElementById('saveWorkerBtn');
+    // hard-code your worker so it isn't visible
+    const WORKER_URL = "https://survey-brain-api.martinbibb.workers.dev";
+
     const sendTextBtn = document.getElementById('sendTextBtn');
     const transcriptInput = document.getElementById('transcriptInput');
     const customerSummaryEl = document.getElementById('customerSummary');
@@ -231,61 +233,49 @@
     const debugBox = document.getElementById('debugBox');
     const statusBar = document.getElementById('statusBar');
     const micBtn = document.getElementById('micBtn');
+    const exportBtn = document.getElementById('exportBtn');
 
-    let WORKER_URL = workerUrlInput.value;
     let mediaRecorder, chunks = [];
+    let lastSections = [];
 
-    // your real order
     const SECTION_ORDER = {
       "Needs": 1,
       "Working at heights": 2,
       "System characteristics": 3,
-      "Arse_cover_notes": 4,
-      "Components that require assistance": 5,
-      "Restrictions to work": 6,
-      "External hazards": 7,
-      "Delivery notes": 8,
-      "Office notes": 9,
-      "New boiler and controls": 10,
-      "Flue": 11,
-      "Pipe work": 12,
-      "Disruption": 13,
-      "Customer actions": 14,
-      "Future plans": 15
+      "Components that require assistance": 4,
+      "Restrictions to work": 5,
+      "External hazards": 6,
+      "Delivery notes": 7,
+      "Office notes": 8,
+      "New boiler and controls": 9,
+      "Flue": 10,
+      "Pipe work": 11,
+      "Disruption": 12,
+      "Customer actions": 13,
+      "Future plans": 14
     };
 
-    // tell GPT what we actually want
     const STRUCTURE_HINTS = {
       expectedSections: Object.keys(SECTION_ORDER),
       sectionHints: {
-        // controls
         "hive": "New boiler and controls",
         "smart control": "New boiler and controls",
         "controller": "New boiler and controls",
         "pump": "New boiler and controls",
         "valve": "New boiler and controls",
-        // flue
-        "reuse flue": "Flue",
-        "balanced flue": "Flue",
-        "new flue": "Flue",
-        // pipe / condensate / gas
         "condensate": "Pipe work",
         "condensate upgrade": "Pipe work",
         "pipe": "Pipe work",
         "gas run": "Pipe work",
-        // heights
+        "reuse flue": "Flue",
+        "new flue": "Flue",
+        "balanced flue": "Flue",
         "ladders": "Working at heights",
         "loft": "Working at heights",
-        // flush/filter
         "power flush": "New boiler and controls",
         "magnetic filter": "New boiler and controls"
       },
       forceStructured: true
-    };
-
-    saveWorkerBtn.onclick = () => {
-      WORKER_URL = workerUrlInput.value.trim();
-      statusBar.textContent = "Worker set: " + WORKER_URL;
     };
 
     async function postJSON(path, body) {
@@ -331,7 +321,6 @@
     }
     sendTextBtn.onclick = sendText;
 
-    // tidy up what GPT gives us so it matches YOUR section names
     function postProcessSections(sections) {
       const out = [];
       let boilerControlsPlain = "";
@@ -358,39 +347,33 @@
 
         const isPowerFlush = combined.includes("power flush") || combined.includes("powerflush");
 
-        // collect controls
         if (isControl) {
           boilerControlsPlain += pt + " ";
           boilerControlsNL += nl + " ";
-          return; // don't push this raw
+          return;
         }
 
-        // collect pipework
         if (isPipe && name !== "Pipe work") {
           pipeWorkPlain += pt + " ";
           pipeWorkNL += nl + " ";
           return;
         }
 
-        // keep originals
         out.push(sec);
 
-        // remember we saw a powerflush
         if (isPowerFlush) {
           needsDisruptionFlushNote = true;
         }
       });
 
-      // add "New boiler and controls" if needed
       if (boilerControlsPlain.trim().length > 0) {
         out.push({
           section: "New boiler and controls",
           plainText: boilerControlsPlain.trim(),
-          naturalLanguage: boilerControlsNL.trim() || "Boiler and control items to be fitted, including Hive."
+          naturalLanguage: boilerControlsNL.trim() || "Boiler and control items to be fitted."
         });
       }
 
-      // add Pipe work if we collected some
       if (pipeWorkPlain.trim().length > 0) {
         out.push({
           section: "Pipe work",
@@ -399,7 +382,6 @@
         });
       }
 
-      // add Disruption note for power flush
       if (needsDisruptionFlushNote) {
         const existing = out.find(s => s.section === "Disruption");
         const addPT = "✅ Power flush to be carried out | Allow extra time and clear access;";
@@ -416,7 +398,6 @@
         }
       }
 
-      // sort into your order
       out.sort((a, b) => {
         const oa = SECTION_ORDER[a.section] || 999;
         const ob = SECTION_ORDER[b.section] || 999;
@@ -429,7 +410,6 @@
     function handleBrainResponse(data) {
       customerSummaryEl.textContent = data.customerSummary || data.summary || "(none)";
 
-      // clarifications
       clarificationsEl.innerHTML = "";
       if (Array.isArray(data.missingInfo) && data.missingInfo.length) {
         data.missingInfo.forEach(q => {
@@ -443,13 +423,13 @@
         clarificationsEl.innerHTML = `<span class="small">No questions.</span>`;
       }
 
-      // sections
       sectionsListEl.innerHTML = "";
       let sections =
         data.depotNotes?.sections ||
         data.depotSectionsSoFar ||
         [];
       sections = postProcessSections(sections);
+      lastSections = sections;
 
       if (sections.length) {
         sections.forEach(sec => {
@@ -467,7 +447,16 @@
       }
     }
 
-    // voice
+    exportBtn.onclick = () => {
+      const payload = {
+        exportedAt: new Date().toISOString(),
+        sections: lastSections || []
+      };
+      const pretty = JSON.stringify(payload, null, 2);
+      debugBox.textContent = pretty;
+      statusBar.textContent = "Export ready – copy from debug.";
+    };
+
     micBtn.onclick = async () => {
       if (mediaRecorder && mediaRecorder.state === "recording") {
         mediaRecorder.stop();

@@ -328,7 +328,9 @@
       let needsDisruptionFlushNote = false;
       let pipeWorkPlain = "";
       let pipeWorkNL = "";
-      const parkingSections = []; // we'll move these to "Restrictions to work"
+      const parkingSections = [];
+      const permissionSections = [];
+      const doubleHandedSections = [];
 
       sections.forEach(sec => {
         const name = sec.section || "";
@@ -352,6 +354,19 @@
           || combined.includes("permit")
           || combined.includes("no parking");
 
+        // permissions / planning / listed building → Office notes
+        const isPermission = combined.includes("planning permission")
+          || combined.includes("listed building")
+          || combined.includes("conservation area")
+          || combined.includes("needs permission");
+
+        // double handed / 2 man / two engineers → Components that require assistance
+        const isDoubleHanded = combined.includes("double handed")
+          || combined.includes("2 man")
+          || combined.includes("two man")
+          || combined.includes("two engineers")
+          || combined.includes("2 engineers");
+
         // controls → New boiler and controls
         if (isControl) {
           boilerControlsPlain += pt + " ";
@@ -366,21 +381,32 @@
           return;
         }
 
-        // parking → stash to add as Restrictions to work
+        // parking → stash for Restrictions to work
         if (isParking) {
           parkingSections.push(sec);
           return;
         }
 
+        // permissions → stash for Office notes
+        if (isPermission) {
+          permissionSections.push(sec);
+          return;
+        }
+
+        // double handed → stash for Components that require assistance
+        if (isDoubleHanded && name !== "Components that require assistance") {
+          doubleHandedSections.push(sec);
+          return;
+        }
+
         out.push(sec);
 
-        // remember: power flush means we want a disruption line
         if (isPowerFlush) {
           needsDisruptionFlushNote = true;
         }
       });
 
-      // add "New boiler and controls" if needed
+      // add New boiler and controls
       if (boilerControlsPlain.trim().length > 0) {
         out.push({
           section: "New boiler and controls",
@@ -389,7 +415,7 @@
         });
       }
 
-      // add "Pipe work" if needed
+      // add Pipe work
       if (pipeWorkPlain.trim().length > 0) {
         out.push({
           section: "Pipe work",
@@ -398,7 +424,7 @@
         });
       }
 
-      // add/move parking to "Restrictions to work"
+      // add/mix parking into Restrictions to work
       if (parkingSections.length > 0) {
         const existing = out.find(s => s.section === "Restrictions to work");
         const parkingPT = parkingSections.map(s => s.plainText || "").join(" ");
@@ -411,6 +437,40 @@
             section: "Restrictions to work",
             plainText: parkingPT.trim(),
             naturalLanguage: parkingNL.trim() || "There are parking/access restrictions at the property."
+          });
+        }
+      }
+
+      // add planning / listed into Office notes
+      if (permissionSections.length > 0) {
+        const existing = out.find(s => s.section === "Office notes");
+        const permPT = permissionSections.map(s => s.plainText || "").join(" ");
+        const permNL = permissionSections.map(s => s.naturalLanguage || "").join(" ");
+        if (existing) {
+          existing.plainText = (existing.plainText || "") + " " + permPT;
+          existing.naturalLanguage = (existing.naturalLanguage || "") + " " + permNL;
+        } else {
+          out.push({
+            section: "Office notes",
+            plainText: permPT.trim(),
+            naturalLanguage: permNL.trim() || "Planning / office action required (listed/conservation/permission)."
+          });
+        }
+      }
+
+      // add double-handed into Components that require assistance
+      if (doubleHandedSections.length > 0) {
+        const existing = out.find(s => s.section === "Components that require assistance");
+        const dhPT = doubleHandedSections.map(s => s.plainText || "").join(" ");
+        const dhNL = doubleHandedSections.map(s => s.naturalLanguage || "").join(" ");
+        if (existing) {
+          existing.plainText = (existing.plainText || "") + " " + dhPT;
+          existing.naturalLanguage = (existing.naturalLanguage || "") + " " + dhNL;
+        } else {
+          out.push({
+            section: "Components that require assistance",
+            plainText: dhPT.trim(),
+            naturalLanguage: dhNL.trim() || "A two-person lift / additional engineer is required."
           });
         }
       }
@@ -432,6 +492,7 @@
         }
       }
 
+      // final order
       out.sort((a, b) => {
         const oa = SECTION_ORDER[a.section] || 999;
         const ob = SECTION_ORDER[b.section] || 999;

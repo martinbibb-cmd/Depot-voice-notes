@@ -538,9 +538,7 @@
       if (navigator.canShare && navigator.canShare({ files: [fileForShare] })) {
         try {
           await navigator.share({
-            files: [fileForShare],
-            title: "Depot notes",
-            text: "Latest depot notes export"
+            files: [fileForShare]
           });
           statusBar.textContent = "Notes shared.";
           return;

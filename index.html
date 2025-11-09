@@ -142,16 +142,6 @@
       white-space: pre-wrap;
       font-size: .64rem;
     }
-    pre.debug {
-      white-space: pre-wrap;
-      font-size: .61rem;
-      background: #0f172a;
-      color: #fff;
-      border-radius: 10px;
-      padding: 8px;
-      max-height: 200px;
-      overflow: auto;
-    }
     .statusbar { font-size: .6rem; color: var(--muted); margin-top: 4px; }
   </style>
 </head>
@@ -163,7 +153,7 @@
       <label for="workerUrl">Worker</label>
       <input id="workerUrl" value="https://survey-brain-api.martinbibb.workers.dev" />
     </div>
-    <button id="exportBtn">Export JSON</button>
+    <button id="exportBtn">Send notes</button>
   </header>
 
   <main>
@@ -211,13 +201,6 @@
         </div>
       </div>
 
-      <div class="card">
-        <div class="card-title">
-          Debug / raw response
-          <span class="small">for when it “doesn’t work”</span>
-        </div>
-        <pre id="debugBox" class="debug">(no response yet)</pre>
-      </div>
     </div>
   </main>
 
@@ -230,7 +213,6 @@
     const customerSummaryEl = document.getElementById('customerSummary');
     const clarificationsEl = document.getElementById('clarifications');
     const sectionsListEl = document.getElementById('sectionsList');
-    const debugBox = document.getElementById('debugBox');
     const statusBar = document.getElementById('statusBar');
     const micBtn = document.getElementById('micBtn');
     const exportBtn = document.getElementById('exportBtn');
@@ -309,13 +291,11 @@
           forceStructured: STRUCTURE_HINTS.forceStructured
         });
         const txt = await res.text();
-        debugBox.textContent = "HTTP " + res.status + "\n" + txt;
         let data = {};
         try { data = JSON.parse(txt); } catch (e) {}
         handleBrainResponse(data);
         statusBar.textContent = "Done.";
       } catch (err) {
-        debugBox.textContent = "Error: " + err.message;
         statusBar.textContent = "Text send failed.";
       }
     }
@@ -542,14 +522,42 @@
       }
     }
 
-    exportBtn.onclick = () => {
+    exportBtn.onclick = async () => {
+      statusBar.textContent = "Preparing notes…";
       const payload = {
         exportedAt: new Date().toISOString(),
         sections: lastSections || []
       };
       const pretty = JSON.stringify(payload, null, 2);
-      debugBox.textContent = pretty;
-      statusBar.textContent = "Export ready – copy from debug.";
+      const blob = new Blob([pretty], { type: "application/json" });
+      const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+      const filename = `depot-notes-${timestamp}.json`;
+
+      const fileForShare = new File([blob], filename, { type: "application/json" });
+
+      if (navigator.canShare && navigator.canShare({ files: [fileForShare] })) {
+        try {
+          await navigator.share({
+            files: [fileForShare],
+            title: "Depot notes",
+            text: "Latest depot notes export"
+          });
+          statusBar.textContent = "Notes shared.";
+          return;
+        } catch (err) {
+          console.error("Share failed", err);
+        }
+      }
+
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      statusBar.textContent = "Notes downloaded.";
     };
 
     micBtn.onclick = async () => {
@@ -586,13 +594,11 @@
           body: blob
         });
         const txt = await res.text();
-        debugBox.textContent = "HTTP " + res.status + "\n" + txt;
         let data = {};
         try { data = JSON.parse(txt); } catch (e) {}
         handleBrainResponse(data);
         statusBar.textContent = "Audio processed.";
       } catch (err) {
-        debugBox.textContent = "Audio error: " + err.message;
         statusBar.textContent = "Audio failed.";
       } finally {
         micBtn.classList.remove("active");

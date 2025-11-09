@@ -235,30 +235,50 @@
     let WORKER_URL = workerUrlInput.value;
     let mediaRecorder, chunks = [];
 
-    // structured hints to help the worker categorise content
+    // your real order
+    const SECTION_ORDER = {
+      "Needs": 1,
+      "Working at heights": 2,
+      "System characteristics": 3,
+      "Arse_cover_notes": 4,
+      "Components that require assistance": 5,
+      "Restrictions to work": 6,
+      "External hazards": 7,
+      "Delivery notes": 8,
+      "Office notes": 9,
+      "New boiler and controls": 10,
+      "Flue": 11,
+      "Pipe work": 12,
+      "Disruption": 13,
+      "Customer actions": 14,
+      "Future plans": 15
+    };
+
+    // tell GPT what we actually want
     const STRUCTURE_HINTS = {
-      expectedSections: [
-        "Working at heights",
-        "Needs",
-        "System characteristics",
-        "Flue",
-        "Gas and water",
-        "Components that require assistance",
-        "Disruption",
-        "Customer actions"
-      ],
+      expectedSections: Object.keys(SECTION_ORDER),
       sectionHints: {
-        "power flush": "Gas and water",
-        "flush": "Gas and water",
-        "magnetic filter": "Gas and water",
-        "filter": "Gas and water",
-        "hive": "System characteristics",
-        "smart control": "System characteristics",
-        "same place": "System characteristics",
+        // controls
+        "hive": "New boiler and controls",
+        "smart control": "New boiler and controls",
+        "controller": "New boiler and controls",
+        "pump": "New boiler and controls",
+        "valve": "New boiler and controls",
+        // flue
         "reuse flue": "Flue",
+        "balanced flue": "Flue",
         "new flue": "Flue",
+        // pipe / condensate / gas
+        "condensate": "Pipe work",
+        "condensate upgrade": "Pipe work",
+        "pipe": "Pipe work",
+        "gas run": "Pipe work",
+        // heights
+        "ladders": "Working at heights",
         "loft": "Working at heights",
-        "ladders": "Working at heights"
+        // flush/filter
+        "power flush": "New boiler and controls",
+        "magnetic filter": "New boiler and controls"
       },
       forceStructured: true
     };
@@ -309,12 +329,107 @@
         statusBar.textContent = "Text send failed.";
       }
     }
-
     sendTextBtn.onclick = sendText;
+
+    // tidy up what GPT gives us so it matches YOUR section names
+    function postProcessSections(sections) {
+      const out = [];
+      let boilerControlsPlain = "";
+      let boilerControlsNL = "";
+      let needsDisruptionFlushNote = false;
+      let pipeWorkPlain = "";
+      let pipeWorkNL = "";
+
+      sections.forEach(sec => {
+        const name = sec.section || "";
+        const pt = sec.plainText || "";
+        const nl = sec.naturalLanguage || "";
+        const combined = (pt + " " + nl).toLowerCase();
+
+        const isControl = combined.includes("hive")
+          || combined.includes("smart control")
+          || combined.includes("controller")
+          || combined.includes("pump")
+          || combined.includes("valve");
+
+        const isPipe = combined.includes("condensate")
+          || combined.includes("pipe")
+          || combined.includes("gas run");
+
+        const isPowerFlush = combined.includes("power flush") || combined.includes("powerflush");
+
+        // collect controls
+        if (isControl) {
+          boilerControlsPlain += pt + " ";
+          boilerControlsNL += nl + " ";
+          return; // don't push this raw
+        }
+
+        // collect pipework
+        if (isPipe && name !== "Pipe work") {
+          pipeWorkPlain += pt + " ";
+          pipeWorkNL += nl + " ";
+          return;
+        }
+
+        // keep originals
+        out.push(sec);
+
+        // remember we saw a powerflush
+        if (isPowerFlush) {
+          needsDisruptionFlushNote = true;
+        }
+      });
+
+      // add "New boiler and controls" if needed
+      if (boilerControlsPlain.trim().length > 0) {
+        out.push({
+          section: "New boiler and controls",
+          plainText: boilerControlsPlain.trim(),
+          naturalLanguage: boilerControlsNL.trim() || "Boiler and control items to be fitted, including Hive."
+        });
+      }
+
+      // add Pipe work if we collected some
+      if (pipeWorkPlain.trim().length > 0) {
+        out.push({
+          section: "Pipe work",
+          plainText: pipeWorkPlain.trim(),
+          naturalLanguage: pipeWorkNL.trim() || "Pipework/condensate adjustments are required."
+        });
+      }
+
+      // add Disruption note for power flush
+      if (needsDisruptionFlushNote) {
+        const existing = out.find(s => s.section === "Disruption");
+        const addPT = "✅ Power flush to be carried out | Allow extra time and clear access;";
+        const addNL = "A power flush will be carried out, so extra time and access are needed.";
+        if (existing) {
+          existing.plainText = (existing.plainText || "") + " " + addPT;
+          existing.naturalLanguage = (existing.naturalLanguage || "") + " " + addNL;
+        } else {
+          out.push({
+            section: "Disruption",
+            plainText: addPT,
+            naturalLanguage: addNL
+          });
+        }
+      }
+
+      // sort into your order
+      out.sort((a, b) => {
+        const oa = SECTION_ORDER[a.section] || 999;
+        const ob = SECTION_ORDER[b.section] || 999;
+        return oa - ob;
+      });
+
+      return out;
+    }
 
     function handleBrainResponse(data) {
       customerSummaryEl.textContent = data.customerSummary || data.summary || "(none)";
 
+      // clarifications
       clarificationsEl.innerHTML = "";
       if (Array.isArray(data.missingInfo) && data.missingInfo.length) {
         data.missingInfo.forEach(q => {
@@ -328,11 +443,14 @@
         clarificationsEl.innerHTML = `<span class="small">No questions.</span>`;
       }
 
+      // sections
       sectionsListEl.innerHTML = "";
-      const sections =
+      let sections =
         data.depotNotes?.sections ||
         data.depotSectionsSoFar ||
         [];
+      sections = postProcessSections(sections);
+
       if (sections.length) {
         sections.forEach(sec => {
           const div = document.createElement("div");
@@ -349,6 +467,7 @@
       }
     }
 
+    // voice
     micBtn.onclick = async () => {
       if (mediaRecorder && mediaRecorder.state === "recording") {
         mediaRecorder.stop();
@@ -382,13 +501,6 @@
           headers: { "Content-Type": blob.type },
           body: blob
         });
-        if (res.status === 404 || res.status === 405) {
-          res = await fetch(WORKER_URL.replace(/\/$/, ""), {
-            method: "POST",
-            headers: { "Content-Type": blob.type },
-            body: blob
-          });
-        }
         const txt = await res.text();
         debugBox.textContent = "HTTP " + res.status + "\n" + txt;
         let data = {};

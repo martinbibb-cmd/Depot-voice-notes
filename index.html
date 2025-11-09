@@ -328,6 +328,7 @@
       let needsDisruptionFlushNote = false;
       let pipeWorkPlain = "";
       let pipeWorkNL = "";
+      const parkingSections = []; // we'll move these to "Restrictions to work"
 
       sections.forEach(sec => {
         const name = sec.section || "";
@@ -347,25 +348,39 @@
 
         const isPowerFlush = combined.includes("power flush") || combined.includes("powerflush");
 
+        const isParking = combined.includes("parking")
+          || combined.includes("permit")
+          || combined.includes("no parking");
+
+        // controls → New boiler and controls
         if (isControl) {
           boilerControlsPlain += pt + " ";
           boilerControlsNL += nl + " ";
           return;
         }
 
+        // pipe → Pipe work
         if (isPipe && name !== "Pipe work") {
           pipeWorkPlain += pt + " ";
           pipeWorkNL += nl + " ";
           return;
         }
 
+        // parking → stash to add as Restrictions to work
+        if (isParking) {
+          parkingSections.push(sec);
+          return;
+        }
+
         out.push(sec);
 
+        // remember: power flush means we want a disruption line
         if (isPowerFlush) {
           needsDisruptionFlushNote = true;
         }
       });
 
+      // add "New boiler and controls" if needed
       if (boilerControlsPlain.trim().length > 0) {
         out.push({
           section: "New boiler and controls",
@@ -374,6 +389,7 @@
         });
       }
 
+      // add "Pipe work" if needed
       if (pipeWorkPlain.trim().length > 0) {
         out.push({
           section: "Pipe work",
@@ -382,6 +398,24 @@
         });
       }
 
+      // add/move parking to "Restrictions to work"
+      if (parkingSections.length > 0) {
+        const existing = out.find(s => s.section === "Restrictions to work");
+        const parkingPT = parkingSections.map(s => s.plainText || "").join(" ");
+        const parkingNL = parkingSections.map(s => s.naturalLanguage || "").join(" ");
+        if (existing) {
+          existing.plainText = (existing.plainText || "") + " " + parkingPT;
+          existing.naturalLanguage = (existing.naturalLanguage || "") + " " + parkingNL;
+        } else {
+          out.push({
+            section: "Restrictions to work",
+            plainText: parkingPT.trim(),
+            naturalLanguage: parkingNL.trim() || "There are parking/access restrictions at the property."
+          });
+        }
+      }
+
+      // add Disruption note for power flush ONLY
       if (needsDisruptionFlushNote) {
         const existing = out.find(s => s.section === "Disruption");
         const addPT = "✅ Power flush to be carried out | Allow extra time and clear access;";

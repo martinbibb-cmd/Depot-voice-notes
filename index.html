@@ -260,47 +260,89 @@
       forceStructured: true
     };
 
-    async function postJSON(relativeOrAbsoluteUrl, body) {
+    async function postJSONFlexible(url, body, opts = {}) {
       const base = WORKER_URL.replace(/\/$/, "");
-      const url = relativeOrAbsoluteUrl.startsWith("http")
-        ? relativeOrAbsoluteUrl
-        : base + relativeOrAbsoluteUrl;
+      const full = url.startsWith("http") ? url : base + url;
 
-      const res = await fetch(url, {
+      const fetchOpts = {
         method: "POST",
         mode: "cors",
+        credentials: "omit",
         headers: {
-          "Content-Type": "application/json",
-          "Accept": "application/json"
+          "Accept": "application/json",
+          ...(opts.contentType ? { "Content-Type": opts.contentType } : { "Content-Type": "application/json" })
         },
-        body: JSON.stringify(body)
-      });
+        body: opts.rawBody ? opts.rawBody : JSON.stringify(body)
+      };
 
+      const res = await fetch(full, fetchOpts);
       const text = await res.text();
       let json;
-      try { json = JSON.parse(text); } catch { json = undefined; }
+      try { json = JSON.parse(text); } catch {}
 
-      console.log("[POST]", url, "→", res.status, res.statusText, json ?? text);
-      if (!res.ok) {
-        throw new Error(`POST ${url} → ${res.status}: ${text.slice(0,200)}`);
-      }
-      return json ?? {};
+      console.log("[POST]", full, "→", res.status, res.statusText, json ?? text);
+      return { ok: res.ok, status: res.status, text, json, url: full };
+    }
+
+    function showFailure(where, result) {
+      const msg = `[${where}] ${result.status} ${result.text?.slice(0, 300) || "(no body)"}`;
+      console.warn(msg);
+      statusBar.textContent = `Error: ${result.status}`;
+      const current = transcriptInput.value;
+      transcriptInput.value = (current ? current + "\n\n" : "") + "⚠️ " + msg;
     }
 
     async function sendText() {
       const transcript = transcriptInput.value.trim();
       if (!transcript) return;
       statusBar.textContent = "Sending text…";
-      try {
-        const data = await postJSON("/api/recommend", {
-          transcript,
-          alreadyCaptured: [],
+
+      const payloadA = {
+        transcript,
+        alreadyCaptured: [],
+        expectedSections: STRUCTURE_HINTS.expectedSections,
+        sectionHints: STRUCTURE_HINTS.sectionHints,
+        forceStructured: STRUCTURE_HINTS.forceStructured
+      };
+
+      const payloadB = {
+        text: transcript,
+        hints: {
           expectedSections: STRUCTURE_HINTS.expectedSections,
           sectionHints: STRUCTURE_HINTS.sectionHints,
           forceStructured: STRUCTURE_HINTS.forceStructured
-        });
-        handleBrainResponse(data || {});
-        statusBar.textContent = "Done.";
+        },
+        mode: "structured"
+      };
+
+      const rawBodyC = JSON.stringify(payloadA);
+
+      try {
+        let r = await postJSONFlexible("/api/recommend", payloadA);
+        if (r.ok && (r.json || r.text)) {
+          handleBrainResponse(r.json || {});
+          statusBar.textContent = "Done.";
+          return;
+        }
+        showFailure("api/recommend (A)", r);
+
+        r = await postJSONFlexible("/api/recommend", payloadB);
+        if (r.ok && (r.json || r.text)) {
+          handleBrainResponse(r.json || {});
+          statusBar.textContent = "Done.";
+          return;
+        }
+        showFailure("api/recommend (B)", r);
+
+        r = await postJSONFlexible("/api/recommend", null, { contentType: "text/plain", rawBody: rawBodyC });
+        if (r.ok && (r.json || r.text)) {
+          handleBrainResponse(r.json || {});
+          statusBar.textContent = "Done.";
+          return;
+        }
+        showFailure("api/recommend (C)", r);
+
+        statusBar.textContent = "Text send failed.";
       } catch (err) {
         console.error(err);
         statusBar.textContent = "Text send failed.";
@@ -689,11 +731,17 @@
 
     (async () => {
       try {
-        const u = WORKER_URL.replace(/\/$/, "") + "/health";
-        const r = await fetch(u, { method:"GET", mode:"cors" });
-        console.log("[health]", u, "→", r.status, r.statusText);
+        const base = WORKER_URL.replace(/\/$/, "");
+        const health = await fetch(base + "/health", { method: "GET", mode: "cors" });
+        console.log("[health]", health.status, health.statusText);
       } catch (e) {
         console.warn("[health failed]", e.message || e);
+      }
+      try {
+        const probe = await fetch(WORKER_URL.replace(/\/$/, "") + "/api/recommend", { method: "OPTIONS", mode: "cors" });
+        console.log("[options probe]", probe.status, probe.statusText, [...probe.headers.entries()]);
+      } catch (e) {
+        console.warn("[options probe failed]", e.message || e);
       }
     })();
   </script>

@@ -1,0 +1,51 @@
+{
+  "asr_normalise": [
+    ["\\bcombini\\b", "combi"],
+    ["\\bglow ?worm\\b", "Glow-worm"],
+    ["\\b(2 ?man|two ?man)\\b", "two engineers"]
+  ],
+  "phrase_overrides": {
+    "two engineers": "Components that require assistance",
+    "double handed": "Components that require assistance",
+    "planning permission": "Office notes",
+    "listed building": "Office notes",
+    "conservation area": "Office notes",
+    "permit required": "Restrictions to work"
+  },
+  "intents": {
+    "controls": [
+      "hive", "smart control", "smart thermostat", "controller",
+      "receiver", "filter", "magnetic filter", "pump", "valve", "motorised valve", "timer", "thermostat"
+    ],
+    "pipe": [
+      "re-?pipe", "reconfigure", "re-?route", "reroute", "extend",
+      "increase", "upgrade", "replace", "tidy", "clip",
+      "pipe", "pipework", "condensate", "condensate pump",
+      "gas run", "gas pipe", "gas supply", "22 ?mm", "32 ?mm"
+    ],
+    "flue": [
+      "flue", "plume kit", "terminal", "turret", "rear flue",
+      "side flue", "vertical flue", "direct rear", "soffit", "eaves"
+    ],
+    "heights": [
+      "loft", "ladder", "ladders", "steps", "tower", "scaffold",
+      "edge protection", "bridging tower", "internal scaffold", "headroom"
+    ],
+    "office": [
+      "office", "planning", "listed building", "conservation area",
+      "permission", "approval", "building control"
+    ],
+    "restrict": [
+      "parking", "double yellow", "\\bpermit\\b", "no parking", "access( issues)?", "road closure", "limited access"
+    ],
+    "assist": [
+      "two engineers", "double[- ]handed", "team lift", "second person"
+    ],
+    "disruption": [
+      "power ?flush", "flush the system", "system flush", "inhibitor"
+    ],
+    "replaceBoiler": [
+      "(replace|swap).*(boiler|combi|system)"
+    ]
+  }
+}

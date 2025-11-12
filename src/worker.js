@@ -1,3 +1,99 @@
+let __CONFIG_CACHE = { at: 0, data: null };
+const CONFIG_TTL_MS = 5 * 60 * 1000;
+
+async function getConfig(env) {
+  const now = Date.now();
+  if (__CONFIG_CACHE.data && now - __CONFIG_CACHE.at < CONFIG_TTL_MS) {
+    return __CONFIG_CACHE.data;
+  }
+
+  const url = env?.CONFIG_URL;
+  const kv = env?.ROUTING;
+
+  let cfg = null;
+  if (url) {
+    try {
+      const r = await fetch(url, { cf: { cacheEverything: true, cacheTtl: 300 } });
+      if (r.ok) cfg = await r.json();
+    } catch (_) {}
+  }
+
+  if (!cfg && kv) {
+    try {
+      const text = await kv.get("routing.json");
+      if (text) cfg = JSON.parse(text);
+    } catch (_) {}
+  }
+
+  if (!cfg) cfg = defaultRoutingConfig();
+
+  __CONFIG_CACHE = { at: now, data: cfg };
+  return cfg;
+}
+
+function defaultRoutingConfig() {
+  return {
+    asr_normalise: [
+      ["\\bcombini\\b", "combi"],
+      ["\\bglow ?worm\\b", "Glow-worm"],
+      ["\\b(2 ?man|two ?man)\\b", "two engineers"],
+    ],
+    phrase_overrides: {
+      "two engineers": "Components that require assistance",
+      "double handed": "Components that require assistance"
+    },
+    intents: {
+      controls: [
+        "hive", "smart control", "smart thermostat", "controller",
+        "receiver", "filter", "magnetic filter", "pump", "valve", "motorised valve", "timer", "thermostat"
+      ],
+      pipe: [
+        "re-?pipe", "reconfigure", "re-?route", "reroute", "extend",
+        "increase", "upgrade", "replace", "tidy", "clip",
+        "pipe", "pipework", "condensate", "condensate pump",
+        "gas run", "gas pipe", "gas supply", "22 ?mm", "32 ?mm"
+      ],
+      flue: [
+        "flue", "plume kit", "terminal", "turret", "rear flue",
+        "side flue", "vertical flue", "direct rear", "soffit", "eaves"
+      ],
+      heights: [
+        "loft", "ladder", "ladders", "steps", "tower", "scaffold",
+        "edge protection", "bridging tower", "internal scaffold", "headroom"
+      ],
+      office: [
+        "office", "planning", "listed building", "conservation area",
+        "permission", "approval", "building control"
+      ],
+      restrict: [
+        "parking", "double yellow", "\\bpermit\\b", "no parking", "access( issues)?", "road closure", "limited access"
+      ],
+      assist: [
+        "two engineers", "double[- ]handed", "2 ?man", "team lift", "second person"
+      ],
+      disruption: [
+        "power ?flush", "flush the system", "system flush", "inhibitor"
+      ],
+      replaceBoiler: [
+        "(replace|swap).*(boiler|combi|system)"
+      ]
+    }
+  };
+}
+
+function rxUnion(list, flags = "i") {
+  const body = list.map(s => `(?:${s})`).join("|");
+  return new RegExp(body || "(?!.)", flags);
+}
+
+function applyASRNormalise(s, cfg) {
+  let out = String(s || "");
+  for (const [pat, rep] of (cfg.asr_normalise || [])) {
+    out = out.replace(new RegExp(pat, "gi"), rep);
+  }
+  return out;
+}
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
@@ -14,7 +110,7 @@ export default {
       const sectionHints = data?.sectionHints ?? DEFAULT_SECTION_HINTS;
       const forceStructured = !!(data?.forceStructured);
 
-      const result = structureDepotNotes(transcript, { expectedSections, sectionHints, forceStructured });
+      const result = await structureDepotNotes(transcript, { env, expectedSections, sectionHints, forceStructured });
       return cors(json({
         summary: result.customerSummary,
         customerSummary: result.customerSummary,
@@ -73,7 +169,8 @@ export default {
 
       // If we did get text, also structure it so the client can render immediately
       if (transcript) {
-        const result = structureDepotNotes(transcript, {
+        const result = await structureDepotNotes(transcript, {
+          env,
           expectedSections: DEFAULT_SECTION_ORDER_NAMES,
           sectionHints: DEFAULT_SECTION_HINTS,
           forceStructured: true
@@ -131,154 +228,112 @@ const SECTION_ORDER = {
 };
 const SECTION_NAMES = Object.keys(SECTION_ORDER);
 
-/* ---------- Phase-aware helpers ---------- */
-
-const ASR_NORMALISE = [
-  [/\bcombini\b/gi, "combi"],
-  [/\bglow ?worm\b/gi, "Glow-worm"],
-  [/\b(2 ?man|two ?man)\b/gi, "two engineers"],
-];
-
-function normText(s){ return String(s||"").trim(); }
-function lc(s){ return normText(s).toLowerCase(); }
-function endSemi(s){ s = normText(s); return !s ? s : (s.endsWith(";") ? s : s + ";"); }
-function escapeRx(s){ return s.replace(/[.*+?^${}()|[\]\\]/g,"\\$&"); }
-
-function normaliseASR(s){
-  let out = String(s||"");
-  for (const [rx, rep] of ASR_NORMALISE) out = out.replace(rx, rep);
-  return out;
-}
-
-// Split real speech into "statements" — not just sentences.
-// Break on ., !, ?, line breaks, AND soft cue words/commas.
-function splitStatements(raw){
-  const text = normaliseASR(raw).replace(/\r/g," ").replace(/\s+/g," ").trim();
+function splitStatements(raw) {
+  const text = String(raw || "").replace(/\r/g, " ").replace(/\s+/g, " ").trim();
   if (!text) return [];
-  // Hard splits on sentence ends
   const hard = text.split(/(?<=[.!?])\s+/);
-  // Then soften further on cue phrases/comma followed by verbs
   const out = [];
-  for (const seg of hard){
+  for (const seg of hard) {
     const bits = seg.split(/\s*(?:—|-|–|,)\s+(?=(?:so|that means|which|we(?:'|’)ll|i(?:'|’)ll|need to|let'?s|then)\b)/i);
-    for (const b of bits){
+    for (const b of bits) {
       const t = b.trim();
       if (t) out.push(t);
     }
   }
   return out;
 }
-
-/* ---------- Intent classification ---------- */
-
-// Core verb families (lowercase tests)
-const INTENT = {
-  controls: /\b(fit|install|swap|replace|upgrade|add|set up|commission)\b.*\b(hive|smart (?:control|thermostat)|controller|receiver|filter|magnetic filter|pump|valve|motorised valve|timer|thermostat)\b/i,
-
-  pipe: /\b(re-?pipe|repiping|reconfigure|reroute|re-?route|extend|increase|upgrade|replace|tidy|clip)\b.*\b(pipe|pipework|condensate|condensate pump|gas (?:run|pipe|supply)|22 ?mm|32 ?mm)\b/i,
-
-  flue: /\b(flue|plume kit|terminal|turret|rear flue|side flue|vertical flue|direct rear|soffit|eaves)\b/i,
-
-  heights: /\b(loft|ladder|ladders|steps|tower|scaffold|edge protection|bridging tower|internal scaffold|headroom)\b/i,
-
-  office: /\b(office|planning|listed building|conservation area|permission|permit application|approval|sign[- ]off|building control)\b/i,
-
-  restrict: /\b(parking|double yellow|permit\b|no parking|access(?: issues)?|road closure|limited access)\b/i,
-
-  assist: /\b(two engineers|double[- ]handed|2 ?man|team lift|second person)\b/i,
-
-  disruption: /\b(power ?flush|flush the system|system flush|inhibitor)\b/i,
-
-  // fallbacks
-  replaceBoiler: /\b(replace|swap)\b.*\b(boiler|combi|system)\b/i,
-};
-
-/* ---------- Routing ---------- */
-
-function appendSection(bucket, name, pt, nl=""){
-  if (!name) return;
+function endSemi(s) {
+  s = String(s || "").trim();
+  return s ? (s.endsWith(";") ? s : s + ";") : s;
+}
+function appendSection(bucket, name, pt, nl = "") {
   const b = bucket.get(name) || { section: name, plainText: "", naturalLanguage: "" };
   if (pt) b.plainText = (b.plainText ? b.plainText + " " : "") + endSemi(pt);
   if (nl) b.naturalLanguage = (b.naturalLanguage ? b.naturalLanguage + " " : "") + nl.trim();
   bucket.set(name, b);
 }
 
-function routeStatement(stmt){
-  const s = stmt.trim();
-  const low = lc(s);
-
-  // Explicit section headers if user dictates them
-  for (const name of SECTION_NAMES){
-    const rx = new RegExp("^\\s*" + escapeRx(name) + "\\s*[:\\-]");
-    if (rx.test(s)) return { section: name, text: s };
+function firstSubstantiveLine(raw) {
+  const lines = splitStatements(raw);
+  for (const l of lines) {
+    if (/^(test|let[’']?s give this a test|okay|alright|right)\b/i.test(l)) continue;
+    return l.slice(0, 180);
   }
-
-  // Priority routing: some statements match multiple intents; choose the most specific
-  if (INTENT.controls.test(s)) return { section: "New boiler and controls", text: s };
-  if (INTENT.pipe.test(s))     return { section: "Pipe work", text: s };
-  if (INTENT.flue.test(s))     return { section: "Flue", text: s };
-  if (INTENT.heights.test(s))  return { section: "Working at heights", text: s };
-  if (INTENT.office.test(s))   return { section: "Office notes", text: s };
-  if (INTENT.restrict.test(s)) return { section: "Restrictions to work", text: s };
-  if (INTENT.assist.test(s))   return { section: "Components that require assistance", text: s };
-  if (INTENT.disruption.test(s)) return { section: "Disruption", text: "✅ Power flush to be carried out | Allow extra time and clear access;" };
-
-  // Boiler replacement mentions without specific parts → treat as overall System characteristics
-  if (INTENT.replaceBoiler.test(s)) return { section: "System characteristics", text: s };
-
-  // No route
-  return { section: "", text: s };
+  return (lines[0] || "").slice(0, 180);
 }
-
-function summariseFlueFromAll(statements){
-  const all = lc(statements.join(" "));
+function summariseFlue(statements, flueRx) {
+  const all = statements.join(" ").toLowerCase();
   const side = /\b(side flue|turret.*side|kick sideways)\b/.test(all);
   const rear = /\b(rear flue|direct rear|turret rear)\b/.test(all);
   const vertical = /\b(vertical flue|through the roof)\b/.test(all);
   const plume = /\b(plume kit)\b/.test(all);
-
   const bits = [];
   if (side) bits.push("side/offset turret");
   if (rear) bits.push("rear/turret");
   if (vertical) bits.push("vertical");
   if (plume) bits.push("plume kit");
-  return bits.length ? `Flue: ${bits.join(", ")}.` : "";
+  return bits.length ? `Flue: ${bits.join(", ")}.` : (flueRx.test(all) ? "Flue: flue changes." : "");
 }
 
-function firstSubstantiveLine(raw){
-  const lines = splitStatements(raw);
-  for (const l of lines){
-    if (/^(test|let[’']?s give this a test|okay|alright|right)\b/i.test(l)) continue;
-    return l.slice(0,180);
+function buildIntents(cfg) {
+  const i = cfg.intents || {};
+  return {
+    controls: rxUnion(i.controls || [], "i"),
+    pipe: rxUnion(i.pipe || [], "i"),
+    flue: rxUnion(i.flue || [], "i"),
+    heights: rxUnion(i.heights || [], "i"),
+    office: rxUnion(i.office || [], "i"),
+    restrict: rxUnion(i.restrict || [], "i"),
+    assist: rxUnion(i.assist || [], "i"),
+    disruption: rxUnion(i.disruption || [], "i"),
+    replaceBoiler: rxUnion(i.replaceBoiler || [], "i")
+  };
+}
+
+function routeStatement(stmt, intents, overrides) {
+  const s = stmt.trim();
+  const low = s.toLowerCase();
+
+  for (const name of SECTION_NAMES) {
+    const rx = new RegExp("^\\s*" + name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\s*[:\\-]", "i");
+    if (rx.test(s)) return { section: name, text: s };
   }
-  return (lines[0] || "").slice(0,180);
+
+  for (const [needle, target] of Object.entries(overrides || {})) {
+    if (low.includes(needle.toLowerCase())) return { section: target, text: s };
+  }
+
+  if (intents.controls.test(s)) return { section: "New boiler and controls", text: s };
+  if (intents.pipe.test(s)) return { section: "Pipe work", text: s };
+  if (intents.flue.test(s)) return { section: "Flue", text: s };
+  if (intents.heights.test(s)) return { section: "Working at heights", text: s };
+  if (intents.office.test(s)) return { section: "Office notes", text: s };
+  if (intents.restrict.test(s)) return { section: "Restrictions to work", text: s };
+  if (intents.assist.test(s)) return { section: "Components that require assistance", text: s };
+  if (intents.disruption.test(s)) {
+    return { section: "Disruption", text: "✅ Power flush to be carried out | Allow extra time and clear access;" };
+  }
+  if (intents.replaceBoiler.test(s)) return { section: "System characteristics", text: s };
+
+  return { section: "", text: s };
 }
 
-/* ---------- Main structurer ---------- */
+async function structureDepotNotes(input, cfg = {}) {
+  const env = cfg.env || {};
+  const routingCfg = await getConfig(env);
+  const text = applyASRNormalise(String(input || ""), routingCfg);
 
-function structureDepotNotes(input, cfg = {}){
+  const intents = buildIntents(routingCfg);
+  const overrides = routingCfg.phrase_overrides || {};
+  const statements = splitStatements(text);
   const bucket = new Map();
-  const statements = splitStatements(input);
 
-  // Route each statement
-  for (const stmt of statements){
-    const routed = routeStatement(stmt);
+  for (const stmt of statements) {
+    const routed = routeStatement(stmt, intents, overrides);
     if (routed.section) appendSection(bucket, routed.section, routed.text);
   }
 
-  // Flue: add a clean NL summary if we saw any flue context
-  if (statements.some(s => INTENT.flue.test(s))){
-    const summary = summariseFlueFromAll(statements);
-    if (summary){
-      const exist = bucket.get("Flue") || { section: "Flue", plainText: "", naturalLanguage: "" };
-      exist.naturalLanguage = (exist.naturalLanguage ? exist.naturalLanguage + " " : "") + summary;
-      bucket.set("Flue", exist);
-    }
-  }
-
-  // Disruption de-dupe: ensure exactly one standard line if “flush” was mentioned anywhere
-  const flushMentioned = statements.some(s => INTENT.disruption.test(s));
-  if (flushMentioned){
+  if (statements.some(s => intents.disruption.test(s))) {
     bucket.set("Disruption", {
       section: "Disruption",
       plainText: "✅ Power flush to be carried out | Allow extra time and clear access;",
@@ -286,31 +341,43 @@ function structureDepotNotes(input, cfg = {}){
     });
   }
 
-  // Merge & order
+  if (statements.some(s => intents.flue.test(s))) {
+    const nl = summariseFlue(statements, intents.flue);
+    const ex = bucket.get("Flue") || { section: "Flue", plainText: "", naturalLanguage: "" };
+    ex.naturalLanguage = (ex.naturalLanguage ? ex.naturalLanguage + " " : "") + nl.trim();
+    bucket.set("Flue", ex);
+  }
+
   const merged = new Map();
-  for (const [name, obj] of bucket){
+  for (const [name, obj] of bucket) {
     const acc = merged.get(name) || { section: name, plainText: "", naturalLanguage: "" };
-    acc.plainText = normText((acc.plainText ? acc.plainText + " " : "") + obj.plainText);
-    acc.naturalLanguage = normText((acc.naturalLanguage ? acc.naturalLanguage + " " : "") + obj.naturalLanguage);
+    acc.plainText = (acc.plainText ? acc.plainText + " " : "") + (obj.plainText || "");
+    acc.naturalLanguage = (acc.naturalLanguage ? acc.naturalLanguage + " " : "") + (obj.naturalLanguage || "");
     merged.set(name, acc);
   }
-  let sections = [...merged.values()].filter(s => s.plainText || s.naturalLanguage);
-  sections.sort((a,b) => (SECTION_ORDER[a.section]||999) - (SECTION_ORDER[b.section]||999));
 
-  // Force skeleton if requested
-  if (cfg.forceStructured && sections.length === 0){
-    sections = (cfg.expectedSections && cfg.expectedSections.length ? cfg.expectedSections : SECTION_NAMES)
-      .map(n => ({ section: n, plainText: "", naturalLanguage: "" }));
+  let sections = [...merged.values()]
+    .map(s => ({
+      section: s.section,
+      plainText: s.plainText.trim(),
+      naturalLanguage: s.naturalLanguage.trim()
+    }))
+    .filter(s => s.plainText || s.naturalLanguage);
+
+  sections.sort((a, b) => (SECTION_ORDER[a.section] || 999) - (SECTION_ORDER[b.section] || 999));
+
+  if (cfg.forceStructured && sections.length === 0) {
+    const expected = cfg.expectedSections && cfg.expectedSections.length ? cfg.expectedSections : SECTION_NAMES;
+    sections = expected.map(n => ({ section: n, plainText: "", naturalLanguage: "" }));
   }
 
-  // Customer summary & minimal questions
-  const customerSummary = firstSubstantiveLine(input);
-  const all = lc(input);
+  const customerSummary = firstSubstantiveLine(text);
+  const all = text.toLowerCase();
   const missingInfo = [];
-  if (!/\b(hive|smart (?:control|thermostat)|controller)\b/.test(all)){
+  if (!/\b(hive|smart (?:control|thermostat)|controller)\b/.test(all)) {
     missingInfo.push({ target: "customer", question: "Do you want a smart control (e.g., Hive)?" });
   }
-  if (!/\b(condensate)\b/.test(all)){
+  if (!/\b(condensate)\b/.test(all)) {
     missingInfo.push({ target: "engineer", question: "Confirm condensate route and termination." });
   }
 
@@ -319,4 +386,3 @@ function structureDepotNotes(input, cfg = {}){
 
 const DEFAULT_SECTION_ORDER_NAMES = SECTION_NAMES;
 const DEFAULT_SECTION_HINTS = {};
-

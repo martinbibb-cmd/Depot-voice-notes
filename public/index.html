@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Depot • Voice Notes</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- iOS PWA/audio friendliness -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <style>
+    .banner { padding:.5rem .75rem; border-radius:8px; margin:.5rem 0; }
+    .banner.warn { background:#fff7ed; border:1px solid #fed7aa; }
+    .muted { color:#64748b; font-size:.9em; }
+    textarea { width:100%; min-height: 30vh; }
+    button { padding:.6rem .9rem; border-radius:10px; border:1px solid #e2e8f0; }
+    .row { display:flex; gap:.5rem; flex-wrap:wrap; align-items:center; }
+  </style>
+</head>
+<body>
+  <h1>Depot — Voice Notes</h1>
+
+  <div class="row">
+    <div>Worker: <strong data-ui="worker-status">Idle</strong></div>
+    <div class="muted">• GitHub Pages safe paths</div>
+  </div>
+  <div class="banner warn" data-ui="worker-error" hidden>Worker error will appear here…</div>
+
+  <div class="row" style="margin:.5rem 0 1rem">
+    <button data-ui="mic-start" aria-label="Start microphone">🎙️ Start</button>
+    <button data-ui="send-notes">Send notes</button>
+  </div>
+
+  <label for="out">Live transcript / summary</label>
+  <textarea id="out" data-ui="transcript-out" placeholder="Speak, or paste notes here…"></textarea>
+
+  <!-- Scripts: base-path first -->
+  <script type="module" src="./js/app.js"></script>
+</body>
+</html>

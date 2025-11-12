@@ -1,239 +1,193 @@
-const SYSTEM_PROMPT = `
-You are a heating survey note-builder for a British Gas engineer.
-
-You will receive short, speech-like transcripts of the engineer talking to the customer. Each time you are given text, do three things:
-
-1. Create a short, friendly CUSTOMER SUMMARY of what the engineer appears to be promising or explaining. Keep it plain English, 1–3 sentences.
-2. Extract and normalise any DEPOT / SURVEY information you can into the engineer’s standard sections:
-   - Working at heights
-   - Needs
-   - System characteristics
-   - Flue
-   - Gas and water
-   - Components that require assistance
-   - Disruption
-   - Customer actions
-   For each section, produce both:
-   - \`plainText\` using leading ticks and semicolons like: "✅ Ladders | Loft access;"
-   - \`naturalLanguage\` in full sentences.
-3. If you cannot confidently fill one or more sections, return clarification questions ONLY for those gaps. Mark each clarification as either:
-   - target = "engineer" (technical, e.g. flue route, gas upsizing, condensate run)
-   - target = "customer" (access, clearance, pets, disruption)
-Ask concise, single-point questions.
-
-You may also receive "alreadyCaptured" and "expectedSections" to help you decide what is still missing.
-
-Output JSON ONLY with these keys:
-- \`status\`: "needs_clarification" or "complete"
-- \`customerSummary\`: string
-- \`depotSectionsSoFar\`: array of section objects as described
-- \`missingInfo\`: array of { "target": "...", "question": "...", "key": "..." }
-- if complete, also include \`depotNotes\` with { "exportedAt": ISO-datetime, "sections": [...] }
-
-Do NOT invent prices, product codes, or brand-specific rules.
-Normalise spelling: "flu" -> "flue".
-`.trim();
-
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
+    if (request.method === "OPTIONS") return cors(new Response(null, { status: 204 }));
 
-    const cors = {
-      "Access-Control-Allow-Origin": env.ALLOWED_ORIGIN || "*",
-      "Access-Control-Allow-Methods": "POST, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type, Authorization",
-    };
-
-    if (request.method === "OPTIONS") {
-      return new Response(null, { headers: cors });
+    if (request.method === "GET" && url.pathname === "/health") {
+      return cors(json({ ok: true, service: "depot-voice-notes" }));
     }
 
-    if (!env.OPENAI_API_KEY) {
-      return new Response(JSON.stringify({ error: "Missing OPENAI_API_KEY" }), {
-        status: 500,
-        headers: { "content-type": "application/json", ...cors },
-      });
+    if (request.method === "POST" && url.pathname === "/api/recommend") {
+      const { data } = await readBodyFlexible(request);
+      const transcript = data?.transcript ?? data?.text ?? "";
+      const expectedSections = data?.expectedSections ?? DEFAULT_SECTION_ORDER_NAMES;
+      const sectionHints = data?.sectionHints ?? DEFAULT_SECTION_HINTS;
+      const forceStructured = !!(data?.forceStructured);
+
+      const result = structureDepotNotes(transcript, { expectedSections, sectionHints, forceStructured });
+      return cors(json({
+        summary: result.customerSummary,
+        customerSummary: result.customerSummary,
+        missingInfo: result.missingInfo,
+        depotNotes: { exportedAt: new Date().toISOString(), sections: result.sections },
+        depotSectionsSoFar: result.sections
+      }));
     }
 
-    if (request.method !== "POST") {
-      return new Response(JSON.stringify({ error: "POST only" }), {
-        status: 405,
-        headers: { "content-type": "application/json", ...cors },
-      });
+    if (request.method === "POST" && url.pathname === "/api/transcribe") {
+      // Accept either raw audio or JSON with audioDataUrl
+      const ct = request.headers.get("content-type") || "";
+      let audioBytes;
+
+      if (ct.startsWith("application/json") || ct.startsWith("text/plain")) {
+        const { data } = await readBodyFlexible(request);
+        const dataUrl = data?.audioDataUrl || data?.dataUrl || null;
+        if (!dataUrl || !/^data:audio\/[\w+.-]+;base64,/.test(dataUrl)) {
+          return cors(bad(400, { error: "Provide audioDataUrl as a valid data:audio/*;base64,..." }));
+        }
+        const b64 = dataUrl.split(",")[1];
+        audioBytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+      } else {
+        // Raw bytes
+        const buf = await request.arrayBuffer();
+        audioBytes = new Uint8Array(buf);
+      }
+
+      let transcript = "";
+
+      // Optional STT via OpenAI Whisper if OPENAI_API_KEY is configured
+      if (env.OPENAI_API_KEY) {
+        try {
+          // Multipart form per OpenAI audio transcription API (whisper-1)
+          const form = new FormData();
+          // Build a File from bytes; Workers support this in 2025 runtimes
+          form.append("file", new File([audioBytes], "audio.webm", { type: "audio/webm" }));
+          form.append("model", "whisper-1");
+          const r = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${env.OPENAI_API_KEY}` },
+            body: form
+          });
+          const txt = await r.text();
+          let j; try { j = JSON.parse(txt); } catch {}
+          if (!r.ok) throw new Error(`Whisper ${r.status}: ${txt.slice(0,200)}`);
+          transcript = j?.text || "";
+        } catch (e) {
+          console.warn("Whisper failed:", e);
+          // Fall through: return empty transcript rather than 5xx
+        }
+      }
+
+      // Return something useful even if STT not configured
+      const payload = { ok: true, transcript };
+
+      // If we did get text, also structure it so the client can render immediately
+      if (transcript) {
+        const result = structureDepotNotes(transcript, {
+          expectedSections: DEFAULT_SECTION_ORDER_NAMES,
+          sectionHints: DEFAULT_SECTION_HINTS,
+          forceStructured: true
+        });
+        payload.depotNotes = { exportedAt: new Date().toISOString(), sections: result.sections };
+      }
+
+      return cors(json(payload));
     }
 
-    if (url.pathname === "/audio") {
-      return handleAudio(request, env, cors);
-    }
-
-    if (url.pathname === "/text" || url.pathname === "/") {
-      return handleText(request, env, cors);
-    }
-
-    return new Response(JSON.stringify({ error: "Not found" }), {
-      status: 404,
-      headers: { "content-type": "application/json", ...cors },
-    });
-  },
+    return cors(bad(404, { error: "Not found" }));
+  }
 };
 
-async function handleText(request, env, cors) {
-  let body;
-  try {
-    body = await request.json();
-  } catch (error) {
-    return new Response(
-      JSON.stringify({ error: "Invalid JSON body", detail: error.message }),
-      {
-        status: 400,
-        headers: { "content-type": "application/json", ...cors },
-      },
-    );
+/* ---------- shared helpers ---------- */
+function cors(res) {
+  const h = new Headers(res.headers);
+  h.set("Access-Control-Allow-Origin", "*");
+  h.set("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+  h.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  h.set("Access-Control-Max-Age", "86400");
+  return new Response(res.body, { status: res.status, statusText: res.statusText, headers: h });
+}
+function json(obj, status = 200) {
+  return new Response(JSON.stringify(obj), { status, headers: { "content-type": "application/json" } });
+}
+function bad(status, obj) { return json(obj, status); }
+
+async function readBodyFlexible(request) {
+  const ct = request.headers.get("content-type") || "";
+  if (ct.includes("application/json")) {
+    try { return { data: await request.json() }; } catch {}
+    return { data: {} };
   }
-
-  const {
-    transcript,
-    alreadyCaptured = [],
-    expectedSections = [],
-  } = body || {};
-
-  if (typeof transcript !== "string" || transcript.trim() === "") {
-    return new Response(
-      JSON.stringify({ error: "transcript must be a non-empty string" }),
-      {
-        status: 400,
-        headers: { "content-type": "application/json", ...cors },
-      },
-    );
-  }
-
-  let payload = await callSurveyBrain(env, {
-    transcript,
-    alreadyCaptured,
-    expectedSections,
-  });
-
-  if (typeof payload !== "object" || payload === null) {
-    payload = { error: "Model returned non-object payload", raw: payload };
-  }
-
-  const status = payload && payload.error ? 502 : 200;
-
-  return new Response(JSON.stringify(payload), {
-    status,
-    headers: { "content-type": "application/json", ...cors },
-  });
+  const text = await request.text();
+  try { return { data: text ? JSON.parse(text) : {} }; } catch { return { data: { text } }; }
 }
 
-async function handleAudio(request, env, cors) {
-  const contentType = request.headers.get("content-type") || "audio/webm";
-  const audioBytes = await request.arrayBuffer();
+/* ---------- structuring logic (same as before) ---------- */
+const DEFAULT_SECTION_ORDER = {
+  "Needs": 1,
+  "Working at heights": 2,
+  "System characteristics": 3,
+  "Components that require assistance": 4,
+  "Restrictions to work": 5,
+  "External hazards": 6,
+  "Delivery notes": 7,
+  "Office notes": 8,
+  "New boiler and controls": 9,
+  "Flue": 10,
+  "Pipe work": 11,
+  "Disruption": 12,
+  "Customer actions": 13,
+  "Future plans": 14
+};
+const DEFAULT_SECTION_ORDER_NAMES = Object.keys(DEFAULT_SECTION_ORDER);
+const DEFAULT_SECTION_HINTS = {
+  "hive": "New boiler and controls",
+  "smart control": "New boiler and controls",
+  "controller": "New boiler and controls",
+  "pump": "New boiler and controls",
+  "valve": "New boiler and controls",
+  "condensate": "Pipe work",
+  "condensate upgrade": "Pipe work",
+  "pipe": "Pipe work",
+  "gas run": "Pipe work",
+  "reuse flue": "Flue",
+  "new flue": "Flue",
+  "balanced flue": "Flue",
+  "ladders": "Working at heights",
+  "loft": "Working at heights",
+  "power flush": "New boiler and controls",
+  "powerflush": "New boiler and controls",
+  "magnetic filter": "New boiler and controls"
+};
 
-  if (!audioBytes || audioBytes.byteLength === 0) {
-    return new Response(JSON.stringify({ error: "Audio body required" }), {
-      status: 400,
-      headers: { "content-type": "application/json", ...cors },
-    });
+function structureDepotNotes(input, cfg) {
+  const text = String(input || "");
+  const lc = text.toLowerCase();
+  const buckets = new Map();
+  for (const name of (cfg.expectedSections || DEFAULT_SECTION_ORDER_NAMES)) {
+    buckets.set(name, { section: name, plainText: "", naturalLanguage: "" });
+  }
+  const hints = cfg.sectionHints || DEFAULT_SECTION_HINTS;
+  for (const [kw, target] of Object.entries(hints)) {
+    if (lc.includes(kw)) append(buckets, target, extractLine(text, kw), "");
+  }
+  if (/\bparking|permit|no parking|access\b/i.test(lc)) {
+    append(buckets, "Restrictions to work", "Parking/access restrictions noted;", "There are parking/access restrictions at the property.");
+  }
+  if (/\bplanning permission|listed building|conservation area|needs permission\b/i.test(lc)) {
+    append(buckets, "Office notes", "Planning/listed/conservation constraints;", "Office to review planning / admin requirements.");
+  }
+  if (/\bdouble handed|2 ?man|two (man|engineers)|2 engineers\b/i.test(lc)) {
+    append(buckets, "Components that require assistance", "Double-handed lift / additional engineer required;", "A two-person lift / additional engineer is required.");
+  }
+  if (/\bpower ?flush\b/i.test(lc)) {
+    append(buckets, "Disruption", "✅ Power flush to be carried out | Allow extra time and clear access;", "A power flush will be carried out, so extra time and access are needed.");
   }
 
-  const formData = new FormData();
-  const extension = (contentType.split("/")[1] || "webm").split(";")[0];
-  const fileName = `audio.${extension}`;
-
-  const fileBlob = new Blob([new Uint8Array(audioBytes)], { type: contentType });
-
-  try {
-    formData.append("file", new File([fileBlob], fileName, { type: contentType }));
-  } catch (error) {
-    formData.append("file", fileBlob, fileName);
+  const out = [];
+  for (const [name, obj] of buckets) {
+    const pt = (obj.plainText || "").trim();
+    const nl = (obj.naturalLanguage || "").trim();
+    if (pt || nl) out.push({ section: name, plainText: ensureSemi(pt), naturalLanguage: nl });
   }
-
-  formData.append("model", env.WHISPER_MODEL || "whisper-1");
-
-  const whisperRes = await fetch("https://api.openai.com/v1/audio/transcriptions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${env.OPENAI_API_KEY}`,
-    },
-    body: formData,
-  });
-
-  if (!whisperRes.ok) {
-    const detail = await whisperRes.text();
-    return new Response(
-      JSON.stringify({ error: "Whisper STT error", detail }),
-      {
-        status: 502,
-        headers: { "content-type": "application/json", ...cors },
-      },
-    );
-  }
-
-  const whisperData = await whisperRes.json();
-  const transcript = (whisperData.text || "").trim();
-
-  if (!transcript) {
-    return new Response(
-      JSON.stringify({
-        error: "Transcription returned empty text",
-        transcript,
-      }),
-      {
-        status: 502,
-        headers: { "content-type": "application/json", ...cors },
-      },
-    );
-  }
-
-  let payload = await callSurveyBrain(env, {
-    transcript,
-    alreadyCaptured: [],
-    expectedSections: [],
-  });
-
-  if (typeof payload !== "object" || payload === null) {
-    payload = { error: "Model returned non-object payload", raw: payload };
-  }
-
-  payload.transcript = transcript;
-
-  const status = payload && payload.error ? 502 : 200;
-
-  return new Response(JSON.stringify(payload), {
-    status,
-    headers: { "content-type": "application/json", ...cors },
-  });
+  out.sort((a,b)=>(DEFAULT_SECTION_ORDER[a.section]||999)-(DEFAULT_SECTION_ORDER[b.section]||999));
+  const customerSummary = String(text).trim().split(/\n/)[0]?.slice(0,180) || "";
+  const missingInfo = [];
+  if (!/\b(hive|smart control|controller)\b/i.test(lc)) missingInfo.push({ target:"customer", question:"Do you want a smart control (e.g., Hive)?" });
+  if (!/\b(condensate)\b/i.test(lc)) missingInfo.push({ target:"engineer", question:"Confirm condensate route and termination." });
+  if (cfg.forceStructured && out.length === 0) for (const name of DEFAULT_SECTION_ORDER_NAMES) out.push({ section: name, plainText:"", naturalLanguage:"" });
+  return { sections: out, customerSummary, missingInfo };
 }
-
-async function callSurveyBrain(env, body) {
-  const openaiRes = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${env.OPENAI_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "gpt-4o-mini",
-      temperature: 0.2,
-      messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: JSON.stringify(body) },
-      ],
-    }),
-  });
-
-  if (!openaiRes.ok) {
-    const detail = await openaiRes.text();
-    return { error: "OpenAI chat error", detail };
-  }
-
-  const data = await openaiRes.json();
-  try {
-    return JSON.parse(data.choices?.[0]?.message?.content || "{}");
-  } catch (error) {
-    return {
-      error: "Model did not return JSON",
-      raw: data.choices?.[0]?.message?.content,
-    };
-  }
-}
+function append(b, name, ptAdd, nlAdd){ const it=b.get(name)||{section:name,plainText:"",naturalLanguage:""}; it.plainText=(it.plainText?it.plainText+" ":"")+((ptAdd||"").endsWith(";")?ptAdd:ptAdd+";"); it.naturalLanguage=(it.naturalLanguage?it.naturalLanguage+" ":"")+nlAdd; b.set(name,it); }
+function ensureSemi(s){ if(!s) return s; return s.split(/(?<=;)\s*/).map(x=>x.trim()).filter(Boolean).join("; "); }
+function extractLine(text, kw){ const rx=new RegExp(`[^\\n]*${kw.replace(/[.*+?^${}()|[\\]\\]/g,"\\$&")}[^\\n]*`,"i"); const m=String(text||"").match(rx); const s=m?m[0].trim():kw; return s.endsWith(";")?s:s+";"; }

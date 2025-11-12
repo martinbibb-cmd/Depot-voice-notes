@@ -578,52 +578,119 @@
     };
 
     micBtn.onclick = async () => {
-      // Toggle off
       if (mediaRecorder && mediaRecorder.state === "recording") {
         mediaRecorder.stop();
-        micBtn.classList.remove("active");
         return;
       }
-
-      // Try MediaRecorder first
       try {
-        if (!navigator.mediaDevices?.getUserMedia) throw new Error("getUserMedia not available");
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-
-        if (typeof MediaRecorder === "undefined") throw new Error("MediaRecorder not available");
-
-        const mime = MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm"
-                   : MediaRecorder.isTypeSupported("audio/mp4")  ? "audio/mp4"
+        const mime = MediaRecorder.isTypeSupported("audio/webm;codecs=opus") ? "audio/webm;codecs=opus"
+                   : MediaRecorder.isTypeSupported("audio/mp4")               ? "audio/mp4"
                    : "";
-        if (!mime) console.warn("No preferred audio MIME supported; letting browser choose.");
-
         mediaRecorder = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
         chunks = [];
-
         mediaRecorder.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
-        mediaRecorder.onerror = e => console.error("[MediaRecorder error]", e.error || e);
         mediaRecorder.onstop = async () => {
-          const usedType = mediaRecorder.mimeType || (chunks[0]?.type) || "application/octet-stream";
-          const blob = new Blob(chunks, { type: usedType });
-          // Stop tracks to release mic
           stream.getTracks().forEach(t => t.stop());
+          if (!chunks.length) { statusBar.textContent = "No audio captured."; return; }
+          const usedType = mediaRecorder.mimeType || chunks[0].type || "application/octet-stream";
+          const blob = new Blob(chunks, { type: usedType });
           await sendAudio(blob);
         };
-
         mediaRecorder.start();
         micBtn.classList.add("active");
         statusBar.textContent = "Recording… tap again to send.";
-        return;
       } catch (err) {
-        console.warn("[MediaRecorder fallback]", err.message || err);
+        console.warn("[getUserMedia]", err);
+        statusBar.textContent = "Mic error.";
+        startSpeechRecognitionFallback();
+      }
+    };
+
+    async function sendAudio(blob) {
+      statusBar.textContent = "Uploading audio…";
+      micBtn.classList.remove("active");
+
+      const base = WORKER_URL.replace(/\/$/, "");
+      const url = base + "/api/transcribe";
+
+      // Try raw bytes first, then data URL if the server refuses content-type
+      async function postRaw() {
+        const res = await fetch(url, {
+          method: "POST",
+          mode: "cors",
+          headers: { "Accept": "application/json", "Content-Type": blob.type || "application/octet-stream" },
+          body: blob
+        });
+        const text = await res.text();
+        let json; try { json = JSON.parse(text); } catch {}
+        return { ok: res.ok, status: res.status, json, text };
       }
 
-      // Fallback: Web Speech API (live dictation into textarea)
-      const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-      if (!SR) {
-        statusBar.textContent = "Mic not supported on this device.";
-        return;
+      async function postDataUrl() {
+        const dataUrl = await new Promise((resolve) => {
+          const r = new FileReader();
+          r.onload = () => resolve(r.result);
+          r.readAsDataURL(blob);
+        });
+        const res = await fetch(url, {
+          method: "POST",
+          mode: "cors",
+          headers: { "Accept": "application/json", "Content-Type": "application/json" },
+          body: JSON.stringify({ audioDataUrl: dataUrl })
+        });
+        const text = await res.text();
+        let json; try { json = JSON.parse(text); } catch {}
+        return { ok: res.ok, status: res.status, json, text };
       }
+
+      try {
+        let r = await postRaw();
+        if (!r.ok) {
+          // Some Workers only accept JSON bodies; try dataUrl form
+          r = await postDataUrl();
+        }
+        if (!r.ok) {
+          console.warn("[/api/transcribe]", r.status, r.text);
+          statusBar.textContent = "Audio failed.";
+          // Soft fallback to SR if available
+          startSpeechRecognitionFallback();
+          return;
+        }
+
+        // Expect at least { transcript: "..." }
+        const transcript = r.json?.transcript || "";
+        if (transcript) {
+          transcriptInput.value = (transcriptInput.value ? transcriptInput.value + "\n" : "") + transcript;
+          statusBar.textContent = "Processing notes…";
+          // Now structure via /api/recommend (re-using your sendText flow inline)
+          const recommend = await postJSON("/api/recommend", {
+            transcript,
+            expectedSections: STRUCTURE_HINTS.expectedSections,
+            sectionHints: STRUCTURE_HINTS.sectionHints,
+            forceStructured: STRUCTURE_HINTS.forceStructured
+          });
+          if (!recommend.ok) {
+            transcriptInput.value += `\n\n⚠️ /api/recommend ${recommend.status}: ${recommend.text.slice(0,300)}`;
+            statusBar.textContent = "Text send failed.";
+            return;
+          }
+          handleBrainResponse(recommend.json || {});
+          statusBar.textContent = "Audio processed.";
+        } else {
+          statusBar.textContent = "No transcript returned.";
+          startSpeechRecognitionFallback();
+        }
+      } catch (err) {
+        console.error(err);
+        statusBar.textContent = "Audio failed.";
+        startSpeechRecognitionFallback();
+      }
+    }
+
+    function startSpeechRecognitionFallback() {
+      const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SR) return;
       try {
         const rec = new SR();
         rec.continuous = true;
@@ -631,71 +698,13 @@
         rec.lang = "en-GB";
         rec.onresult = (ev) => {
           let t = transcriptInput.value || "";
-          for (let i = ev.resultIndex; i < ev.results.length; i++) {
-            t += ev.results[i][0].transcript;
-          }
+          for (let i = ev.resultIndex; i < ev.results.length; i++) t += ev.results[i][0].transcript;
           transcriptInput.value = t;
         };
-        rec.onerror = (e) => { console.warn("[SR error]", e); statusBar.textContent = "Speech error."; micBtn.classList.remove("active"); };
-        rec.onend   = () => { console.log("[SR end]"); micBtn.classList.remove("active"); };
         rec.start();
-        micBtn.classList.add("active");
-        statusBar.textContent = "Listening (speech-to-text)…";
+        statusBar.textContent = "Listening (fallback)…";
       } catch (e) {
-        console.warn("[SR start failed]", e);
-        statusBar.textContent = "Mic error.";
-      }
-    };
-
-    async function tryAudioEndpoints(blob) {
-      const base = WORKER_URL.replace(/\/$/, "");
-      const paths = [
-        "/api/transcribe",
-        "/api/speech",
-        "/api/audio",
-        "/api/recommend/audio",    // catch-all variants if your Worker routes differently
-        "/audio"                   // last resort (your old path)
-      ];
-
-      for (const p of paths) {
-        const url = base + p;
-        try {
-          const res = await fetch(url, {
-            method: "POST",
-            mode: "cors",
-            headers: { "Content-Type": blob.type, "Accept": "application/json" },
-            body: blob
-          });
-          const text = await res.text();
-          let json; try { json = JSON.parse(text); } catch { json = undefined; }
-          console.log("[AUDIO POST]", url, "→", res.status, res.statusText, json ?? text);
-
-          if (res.ok) {
-            return json ?? {};
-          }
-          // If endpoint explicitly says "Use POST /api/recommend", stop and surface
-          if (text && /api\/recommend/i.test(text)) {
-            throw new Error(text);
-          }
-        } catch (e) {
-          console.warn("[AUDIO endpoint failed]", p, e.message || e);
-          // try next path
-        }
-      }
-      throw new Error("All audio endpoints failed.");
-    }
-
-    async function sendAudio(blob) {
-      statusBar.textContent = "Uploading audio…";
-      try {
-        const data = await tryAudioEndpoints(blob);
-        handleBrainResponse(data || {});
-        statusBar.textContent = "Audio processed.";
-      } catch (err) {
-        console.error(err);
-        statusBar.textContent = "Audio failed.";
-      } finally {
-        micBtn.classList.remove("active");
+        console.warn("[SR fallback failed]", e);
       }
     }
 

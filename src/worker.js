@@ -112,8 +112,8 @@ async function readBodyFlexible(request) {
   try { return { data: text ? JSON.parse(text) : {} }; } catch { return { data: { text } }; }
 }
 
-/* ---------- structuring logic (same as before) ---------- */
-const DEFAULT_SECTION_ORDER = {
+/* ---------- structuring logic ---------- */
+const SECTION_ORDER = {
   "Needs": 1,
   "Working at heights": 2,
   "System characteristics": 3,
@@ -129,65 +129,216 @@ const DEFAULT_SECTION_ORDER = {
   "Customer actions": 13,
   "Future plans": 14
 };
-const DEFAULT_SECTION_ORDER_NAMES = Object.keys(DEFAULT_SECTION_ORDER);
-const DEFAULT_SECTION_HINTS = {
+const SECTION_NAMES = Object.keys(SECTION_ORDER);
+
+// Canonical keyword → section map (lowercase)
+const HINTS_DEFAULT = {
+  // controls
   "hive": "New boiler and controls",
   "smart control": "New boiler and controls",
+  "smart thermostat": "New boiler and controls",
   "controller": "New boiler and controls",
+  "control": "New boiler and controls",
   "pump": "New boiler and controls",
   "valve": "New boiler and controls",
+  "motorised valve": "New boiler and controls",
+  "filter": "New boiler and controls",
+  "magnetic filter": "New boiler and controls",
+
+  // pipework
   "condensate": "Pipe work",
+  "condensate pump": "Pipe work",
   "condensate upgrade": "Pipe work",
   "pipe": "Pipe work",
+  "pipework": "Pipe work",
   "gas run": "Pipe work",
+  "gas pipe": "Pipe work",
+
+  // flue
   "reuse flue": "Flue",
   "new flue": "Flue",
   "balanced flue": "Flue",
+  "vertical flue": "Flue",
+  "rear flue": "Flue",
+  "plume kit": "Flue",
+  "terminal": "Flue",
+  "turret": "Flue",
+
+  // heights
   "ladders": "Working at heights",
+  "ladder": "Working at heights",
+  "steps": "Working at heights",
   "loft": "Working at heights",
-  "power flush": "New boiler and controls",
-  "powerflush": "New boiler and controls",
-  "magnetic filter": "New boiler and controls"
+  "tower": "Working at heights",
+  "scaffold": "Working at heights",
+  "edge protection": "Working at heights",
+  "bridging tower": "Working at heights",
+  "internal scaffold": "Working at heights",
+
+  // restrictions
+  "parking": "Restrictions to work",
+  "permit": "Restrictions to work",
+  "no parking": "Restrictions to work",
+  "double yellow": "Restrictions to work",
+  "access": "Restrictions to work",
+
+  // office/admin
+  "planning permission": "Office notes",
+  "listed building": "Office notes",
+  "conservation area": "Office notes",
+  "needs permission": "Office notes",
+
+  // assistance
+  "double handed": "Components that require assistance",
+  "double-hand": "Components that require assistance",
+  "2 man": "Components that require assistance",
+  "two man": "Components that require assistance",
+  "two engineers": "Components that require assistance",
+  "2 engineers": "Components that require assistance",
+
+  // disruption trigger
+  "power flush": "Disruption",
+  "powerflush": "Disruption"
 };
 
-function structureDepotNotes(input, cfg) {
-  const text = String(input || "");
-  const lc = text.toLowerCase();
-  const buckets = new Map();
-  for (const name of (cfg.expectedSections || DEFAULT_SECTION_ORDER_NAMES)) {
-    buckets.set(name, { section: name, plainText: "", naturalLanguage: "" });
+function norm(s){ return String(s || "").trim(); }
+function lc(s){ return norm(s).toLowerCase(); }
+function endsSemi(s){ return s.endsWith(";") ? s : (s + ";"); }
+
+function splitIntoLines(text){
+  // Split on newlines or sentence ends; keep it simple and fast
+  const raw = String(text || "")
+    .replace(/\r/g, "")
+    .split(/\n+/)
+    .flatMap(line => line.split(/(?<=[.?!])\s+(?=[A-Z])/)); // sentences to lines
+  // Trim & drop empties
+  return raw.map(s => s.trim()).filter(Boolean);
+}
+
+function routeLine(line, hints){
+  const l = lc(line);
+  // explicit section headers like "Flue:" or "Pipe work - ..."
+  for (const name of SECTION_NAMES){
+    const rx = new RegExp(`^\\s*${name.replace(/[.*+?^${}()|[\\]\\]/g,"\\$&")}\\s*[:\\-]`, "i");
+    if (rx.test(line)) return name;
   }
-  const hints = cfg.sectionHints || DEFAULT_SECTION_HINTS;
-  for (const [kw, target] of Object.entries(hints)) {
-    if (lc.includes(kw)) append(buckets, target, extractLine(text, kw), "");
+  // keyword routing
+  for (const [kw, sec] of Object.entries(hints)){
+    if (l.includes(kw)) return sec;
   }
-  if (/\bparking|permit|no parking|access\b/i.test(lc)) {
-    append(buckets, "Restrictions to work", "Parking/access restrictions noted;", "There are parking/access restrictions at the property.");
-  }
-  if (/\bplanning permission|listed building|conservation area|needs permission\b/i.test(lc)) {
-    append(buckets, "Office notes", "Planning/listed/conservation constraints;", "Office to review planning / admin requirements.");
-  }
-  if (/\bdouble handed|2 ?man|two (man|engineers)|2 engineers\b/i.test(lc)) {
-    append(buckets, "Components that require assistance", "Double-handed lift / additional engineer required;", "A two-person lift / additional engineer is required.");
-  }
-  if (/\bpower ?flush\b/i.test(lc)) {
-    append(buckets, "Disruption", "✅ Power flush to be carried out | Allow extra time and clear access;", "A power flush will be carried out, so extra time and access are needed.");
+  return ""; // unclassified (will drop unless forceStructured)
+}
+
+// Merge helpers to fold notes into target sections
+function appendSection(bucket, name, ptAdd, nlAdd=""){
+  const b = bucket.get(name) || { section: name, plainText: "", naturalLanguage: "" };
+  if (ptAdd) b.plainText = (b.plainText ? b.plainText + " " : "") + endsSemi(ptAdd.trim());
+  if (nlAdd) b.naturalLanguage = (b.naturalLanguage ? b.naturalLanguage + " " : "") + nlAdd.trim();
+  bucket.set(name, b);
+}
+
+function structureDepotNotes(input, cfg = {}){
+  const expected = Array.isArray(cfg.expectedSections) && cfg.expectedSections.length ? cfg.expectedSections : SECTION_NAMES;
+  const userHints = cfg.sectionHints && Object.keys(cfg.sectionHints).length ? cfg.sectionHints : HINTS_DEFAULT;
+  const forceStructured = !!cfg.forceStructured;
+
+  const lines = splitIntoLines(input);
+  const bucket = new Map(); // name -> { section, plainText, naturalLanguage }
+
+  // 1) Route each line
+  for (const line of lines){
+    const target = routeLine(line, userHints);
+    if (!target) continue;
+    appendSection(bucket, target, line);
   }
 
-  const out = [];
-  for (const [name, obj] of buckets) {
-    const pt = (obj.plainText || "").trim();
-    const nl = (obj.naturalLanguage || "").trim();
-    if (pt || nl) out.push({ section: name, plainText: ensureSemi(pt), naturalLanguage: nl });
+  // 2) Post-rules (folding/normalisation)
+  // 2a) Controls: gather any controls keywords that may have landed elsewhere
+  for (const [name, obj] of [...bucket]) {
+    if (name === "New boiler and controls") continue;
+    const l = lc(obj.plainText + " " + obj.naturalLanguage);
+    if (/\b(hive|smart control|smart thermostat|controller|control|pump|valve|motorised valve|magnetic filter|filter)\b/i.test(l)){
+      appendSection(bucket, "New boiler and controls", obj.plainText, obj.naturalLanguage);
+      bucket.delete(name);
+    }
   }
-  out.sort((a,b)=>(DEFAULT_SECTION_ORDER[a.section]||999)-(DEFAULT_SECTION_ORDER[b.section]||999));
-  const customerSummary = String(text).trim().split(/\n/)[0]?.slice(0,180) || "";
+  // 2b) Pipework catch-all
+  for (const [name, obj] of [...bucket]) {
+    if (name === "Pipe work") continue;
+    const l = lc(obj.plainText + " " + obj.naturalLanguage);
+    if (/\b(condensate|condensate pump|pipework|pipe|gas run|gas pipe)\b/i.test(l)){
+      appendSection(bucket, "Pipe work", obj.plainText, obj.naturalLanguage);
+      bucket.delete(name);
+    }
+  }
+  // 2c) Parking → Restrictions to work (merge)
+  for (const [name, obj] of [...bucket]) {
+    if (name === "Restrictions to work") continue;
+    const l = lc(obj.plainText + " " + obj.naturalLanguage);
+    if (/\b(parking|permit|no parking|double yellow|access)\b/i.test(l)){
+      appendSection(bucket, "Restrictions to work", obj.plainText, obj.naturalLanguage);
+      bucket.delete(name);
+    }
+  }
+  // 2d) Planning/listed → Office notes
+  for (const [name, obj] of [...bucket]) {
+    if (name === "Office notes") continue;
+    const l = lc(obj.plainText + " " + obj.naturalLanguage);
+    if (/\b(planning permission|listed building|conservation area|needs permission)\b/i.test(l)){
+      appendSection(bucket, "Office notes", obj.plainText, obj.naturalLanguage);
+      bucket.delete(name);
+    }
+  }
+  // 2e) Double-handed → Components that require assistance
+  for (const [name, obj] of [...bucket]) {
+    if (name === "Components that require assistance") continue;
+    const l = lc(obj.plainText + " " + obj.naturalLanguage);
+    if (/\b(double handed|double-hand|2 ?man|two (man|engineers)|2 engineers)\b/i.test(l)){
+      appendSection(bucket, "Components that require assistance", obj.plainText, obj.naturalLanguage);
+      bucket.delete(name);
+    }
+  }
+  // 2f) Power flush → add Disruption flag/note
+  let hasFlush = false;
+  for (const [_, obj] of bucket) {
+    if (/\b(power ?flush)\b/i.test(lc(obj.plainText + " " + obj.naturalLanguage))) { hasFlush = true; break; }
+  }
+  if (hasFlush) {
+    appendSection(bucket, "Disruption",
+      "✅ Power flush to be carried out | Allow extra time and clear access;",
+      "A power flush will be carried out, so extra time and access are needed."
+    );
+  }
+
+  // 3) Build ordered list, ensure semicolons, remove empties
+  let sections = [...bucket.values()]
+    .map(s => ({
+      section: s.section,
+      plainText: norm(s.plainText),
+      naturalLanguage: norm(s.naturalLanguage)
+    }))
+    .filter(s => s.plainText || s.naturalLanguage);
+
+  sections.sort((a,b) => (SECTION_ORDER[a.section]||999) - (SECTION_ORDER[b.section]||999));
+
+  // 4) If forceStructured but nothing matched, emit empty skeleton in expected order
+  if (forceStructured && sections.length === 0) {
+    sections = expected.map(name => ({ section: name, plainText: "", naturalLanguage: "" }));
+  }
+
+  // Customer summary + basic questions
+  const customerSummary = String(input || "").trim().split(/\n/)[0]?.slice(0,180) || "";
   const missingInfo = [];
-  if (!/\b(hive|smart control|controller)\b/i.test(lc)) missingInfo.push({ target:"customer", question:"Do you want a smart control (e.g., Hive)?" });
-  if (!/\b(condensate)\b/i.test(lc)) missingInfo.push({ target:"engineer", question:"Confirm condensate route and termination." });
-  if (cfg.forceStructured && out.length === 0) for (const name of DEFAULT_SECTION_ORDER_NAMES) out.push({ section: name, plainText:"", naturalLanguage:"" });
-  return { sections: out, customerSummary, missingInfo };
+  if (!/\b(hive|smart control|controller|smart thermostat)\b/i.test(lc(input))) {
+    missingInfo.push({ target: "customer", question: "Do you want a smart control (e.g., Hive)?" });
+  }
+  if (!/\b(condensate)\b/i.test(lc(input))) {
+    missingInfo.push({ target: "engineer", question: "Confirm condensate route and termination." });
+  }
+
+  return { sections, customerSummary, missingInfo };
 }
-function append(b, name, ptAdd, nlAdd){ const it=b.get(name)||{section:name,plainText:"",naturalLanguage:""}; it.plainText=(it.plainText?it.plainText+" ":"")+((ptAdd||"").endsWith(";")?ptAdd:ptAdd+";"); it.naturalLanguage=(it.naturalLanguage?it.naturalLanguage+" ":"")+nlAdd; b.set(name,it); }
-function ensureSemi(s){ if(!s) return s; return s.split(/(?<=;)\s*/).map(x=>x.trim()).filter(Boolean).join("; "); }
-function extractLine(text, kw){ const rx=new RegExp(`[^\\n]*${kw.replace(/[.*+?^${}()|[\\]\\]/g,"\\$&")}[^\\n]*`,"i"); const m=String(text||"").match(rx); const s=m?m[0].trim():kw; return s.endsWith(";")?s:s+";"; }
+
+const DEFAULT_SECTION_ORDER_NAMES = SECTION_NAMES;
+const DEFAULT_SECTION_HINTS = HINTS_DEFAULT;
+

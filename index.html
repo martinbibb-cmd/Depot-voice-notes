@@ -1,11 +1,607 @@
 <!doctype html>
-<html>
-  <head>
-    <meta http-equiv="refresh" content="0; url=public/index.html" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Depot Voice Notes</title>
-  </head>
-  <body>
-    <p>Redirecting to <a href="public/index.html">public/index.html</a>…</p>
-  </body>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Survey Brain – Live Depot Notes</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    :root {
+      --bg: #eef2f7;
+      --card: #ffffff;
+      --border: #d4dbe5;
+      --accent: #0f766e;
+      --muted: #64748b;
+      --radius: 16px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: #0f172a;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    header {
+      background: #0f172a;
+      color: #fff;
+      padding: 14px 16px;
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    header h1 { margin: 0; font-size: 1.05rem; }
+    .worker-input {
+      background: rgba(255,255,255,.08);
+      border: 1px solid rgba(255,255,255,.15);
+      border-radius: 10px;
+      padding: 4px 8px;
+      display: flex;
+      gap: 6px;
+      flex: 1 1 250px;
+    }
+    .worker-input label { font-size: .62rem; }
+    .worker-input input {
+      border: none;
+      background: transparent;
+      outline: none;
+      color: #fff;
+      flex: 1;
+      font-size: .65rem;
+    }
+    main {
+      padding: 14px;
+      display: grid;
+      grid-template-columns: 1.1fr .9fr;
+      gap: 14px;
+    }
+    @media (max-width: 970px) { main { grid-template-columns: 1fr; } }
+    .column { display: flex; flex-direction: column; gap: 14px; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px 14px 10px;
+    }
+    .card-title {
+      font-size: .75rem;
+      text-transform: uppercase;
+      letter-spacing: .03em;
+      font-weight: 600;
+      margin-bottom: 6px;
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .small { font-size: .68rem; color: var(--muted); }
+    textarea {
+      width: 100%;
+      border-radius: 10px;
+      border: 1px solid #cbd5e1;
+      padding: 8px 9px;
+      font-size: .75rem;
+      min-height: 90px;
+    }
+    button {
+      border: none;
+      background: var(--accent);
+      color: #fff;
+      border-radius: 999px;
+      padding: 6px 14px 6px;
+      font-size: .7rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      gap: 6px;
+      align-items: center;
+    }
+    button:disabled { opacity: .5; }
+    .mic-btn {
+      width: 36px;
+      height: 36px;
+      border-radius: 999px;
+      background: #ef4444;
+      color: #fff;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border: none;
+      cursor: pointer;
+    }
+    .mic-btn.active {
+      background: #b91c1c;
+      box-shadow: 0 0 0 3px rgba(248,113,113,.4);
+    }
+    .clarifications { display: flex; gap: 10px; flex-wrap: wrap; }
+    .clar-chip {
+      background: #ecfeff;
+      border: 1px solid #cffafe;
+      border-radius: 12px;
+      padding: 5px 10px 6px;
+      font-size: .65rem;
+    }
+    .clar-chip[data-target="engineer"] {
+      background: #fef9c3;
+      border-color: #fde68a;
+    }
+    .sections-list { display: flex; flex-direction: column; gap: 7px; }
+    .section-item {
+      background: #f8fafc;
+      border-radius: 12px;
+      border: 1px solid rgba(100,116,139,.06);
+      padding: 6px 8px 6px;
+    }
+    .section-item h4 {
+      margin: 0 0 3px;
+      font-size: .7rem;
+    }
+    .section-item pre {
+      margin: 0;
+      white-space: pre-wrap;
+      font-size: .64rem;
+    }
+    .statusbar { font-size: .6rem; color: var(--muted); margin-top: 4px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Survey Brain</h1>
+    <!-- keep the worker input but hide it for future tweaks -->
+    <div class="worker-input" style="display:none;">
+      <label for="workerUrl">Worker</label>
+      <input id="workerUrl" value="https://survey-brain-api.martinbibb.workers.dev" />
+    </div>
+    <button id="exportBtn">Send notes</button>
+  </header>
+
+  <main>
+    <div class="column">
+      <div class="card">
+        <div class="card-title">
+          Live transcript / summary
+          <span class="small">You talk to customer / system listens</span>
+        </div>
+        <textarea id="transcriptInput" placeholder="Replace the existing 15ri with a new 15ri ..."></textarea>
+        <div style="display:flex;gap:8px;align-items:center;margin-top:6px;">
+          <button id="sendTextBtn">Send text</button>
+          <button id="micBtn" class="mic-btn" title="Record voice chunk">🎙</button>
+          <span class="statusbar" id="statusBar">Idle</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">
+          Customer summary
+          <span class="small">Show this to customer</span>
+        </div>
+        <p id="customerSummary" class="small">(none)</p>
+      </div>
+
+      <div class="card">
+        <div class="card-title">
+          Clarification questions
+          <span class="small">System & customer</span>
+        </div>
+        <div id="clarifications" class="clarifications">
+          <span class="small">No questions.</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="column">
+      <div class="card">
+        <div class="card-title">
+          Depot sections so far
+          <span class="small">Standard layout</span>
+        </div>
+        <div id="sectionsList" class="sections-list">
+          <span class="small">No sections yet.</span>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <script>
+    // hard-code your worker so it isn't visible
+    const WORKER_URL = "https://survey-brain-api.martinbibb.workers.dev";
+
+    const sendTextBtn = document.getElementById('sendTextBtn');
+    const transcriptInput = document.getElementById('transcriptInput');
+    const customerSummaryEl = document.getElementById('customerSummary');
+    const clarificationsEl = document.getElementById('clarifications');
+    const sectionsListEl = document.getElementById('sectionsList');
+    const statusBar = document.getElementById('statusBar');
+    const micBtn = document.getElementById('micBtn');
+    const exportBtn = document.getElementById('exportBtn');
+
+    let mediaRecorder, chunks = [];
+    let lastSections = [];
+
+    const SECTION_ORDER = {
+      "Needs": 1,
+      "Working at heights": 2,
+      "System characteristics": 3,
+      "Components that require assistance": 4,
+      "Restrictions to work": 5,
+      "External hazards": 6,
+      "Delivery notes": 7,
+      "Office notes": 8,
+      "New boiler and controls": 9,
+      "Flue": 10,
+      "Pipe work": 11,
+      "Disruption": 12,
+      "Customer actions": 13,
+      "Future plans": 14
+    };
+
+    const STRUCTURE_HINTS = {
+      expectedSections: Object.keys(SECTION_ORDER),
+      sectionHints: {
+        "hive": "New boiler and controls",
+        "smart control": "New boiler and controls",
+        "controller": "New boiler and controls",
+        "pump": "New boiler and controls",
+        "valve": "New boiler and controls",
+        "condensate": "Pipe work",
+        "condensate upgrade": "Pipe work",
+        "pipe": "Pipe work",
+        "gas run": "Pipe work",
+        "reuse flue": "Flue",
+        "new flue": "Flue",
+        "balanced flue": "Flue",
+        "ladders": "Working at heights",
+        "loft": "Working at heights",
+        "power flush": "New boiler and controls",
+        "magnetic filter": "New boiler and controls"
+      },
+      forceStructured: true
+    };
+
+    async function postJSON(path, body) {
+      const url1 = WORKER_URL.replace(/\/$/, "") + path;
+      let res = await fetch(url1, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      });
+      if (res.status === 404 || res.status === 405) {
+        const url2 = WORKER_URL.replace(/\/$/, "");
+        res = await fetch(url2, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body)
+        });
+      }
+      return res;
+    }
+
+    async function sendText() {
+      const transcript = transcriptInput.value.trim();
+      if (!transcript) return;
+      statusBar.textContent = "Sending text…";
+      try {
+        const res = await postJSON("/text", {
+          transcript,
+          alreadyCaptured: [],
+          expectedSections: STRUCTURE_HINTS.expectedSections,
+          sectionHints: STRUCTURE_HINTS.sectionHints,
+          forceStructured: STRUCTURE_HINTS.forceStructured
+        });
+        const txt = await res.text();
+        let data = {};
+        try { data = JSON.parse(txt); } catch (e) {}
+        handleBrainResponse(data);
+        statusBar.textContent = "Done.";
+      } catch (err) {
+        statusBar.textContent = "Text send failed.";
+      }
+    }
+    sendTextBtn.onclick = sendText;
+
+    function postProcessSections(sections) {
+      const out = [];
+      let boilerControlsPlain = "";
+      let boilerControlsNL = "";
+      let needsDisruptionFlushNote = false;
+      let pipeWorkPlain = "";
+      let pipeWorkNL = "";
+      const parkingSections = [];
+      const permissionSections = [];
+      const doubleHandedSections = [];
+
+      sections.forEach(sec => {
+        const name = sec.section || "";
+        const pt = sec.plainText || "";
+        const nl = sec.naturalLanguage || "";
+        const combined = (pt + " " + nl).toLowerCase();
+
+        const isControl = combined.includes("hive")
+          || combined.includes("smart control")
+          || combined.includes("controller")
+          || combined.includes("pump")
+          || combined.includes("valve");
+
+        const isPipe = combined.includes("condensate")
+          || combined.includes("pipe")
+          || combined.includes("gas run");
+
+        const isPowerFlush = combined.includes("power flush") || combined.includes("powerflush");
+
+        const isParking = combined.includes("parking")
+          || combined.includes("permit")
+          || combined.includes("no parking");
+
+        // permissions / planning / listed building → Office notes
+        const isPermission = combined.includes("planning permission")
+          || combined.includes("listed building")
+          || combined.includes("conservation area")
+          || combined.includes("needs permission");
+
+        // double handed / 2 man / two engineers → Components that require assistance
+        const isDoubleHanded = combined.includes("double handed")
+          || combined.includes("2 man")
+          || combined.includes("two man")
+          || combined.includes("two engineers")
+          || combined.includes("2 engineers");
+
+        // controls → New boiler and controls
+        if (isControl) {
+          boilerControlsPlain += pt + " ";
+          boilerControlsNL += nl + " ";
+          return;
+        }
+
+        // pipe → Pipe work
+        if (isPipe && name !== "Pipe work") {
+          pipeWorkPlain += pt + " ";
+          pipeWorkNL += nl + " ";
+          return;
+        }
+
+        // parking → stash for Restrictions to work
+        if (isParking) {
+          parkingSections.push(sec);
+          return;
+        }
+
+        // permissions → stash for Office notes
+        if (isPermission) {
+          permissionSections.push(sec);
+          return;
+        }
+
+        // double handed → stash for Components that require assistance
+        if (isDoubleHanded && name !== "Components that require assistance") {
+          doubleHandedSections.push(sec);
+          return;
+        }
+
+        out.push(sec);
+
+        if (isPowerFlush) {
+          needsDisruptionFlushNote = true;
+        }
+      });
+
+      // add New boiler and controls
+      if (boilerControlsPlain.trim().length > 0) {
+        out.push({
+          section: "New boiler and controls",
+          plainText: boilerControlsPlain.trim(),
+          naturalLanguage: boilerControlsNL.trim() || "Boiler and control items to be fitted."
+        });
+      }
+
+      // add Pipe work
+      if (pipeWorkPlain.trim().length > 0) {
+        out.push({
+          section: "Pipe work",
+          plainText: pipeWorkPlain.trim(),
+          naturalLanguage: pipeWorkNL.trim() || "Pipework/condensate adjustments are required."
+        });
+      }
+
+      // add/mix parking into Restrictions to work
+      if (parkingSections.length > 0) {
+        const existing = out.find(s => s.section === "Restrictions to work");
+        const parkingPT = parkingSections.map(s => s.plainText || "").join(" ");
+        const parkingNL = parkingSections.map(s => s.naturalLanguage || "").join(" ");
+        if (existing) {
+          existing.plainText = (existing.plainText || "") + " " + parkingPT;
+          existing.naturalLanguage = (existing.naturalLanguage || "") + " " + parkingNL;
+        } else {
+          out.push({
+            section: "Restrictions to work",
+            plainText: parkingPT.trim(),
+            naturalLanguage: parkingNL.trim() || "There are parking/access restrictions at the property."
+          });
+        }
+      }
+
+      // add planning / listed into Office notes
+      if (permissionSections.length > 0) {
+        const existing = out.find(s => s.section === "Office notes");
+        const permPT = permissionSections.map(s => s.plainText || "").join(" ");
+        const permNL = permissionSections.map(s => s.naturalLanguage || "").join(" ");
+        if (existing) {
+          existing.plainText = (existing.plainText || "") + " " + permPT;
+          existing.naturalLanguage = (existing.naturalLanguage || "") + " " + permNL;
+        } else {
+          out.push({
+            section: "Office notes",
+            plainText: permPT.trim(),
+            naturalLanguage: permNL.trim() || "Planning / office action required (listed/conservation/permission)."
+          });
+        }
+      }
+
+      // add double-handed into Components that require assistance
+      if (doubleHandedSections.length > 0) {
+        const existing = out.find(s => s.section === "Components that require assistance");
+        const dhPT = doubleHandedSections.map(s => s.plainText || "").join(" ");
+        const dhNL = doubleHandedSections.map(s => s.naturalLanguage || "").join(" ");
+        if (existing) {
+          existing.plainText = (existing.plainText || "") + " " + dhPT;
+          existing.naturalLanguage = (existing.naturalLanguage || "") + " " + dhNL;
+        } else {
+          out.push({
+            section: "Components that require assistance",
+            plainText: dhPT.trim(),
+            naturalLanguage: dhNL.trim() || "A two-person lift / additional engineer is required."
+          });
+        }
+      }
+
+      // add Disruption note for power flush ONLY
+      if (needsDisruptionFlushNote) {
+        const existing = out.find(s => s.section === "Disruption");
+        const addPT = "✅ Power flush to be carried out | Allow extra time and clear access;";
+        const addNL = "A power flush will be carried out, so extra time and access are needed.";
+        if (existing) {
+          existing.plainText = (existing.plainText || "") + " " + addPT;
+          existing.naturalLanguage = (existing.naturalLanguage || "") + " " + addNL;
+        } else {
+          out.push({
+            section: "Disruption",
+            plainText: addPT,
+            naturalLanguage: addNL
+          });
+        }
+      }
+
+      // final order
+      out.sort((a, b) => {
+        const oa = SECTION_ORDER[a.section] || 999;
+        const ob = SECTION_ORDER[b.section] || 999;
+        return oa - ob;
+      });
+
+      return out;
+    }
+
+    function handleBrainResponse(data) {
+      customerSummaryEl.textContent = data.customerSummary || data.summary || "(none)";
+
+      clarificationsEl.innerHTML = "";
+      if (Array.isArray(data.missingInfo) && data.missingInfo.length) {
+        data.missingInfo.forEach(q => {
+          const div = document.createElement("div");
+          div.className = "clar-chip";
+          if (q.target) div.dataset.target = q.target;
+          div.innerHTML = `<strong>${q.target || "engineer"}</strong> ${q.question}`;
+          clarificationsEl.appendChild(div);
+        });
+      } else {
+        clarificationsEl.innerHTML = `<span class="small">No questions.</span>`;
+      }
+
+      sectionsListEl.innerHTML = "";
+      let sections =
+        data.depotNotes?.sections ||
+        data.depotSectionsSoFar ||
+        [];
+      sections = postProcessSections(sections);
+      lastSections = sections;
+
+      if (sections.length) {
+        sections.forEach(sec => {
+          const div = document.createElement("div");
+          div.className = "section-item";
+          div.innerHTML = `
+            <h4>${sec.section}</h4>
+            <pre>${sec.plainText || ""}</pre>
+            <p class="small" style="margin-top:3px;">${sec.naturalLanguage || ""}</p>
+          `;
+          sectionsListEl.appendChild(div);
+        });
+      } else {
+        sectionsListEl.innerHTML = `<span class="small">No sections yet.</span>`;
+      }
+    }
+
+    exportBtn.onclick = async () => {
+      statusBar.textContent = "Preparing notes…";
+      const payload = {
+        exportedAt: new Date().toISOString(),
+        sections: lastSections || []
+      };
+      const pretty = JSON.stringify(payload, null, 2);
+      const blob = new Blob([pretty], { type: "application/json" });
+      const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+      const filename = `depot-notes-${timestamp}.json`;
+
+      const fileForShare = new File([blob], filename, { type: "application/json" });
+
+      if (navigator.canShare && navigator.canShare({ files: [fileForShare] })) {
+        try {
+          await navigator.share({
+            files: [fileForShare]
+          });
+          statusBar.textContent = "Notes shared.";
+          return;
+        } catch (err) {
+          console.error("Share failed", err);
+        }
+      }
+
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      statusBar.textContent = "Notes downloaded.";
+    };
+
+    micBtn.onclick = async () => {
+      if (mediaRecorder && mediaRecorder.state === "recording") {
+        mediaRecorder.stop();
+        micBtn.classList.remove("active");
+        return;
+      }
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder = new MediaRecorder(stream, {
+          mimeType: MediaRecorder.isTypeSupported("audio/mp4") ? "audio/mp4" : "audio/webm"
+        });
+        chunks = [];
+        mediaRecorder.ondataavailable = e => chunks.push(e.data);
+        mediaRecorder.onstop = async () => {
+          const blob = new Blob(chunks, { type: mediaRecorder.mimeType });
+          await sendAudio(blob);
+        };
+        mediaRecorder.start();
+        micBtn.classList.add("active");
+        statusBar.textContent = "Recording… tap again to send.";
+      } catch (err) {
+        statusBar.textContent = "Mic error.";
+      }
+    };
+
+    async function sendAudio(blob) {
+      statusBar.textContent = "Uploading audio…";
+      try {
+        let res = await fetch(WORKER_URL.replace(/\/$/, "") + "/audio", {
+          method: "POST",
+          headers: { "Content-Type": blob.type },
+          body: blob
+        });
+        const txt = await res.text();
+        let data = {};
+        try { data = JSON.parse(txt); } catch (e) {}
+        handleBrainResponse(data);
+        statusBar.textContent = "Audio processed.";
+      } catch (err) {
+        statusBar.textContent = "Audio failed.";
+      } finally {
+        micBtn.classList.remove("active");
+      }
+    }
+  </script>
+</body>
 </html>

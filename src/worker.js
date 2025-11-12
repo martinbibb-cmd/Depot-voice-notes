@@ -136,32 +136,27 @@ async function handleAudio(request, env, cors) {
     });
   }
 
-  const boundary = "----cfboundary" + Math.random().toString(16).slice(2);
-  const header =
-    `--${boundary}\r\n` +
-    `Content-Disposition: form-data; name="file"; filename="audio.webm"\r\n` +
-    `Content-Type: ${contentType}\r\n\r\n`;
-  const footer =
-    `\r\n--${boundary}\r\nContent-Disposition: form-data; name="model"\r\n\r\nwhisper-1\r\n` +
-    `--${boundary}--\r\n`;
+  const formData = new FormData();
+  const extension = (contentType.split("/")[1] || "webm").split(";")[0];
+  const fileName = `audio.${extension}`;
 
-  const body = new Blob([
-    new Blob([header], { type: "text/plain" }),
-    new Uint8Array(audioBytes),
-    new Blob([footer], { type: "text/plain" }),
-  ]);
+  const fileBlob = new Blob([new Uint8Array(audioBytes)], { type: contentType });
 
-  const whisperRes = await fetch(
-    "https://api.openai.com/v1/audio/transcriptions",
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${env.OPENAI_API_KEY}`,
-        "Content-Type": `multipart/form-data; boundary=${boundary}`,
-      },
-      body,
+  try {
+    formData.append("file", new File([fileBlob], fileName, { type: contentType }));
+  } catch (error) {
+    formData.append("file", fileBlob, fileName);
+  }
+
+  formData.append("model", env.WHISPER_MODEL || "whisper-1");
+
+  const whisperRes = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${env.OPENAI_API_KEY}`,
     },
-  );
+    body: formData,
+  });
 
   if (!whisperRes.ok) {
     const detail = await whisperRes.text();

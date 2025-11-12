@@ -131,204 +131,154 @@ const SECTION_ORDER = {
 };
 const SECTION_NAMES = Object.keys(SECTION_ORDER);
 
-// Canonical keyword → section map (lowercase)
-const HINTS_DEFAULT = {
-  // controls
-  "hive": "New boiler and controls",
-  "smart control": "New boiler and controls",
-  "smart thermostat": "New boiler and controls",
-  "controller": "New boiler and controls",
-  "control": "New boiler and controls",
-  "magnetic filter": "New boiler and controls",
-  "filter": "New boiler and controls",
-  "pump": "New boiler and controls",
-  "valve": "New boiler and controls",
-  "motorised valve": "New boiler and controls",
+/* ---------- Phase-aware helpers ---------- */
 
-  // pipework
-  "condensate": "Pipe work",
-  "condensate pump": "Pipe work",
-  "condensate upgrade": "Pipe work",
-  "pipework": "Pipe work",
-  "pipe work": "Pipe work",
-  "pipe": "Pipe work",
-  "gas run": "Pipe work",
-  "gas pipe": "Pipe work",
-  "gas supply": "Pipe work",
-  "increase gas": "Pipe work",
-  "increasing the gas": "Pipe work",
+const ASR_NORMALISE = [
+  [/\bcombini\b/gi, "combi"],
+  [/\bglow ?worm\b/gi, "Glow-worm"],
+  [/\b(2 ?man|two ?man)\b/gi, "two engineers"],
+];
 
-  // flue
-  "plume kit": "Flue",
-  "terminal": "Flue",
-  "turret": "Flue",
-  "rear flue": "Flue",
-  "side flue": "Flue",
-  "vertical flue": "Flue",
-  "direct rear": "Flue",
-  "offset": "Flue",
+function normText(s){ return String(s||"").trim(); }
+function lc(s){ return normText(s).toLowerCase(); }
+function endSemi(s){ s = normText(s); return !s ? s : (s.endsWith(";") ? s : s + ";"); }
+function escapeRx(s){ return s.replace(/[.*+?^${}()|[\]\\]/g,"\\$&"); }
 
-  // heights
-  "ladders": "Working at heights",
-  "ladder": "Working at heights",
-  "steps": "Working at heights",
-  "loft": "Working at heights",
-  "tower": "Working at heights",
-  "scaffold": "Working at heights",
-  "edge protection": "Working at heights",
-  "bridging tower": "Working at heights",
-  "internal scaffold": "Working at heights",
+function normaliseASR(s){
+  let out = String(s||"");
+  for (const [rx, rep] of ASR_NORMALISE) out = out.replace(rx, rep);
+  return out;
+}
 
-  // restrictions
-  "parking": "Restrictions to work",
-  "permit": "Restrictions to work",
-  "no parking": "Restrictions to work",
-  "double yellow": "Restrictions to work",
-  "access": "Restrictions to work",
+// Split real speech into "statements" — not just sentences.
+// Break on ., !, ?, line breaks, AND soft cue words/commas.
+function splitStatements(raw){
+  const text = normaliseASR(raw).replace(/\r/g," ").replace(/\s+/g," ").trim();
+  if (!text) return [];
+  // Hard splits on sentence ends
+  const hard = text.split(/(?<=[.!?])\s+/);
+  // Then soften further on cue phrases/comma followed by verbs
+  const out = [];
+  for (const seg of hard){
+    const bits = seg.split(/\s*(?:—|-|–|,)\s+(?=(?:so|that means|which|we(?:'|’)ll|i(?:'|’)ll|need to|let'?s|then)\b)/i);
+    for (const b of bits){
+      const t = b.trim();
+      if (t) out.push(t);
+    }
+  }
+  return out;
+}
 
-  // office/admin
-  "planning permission": "Office notes",
-  "listed building": "Office notes",
-  "conservation area": "Office notes",
-  "needs permission": "Office notes",
+/* ---------- Intent classification ---------- */
 
-  // assistance
-  "double handed": "Components that require assistance",
-  "double-hand": "Components that require assistance",
-  "2 man": "Components that require assistance",
-  "two man": "Components that require assistance",
-  "two engineers": "Components that require assistance",
-  "2 engineers": "Components that require assistance",
+// Core verb families (lowercase tests)
+const INTENT = {
+  controls: /\b(fit|install|swap|replace|upgrade|add|set up|commission)\b.*\b(hive|smart (?:control|thermostat)|controller|receiver|filter|magnetic filter|pump|valve|motorised valve|timer|thermostat)\b/i,
 
-  // disruption trigger
-  "power flush": "Disruption",
-  "powerflush": "Disruption"
+  pipe: /\b(re-?pipe|repiping|reconfigure|reroute|re-?route|extend|increase|upgrade|replace|tidy|clip)\b.*\b(pipe|pipework|condensate|condensate pump|gas (?:run|pipe|supply)|22 ?mm|32 ?mm)\b/i,
+
+  flue: /\b(flue|plume kit|terminal|turret|rear flue|side flue|vertical flue|direct rear|soffit|eaves)\b/i,
+
+  heights: /\b(loft|ladder|ladders|steps|tower|scaffold|edge protection|bridging tower|internal scaffold|headroom)\b/i,
+
+  office: /\b(office|planning|listed building|conservation area|permission|permit application|approval|sign[- ]off|building control)\b/i,
+
+  restrict: /\b(parking|double yellow|permit\b|no parking|access(?: issues)?|road closure|limited access)\b/i,
+
+  assist: /\b(two engineers|double[- ]handed|2 ?man|team lift|second person)\b/i,
+
+  disruption: /\b(power ?flush|flush the system|system flush|inhibitor)\b/i,
+
+  // fallbacks
+  replaceBoiler: /\b(replace|swap)\b.*\b(boiler|combi|system)\b/i,
 };
 
-function norm(s){ return String(s || "").trim(); }
-function lc(s){ return norm(s).toLowerCase(); }
-function endsSemi(s){ return s.endsWith(";") ? s : (s + ";"); }
-function dedupeWhitespace(s){ return norm(s).replace(/\s+/g," "); }
+/* ---------- Routing ---------- */
 
-function splitIntoLines(text){
-  const raw = String(text || "")
-    .replace(/\r/g, "")
-    .split(/\n+/)
-    .flatMap(line => line.split(/(?<=[.?!])\s+(?=[A-Z])/));
-  return raw.map(s => s.trim()).filter(Boolean);
-}
-
-function normaliseForRouting(s){
-  let t = lc(s);
-  t = t.replace(/\bcombini\b/g, "combi"); // ASR typo
-  return t;
-}
-
-function routeLine(line, hints){
-  const l = normaliseForRouting(line);
-
-  // explicit section headers like "Flue:" or "Pipe work - ..."
-  for (const name of SECTION_NAMES){
-    const rx = new RegExp(`^\\s*${name.replace(/[.*+?^${}()|[\\]\\]/g,"\\$&")}\\s*[:\\-]`, "i");
-    if (rx.test(line)) return name;
-  }
-  // keyword routing
-  for (const [kw, sec] of Object.entries(hints)){
-    if (l.includes(kw)) return sec;
-  }
-  return ""; // unclassified
-}
-
-function appendSection(bucket, name, ptAdd, nlAdd=""){
+function appendSection(bucket, name, pt, nl=""){
+  if (!name) return;
   const b = bucket.get(name) || { section: name, plainText: "", naturalLanguage: "" };
-  if (ptAdd) b.plainText = (b.plainText ? b.plainText + " " : "") + endsSemi(ptAdd.trim());
-  if (nlAdd) b.naturalLanguage = (b.naturalLanguage ? b.naturalLanguage + " " : "") + nlAdd.trim();
+  if (pt) b.plainText = (b.plainText ? b.plainText + " " : "") + endSemi(pt);
+  if (nl) b.naturalLanguage = (b.naturalLanguage ? b.naturalLanguage + " " : "") + nl.trim();
   bucket.set(name, b);
 }
 
-function summariseFlue(allText){
-  const t = lc(allText);
-  const side = /\bside flue\b/.test(t) || /\bturret to the side flue\b/.test(t);
-  const rear = /\brear flue\b/.test(t) || /\bturret rear flue\b/.test(t) || /\bdirect rear\b/.test(t);
-  const vertical = /\bvertical flue\b/.test(t);
-  let bits = [];
+function routeStatement(stmt){
+  const s = stmt.trim();
+  const low = lc(s);
+
+  // Explicit section headers if user dictates them
+  for (const name of SECTION_NAMES){
+    const rx = new RegExp("^\\s*" + escapeRx(name) + "\\s*[:\\-]");
+    if (rx.test(s)) return { section: name, text: s };
+  }
+
+  // Priority routing: some statements match multiple intents; choose the most specific
+  if (INTENT.controls.test(s)) return { section: "New boiler and controls", text: s };
+  if (INTENT.pipe.test(s))     return { section: "Pipe work", text: s };
+  if (INTENT.flue.test(s))     return { section: "Flue", text: s };
+  if (INTENT.heights.test(s))  return { section: "Working at heights", text: s };
+  if (INTENT.office.test(s))   return { section: "Office notes", text: s };
+  if (INTENT.restrict.test(s)) return { section: "Restrictions to work", text: s };
+  if (INTENT.assist.test(s))   return { section: "Components that require assistance", text: s };
+  if (INTENT.disruption.test(s)) return { section: "Disruption", text: "✅ Power flush to be carried out | Allow extra time and clear access;" };
+
+  // Boiler replacement mentions without specific parts → treat as overall System characteristics
+  if (INTENT.replaceBoiler.test(s)) return { section: "System characteristics", text: s };
+
+  // No route
+  return { section: "", text: s };
+}
+
+function summariseFlueFromAll(statements){
+  const all = lc(statements.join(" "));
+  const side = /\b(side flue|turret.*side|kick sideways)\b/.test(all);
+  const rear = /\b(rear flue|direct rear|turret rear)\b/.test(all);
+  const vertical = /\b(vertical flue|through the roof)\b/.test(all);
+  const plume = /\b(plume kit)\b/.test(all);
+
+  const bits = [];
   if (side) bits.push("side/offset turret");
   if (rear) bits.push("rear/turret");
   if (vertical) bits.push("vertical");
-  if (/\bplume kit\b/.test(t)) bits.push("plume kit");
-  if (!bits.length && /\bflue\b/.test(t)) bits.push("flue changes");
+  if (plume) bits.push("plume kit");
   return bits.length ? `Flue: ${bits.join(", ")}.` : "";
 }
 
+function firstSubstantiveLine(raw){
+  const lines = splitStatements(raw);
+  for (const l of lines){
+    if (/^(test|let[’']?s give this a test|okay|alright|right)\b/i.test(l)) continue;
+    return l.slice(0,180);
+  }
+  return (lines[0] || "").slice(0,180);
+}
+
+/* ---------- Main structurer ---------- */
+
 function structureDepotNotes(input, cfg = {}){
-  const expected = Array.isArray(cfg.expectedSections) && cfg.expectedSections.length ? cfg.expectedSections : SECTION_NAMES;
-  const userHints = cfg.sectionHints && Object.keys(cfg.sectionHints).length ? cfg.sectionHints : HINTS_DEFAULT;
-  const forceStructured = !!cfg.forceStructured;
-
-  const lines = splitIntoLines(input);
   const bucket = new Map();
+  const statements = splitStatements(input);
 
-  // 1) Route each line
-  for (const line of lines){
-    const target = routeLine(line, userHints);
-    if (!target) continue;
-    appendSection(bucket, target, line);
+  // Route each statement
+  for (const stmt of statements){
+    const routed = routeStatement(stmt);
+    if (routed.section) appendSection(bucket, routed.section, routed.text);
   }
 
-  // 2) Post-rules (merges/normalisation)
-  // Controls: ensure Hive/filter land in controls
-  for (const [name, obj] of [...bucket]) {
-    if (name === "New boiler and controls") continue;
-    const l = lc(obj.plainText + " " + obj.naturalLanguage);
-    if (/\b(hive|smart control|smart thermostat|controller|control|magnetic filter|filter|pump|valve|motorised valve)\b/.test(l)){
-      appendSection(bucket, "New boiler and controls", obj.plainText, obj.naturalLanguage);
-      bucket.delete(name);
+  // Flue: add a clean NL summary if we saw any flue context
+  if (statements.some(s => INTENT.flue.test(s))){
+    const summary = summariseFlueFromAll(statements);
+    if (summary){
+      const exist = bucket.get("Flue") || { section: "Flue", plainText: "", naturalLanguage: "" };
+      exist.naturalLanguage = (exist.naturalLanguage ? exist.naturalLanguage + " " : "") + summary;
+      bucket.set("Flue", exist);
     }
   }
 
-  // Pipe work: condensate / pipe / gas supply
-  for (const [name, obj] of [...bucket]) {
-    if (name === "Pipe work") continue;
-    const l = lc(obj.plainText + " " + obj.naturalLanguage);
-    if (/\b(condensate|condensate pump|pipework|pipe|gas run|gas pipe|gas supply|increase gas|increasing the gas)\b/.test(l)){
-      appendSection(bucket, "Pipe work", obj.plainText, obj.naturalLanguage);
-      bucket.delete(name);
-    }
-  }
-
-  // Restrictions to work
-  for (const [name, obj] of [...bucket]) {
-    if (name === "Restrictions to work") continue;
-    const l = lc(obj.plainText + " " + obj.naturalLanguage);
-    if (/\b(parking|permit|no parking|double yellow|access)\b/.test(l)){
-      appendSection(bucket, "Restrictions to work", obj.plainText, obj.naturalLanguage);
-      bucket.delete(name);
-    }
-  }
-
-  // Office notes
-  for (const [name, obj] of [...bucket]) {
-    if (name === "Office notes") continue;
-    const l = lc(obj.plainText + " " + obj.naturalLanguage);
-    if (/\b(planning permission|listed building|conservation area|needs permission)\b/.test(l)){
-      appendSection(bucket, "Office notes", obj.plainText, obj.naturalLanguage);
-      bucket.delete(name);
-    }
-  }
-
-  // Components that require assistance
-  for (const [name, obj] of [...bucket]) {
-    if (name === "Components that require assistance") continue;
-    const l = lc(obj.plainText + " " + obj.naturalLanguage);
-    if (/\b(double handed|double-hand|2 ?man|two (man|engineers)|2 engineers)\b/.test(l)){
-      appendSection(bucket, "Components that require assistance", obj.plainText, obj.naturalLanguage);
-      bucket.delete(name);
-    }
-  }
-
-  // Disruption (single entry only if power flush anywhere)
-  const allText = lines.join(" ");
-  if (/\bpower ?flush\b/i.test(allText)) {
+  // Disruption de-dupe: ensure exactly one standard line if “flush” was mentioned anywhere
+  const flushMentioned = statements.some(s => INTENT.disruption.test(s));
+  if (flushMentioned){
     bucket.set("Disruption", {
       section: "Disruption",
       plainText: "✅ Power flush to be carried out | Allow extra time and clear access;",
@@ -336,52 +286,31 @@ function structureDepotNotes(input, cfg = {}){
     });
   }
 
-  // Flue summary: if any flue/turret/plume keywords present, add a clean NL line
-  if (/\b(flue|turret|plume|terminal|rear flue|side flue|vertical flue|direct rear)\b/i.test(allText)) {
-    const summary = summariseFlue(allText);
-    if (summary) {
-      const existing = bucket.get("Flue") || { section: "Flue", plainText: "", naturalLanguage: "" };
-      existing.naturalLanguage = dedupeWhitespace((existing.naturalLanguage ? existing.naturalLanguage + " " : "") + summary);
-      bucket.set("Flue", existing);
-    }
+  // Merge & order
+  const merged = new Map();
+  for (const [name, obj] of bucket){
+    const acc = merged.get(name) || { section: name, plainText: "", naturalLanguage: "" };
+    acc.plainText = normText((acc.plainText ? acc.plainText + " " : "") + obj.plainText);
+    acc.naturalLanguage = normText((acc.naturalLanguage ? acc.naturalLanguage + " " : "") + obj.naturalLanguage);
+    merged.set(name, acc);
   }
-
-  // 3) Build ordered list, ensure semicolons, remove empties & duplicates
-  let sections = [...bucket.values()]
-    .map(s => ({
-      section: s.section,
-      plainText: norm(s.plainText).split(/\s*;\s*/).filter(Boolean).map(x => endsSemi(x)).join(" "),
-      naturalLanguage: norm(s.naturalLanguage)
-    }))
-    .filter(s => s.plainText || s.naturalLanguage);
-
-  // Coalesce duplicates by section name (defensive)
-  const byName = new Map();
-  for (const s of sections) {
-    const key = s.section;
-    if (!byName.has(key)) byName.set(key, { section:key, plainText:"", naturalLanguage:"" });
-    const acc = byName.get(key);
-    acc.plainText = norm((acc.plainText ? acc.plainText + " " : "") + s.plainText);
-    acc.naturalLanguage = norm((acc.naturalLanguage ? acc.naturalLanguage + " " : "") + s.naturalLanguage);
-  }
-  sections = [...byName.values()];
+  let sections = [...merged.values()].filter(s => s.plainText || s.naturalLanguage);
   sections.sort((a,b) => (SECTION_ORDER[a.section]||999) - (SECTION_ORDER[b.section]||999));
 
-  // 4) Skeleton when forced
-  if (forceStructured && sections.length === 0) {
-    sections = expected.map(name => ({ section: name, plainText: "", naturalLanguage: "" }));
+  // Force skeleton if requested
+  if (cfg.forceStructured && sections.length === 0){
+    sections = (cfg.expectedSections && cfg.expectedSections.length ? cfg.expectedSections : SECTION_NAMES)
+      .map(n => ({ section: n, plainText: "", naturalLanguage: "" }));
   }
 
-  // Customer summary: first substantive line (skip “test”, “let’s give this a test” etc.)
-  const firstGood = splitIntoLines(input).find(l => !/^test\b/i.test(l) && !/^let['’]s give this a test/i.test(l)) || "";
-  const customerSummary = firstGood.slice(0,180);
-
-  // Minimal question stubs
+  // Customer summary & minimal questions
+  const customerSummary = firstSubstantiveLine(input);
+  const all = lc(input);
   const missingInfo = [];
-  if (!/\b(hive|smart control|controller|smart thermostat)\b/i.test(allText)) {
+  if (!/\b(hive|smart (?:control|thermostat)|controller)\b/.test(all)){
     missingInfo.push({ target: "customer", question: "Do you want a smart control (e.g., Hive)?" });
   }
-  if (!/\b(condensate)\b/i.test(allText)) {
+  if (!/\b(condensate)\b/.test(all)){
     missingInfo.push({ target: "engineer", question: "Confirm condensate route and termination." });
   }
 
@@ -389,5 +318,5 @@ function structureDepotNotes(input, cfg = {}){
 }
 
 const DEFAULT_SECTION_ORDER_NAMES = SECTION_NAMES;
-const DEFAULT_SECTION_HINTS = HINTS_DEFAULT;
+const DEFAULT_SECTION_HINTS = {};
 

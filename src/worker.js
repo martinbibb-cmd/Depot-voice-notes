@@ -254,6 +254,16 @@ function splitClauses(s) {
     .map(x => x.trim())
     .filter(Boolean);
 }
+function ensureSemi(s) { s = String(s || "").trim(); return s ? (s.endsWith(";") ? s : s + ";") : s; }
+function bulletifyLines(lines){
+  const out = [];
+  for (let raw of lines){
+    const t = String(raw || "").trim();
+    if (!t) continue;
+    out.push("• " + ensureSemi(t));
+  }
+  return out.join("\n");
+}
 function endSemi(s) {
   s = String(s || "").trim();
   return s ? (s.endsWith(";") ? s : s + ";") : s;
@@ -263,6 +273,51 @@ function appendSection(bucket, name, pt, nl = "") {
   if (pt) b.plainText = (b.plainText ? b.plainText + " " : "") + endSemi(pt);
   if (nl) b.naturalLanguage = (b.naturalLanguage ? b.naturalLanguage + " " : "") + nl.trim();
   bucket.set(name, b);
+}
+
+function splitGeneralClauses(text){
+  return String(text || "")
+    .split(/(?:;|—|–|,| and | but | so | then)\s*/i)
+    .map(s => s.trim())
+    .filter(Boolean);
+}
+
+function splitPipeRoute(text){
+  const t = " " + String(text || "").replace(/\s+/g," ").trim() + " ";
+  const cues = [
+    "from ", "off the ", "pick up ", "drop to ",
+    "under ", "behind ", "through ", "along ", "across ",
+    "continue ", "then ", "past ", "to ", "into ",
+    "up ", "come up ", "rise in ", "down ", "fall to "
+  ];
+  const rx = new RegExp("(?:;|—|–|,)|\\b(" + cues.map(x => x.replace(/[.*+?^${}()|[\\]\\]/g,"\\$&")).join("|") + ")", "ig");
+
+  const bits = [];
+  let cur = "";
+  t.split(rx).forEach(chunk => {
+    if (!chunk) return;
+    const isCue = cues.some(c => chunk.toLowerCase().startsWith(c.trim()));
+    if (isCue && cur.trim()){
+      bits.push(cur.trim());
+      cur = chunk;
+    } else {
+      cur += (cur ? "" : "") + chunk;
+    }
+  });
+  if (cur.trim()) bits.push(cur.trim());
+
+  return bits
+    .map(s => s.replace(/\s+/g," ").replace(/^and\s+/i,"").trim())
+    .filter(Boolean);
+}
+
+function formatPlainTextForSection(sectionName, plainText){
+  if (!plainText) return "";
+  if (/^Pipe work$/i.test(sectionName)){
+    const steps = splitPipeRoute(plainText);
+    if (steps.length) return bulletifyLines(steps);
+  }
+  return bulletifyLines(splitGeneralClauses(plainText));
 }
 
 function reassignClauses(bucket, intents) {
@@ -419,15 +474,53 @@ async function structureDepotNotes(input, cfg = {}) {
     merged.set(name, acc);
   }
 
-  let sections = [...merged.values()]
-    .map(s => ({
-      section: s.section,
-      plainText: s.plainText.trim(),
-      naturalLanguage: s.naturalLanguage.trim()
-    }))
-    .filter(s => s.plainText || s.naturalLanguage);
+  for (const [name, obj] of merged) {
+    obj.plainText = formatPlainTextForSection(name, obj.plainText);
+    merged.set(name, obj);
+  }
 
-  sections.sort((a, b) => (SECTION_ORDER[a.section] || 999) - (SECTION_ORDER[b.section] || 999));
+  const buildSections = () => {
+    const arr = [...merged.values()]
+      .map(s => ({
+        section: s.section,
+        plainText: s.plainText.trim(),
+        naturalLanguage: s.naturalLanguage.trim()
+      }))
+      .filter(s => s.plainText || s.naturalLanguage);
+    arr.sort((a, b) => (SECTION_ORDER[a.section] || 999) - (SECTION_ORDER[b.section] || 999));
+    return arr;
+  };
+
+  let sections = buildSections();
+
+  if (sections.some(s => s.section === "Disruption" && /Power flush/i.test(s.plainText))) {
+    const bc = merged.get("New boiler and controls") || { section: "New boiler and controls", plainText: "", naturalLanguage: "" };
+    const adds = [
+      "Carry out system flush during commissioning",
+      "Complete electrical works at commissioning stage"
+    ];
+    const added = bulletifyLines(adds);
+    bc.plainText = bc.plainText ? `${bc.plainText}\n${added}` : added;
+    merged.set("New boiler and controls", bc);
+    sections = buildSections();
+  }
+
+  (function duplicateCustomerImpact(){
+    const impactRx = /\b(cupboard|wardrobe|furniture|decorating|make good|permit|parking|clear access)\b/i;
+    const collected = [];
+    for (const obj of merged.values()){
+      if (!obj.plainText) continue;
+      const lines = obj.plainText.split(/\n/).map(s => s.replace(/^•\s*/,""));
+      lines.forEach(l => { if (impactRx.test(l)) collected.push(l); });
+    }
+    if (collected.length){
+      const ca = merged.get("Customer actions") || { section: "Customer actions", plainText: "", naturalLanguage: "" };
+      const bullets = bulletifyLines(collected);
+      ca.plainText = ca.plainText ? `${ca.plainText}\n${bullets}` : bullets;
+      merged.set("Customer actions", ca);
+      sections = buildSections();
+    }
+  })();
 
   if (cfg.forceStructured && sections.length === 0) {
     const expected = cfg.expectedSections && cfg.expectedSections.length ? cfg.expectedSections : SECTION_NAMES;

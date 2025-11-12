@@ -206,7 +206,7 @@
 
   <script>
     // hard-code your worker so it isn't visible
-    const WORKER_URL = "https://survey-brain-api.martinbibb.workers.dev";
+    const WORKER_URL = "https://depot-voice-notes.martinbibb.workers.dev";
 
     const sendTextBtn = document.getElementById('sendTextBtn');
     const transcriptInput = document.getElementById('transcriptInput');
@@ -260,95 +260,65 @@
       forceStructured: true
     };
 
-    async function postJSONFlexible(url, body, opts = {}) {
+    async function postJSON(urlPath, body, extraHeaders = {}) {
       const base = WORKER_URL.replace(/\/$/, "");
-      const full = url.startsWith("http") ? url : base + url;
+      const url = urlPath.startsWith("http") ? urlPath : base + urlPath;
 
-      const fetchOpts = {
+      const res = await fetch(url, {
         method: "POST",
         mode: "cors",
-        credentials: "omit",
         headers: {
           "Accept": "application/json",
-          ...(opts.contentType ? { "Content-Type": opts.contentType } : { "Content-Type": "application/json" })
+          "Content-Type": "application/json",
+          ...extraHeaders
         },
-        body: opts.rawBody ? opts.rawBody : JSON.stringify(body)
-      };
+        body: JSON.stringify(body)
+      });
 
-      const res = await fetch(full, fetchOpts);
       const text = await res.text();
-      let json;
-      try { json = JSON.parse(text); } catch {}
-
-      console.log("[POST]", full, "→", res.status, res.statusText, json ?? text);
-      return { ok: res.ok, status: res.status, text, json, url: full };
-    }
-
-    function showFailure(where, result) {
-      const msg = `[${where}] ${result.status} ${result.text?.slice(0, 300) || "(no body)"}`;
-      console.warn(msg);
-      statusBar.textContent = `Error: ${result.status}`;
-      const current = transcriptInput.value;
-      transcriptInput.value = (current ? current + "\n\n" : "") + "⚠️ " + msg;
+      let json; try { json = JSON.parse(text); } catch {}
+      console.log("[POST]", url, "→", res.status, res.statusText, json ?? text);
+      return { ok: res.ok, status: res.status, json, text, url };
     }
 
     async function sendText() {
       const transcript = transcriptInput.value.trim();
       if (!transcript) return;
+
       statusBar.textContent = "Sending text…";
 
-      const payloadA = {
-        transcript,
-        alreadyCaptured: [],
-        expectedSections: STRUCTURE_HINTS.expectedSections,
-        sectionHints: STRUCTURE_HINTS.sectionHints,
-        forceStructured: STRUCTURE_HINTS.forceStructured
-      };
-
-      const payloadB = {
-        text: transcript,
-        hints: {
+      try {
+        const r = await postJSON("/api/recommend", {
+          transcript,
           expectedSections: STRUCTURE_HINTS.expectedSections,
           sectionHints: STRUCTURE_HINTS.sectionHints,
           forceStructured: STRUCTURE_HINTS.forceStructured
-        },
-        mode: "structured"
-      };
+        });
 
-      const rawBodyC = JSON.stringify(payloadA);
-
-      try {
-        let r = await postJSONFlexible("/api/recommend", payloadA);
-        if (r.ok && (r.json || r.text)) {
-          handleBrainResponse(r.json || {});
-          statusBar.textContent = "Done.";
+        if (!r.ok) {
+          statusBar.textContent = `Error: ${r.status}`;
+          transcriptInput.value += `\n\n⚠️ /api/recommend ${r.status}: ${r.text.slice(0,300)}`;
           return;
         }
-        showFailure("api/recommend (A)", r);
 
-        r = await postJSONFlexible("/api/recommend", payloadB);
-        if (r.ok && (r.json || r.text)) {
-          handleBrainResponse(r.json || {});
-          statusBar.textContent = "Done.";
-          return;
-        }
-        showFailure("api/recommend (B)", r);
-
-        r = await postJSONFlexible("/api/recommend", null, { contentType: "text/plain", rawBody: rawBodyC });
-        if (r.ok && (r.json || r.text)) {
-          handleBrainResponse(r.json || {});
-          statusBar.textContent = "Done.";
-          return;
-        }
-        showFailure("api/recommend (C)", r);
-
-        statusBar.textContent = "Text send failed.";
+        handleBrainResponse(r.json || {});
+        statusBar.textContent = "Done.";
       } catch (err) {
         console.error(err);
         statusBar.textContent = "Text send failed.";
       }
     }
     sendTextBtn.onclick = sendText;
+
+    (async () => {
+      try {
+        const u = WORKER_URL.replace(/\/$/, "") + "/health";
+        const res = await fetch(u, { method: "GET", mode: "cors" });
+        console.log("[health]", u, "→", res.status, res.statusText);
+      } catch (e) {
+        console.warn("[health failed]", e.message || e);
+      }
+    })();
 
     function postProcessSections(sections) {
       const out = [];

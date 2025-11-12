@@ -40,7 +40,11 @@ function defaultRoutingConfig() {
     ],
     phrase_overrides: {
       "two engineers": "Components that require assistance",
-      "double handed": "Components that require assistance"
+      "double handed": "Components that require assistance",
+      "planning permission": "Office notes",
+      "listed building": "Office notes",
+      "conservation area": "Office notes",
+      "permit required": "Restrictions to work"
     },
     intents: {
       controls: [

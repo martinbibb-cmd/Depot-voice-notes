@@ -246,6 +246,14 @@ function splitStatements(raw) {
   }
   return out;
 }
+
+function splitClauses(s) {
+  // break a routed sentence into smaller, meaningful bits
+  return String(s || "")
+    .split(/;|—|–|—|,|\band\b|\bbut\b|\bso\b|\bthen\b/i)
+    .map(x => x.trim())
+    .filter(Boolean);
+}
 function endSemi(s) {
   s = String(s || "").trim();
   return s ? (s.endsWith(";") ? s : s + ";") : s;
@@ -255,6 +263,51 @@ function appendSection(bucket, name, pt, nl = "") {
   if (pt) b.plainText = (b.plainText ? b.plainText + " " : "") + endSemi(pt);
   if (nl) b.naturalLanguage = (b.naturalLanguage ? b.naturalLanguage + " " : "") + nl.trim();
   bucket.set(name, b);
+}
+
+function reassignClauses(bucket, intents) {
+  const from = bucket.get("Flue");
+  if (!from || !from.plainText) return;
+
+  const keep = [];
+  const sendHeights = [];
+  const sendOffice = [];
+  const sendRestr = [];
+
+  for (const clause of splitClauses(from.plainText)) {
+    const c = clause.trim();
+    // If clause also contains explicit flue bits, keep it in Flue
+    if (intents.flue.test(c)) { keep.push(c); continue; }
+    // Otherwise test the other strong intents and shunt accordingly
+    if (intents.heights.test(c)) { sendHeights.push(c); continue; }
+    if (intents.office.test(c)) { sendOffice.push(c); continue; }
+    if (intents.restrict.test(c)) { sendRestr.push(c); continue; }
+    // If nothing else matches, keep with Flue (defensive)
+    keep.push(c);
+  }
+
+  // Write back
+  from.plainText = keep.map(x => x.endsWith(";") ? x : x + ";").join(" ");
+  bucket.set("Flue", from);
+
+  if (sendHeights.length) {
+    const t = sendHeights.map(x => x.endsWith(";") ? x : x + ";").join(" ");
+    const ex = bucket.get("Working at heights") || { section: "Working at heights", plainText: "", naturalLanguage: "" };
+    ex.plainText = (ex.plainText ? ex.plainText + " " : "") + t;
+    bucket.set("Working at heights", ex);
+  }
+  if (sendOffice.length) {
+    const t = sendOffice.map(x => x.endsWith(";") ? x : x + ";").join(" ");
+    const ex = bucket.get("Office notes") || { section: "Office notes", plainText: "", naturalLanguage: "" };
+    ex.plainText = (ex.plainText ? ex.plainText + " " : "") + t;
+    bucket.set("Office notes", ex);
+  }
+  if (sendRestr.length) {
+    const t = sendRestr.map(x => x.endsWith(";") ? x : x + ";").join(" ");
+    const ex = bucket.get("Restrictions to work") || { section: "Restrictions to work", plainText: "", naturalLanguage: "" };
+    ex.plainText = (ex.plainText ? ex.plainText + " " : "") + t;
+    bucket.set("Restrictions to work", ex);
+  }
 }
 
 function firstSubstantiveLine(raw) {
@@ -337,7 +390,13 @@ async function structureDepotNotes(input, cfg = {}) {
     if (routed.section) appendSection(bucket, routed.section, routed.text);
   }
 
-  if (statements.some(s => intents.disruption.test(s))) {
+  // clause-level clean-up so Flue doesn't swallow access/office/parking
+  reassignClauses(bucket, intents);
+
+  // Single Disruption line if any disruption intent matched (and remove any earlier ones)
+  const flushMentioned = statements.some(s => intents.disruption.test(s));
+  if (flushMentioned) {
+    bucket.delete("Disruption");
     bucket.set("Disruption", {
       section: "Disruption",
       plainText: "✅ Power flush to be carried out | Allow extra time and clear access;",

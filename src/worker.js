@@ -254,11 +254,24 @@ function splitClauses(s) {
     .map(x => x.trim())
     .filter(Boolean);
 }
-function ensureSemi(s) { s = String(s || "").trim(); return s ? (s.endsWith(";") ? s : s + ";") : s; }
-function bulletifyLines(lines){
-  const out = [];
+function ensureSemi(s){ s=String(s||"").trim(); return s ? (s.endsWith(";")?s:s+";") : s; }
+function stripSequencingPreamble(line){
+  // Remove order/agent phrasing at the start of a clause
+  let s = String(line||"").trim();
+  s = s
+    .replace(/^(then|next|first|second|after|before|finally|so)\b[:,\s-]*/i, "")
+    .replace(/^(we(?:'|’)ll|we will|i(?:'|’)ll|engineer will|installer will|we need to|need to|we can|we should)\b[:,\s-]*/i, "")
+    .replace(/^(please|note|recommend(?:ed)? to)\b[:,\s-]*/i, "");
+  // De-agent “will need to” → “required”
+  s = s.replace(/\bwill need to\b/gi, "required to");
+  // Soften imperatives “fit/install/replace” at start → noun phrase
+  s = s.replace(/^(fit|install|replace|repipe|re-pipe|reroute|re-route|upgrade)\b/i, (m)=>m.toLowerCase());
+  return s.trim();
+}
+function bulletify(lines){
+  const out=[];
   for (let raw of lines){
-    const t = String(raw || "").trim();
+    const t = stripSequencingPreamble(raw);
     if (!t) continue;
     out.push("• " + ensureSemi(t));
   }
@@ -276,48 +289,87 @@ function appendSection(bucket, name, pt, nl = "") {
 }
 
 function splitGeneralClauses(text){
-  return String(text || "")
-    .split(/(?:;|—|–|,| and | but | so | then)\s*/i)
-    .map(s => s.trim())
-    .filter(Boolean);
+  return String(text||"")
+    .split(/(?:;|—|–|,|\band\b|\bbut\b|\bso\b|\bthen\b)/i)
+    .map(s=>s.trim()).filter(Boolean);
 }
 
 function splitPipeRoute(text){
-  const t = " " + String(text || "").replace(/\s+/g," ").trim() + " ";
   const cues = [
-    "from ", "off the ", "pick up ", "drop to ",
-    "under ", "behind ", "through ", "along ", "across ",
-    "continue ", "then ", "past ", "to ", "into ",
-    "up ", "come up ", "rise in ", "down ", "fall to "
+    "from ","off the ","pick up ","drop to ","under ","behind ","through ",
+    "along ","across ","continue ","then ","past ","to ","into ","up ",
+    "come up ","rise in ","down ","fall to "
   ];
-  const rx = new RegExp("(?:;|—|–|,)|\\b(" + cues.map(x => x.replace(/[.*+?^${}()|[\\]\\]/g,"\\$&")).join("|") + ")", "ig");
-
-  const bits = [];
-  let cur = "";
-  t.split(rx).forEach(chunk => {
-    if (!chunk) return;
-    const isCue = cues.some(c => chunk.toLowerCase().startsWith(c.trim()));
-    if (isCue && cur.trim()){
-      bits.push(cur.trim());
-      cur = chunk;
-    } else {
-      cur += (cur ? "" : "") + chunk;
-    }
+  const rx = new RegExp("(?:;|—|–|,)|\\b(" + cues.map(c=>c.replace(/[.*+?^${}()|[\\]\\]/g,"\\$&")).join("|") + ")", "ig");
+  const bits=[]; let cur="";
+  (" "+String(text||"").replace(/\s+/g," ").trim()+" ").split(rx).forEach(ch=>{
+    if (!ch) return;
+    const isCue = cues.some(c=>ch.toLowerCase().startsWith(c.trim()));
+    if (isCue && cur.trim()){ bits.push(cur.trim()); cur=ch; } else { cur += ch; }
   });
   if (cur.trim()) bits.push(cur.trim());
-
-  return bits
-    .map(s => s.replace(/\s+/g," ").replace(/^and\s+/i,"").trim())
-    .filter(Boolean);
+  return bits.map(s=>s.replace(/^and\s+/i,"").trim()).filter(Boolean);
 }
 
-function formatPlainTextForSection(sectionName, plainText){
-  if (!plainText) return "";
-  if (/^Pipe work$/i.test(sectionName)){
-    const steps = splitPipeRoute(plainText);
-    if (steps.length) return bulletifyLines(steps);
+function formatPlainTextForSection(section, plain){
+  if (!plain) return "";
+  const normalized = plain.replace(/^•\s*/gm, "").trim();
+  if (!normalized) return "";
+  if (section === "Pipe work"){
+    const steps = splitPipeRoute(normalized);
+    if (steps.length) return bulletify(steps);
   }
-  return bulletifyLines(splitGeneralClauses(plainText));
+  return bulletify(splitGeneralClauses(normalized));
+}
+
+const BOILER_TYPES_RX = /\b(combi|combination|system|regular|open[- ]vented|storage combi|highflow)\b/i;
+const BRAND_RX = /\b(ideal|worcester(?: bosch)?|vaillant|glow[- ]?worm|viessmann|baxi|main|ariston|alpha|intergas)\b/i;
+
+function extractSystemCharacteristics(text){
+  const t = String(text||"");
+  const lines = splitGeneralClauses(t);
+  let existing = null, proposed = null, cylinder = null, location = null;
+
+  const replaceMatch = t.match(/replace(?:d)?\s+([^.,;]+?)\s+(?:with|by|for)\s+([^.,;]+?)(?:[.;;,]|$)/i);
+  if (replaceMatch){
+    existing = replaceMatch[1].trim();
+    proposed = replaceMatch[2].trim();
+  }
+  const existingLine = lines.find(l=>/\b(existing|current)\b/i.test(l));
+  if (existingLine && !existing) existing = existingLine.replace(/\b(existing|current)\b[:\s-]*/i,"").trim();
+
+  const movingLine = lines.find(l=>/\b(moving to|switching to|new)\b/i.test(l));
+  if (movingLine && !proposed) proposed = movingLine.replace(/\b(moving to|switching to|new)\b[:\s-]*/i,"").trim();
+
+  function normModel(s){
+    if (!s) return null;
+    const brand = (s.match(BRAND_RX)||[])[0] || "";
+    const type  = (s.match(BOILER_TYPES_RX)||[])[0] || "";
+    return (brand||type) ? `${brand ? capitalise(brand) : ""} ${type ? type.toLowerCase() : ""}`.trim() : s;
+  }
+  function capitalise(w){ return w ? w[0].toUpperCase()+w.slice(1) : w; }
+
+  const cylMatch = t.match(/\b(mixergy|unvented|vented)\b(?:[^.,;]*\b(\d{2,3})\s*l)?/i);
+  if (cylMatch){
+    cylinder = cylMatch[1] ? cylMatch[1].toLowerCase() : null;
+    if (cylMatch[2]) cylinder += ` ${cylMatch[2]}l`;
+  }
+
+  const locMatch = t.match(/\b(kitchen|utility|garage|loft|airing cupboard|bedroom|cupboard|hallway)\b/i);
+  if (locMatch) location = locMatch[0].toLowerCase();
+
+  const bullets = [];
+  if (existing) bullets.push(`existing: ${normModel(existing)}${location ? `, located in ${location}` : ""}`);
+  if (proposed) bullets.push(`proposed: ${normModel(proposed)}${cylinder ? ` + ${cylinder} cylinder` : ""}`);
+  if (!existing && /existing|current/i.test(t) && BOILER_TYPES_RX.test(t)) {
+    bullets.push(`existing: ${(t.match(BOILER_TYPES_RX)||[])[0].toLowerCase()}`);
+  }
+  if (!proposed && /\b(new|replace|switching|moving)\b/i.test(t) && BOILER_TYPES_RX.test(t)) {
+    const second = [...t.matchAll(BOILER_TYPES_RX)].map(m=>m[0].toLowerCase())[1];
+    if (second) bullets.push(`proposed: ${second}`);
+  }
+
+  return bullets.length ? bulletify(bullets) : "";
 }
 
 function reassignClauses(bucket, intents) {
@@ -466,15 +518,26 @@ async function structureDepotNotes(input, cfg = {}) {
     bucket.set("Flue", ex);
   }
 
+  (function ensureSystemCharacteristics(){
+    const sysBullets = extractSystemCharacteristics(input);
+    if (sysBullets){
+      const existing = bucket.get("System characteristics") || { section:"System characteristics", plainText:"", naturalLanguage:"" };
+      existing.plainText = existing.plainText
+        ? (sysBullets + "\n" + existing.plainText)
+        : sysBullets;
+      bucket.set("System characteristics", existing);
+    }
+  })();
+
   const merged = new Map();
-  for (const [name, obj] of bucket) {
-    const acc = merged.get(name) || { section: name, plainText: "", naturalLanguage: "" };
-    acc.plainText = (acc.plainText ? acc.plainText + " " : "") + (obj.plainText || "");
-    acc.naturalLanguage = (acc.naturalLanguage ? acc.naturalLanguage + " " : "") + (obj.naturalLanguage || "");
+  for (const [name, obj] of bucket){
+    const acc = merged.get(name) || { section:name, plainText:"", naturalLanguage:"" };
+    acc.plainText = ((acc.plainText?acc.plainText+" ":"") + (obj.plainText||"")).trim();
+    acc.naturalLanguage = ((acc.naturalLanguage?acc.naturalLanguage+" ":"") + (obj.naturalLanguage||"")).trim();
     merged.set(name, acc);
   }
 
-  for (const [name, obj] of merged) {
+  for (const [name, obj] of merged){
     obj.plainText = formatPlainTextForSection(name, obj.plainText);
     merged.set(name, obj);
   }
@@ -499,7 +562,7 @@ async function structureDepotNotes(input, cfg = {}) {
       "Carry out system flush during commissioning",
       "Complete electrical works at commissioning stage"
     ];
-    const added = bulletifyLines(adds);
+    const added = bulletify(adds);
     bc.plainText = bc.plainText ? `${bc.plainText}\n${added}` : added;
     merged.set("New boiler and controls", bc);
     sections = buildSections();
@@ -515,7 +578,7 @@ async function structureDepotNotes(input, cfg = {}) {
     }
     if (collected.length){
       const ca = merged.get("Customer actions") || { section: "Customer actions", plainText: "", naturalLanguage: "" };
-      const bullets = bulletifyLines(collected);
+      const bullets = bulletify(collected);
       ca.plainText = ca.plainText ? `${ca.plainText}\n${bullets}` : bullets;
       merged.set("Customer actions", ca);
       sections = buildSections();

@@ -1,4 +1,4 @@
-name = "depot-transcribe"
+name = "depot-voice-notes"
 main = "src/worker.js"
 compatibility_date = "2024-11-08"
 

@@ -329,11 +329,18 @@
   <input id="importAudioInput" type="file" accept="audio/*" style="display:none;">
 
   <script type="module">
-    import { loadChecklistConfig, loadDepotSchema, loadChecklistState, saveChecklistState } from "./src/app/state.js";
+    import {
+      loadChecklistConfig,
+      loadDepotSchema,
+      loadChecklistState,
+      saveChecklistState,
+      loadWorkerUrl,
+      DEFAULT_WORKER_URL as STATE_DEFAULT_WORKER_URL
+    } from "./src/app/state.js";
     import { initDepotRenderers, refreshDepotNotesFromChecklist } from "./src/app/renderDepot.js";
 
-    // hard-code your worker so it isn't visible
-    const WORKER_URL = "https://survey-brain-api.martinbibb.workers.dev";
+    // Worker endpoint can be overridden from the settings page
+    const WORKER_URL = loadWorkerUrl(STATE_DEFAULT_WORKER_URL);
 
     const sendTextBtn = document.getElementById('sendTextBtn');
     const transcriptInput = document.getElementById('transcriptInput');

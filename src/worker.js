@@ -474,9 +474,7 @@ function routeStatement(stmt, intents, overrides) {
   if (intents.office.test(s)) return { section: "Office notes", text: s };
   if (intents.restrict.test(s)) return { section: "Restrictions to work", text: s };
   if (intents.assist.test(s)) return { section: "Components that require assistance", text: s };
-  if (intents.disruption.test(s)) {
-    return { section: "Disruption", text: "✅ Power flush to be carried out | Allow extra time and clear access;" };
-  }
+  if (intents.disruption.test(s)) return { section: "Disruption", text: s };
   if (intents.replaceBoiler.test(s)) return { section: "System characteristics", text: s };
 
   return { section: "", text: s };
@@ -499,17 +497,6 @@ async function structureDepotNotes(input, cfg = {}) {
 
   // clause-level clean-up so Flue doesn't swallow access/office/parking
   reassignClauses(bucket, intents);
-
-  // Single Disruption line if any disruption intent matched (and remove any earlier ones)
-  const flushMentioned = statements.some(s => intents.disruption.test(s));
-  if (flushMentioned) {
-    bucket.delete("Disruption");
-    bucket.set("Disruption", {
-      section: "Disruption",
-      plainText: "✅ Power flush to be carried out | Allow extra time and clear access;",
-      naturalLanguage: "A power flush will be carried out, so extra time and access are needed."
-    });
-  }
 
   if (statements.some(s => intents.flue.test(s))) {
     const nl = summariseFlue(statements, intents.flue);
@@ -577,6 +564,25 @@ async function structureDepotNotes(input, cfg = {}) {
     const expected = cfg.expectedSections && cfg.expectedSections.length ? cfg.expectedSections : SECTION_NAMES;
     sections = expected.map(n => ({ section: n, plainText: "", naturalLanguage: "" }));
   }
+
+  const FORBIDDEN_AUTO = [
+    /flush during commissioning/gi,
+    /electrical works at commissioning stage/gi
+  ];
+
+  sections = sections.map(sec => {
+    let pt = sec.plainText || "";
+    let nl = sec.naturalLanguage || "";
+    FORBIDDEN_AUTO.forEach(rx => {
+      pt = pt.replace(rx, "");
+      nl = nl.replace(rx, "");
+    });
+    return {
+      section: sec.section,
+      plainText: pt.trim(),
+      naturalLanguage: nl.trim()
+    };
+  });
 
   const customerSummary = firstSubstantiveLine(text);
   const all = text.toLowerCase();

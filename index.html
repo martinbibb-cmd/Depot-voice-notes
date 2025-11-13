@@ -255,6 +255,8 @@
     </div>
   </header>
 
+  <div id="voice-error" style="display:none;color:#b00020;font-weight:bold;margin:0.5rem 1rem 0.5rem;"></div>
+
   <main>
     <!-- LEFT: transcript + customer summary -->
     <div class="column main-left">
@@ -348,18 +350,30 @@
     const importAudioBtn = document.getElementById('importAudioBtn');
     const importAudioInput = document.getElementById('importAudioInput');
     const partsListEl = document.getElementById('partsList');
+    let lastMaterials = [];
+    let lastRawSections = [];
+    let lastCheckedItems = [];
+    let lastMissingInfo = [];
+    let lastCustomerSummary = "";
 
-    const checklistConfig = loadChecklistConfig();
-    const depotSchema = loadDepotSchema();
-    let checklistState = loadChecklistState();
+    function showVoiceError(message) {
+      const el = document.getElementById("voice-error");
+      if (!el) {
+        console.error("Voice error:", message);
+        alert(message);
+        return;
+      }
+      el.textContent = message;
+      el.style.display = "block";
+    }
 
-    const SECTION_ORDER = {};
-    const sectionOrderList = depotSchema?.sectionsOrder || checklistConfig?.sectionsOrder || [];
-    sectionOrderList.forEach((name, idx) => {
-      SECTION_ORDER[name] = idx + 1;
-    });
-
-    initDepotRenderers({ sectionsEl: sectionsListEl, materialsEl: partsListEl });
+    function clearVoiceError() {
+      const el = document.getElementById("voice-error");
+      if (el) {
+        el.textContent = "";
+        el.style.display = "none";
+      }
+    }
 
     let mediaRecorder, chunks = [];
     let lastSections = [];
@@ -372,6 +386,53 @@
       lastMaterials = initialOutput.materials || [];
     }
 
+    const SECTION_FALLBACK = [
+      { name: "Needs", order: 1, description: "Key needs or must-haves called out by the customer." },
+      { name: "Working at heights", order: 2, description: "Anything involving ladders, lofts, scaffolds or special access kit." },
+      { name: "System characteristics", order: 3, description: "Existing system summary, proposed boiler, cylinders and storage." },
+      { name: "Components that require assistance", order: 4, description: "Items that need two-person lifts or specialist handling." },
+      { name: "Restrictions to work", order: 5, description: "Parking limits, permits or building restrictions." },
+      { name: "External hazards", order: 6, description: "Asbestos, site hazards, aggressive pets or anything notable externally." },
+      { name: "Delivery notes", order: 7, description: "Delivery constraints, storage space and timings." },
+      { name: "Office notes", order: 8, description: "Anything for the office team: planning, conservation, notifications." },
+      { name: "New boiler and controls", order: 9, description: "What is being fitted: boiler, controls, flushing, filters." },
+      { name: "Flue", order: 10, description: "Flue position, routing, plume kits and terminal notes." },
+      { name: "Pipe work", order: 11, description: "Gas, condensate and system pipe alterations." },
+      { name: "Disruption", order: 12, description: "Power flush, draining, floor lifting or decorations impacted." },
+      { name: "Customer actions", order: 13, description: "Things the customer has to sort before install." },
+      { name: "Future plans", order: 14, description: "Anything the customer plans after install, or future upgrades." }
+    ];
+
+    let SECTION_SCHEMA = [];
+    let SECTION_ORDER = {};
+    const SECTION_HINT_MAP = {
+      "hive": "New boiler and controls",
+      "smart control": "New boiler and controls",
+      "controller": "New boiler and controls",
+      "pump": "New boiler and controls",
+      "valve": "New boiler and controls",
+      "condensate": "Pipe work",
+      "condensate upgrade": "Pipe work",
+      "pipe": "Pipe work",
+      "gas run": "Pipe work",
+      "reuse flue": "Flue",
+      "new flue": "Flue",
+      "balanced flue": "Flue",
+      "ladders": "Working at heights",
+      "loft": "Working at heights",
+      "power flush": "New boiler and controls",
+      "magnetic filter": "New boiler and controls"
+    };
+
+    const STRUCTURE_HINTS = {
+      expectedSections: [],
+      sectionHints: SECTION_HINT_MAP,
+      forceStructured: true
+    };
+
+    let CHECKLIST_SOURCE = [];
+    let CHECKLIST_ITEMS = [];
+
     // Auto notes session state
     const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition || null;
     let recognition = null;
@@ -383,29 +444,6 @@
     let chunkTimerId = null;
     let chunkIntervalMs = 60000;
     let consecutiveFailures = 0;
-
-    const STRUCTURE_HINTS = {
-      expectedSections: sectionOrderList.length ? sectionOrderList : Object.keys(SECTION_ORDER),
-      sectionHints: {
-        "hive": "New boiler and controls",
-        "smart control": "New boiler and controls",
-        "controller": "New boiler and controls",
-        "pump": "New boiler and controls",
-        "valve": "New boiler and controls",
-        "condensate": "Pipe work",
-        "condensate upgrade": "Pipe work",
-        "pipe": "Pipe work",
-        "gas run": "Pipe work",
-        "reuse flue": "Flue",
-        "new flue": "Flue",
-        "balanced flue": "Flue",
-        "ladders": "Working at heights",
-        "loft": "Working at heights",
-        "power flush": "New boiler and controls",
-        "magnetic filter": "New boiler and controls"
-      },
-      forceStructured: true
-    };
 
     function setStatus(msg) {
       const onlinePart =
@@ -434,29 +472,499 @@
       return res;
     }
 
-    function renderChecklist(container, config, state, extraQuestions = []) {
-      const items = Array.isArray(config?.items) ? config.items : [];
+    function normaliseSectionSchema(entries) {
+      if (entries && typeof entries === "object" && !Array.isArray(entries)) {
+        if (Array.isArray(entries.sections)) return normaliseSectionSchema(entries.sections);
+      }
+      if (!Array.isArray(entries)) return [];
+      return entries.map((entry, idx) => {
+        if (!entry) return null;
+        if (typeof entry === "string") {
+          const name = entry.trim();
+          if (!name) return null;
+          return { name, order: idx + 1, description: "" };
+        }
+        const name = String(entry.name || entry.section || "").trim();
+        if (!name) return null;
+        const order = typeof entry.order === "number" ? entry.order : idx + 1;
+        const description = String(entry.description || entry.hint || "").trim();
+        return { name, order, description };
+      }).filter(Boolean);
+    }
+
+    function applySectionSchema(entries) {
+      const normalised = normaliseSectionSchema(entries);
+      const fallback = normalised.length ? normalised : normaliseSectionSchema(SECTION_FALLBACK);
+      SECTION_SCHEMA = fallback;
+      SECTION_ORDER = {};
+      fallback.forEach((sec, idx) => {
+        const order = typeof sec.order === "number" ? sec.order : idx + 1;
+        SECTION_ORDER[sec.name] = order;
+      });
+      STRUCTURE_HINTS.expectedSections = fallback.map(sec => sec.name);
+    }
+
+    applySectionSchema(SECTION_FALLBACK);
+
+    function normaliseChecklistConfig(items) {
+      if (items && typeof items === "object" && !Array.isArray(items)) {
+        if (Array.isArray(items.items)) return normaliseChecklistConfig(items.items);
+      }
+      if (!Array.isArray(items)) return [];
+      return items.map(item => {
+        if (!item) return null;
+        const id = item.id != null ? String(item.id).trim() : "";
+        if (!id) return null;
+        return {
+          id,
+          group: item.group || item.category || "Checklist",
+          section: item.section || item.sectionName || "",
+          label: item.label || item.name || id,
+          hint: item.hint || item.description || ""
+        };
+      }).filter(Boolean);
+    }
+
+    function cloneSections(sections) {
+      try {
+        return JSON.parse(JSON.stringify(sections || []));
+      } catch (_) {
+        return Array.isArray(sections) ? sections.slice() : [];
+      }
+    }
+
+    function refreshUiFromState() {
+      customerSummaryEl.textContent = lastCustomerSummary || "(none)";
+      const processed = postProcessSections(cloneSections(lastRawSections || []));
+      lastSections = processed;
+      sectionsListEl.innerHTML = "";
+      if (processed.length) {
+        processed.forEach(sec => {
+          const div = document.createElement("div");
+          div.className = "section-item";
+          div.innerHTML = `
+            <h4>${sec.section}</h4>
+            <pre>${sec.plainText || ""}</pre>
+            <p class="small" style="margin-top:3px;">${sec.naturalLanguage || ""}</p>
+          `;
+          sectionsListEl.appendChild(div);
+        });
+      } else {
+        sectionsListEl.innerHTML = `<span class="small">No sections yet.</span>`;
+      }
+      renderPartsList(lastMaterials);
+      renderChecklist(clarificationsEl, lastCheckedItems, lastMissingInfo);
+    }
+
+    async function loadStaticConfig() {
+      try {
+        const res = await fetch('depot.output.schema.json', { cache: 'no-store' });
+        if (res.ok) {
+          const data = await res.json();
+          applySectionSchema(data.sections || data);
+        }
+      } catch (err) {
+        console.warn('Depot schema load failed', err);
+      }
+
+      try {
+        const res = await fetch('checklist.config.json', { cache: 'no-store' });
+        if (res.ok) {
+          const data = await res.json();
+          const raw = data.items || data;
+          CHECKLIST_SOURCE = Array.isArray(raw) ? raw : [];
+          CHECKLIST_ITEMS = normaliseChecklistConfig(CHECKLIST_SOURCE);
+        }
+      } catch (err) {
+        console.warn('Checklist config load failed', err);
+      }
+
+      refreshUiFromState();
+    }
+
+    loadStaticConfig();
+
+    function ensureSemi(s){ s=String(s||"").trim(); return s ? (s.endsWith(";")?s:s+";") : s; }
+    function splitGeneralClauses(text){
+      return String(text||"")
+        .split(/[\n;]+/)
+        .map(s => s.trim())
+        .filter(Boolean);
+    }
+    function splitPipeRoute(text){
+      const cues = [
+        "from ","off the ","pick up ","drop to ","under ","behind ","through ",
+        "along ","across ","continue ","then ","past ","to ","into ","up ",
+        "come up ","rise in ","down ","fall to "
+      ];
+      const rx = new RegExp("(?:;|—|–|,)|\\b(" + cues.map(c=>c.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")).join("|") + ")", "ig");
+      const bits=[]; let cur="";
+      (" "+String(text||"").replace(/\s+/g," ").trim()+" ").split(rx).forEach(ch=>{
+        if (!ch) return;
+        const isCue = cues.some(c=>ch.toLowerCase().startsWith(c.trim()));
+        if (isCue && cur.trim()){ bits.push(cur.trim()); cur=ch; } else { cur += ch; }
+      });
+      if (cur.trim()) bits.push(cur.trim());
+      return bits.map(s=>s.replace(/^and\s+/i,"").trim()).filter(Boolean);
+    }
+    function stripSequencingPreamble(line){
+      let s = String(line||"").trim();
+      s = s
+        .replace(/^(then|next|first|second|after|before|finally|so)\b[:,\s-]*/i, "")
+        .replace(/^(we(?:'|’)ll|we will|i(?:'|’)ll|engineer will|installer will|we need to|need to|we can|we should)\b[:,\s-]*/i, "")
+        .replace(/^(please|note|recommend(?:ed)? to)\b[:,\s-]*/i, "");
+      s = s.replace(/\bwill need to\b/gi, "required to");
+      return s.trim();
+    }
+    function bulletify(lines){
+      const out=[];
+      for (let raw of lines){
+        const t = stripSequencingPreamble(raw);
+        if (!t) continue;
+        out.push("• " + ensureSemi(t));
+      }
+      return out.join("\n");
+    }
+    function formatPlainTextForSection(section, plain){
+      if (!plain) return "";
+      if (section === "Pipe work"){
+        const steps = splitPipeRoute(plain);
+        if (steps.length) return bulletify(steps);
+      }
+      return bulletify(splitGeneralClauses(plain));
+    }
+
+    function renderPartsList(materials) {
+      lastMaterials = Array.isArray(materials) ? materials.slice() : [];
+      if (!partsListEl) return;
+
+      partsListEl.innerHTML = "";
+      if (!lastMaterials.length) {
+        partsListEl.innerHTML = `<span class="small">No suggestions yet.</span>`;
+        return;
+      }
+
+      // group by category
+      const byCategory = new Map();
+      lastMaterials.forEach(item => {
+        const cat = item.category || "Misc";
+        const arr = byCategory.get(cat) || [];
+        arr.push(item);
+        byCategory.set(cat, arr);
+      });
+
+      byCategory.forEach((items, cat) => {
+        const h = document.createElement("div");
+        h.className = "small";
+        h.style.fontWeight = "600";
+        h.style.margin = "4px 0 2px";
+        h.textContent = cat;
+        partsListEl.appendChild(h);
+
+        const ul = document.createElement("ul");
+        ul.style.margin = "0 0 4px 14px";
+        ul.style.padding = "0";
+        ul.style.listStyle = "disc";
+
+        items.forEach(p => {
+          const li = document.createElement("li");
+          li.style.fontSize = ".68rem";
+          const detail = [];
+          if (p.item) detail.push(p.item);
+          if (p.qty && Number(p.qty) !== 1) detail.push(`× ${p.qty}`);
+          if (p.notes) detail.push(p.notes);
+          li.textContent = detail.length ? detail.join(" — ") : (p.item || "Item");
+          ul.appendChild(li);
+        });
+
+        partsListEl.appendChild(ul);
+      });
+    }
+    function postProcessSections(sections) {
+      const out = [];
+      let boilerControlsPlain = "";
+      let boilerControlsNL = "";
+      let needsDisruptionFlushNote = false;
+      let pipeWorkPlain = "";
+      let pipeWorkNL = "";
+      const parkingSections = [];
+      const permissionSections = [];
+      const doubleHandedSections = [];
+
+      let heightsPlain = "";
+      let heightsNL = "";
+      let hazardsPlain = "";
+      let hazardsNL = "";
+      let customerPlain = "";
+      let customerNL = "";
+
+      sections.forEach(sec => {
+        const name = sec.section || "";
+        const pt = sec.plainText || "";
+        const nl = sec.naturalLanguage || "";
+        const combined = (pt + " " + nl).toLowerCase();
+
+        const isControl = combined.includes("hive")
+          || combined.includes("smart control")
+          || combined.includes("controller")
+          || combined.includes("pump")
+          || combined.includes("valve");
+
+        const isPipe = combined.includes("condensate")
+          || combined.includes("pipe")
+          || combined.includes("gas run");
+
+        const isPowerFlush = combined.includes("power flush") || combined.includes("powerflush");
+
+        const isParking = combined.includes("parking")
+          || combined.includes("permit")
+          || combined.includes("no parking");
+
+        const isPermission = combined.includes("planning permission")
+          || combined.includes("listed building")
+          || combined.includes("conservation area")
+          || combined.includes("needs permission");
+
+        const isDoubleHanded = combined.includes("double handed")
+          || combined.includes("2 man")
+          || combined.includes("two man")
+          || combined.includes("two engineers")
+          || combined.includes("2 engineers");
+
+        const isHeightsNote =
+          combined.includes("working at height") ||
+          combined.includes("working at heights") ||
+          combined.includes("ladder") ||
+          combined.includes("loft");
+
+        const isHazardsNote =
+          combined.includes("asbestos") ||
+          combined.includes("no safety issues") ||
+          combined.includes("safety issues") ||
+          combined.includes("dogs on site") ||
+          combined.includes("aggressive dog");
+
+        const isCustomerNote =
+          combined.includes("customer to") ||
+          combined.includes("customer will") ||
+          combined.includes("clear route") ||
+          combined.includes("clear access");
+
+        if (isControl) {
+          boilerControlsPlain += pt + " ";
+          boilerControlsNL += nl + " ";
+        } else if (isPipe && name !== "Pipe work") {
+          pipeWorkPlain += pt + " ";
+          pipeWorkNL += nl + " ";
+        } else if (isParking) {
+          parkingSections.push(sec);
+        } else if (isPermission) {
+          permissionSections.push(sec);
+        } else if (isDoubleHanded && name !== "Components that require assistance") {
+          doubleHandedSections.push(sec);
+          out.push(sec);
+        } else {
+          out.push(sec);
+        }
+
+        if (isPowerFlush) {
+          needsDisruptionFlushNote = true;
+        }
+
+        if (isHeightsNote) {
+          heightsPlain += pt + " ";
+          heightsNL += nl + " ";
+        }
+        if (isHazardsNote) {
+          hazardsPlain += pt + " ";
+          hazardsNL += nl + " ";
+        }
+        if (isCustomerNote) {
+          customerPlain += pt + " ";
+          customerNL += nl + " ";
+        }
+      });
+
+      if (boilerControlsPlain.trim().length > 0) {
+        out.push({
+          section: "New boiler and controls",
+          plainText: boilerControlsPlain.trim(),
+          naturalLanguage: boilerControlsNL.trim() || "Boiler and control items to be fitted."
+        });
+      }
+
+      if (pipeWorkPlain.trim().length > 0) {
+        out.push({
+          section: "Pipe work",
+          plainText: pipeWorkPlain.trim(),
+          naturalLanguage: pipeWorkNL.trim() || "Pipework/condensate adjustments are required."
+        });
+      }
+
+      if (parkingSections.length > 0) {
+        const existing = out.find(s => s.section === "Restrictions to work");
+        const parkingPT = parkingSections.map(s => s.plainText || "").join(" ");
+        const parkingNL = parkingSections.map(s => s.naturalLanguage || "").join(" ");
+        if (existing) {
+          existing.plainText = (existing.plainText || "") + " " + parkingPT;
+          existing.naturalLanguage = (existing.naturalLanguage || "") + " " + parkingNL;
+        } else {
+          out.push({
+            section: "Restrictions to work",
+            plainText: parkingPT.trim(),
+            naturalLanguage: parkingNL.trim() || "There are parking/access restrictions at the property."
+          });
+        }
+      }
+
+      if (permissionSections.length > 0) {
+        const existing = out.find(s => s.section === "Office notes");
+        const permPT = permissionSections.map(s => s.plainText || "").join(" ");
+        const permNL = permissionSections.map(s => s.naturalLanguage || "").join(" ");
+        if (existing) {
+          existing.plainText = (existing.plainText || "") + " " + permPT;
+          existing.naturalLanguage = (existing.naturalLanguage || "") + " " + permNL;
+        } else {
+          out.push({
+            section: "Office notes",
+            plainText: permPT.trim(),
+            naturalLanguage: permNL.trim() || "Planning / office action required (listed/conservation/permission)."
+          });
+        }
+      }
+
+      if (doubleHandedSections.length > 0) {
+        const existing = out.find(s => s.section === "Components that require assistance");
+        const dhPT = doubleHandedSections.map(s => s.plainText || "").join(" ");
+        const dhNL = doubleHandedSections.map(s => s.naturalLanguage || "").join(" ");
+        if (existing) {
+          existing.plainText = (existing.plainText || "") + " " + dhPT;
+          existing.naturalLanguage = (existing.naturalLanguage || "") + " " + dhNL;
+        } else {
+          out.push({
+            section: "Components that require assistance",
+            plainText: dhPT.trim(),
+            naturalLanguage: dhNL.trim() || "A two-person lift / additional engineer is required."
+          });
+        }
+      }
+
+      if (needsDisruptionFlushNote) {
+        const existing = out.find(s => s.section === "Disruption");
+        const addPT = "✅ Power flush to be carried out | Allow extra time and clear access;";
+        const addNL = "A power flush will be carried out, so extra time and access are needed.";
+        if (existing) {
+          existing.plainText = (existing.plainText || "") + " " + addPT;
+          existing.naturalLanguage = (existing.naturalLanguage || "") + " " + addNL;
+        } else {
+          out.push({
+            section: "Disruption",
+            plainText: addPT,
+            naturalLanguage: addNL
+          });
+        }
+      }
+
+      if (heightsPlain.trim().length > 0) {
+        const existing = out.find(s => s.section === "Working at heights");
+        if (existing) {
+          existing.plainText = (existing.plainText || "") + " " + heightsPlain.trim();
+          existing.naturalLanguage = (existing.naturalLanguage || "") + " " + (heightsNL.trim() || "Working at height requirements / notes.");
+        } else {
+          out.push({
+            section: "Working at heights",
+            plainText: heightsPlain.trim(),
+            naturalLanguage: heightsNL.trim() || "Working at height requirements / notes."
+          });
+        }
+      }
+
+      if (hazardsPlain.trim().length > 0) {
+        const existing = out.find(s => s.section === "External hazards");
+        if (existing) {
+          existing.plainText = (existing.plainText || "") + " " + hazardsPlain.trim();
+          existing.naturalLanguage = (existing.naturalLanguage || "") + " " + (hazardsNL.trim() || "Site hazards / asbestos / safety notes.");
+        } else {
+          out.push({
+            section: "External hazards",
+            plainText: hazardsPlain.trim(),
+            naturalLanguage: hazardsNL.trim() || "Site hazards / asbestos / safety notes."
+          });
+        }
+      }
+
+      if (customerPlain.trim().length > 0) {
+        const existing = out.find(s => s.section === "Customer actions");
+        if (existing) {
+          existing.plainText = (existing.plainText || "") + " " + customerPlain.trim();
+          existing.naturalLanguage = (existing.naturalLanguage || "") + " " + (customerNL.trim() || "Customer to complete these actions before installation.");
+        } else {
+          out.push({
+            section: "Customer actions",
+            plainText: customerPlain.trim(),
+            naturalLanguage: customerNL.trim() || "Customer to complete these actions before installation."
+          });
+        }
+      }
+
+      out.sort((a, b) => {
+        const oa = SECTION_ORDER[a.section] || 999;
+        const ob = SECTION_ORDER[b.section] || 999;
+        return oa - ob;
+      });
+
+      // Bulletify for display
+      out.forEach(sec => {
+        if (sec.plainText) {
+          sec.plainText = formatPlainTextForSection(sec.section, sec.plainText);
+        }
+      });
+
+      return out;
+    }
+
+    function renderChecklist(container, checkedIds, missingInfoFromServer) {
+      const checkedSet = new Set((checkedIds || []).map(String));
+      const questions = Array.isArray(missingInfoFromServer) ? missingInfoFromServer : [];
       container.innerHTML = "";
 
-      if (!items.length && !extraQuestions.length) {
+      if (!CHECKLIST_ITEMS.length && !checkedSet.size && !questions.length) {
         container.innerHTML = `<span class="small">No checklist items.</span>`;
         return;
       }
 
       const byGroup = new Map();
-      items.forEach(item => {
-        const groupName = item.group || "Checklist";
-        const arr = byGroup.get(groupName) || [];
-        arr.push(item);
-        byGroup.set(groupName, arr);
+      CHECKLIST_ITEMS.forEach(item => {
+        const group = item.group || "Checklist";
+        const arr = byGroup.get(group) || [];
+        arr.push({
+          id: item.id,
+          section: item.section || "",
+          label: item.label || item.id,
+          hint: item.hint || "",
+          done: checkedSet.has(item.id)
+        });
+        byGroup.set(group, arr);
       });
+
+      const knownIds = new Set(CHECKLIST_ITEMS.map(item => item.id));
+      const orphanIds = [...checkedSet].filter(id => !knownIds.has(id));
+      if (orphanIds.length) {
+        const arr = orphanIds.map(id => ({ id, section: "", label: id, hint: "", done: true }));
+        byGroup.set("Other", (byGroup.get("Other") || []).concat(arr));
+      }
+
+      if (!byGroup.size && !questions.length) {
+        container.innerHTML = `<span class="small">No checklist items.</span>`;
+        return;
+      }
 
       [...byGroup.entries()].forEach(([groupName, items]) => {
         const header = document.createElement("div");
         header.className = "check-group-title";
         header.innerHTML = `
           <span>${groupName}</span>
-          <span>Depot: ${items[0].depotSection || ""}</span>
+          <span>${items[0].section || ""}</span>
         `;
         container.appendChild(header);
 
@@ -470,7 +978,7 @@
               ${item.label}
               <span class="hint">
                 ${item.hint || ""}
-                ${item.depotSection ? ` • <strong>${item.depotSection}</strong>` : ""}
+                ${item.section ? ` • <strong>${item.section}</strong>` : ""}
               </span>
             </span>
           `;
@@ -480,14 +988,14 @@
         });
       });
 
-      if (extraQuestions.length) {
+      if (questions.length) {
         const sep = document.createElement("div");
         sep.className = "small";
         sep.style.marginTop = "6px";
         sep.textContent = "Additional questions:";
         container.appendChild(sep);
 
-        extraQuestions.forEach(q => {
+        questions.forEach(q => {
           const div = document.createElement("div");
           div.className = "clar-chip";
           div.innerHTML = `<strong>${q.target || "engineer"}</strong> ${q.question}`;
@@ -496,78 +1004,79 @@
       }
     }
 
-    const CHECKLIST_DETECTORS = {
-      sysType: (txt) => /\b(existing|proposed|replace|switching|moving)\b.*\b(combi|combination|system|regular|open[- ]vented|storage combi|highflow)\b/i.test(txt),
-      smartControl: (txt) => /hive|nest|smart (control|stat|thermostat)|keep existing (stat|controls)|no smart control/i.test(txt),
-      filter: (txt) => /magnetic filter|dirt filter|system filter/i.test(txt),
-      flush: (txt) => /power ?flush|system flush|mains flush|no flush required|water looks clean enough/i.test(txt),
-      gasRun: (txt) => /gas (run|pipe|supply)|22 ?mm gas|15 ?mm gas|upgrade gas/i.test(txt),
-      condensate: (txt) => /condensate|condense pipe|condensate pump|32 ?mm/i.test(txt),
-      flue: (txt) => /flue|plume kit|terminal|turret|vertical flue|rear flue|side flue/i.test(txt),
-      heights: (txt) => /loft|ladder|ladders|steps|tower|scaffold|edge protection|headroom|working at height[s]?/i.test(txt),
-      hazards: (txt) => /asbestos|no asbestos|hazard|risk|confined space|unsafe|dogs? on site|aggressive dog/i.test(txt),
-      parking: (txt) => /parking|permit|double yellow|no parking|driveway|access (issues)?/i.test(txt),
-      customerActions: (txt) => /cupboard|wardrobe|furniture|decorating|make good|clear access|clear route|customer to/i.test(txt)
-    };
-
-    function detectChecklistFromText(text) {
-      const detected = new Set();
-      const joined = String(text || "").toLowerCase();
-      Object.entries(CHECKLIST_DETECTORS).forEach(([id, test]) => {
-        try {
-          if (typeof test === "function" && test(joined)) {
-            detected.add(id);
-          }
-        } catch (err) {
-          console.warn("Checklist detector failed", id, err);
-        }
-      });
-      return detected;
-    }
-
-    function applyDetectedChecklist(detectedIds) {
-      let changed = false;
-      (checklistConfig.items || []).forEach(item => {
-        const prev = checklistState[item.id] || {};
-        const nextChecked = detectedIds.has(item.id) ? true : !!prev.checked;
-        if (!!prev.checked !== nextChecked) {
-          changed = true;
-        }
-        checklistState[item.id] = { ...prev, checked: nextChecked };
-      });
-      if (changed) {
-        saveChecklistState(checklistState);
+    function applyVoiceResult(result) {
+      if (!result || typeof result !== "object") {
+        showVoiceError("AI gave an empty result.");
+        return;
       }
-      return changed;
-    }
 
-    function toggleChecklistItem(id) {
-      const prev = checklistState[id] || {};
-      const nextChecked = !prev.checked;
-      checklistState[id] = { ...prev, checked: nextChecked };
-      saveChecklistState(checklistState);
-      const output = refreshDepotNotesFromChecklist(checklistState) || { sections: [], materials: [] };
-      lastSections = output.sections || [];
-      lastMaterials = output.materials || [];
-      renderChecklist(clarificationsEl, checklistConfig, checklistState, lastExtraQuestions);
-    }
+      const prevSections = cloneSections(lastRawSections || []);
+      const prevMaterials = Array.isArray(lastMaterials) ? lastMaterials.slice() : [];
+      const prevSummary = lastCustomerSummary;
+      const prevChecked = Array.isArray(lastCheckedItems) ? lastCheckedItems.slice() : [];
+      const prevMissing = Array.isArray(lastMissingInfo) ? lastMissingInfo.slice() : [];
 
-    function handleBrainResponse(data) {
-      customerSummaryEl.textContent = data.customerSummary || data.summary || "(none)";
+      let updated = false;
 
-      const sectionsFromWorker = data.depotNotes?.sections || data.depotSectionsSoFar || [];
-      const extraQuestions = Array.isArray(data.missingInfo) ? data.missingInfo : [];
+      const sectionsCandidateRaw = Array.isArray(result.sections)
+        ? result.sections
+        : (result.depotNotes && Array.isArray(result.depotNotes.sections))
+          ? result.depotNotes.sections
+          : Array.isArray(result.depotSectionsSoFar)
+            ? result.depotSectionsSoFar
+            : [];
+      const sectionsCandidate = Array.isArray(sectionsCandidateRaw) ? sectionsCandidateRaw : [];
 
-      lastExtraQuestions = extraQuestions;
+      if (sectionsCandidate.length) {
+        lastRawSections = cloneSections(sectionsCandidate);
+        updated = true;
+      } else {
+        lastRawSections = prevSections;
+      }
 
-      const textParts = [];
-      if (transcriptInput.value) textParts.push(transcriptInput.value);
-      if (Array.isArray(sectionsFromWorker)) {
-        sectionsFromWorker.forEach(sec => {
-          textParts.push(sec.section || "");
-          textParts.push(sec.plainText || "");
-          textParts.push(sec.naturalLanguage || "");
-        });
+      if (Array.isArray(result.materials) && result.materials.length) {
+        lastMaterials = result.materials.slice();
+        updated = true;
+      } else if (result.materials === undefined) {
+        lastMaterials = prevMaterials;
+      } else {
+        lastMaterials = prevMaterials;
+      }
+
+      if (Array.isArray(result.checkedItems)) {
+        lastCheckedItems = result.checkedItems.slice();
+      } else if (result.checkedItems === undefined) {
+        lastCheckedItems = prevChecked;
+      }
+
+      if (Array.isArray(result.missingInfo)) {
+        lastMissingInfo = result.missingInfo.slice();
+      } else if (result.missingInfo === undefined) {
+        lastMissingInfo = prevMissing;
+      }
+
+      const summaryCandidate =
+        typeof result.customerSummary === "string"
+          ? result.customerSummary
+          : typeof result.summary === "string"
+            ? result.summary
+            : null;
+      if (summaryCandidate !== null) {
+        lastCustomerSummary = summaryCandidate;
+        updated = true;
+      } else {
+        lastCustomerSummary = prevSummary;
+      }
+
+      if (updated) {
+        clearVoiceError();
+      } else {
+        const hasMaterials = Array.isArray(result.materials)
+          ? result.materials.length > 0
+          : !!result.materials;
+        if (!sectionsCandidate.length && !hasMaterials) {
+          showVoiceError("AI didn’t return any depot notes. Existing notes kept.");
+        }
       }
       if (data.customerSummary) textParts.push(data.customerSummary);
       if (data.summary) textParts.push(data.summary);
@@ -575,32 +1084,50 @@
       const detected = detectChecklistFromText(textParts.join(" "));
       applyDetectedChecklist(detected);
 
-      const output = refreshDepotNotesFromChecklist(checklistState) || { sections: [], materials: [] };
-      lastSections = output.sections || [];
-      lastMaterials = output.materials || [];
+      refreshUiFromState();
+    }
 
-      renderChecklist(clarificationsEl, checklistConfig, checklistState, extraQuestions);
+    function handleBrainResponse(data) {
+      applyVoiceResult(data);
     }
 
     async function sendText() {
       const transcript = transcriptInput.value.trim();
       if (!transcript) return;
       setStatus("Sending text…");
+      clearVoiceError();
       try {
         const res = await postJSON("/text", {
           transcript,
           alreadyCaptured: [],
           expectedSections: STRUCTURE_HINTS.expectedSections,
           sectionHints: STRUCTURE_HINTS.sectionHints,
-          forceStructured: STRUCTURE_HINTS.forceStructured
+          forceStructured: STRUCTURE_HINTS.forceStructured,
+          checklistItems: CHECKLIST_SOURCE,
+          depotSections: SECTION_SCHEMA
         });
-        const txt = await res.text();
-        let data = {};
-        try { data = JSON.parse(txt); } catch (_) {}
+        const raw = await res.text();
+        if (!res.ok) {
+          const snippet = raw ? `: ${raw.slice(0, 200)}` : "";
+          throw new Error(`Worker error ${res.status} ${res.statusText}${snippet}`);
+        }
+        let data;
+        try {
+          data = JSON.parse(raw);
+        } catch (e) {
+          console.error("Voice worker returned non-JSON:", raw);
+          const parseError = new Error("AI response wasn't in the expected format. Please try again.");
+          parseError.voiceMessage = parseError.message;
+          throw parseError;
+        }
         handleBrainResponse(data);
         setStatus("Done.");
       } catch (err) {
         console.error(err);
+        const message = err && err.voiceMessage
+          ? err.voiceMessage
+          : "Voice AI failed: " + (err && err.message ? err.message : "Unknown error");
+        showVoiceError(message);
         setStatus("Text send failed.");
       }
     }
@@ -651,20 +1178,37 @@
 
     async function sendAudio(blob) {
       setStatus("Uploading audio…");
+      clearVoiceError();
       try {
         let res = await fetch(WORKER_URL.replace(/\/$/, "") + "/audio", {
           method: "POST",
           headers: { "Content-Type": blob.type },
           body: blob
         });
-        const txt = await res.text();
-        let data = {};
-        try { data = JSON.parse(txt); } catch (_) {}
+        const raw = await res.text();
+        if (!res.ok) {
+          const snippet = raw ? `: ${raw.slice(0, 200)}` : "";
+          throw new Error(`Worker error ${res.status} ${res.statusText}${snippet}`);
+        }
+        let data;
+        try {
+          data = JSON.parse(raw);
+        } catch (e) {
+          console.error("Voice worker returned non-JSON:", raw);
+          const parseError = new Error("AI response wasn't in the expected format. Please try again.");
+          parseError.voiceMessage = parseError.message;
+          throw parseError;
+        }
         handleBrainResponse(data);
         setStatus("Audio processed.");
       } catch (err) {
         console.error(err);
+        const message = err && err.voiceMessage
+          ? err.voiceMessage
+          : "Voice AI failed: " + (err && err.message ? err.message : "Unknown error");
+        showVoiceError(message);
         setStatus("Audio failed.");
+        throw err;
       } finally {
         micBtn.classList.remove("active");
       }
@@ -707,12 +1251,7 @@
         const fullText = segments.map(s => s.text).join(". ") + (interimText ? " " + interimText.trim() : "");
         transcriptInput.value = fullText.trim();
 
-        const detected = detectChecklistFromText(transcriptInput.value);
-        applyDetectedChecklist(detected);
-        const output = refreshDepotNotesFromChecklist(checklistState) || { sections: [], materials: [] };
-        lastSections = output.sections || [];
-        lastMaterials = output.materials || [];
-        renderChecklist(clarificationsEl, checklistConfig, checklistState, lastExtraQuestions);
+        renderChecklist(clarificationsEl, lastCheckedItems, lastMissingInfo);
       };
 
       recognition.onerror = (e) => {
@@ -740,21 +1279,36 @@
       }
 
       const newSegs = segments.slice(lastSentIndex);
-      const chunkText = newSegs.map(s => s.text).join(". ");
       const fullTranscript = segments.map(s => s.text).join(". ");
 
       try {
         setStatus("Updating notes…");
+        clearVoiceError();
         const res = await postJSON("/text", {
           transcript: fullTranscript,
           alreadyCaptured: [],
           expectedSections: STRUCTURE_HINTS.expectedSections,
           sectionHints: STRUCTURE_HINTS.sectionHints,
-          forceStructured: STRUCTURE_HINTS.forceStructured
+          forceStructured: STRUCTURE_HINTS.forceStructured,
+          checklistItems: CHECKLIST_SOURCE,
+          depotSections: SECTION_SCHEMA
         });
-        const txt = await res.text();
-        let data = {};
-        try { data = JSON.parse(txt); } catch (_) {}
+        const raw = await res.text();
+        if (!res.ok) {
+          const snippet = raw ? `: ${raw.slice(0, 200)}` : "";
+          throw new Error(`Worker error ${res.status} ${res.statusText}${snippet}`);
+        }
+        let data;
+        try {
+          data = JSON.parse(raw);
+        } catch (e) {
+          console.error("Voice worker returned non-JSON:", raw);
+          showVoiceError("AI response wasn't in the expected format. Please try again.");
+          consecutiveFailures++;
+          chunkIntervalMs = Math.min(120000, chunkIntervalMs * 2);
+          setStatus("Update failed – will retry less often.");
+          return;
+        }
         handleBrainResponse(data);
 
         lastSentIndex = segments.length;
@@ -763,6 +1317,10 @@
         setStatus("Listening (auto notes)…");
       } catch (err) {
         console.error(err);
+        const message = err && err.voiceMessage
+          ? err.voiceMessage
+          : "Voice AI failed: " + (err && err.message ? err.message : "Unknown error");
+        showVoiceError(message);
         consecutiveFailures++;
         chunkIntervalMs = Math.min(120000, chunkIntervalMs * 2);
         setStatus("Update failed – will retry less often.");
@@ -860,7 +1418,11 @@
         mediaRecorder.onstop = async () => {
           const blob = new Blob(chunks, { type: mediaRecorder.mimeType });
           stream.getTracks().forEach(t => t.stop());
-          await sendAudio(blob);
+          try {
+            await sendAudio(blob);
+          } catch (err) {
+            // Error already surfaced via showVoiceError
+          }
         };
         mediaRecorder.start();
         micBtn.classList.add("active");
@@ -950,7 +1512,6 @@
         await sendAudio(file); // reuse the existing /audio flow
         setStatus("Audio file processed.");
       } catch (err) {
-        console.error(err);
         setStatus("Audio file failed.");
       } finally {
         importAudioInput.value = "";
@@ -979,6 +1540,7 @@
         const fullTranscript = session.fullTranscript || segments.map(s => s.text).join(". ");
         transcriptInput.value = fullTranscript;
 
+        clearVoiceError();
         const res = await postJSON("/text", {
           transcript: fullTranscript,
           alreadyCaptured: [],
@@ -986,13 +1548,27 @@
           sectionHints: STRUCTURE_HINTS.sectionHints,
           forceStructured: STRUCTURE_HINTS.forceStructured
         });
-        const txt = await res.text();
-        let data = {};
-        try { data = JSON.parse(txt); } catch (_) {}
+        const raw = await res.text();
+        if (!res.ok) {
+          const snippet = raw ? `: ${raw.slice(0, 200)}` : "";
+          throw new Error(`Worker error ${res.status} ${res.statusText}${snippet}`);
+        }
+        let data;
+        try {
+          data = JSON.parse(raw);
+        } catch (e) {
+          console.error("Voice worker returned non-JSON:", raw);
+          showVoiceError("AI response wasn't in the expected format. Please try again.");
+          setStatus("Session load failed.");
+          return;
+        }
         handleBrainResponse(data);
+
+        renderChecklist(clarificationsEl, lastCheckedItems, lastMissingInfo);
         setStatus("Session loaded.");
       } catch (err) {
         console.error(err);
+        showVoiceError("Voice AI failed: " + (err.message || "Unknown error"));
         alert("Could not load session file.");
       } finally {
         loadSessionInput.value = "";
@@ -1000,16 +1576,11 @@
     };
 
     transcriptInput.addEventListener("input", () => {
-      const detected = detectChecklistFromText(transcriptInput.value);
-      applyDetectedChecklist(detected);
-      const output = refreshDepotNotesFromChecklist(checklistState) || { sections: [], materials: [] };
-      lastSections = output.sections || [];
-      lastMaterials = output.materials || [];
-      renderChecklist(clarificationsEl, checklistConfig, checklistState, lastExtraQuestions);
+      renderChecklist(clarificationsEl, lastCheckedItems, lastMissingInfo);
     });
 
     // initial checklist
-    renderChecklist(clarificationsEl, checklistConfig, checklistState, lastExtraQuestions);
+    renderChecklist(clarificationsEl, [], []);
     setStatus("Idle");
   </script>
 </body>

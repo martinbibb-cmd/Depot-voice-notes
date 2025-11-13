@@ -419,46 +419,6 @@
     let chunkIntervalMs = 60000;
     let consecutiveFailures = 0;
 
-    const SECTION_ORDER = {
-      "Needs": 1,
-      "Working at heights": 2,
-      "System characteristics": 3,
-      "Components that require assistance": 4,
-      "Restrictions to work": 5,
-      "External hazards": 6,
-      "Delivery notes": 7,
-      "Office notes": 8,
-      "New boiler and controls": 9,
-      "Flue": 10,
-      "Pipe work": 11,
-      "Disruption": 12,
-      "Customer actions": 13,
-      "Future plans": 14
-    };
-
-    const STRUCTURE_HINTS = {
-      expectedSections: Object.keys(SECTION_ORDER),
-      sectionHints: {
-        "hive": "New boiler and controls",
-        "smart control": "New boiler and controls",
-        "controller": "New boiler and controls",
-        "pump": "New boiler and controls",
-        "valve": "New boiler and controls",
-        "condensate": "Pipe work",
-        "condensate upgrade": "Pipe work",
-        "pipe": "Pipe work",
-        "gas run": "Pipe work",
-        "reuse flue": "Flue",
-        "new flue": "Flue",
-        "balanced flue": "Flue",
-        "ladders": "Working at heights",
-        "loft": "Working at heights",
-        "power flush": "New boiler and controls",
-        "magnetic filter": "New boiler and controls"
-      },
-      forceStructured: true
-    };
-
     function setStatus(msg) {
       const onlinePart =
         navigator.onLine ? "Online" : "Offline";

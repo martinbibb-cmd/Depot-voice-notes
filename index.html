@@ -344,7 +344,7 @@
         label: "Hazards / asbestos / site risks noted",
         hint: "Asbestos presence or absence, confined space, other site risks.",
         test(txt) {
-          return /asbestos|no asbestos|hazard|risk|confined space|unsafe/i.test(txt);
+          return /asbestos|no asbestos|hazard|risk|confined space|unsafe|dogs? on site|aggressive dog/i.test(txt);
         }
       },
       {
@@ -360,7 +360,7 @@
         label: "Customer actions / pre-works recorded",
         hint: "Cupboards, furniture, decorating, pets, clearing space.",
         test(txt) {
-          return /cupboard|wardrobe|furniture|decorating|make good|clear access|customer to/i.test(txt);
+          return /cupboard|wardrobe|furniture|decorating|make good|clear access|clear route|customer to/i.test(txt);
         }
       }
     ];
@@ -606,11 +606,12 @@
       return out;
     }
 
-    function computeChecklist(sections, missingInfoFromServer) {
-      const joined = (sections || [])
+    function computeChecklist(sections, missingInfoFromServer, liveText) {
+      const joinedSections = (sections || [])
         .map(sec => `${sec.section}: ${sec.plainText || ""} ${sec.naturalLanguage || ""}`)
-        .join(" ")
-        .toLowerCase();
+        .join(" ");
+
+      const joined = (joinedSections + " " + (liveText || "")).toLowerCase();
 
       const checklist = CHECK_DEFS.map(def => ({
         id: def.id,
@@ -623,8 +624,8 @@
       return { checklist, extraQuestions };
     }
 
-    function renderChecklist(container, sections, missingInfoFromServer) {
-      const { checklist, extraQuestions } = computeChecklist(sections, missingInfoFromServer);
+    function renderChecklist(container, sections, missingInfoFromServer, liveText) {
+      const { checklist, extraQuestions } = computeChecklist(sections, missingInfoFromServer, liveText || "");
       container.innerHTML = "";
 
       if (!checklist.length && !extraQuestions.length) {
@@ -692,11 +693,16 @@
       }
 
       // 3) Checklist + any missingInfo from worker
-      renderChecklist(clarificationsEl, sections, data.missingInfo || []);
+      renderChecklist(clarificationsEl, sections, data.missingInfo || [], transcriptInput.value);
     }
 
     // Show the checklist as soon as the app loads (all ⭕ to start with)
-    renderChecklist(clarificationsEl, [], []);
+    renderChecklist(clarificationsEl, [], [], transcriptInput.value);
+
+    // Live update checklist as you type, even before sending to the worker
+    transcriptInput.addEventListener("input", () => {
+      renderChecklist(clarificationsEl, lastSections || [], [], transcriptInput.value);
+    });
 
     exportBtn.onclick = async () => {
       statusBar.textContent = "Preparing notes…";
@@ -819,6 +825,7 @@
         const transcript = r.json?.transcript || "";
         if (transcript) {
           transcriptInput.value = (transcriptInput.value ? transcriptInput.value + "\n" : "") + transcript;
+          transcriptInput.dispatchEvent(new Event("input", { bubbles: true }));
           statusBar.textContent = "Processing notes…";
           // Now structure via /api/recommend (re-using your sendText flow inline)
           const recommend = await postJSON("/api/recommend", {
@@ -857,6 +864,7 @@
           let t = transcriptInput.value || "";
           for (let i = ev.resultIndex; i < ev.results.length; i++) t += ev.results[i][0].transcript;
           transcriptInput.value = t;
+          transcriptInput.dispatchEvent(new Event("input", { bubbles: true }));
         };
         rec.start();
         statusBar.textContent = "Listening (fallback)…";

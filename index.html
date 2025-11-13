@@ -240,6 +240,8 @@
     </div>
   </header>
 
+  <div id="voice-error" style="display:none;color:#b00020;font-weight:bold;margin:0.5rem 1rem 0.5rem;"></div>
+
   <main>
     <!-- LEFT: transcript + customer summary -->
     <div class="column main-left">
@@ -335,6 +337,25 @@
     let lastCheckedItems = [];
     let lastMissingInfo = [];
     let lastCustomerSummary = "";
+
+    function showVoiceError(message) {
+      const el = document.getElementById("voice-error");
+      if (!el) {
+        console.error("Voice error:", message);
+        alert(message);
+        return;
+      }
+      el.textContent = message;
+      el.style.display = "block";
+    }
+
+    function clearVoiceError() {
+      const el = document.getElementById("voice-error");
+      if (el) {
+        el.textContent = "";
+        el.style.display = "none";
+      }
+    }
 
     let mediaRecorder, chunks = [];
     let lastSections = [];
@@ -994,21 +1015,93 @@
       }
     }
 
-    function handleBrainResponse(data) {
-      const safe = data && typeof data === "object" ? data : {};
-      lastCustomerSummary = safe.customerSummary || safe.summary || "(none)";
-      const rawSections = safe.sections || safe.depotNotes?.sections || safe.depotSectionsSoFar || [];
-      lastRawSections = cloneSections(rawSections);
-      lastCheckedItems = Array.isArray(safe.checkedItems) ? safe.checkedItems.slice() : [];
-      lastMaterials = Array.isArray(safe.materials) ? safe.materials.slice() : [];
-      lastMissingInfo = Array.isArray(safe.missingInfo) ? safe.missingInfo.slice() : [];
+    function applyVoiceResult(result) {
+      if (!result || typeof result !== "object") {
+        showVoiceError("AI gave an empty result.");
+        return;
+      }
+
+      const prevSections = cloneSections(lastRawSections || []);
+      const prevMaterials = Array.isArray(lastMaterials) ? lastMaterials.slice() : [];
+      const prevSummary = lastCustomerSummary;
+      const prevChecked = Array.isArray(lastCheckedItems) ? lastCheckedItems.slice() : [];
+      const prevMissing = Array.isArray(lastMissingInfo) ? lastMissingInfo.slice() : [];
+
+      let updated = false;
+
+      const sectionsCandidateRaw = Array.isArray(result.sections)
+        ? result.sections
+        : (result.depotNotes && Array.isArray(result.depotNotes.sections))
+          ? result.depotNotes.sections
+          : Array.isArray(result.depotSectionsSoFar)
+            ? result.depotSectionsSoFar
+            : [];
+      const sectionsCandidate = Array.isArray(sectionsCandidateRaw) ? sectionsCandidateRaw : [];
+
+      if (sectionsCandidate.length) {
+        lastRawSections = cloneSections(sectionsCandidate);
+        updated = true;
+      } else {
+        lastRawSections = prevSections;
+      }
+
+      if (Array.isArray(result.materials) && result.materials.length) {
+        lastMaterials = result.materials.slice();
+        updated = true;
+      } else if (result.materials === undefined) {
+        lastMaterials = prevMaterials;
+      } else {
+        lastMaterials = prevMaterials;
+      }
+
+      if (Array.isArray(result.checkedItems)) {
+        lastCheckedItems = result.checkedItems.slice();
+      } else if (result.checkedItems === undefined) {
+        lastCheckedItems = prevChecked;
+      }
+
+      if (Array.isArray(result.missingInfo)) {
+        lastMissingInfo = result.missingInfo.slice();
+      } else if (result.missingInfo === undefined) {
+        lastMissingInfo = prevMissing;
+      }
+
+      const summaryCandidate =
+        typeof result.customerSummary === "string"
+          ? result.customerSummary
+          : typeof result.summary === "string"
+            ? result.summary
+            : null;
+      if (summaryCandidate !== null) {
+        lastCustomerSummary = summaryCandidate;
+        updated = true;
+      } else {
+        lastCustomerSummary = prevSummary;
+      }
+
+      if (updated) {
+        clearVoiceError();
+      } else {
+        const hasMaterials = Array.isArray(result.materials)
+          ? result.materials.length > 0
+          : !!result.materials;
+        if (!sectionsCandidate.length && !hasMaterials) {
+          showVoiceError("AI didn’t return any depot notes. Existing notes kept.");
+        }
+      }
+
       refreshUiFromState();
+    }
+
+    function handleBrainResponse(data) {
+      applyVoiceResult(data);
     }
 
     async function sendText() {
       const transcript = transcriptInput.value.trim();
       if (!transcript) return;
       setStatus("Sending text…");
+      clearVoiceError();
       try {
         const res = await postJSON("/text", {
           transcript,
@@ -1019,13 +1112,28 @@
           checklistItems: CHECKLIST_SOURCE,
           depotSections: SECTION_SCHEMA
         });
-        const txt = await res.text();
-        let data = {};
-        try { data = JSON.parse(txt); } catch (_) {}
+        const raw = await res.text();
+        if (!res.ok) {
+          const snippet = raw ? `: ${raw.slice(0, 200)}` : "";
+          throw new Error(`Worker error ${res.status} ${res.statusText}${snippet}`);
+        }
+        let data;
+        try {
+          data = JSON.parse(raw);
+        } catch (e) {
+          console.error("Voice worker returned non-JSON:", raw);
+          const parseError = new Error("AI response wasn't in the expected format. Please try again.");
+          parseError.voiceMessage = parseError.message;
+          throw parseError;
+        }
         handleBrainResponse(data);
         setStatus("Done.");
       } catch (err) {
         console.error(err);
+        const message = err && err.voiceMessage
+          ? err.voiceMessage
+          : "Voice AI failed: " + (err && err.message ? err.message : "Unknown error");
+        showVoiceError(message);
         setStatus("Text send failed.");
       }
     }
@@ -1076,20 +1184,37 @@
 
     async function sendAudio(blob) {
       setStatus("Uploading audio…");
+      clearVoiceError();
       try {
         let res = await fetch(WORKER_URL.replace(/\/$/, "") + "/audio", {
           method: "POST",
           headers: { "Content-Type": blob.type },
           body: blob
         });
-        const txt = await res.text();
-        let data = {};
-        try { data = JSON.parse(txt); } catch (_) {}
+        const raw = await res.text();
+        if (!res.ok) {
+          const snippet = raw ? `: ${raw.slice(0, 200)}` : "";
+          throw new Error(`Worker error ${res.status} ${res.statusText}${snippet}`);
+        }
+        let data;
+        try {
+          data = JSON.parse(raw);
+        } catch (e) {
+          console.error("Voice worker returned non-JSON:", raw);
+          const parseError = new Error("AI response wasn't in the expected format. Please try again.");
+          parseError.voiceMessage = parseError.message;
+          throw parseError;
+        }
         handleBrainResponse(data);
         setStatus("Audio processed.");
       } catch (err) {
         console.error(err);
+        const message = err && err.voiceMessage
+          ? err.voiceMessage
+          : "Voice AI failed: " + (err && err.message ? err.message : "Unknown error");
+        showVoiceError(message);
         setStatus("Audio failed.");
+        throw err;
       } finally {
         micBtn.classList.remove("active");
       }
@@ -1164,6 +1289,7 @@
 
       try {
         setStatus("Updating notes…");
+        clearVoiceError();
         const res = await postJSON("/text", {
           transcript: fullTranscript,
           alreadyCaptured: [],
@@ -1173,9 +1299,22 @@
           checklistItems: CHECKLIST_SOURCE,
           depotSections: SECTION_SCHEMA
         });
-        const txt = await res.text();
-        let data = {};
-        try { data = JSON.parse(txt); } catch (_) {}
+        const raw = await res.text();
+        if (!res.ok) {
+          const snippet = raw ? `: ${raw.slice(0, 200)}` : "";
+          throw new Error(`Worker error ${res.status} ${res.statusText}${snippet}`);
+        }
+        let data;
+        try {
+          data = JSON.parse(raw);
+        } catch (e) {
+          console.error("Voice worker returned non-JSON:", raw);
+          showVoiceError("AI response wasn't in the expected format. Please try again.");
+          consecutiveFailures++;
+          chunkIntervalMs = Math.min(120000, chunkIntervalMs * 2);
+          setStatus("Update failed – will retry less often.");
+          return;
+        }
         handleBrainResponse(data);
 
         lastSentIndex = segments.length;
@@ -1184,6 +1323,10 @@
         setStatus("Listening (auto notes)…");
       } catch (err) {
         console.error(err);
+        const message = err && err.voiceMessage
+          ? err.voiceMessage
+          : "Voice AI failed: " + (err && err.message ? err.message : "Unknown error");
+        showVoiceError(message);
         consecutiveFailures++;
         chunkIntervalMs = Math.min(120000, chunkIntervalMs * 2);
         setStatus("Update failed – will retry less often.");
@@ -1281,7 +1424,11 @@
         mediaRecorder.onstop = async () => {
           const blob = new Blob(chunks, { type: mediaRecorder.mimeType });
           stream.getTracks().forEach(t => t.stop());
-          await sendAudio(blob);
+          try {
+            await sendAudio(blob);
+          } catch (err) {
+            // Error already surfaced via showVoiceError
+          }
         };
         mediaRecorder.start();
         micBtn.classList.add("active");
@@ -1371,7 +1518,6 @@
         await sendAudio(file); // reuse the existing /audio flow
         setStatus("Audio file processed.");
       } catch (err) {
-        console.error(err);
         setStatus("Audio file failed.");
       } finally {
         importAudioInput.value = "";
@@ -1400,6 +1546,7 @@
         const fullTranscript = session.fullTranscript || segments.map(s => s.text).join(". ");
         transcriptInput.value = fullTranscript;
 
+        clearVoiceError();
         const res = await postJSON("/text", {
           transcript: fullTranscript,
           alreadyCaptured: [],
@@ -1407,15 +1554,27 @@
           sectionHints: STRUCTURE_HINTS.sectionHints,
           forceStructured: STRUCTURE_HINTS.forceStructured
         });
-        const txt = await res.text();
-        let data = {};
-        try { data = JSON.parse(txt); } catch (_) {}
+        const raw = await res.text();
+        if (!res.ok) {
+          const snippet = raw ? `: ${raw.slice(0, 200)}` : "";
+          throw new Error(`Worker error ${res.status} ${res.statusText}${snippet}`);
+        }
+        let data;
+        try {
+          data = JSON.parse(raw);
+        } catch (e) {
+          console.error("Voice worker returned non-JSON:", raw);
+          showVoiceError("AI response wasn't in the expected format. Please try again.");
+          setStatus("Session load failed.");
+          return;
+        }
         handleBrainResponse(data);
 
         renderChecklist(clarificationsEl, lastCheckedItems, lastMissingInfo);
         setStatus("Session loaded.");
       } catch (err) {
         console.error(err);
+        showVoiceError("Voice AI failed: " + (err.message || "Unknown error"));
         alert("Could not load session file.");
       } finally {
         loadSessionInput.value = "";

@@ -283,8 +283,23 @@
     };
 
     const CHECK_DEFS = [
+      // SYSTEM
+      {
+        id: "sysType",
+        group: "System",
+        section: "System characteristics",
+        label: "Existing & new system type recorded",
+        hint: "Combi / system / regular, location, any cylinder / store.",
+        test(txt) {
+          return /\b(existing|proposed|replace|switching|moving)\b.*\b(combi|combination|system|regular|open[- ]vented|storage combi|highflow)\b/i.test(txt);
+        }
+      },
+
+      // BOILER & CONTROLS
       {
         id: "smartControl",
+        group: "Boiler & controls",
+        section: "New boiler and controls",
         label: "Smart control offered / status noted",
         hint: "Hive / Nest / other smart, or that customer is keeping existing controls.",
         test(txt) {
@@ -293,7 +308,9 @@
       },
       {
         id: "filter",
-        label: "Magnetic filter / dirt filter discussed",
+        group: "Boiler & controls",
+        section: "New boiler and controls",
+        label: "Magnetic / dirt filter discussed",
         hint: "Either being fitted or explicitly not required.",
         test(txt) {
           return /magnetic filter|dirt filter|system filter/i.test(txt);
@@ -301,14 +318,20 @@
       },
       {
         id: "flush",
+        group: "Boiler & controls",
+        section: "New boiler and controls",
         label: "System clean / flush considered",
-        hint: "Power flush, mains flush, or decision that no flush needed.",
+        hint: "Power flush, mains flush, or decision that no flush is needed.",
         test(txt) {
           return /power ?flush|system flush|mains flush|no flush required|water looks clean enough/i.test(txt);
         }
       },
+
+      // PIPEWORK & CONDENSATE
       {
         id: "gasRun",
+        group: "Pipework & condensate",
+        section: "Pipe work",
         label: "Gas pipe size / run checked",
         hint: "Confirmed adequate or noted for upgrade.",
         test(txt) {
@@ -317,46 +340,68 @@
       },
       {
         id: "condensate",
+        group: "Pipework & condensate",
+        section: "Pipe work",
         label: "Condensate route + freeze risk checked",
         hint: "Internal vs external, pump, upsizing, or freeze protection.",
         test(txt) {
           return /condensate|condense pipe|condensate pump|32 ?mm/i.test(txt);
         }
       },
+
+      // FLUE
       {
         id: "flue",
+        group: "Flue",
+        section: "Flue",
         label: "Flue route / terminal discussed",
         hint: "Direction, vertical/horizontal, turret, plume kit, clearances.",
         test(txt) {
           return /flue|plume kit|terminal|turret|vertical flue|rear flue|side flue/i.test(txt);
         }
       },
+
+      // ACCESS / HEIGHTS
       {
         id: "heights",
+        group: "Access / working at height",
+        section: "Working at heights",
         label: "Access / working at height checked",
         hint: "Ladders, loft access, tower, boards, headroom.",
         test(txt) {
           return /loft|ladder|ladders|steps|tower|scaffold|edge protection|headroom/i.test(txt);
         }
       },
+
+      // HAZARDS
       {
         id: "hazards",
+        group: "Hazards & site conditions",
+        section: "External hazards",
         label: "Hazards / asbestos / site risks noted",
-        hint: "Asbestos presence or absence, confined space, other site risks.",
+        hint: "Asbestos presence or absence, confined space, pets, trip risks.",
         test(txt) {
           return /asbestos|no asbestos|hazard|risk|confined space|unsafe|dogs? on site|aggressive dog/i.test(txt);
         }
       },
+
+      // PARKING / ACCESS
       {
         id: "parking",
+        group: "Parking / access",
+        section: "Restrictions to work",
         label: "Parking / permit / access for van checked",
         hint: "Driveway, street parking, permit, restrictions.",
         test(txt) {
           return /parking|permit|double yellow|no parking|driveway|access (issues)?/i.test(txt);
         }
       },
+
+      // CUSTOMER ACTIONS
       {
         id: "customerActions",
+        group: "Customer actions",
+        section: "Customer actions",
         label: "Customer actions / pre-works recorded",
         hint: "Cupboards, furniture, decorating, pets, clearing space.",
         test(txt) {
@@ -615,6 +660,8 @@
 
       const checklist = CHECK_DEFS.map(def => ({
         id: def.id,
+        group: def.group,
+        section: def.section,
         label: def.label,
         hint: def.hint,
         done: !!def.test(joined)
@@ -633,21 +680,41 @@
         return;
       }
 
-      if (checklist.length) {
-        checklist.forEach(item => {
+      // Group by 'group' in defined order
+      const byGroup = new Map();
+      checklist.forEach(item => {
+        const arr = byGroup.get(item.group) || [];
+        arr.push(item);
+        byGroup.set(item.group, arr);
+      });
+
+      // Render each group
+      [...byGroup.entries()].forEach(([groupName, items]) => {
+        const header = document.createElement("div");
+        header.className = "small";
+        header.style.margin = "4px 0 2px";
+        header.style.fontWeight = "600";
+        header.textContent = groupName;
+        container.appendChild(header);
+
+        items.forEach(item => {
           const div = document.createElement("div");
           div.className = "clar-chip checklist-item" + (item.done ? " done" : "");
           div.innerHTML = `
-          <span class="icon">${item.done ? "✅" : "⭕"}</span>
-          <span class="label">
-            ${item.label}
-            ${item.hint ? `<span class="hint">${item.hint}</span>` : ""}
+        <span class="icon">${item.done ? "✅" : "⭕"}</span>
+        <span class="label">
+          ${item.label}
+          <span class="hint">
+            ${item.hint}
+            ${item.section ? ` • <strong>${item.section}</strong>` : ""}
           </span>
-        `;
+        </span>
+      `;
           container.appendChild(div);
         });
-      }
+      });
 
+      // Extra free-form questions from the Worker
       if (extraQuestions.length) {
         const sep = document.createElement("div");
         sep.className = "small";

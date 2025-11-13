@@ -55,9 +55,45 @@
       padding: 14px;
       display: grid;
       grid-template-columns: 1.1fr .9fr;
+      grid-template-areas: "left right";
       gap: 14px;
     }
-    @media (max-width: 970px) { main { grid-template-columns: 1fr; } }
+
+    @media (max-width: 970px) {
+      main {
+        grid-template-columns: 1fr;
+        grid-template-areas:
+          "left"
+          "right";
+      }
+    }
+
+    .main-left {
+      grid-area: left;
+    }
+    .main-right {
+      grid-area: right;
+    }
+
+    .results-row {
+      padding: 0 14px 14px;
+    }
+
+    .check-group-title {
+      margin: 6px 0 2px;
+      font-size: .72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      color: var(--muted);
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .check-group-title span {
+      font-weight: 500;
+      font-size: .64rem;
+    }
     .column { display: flex; flex-direction: column; gap: 14px; }
     .card {
       background: var(--card);
@@ -179,7 +215,8 @@
   </header>
 
   <main>
-    <div class="column">
+    <!-- LEFT: transcript + customer summary -->
+    <div class="column main-left">
       <div class="card">
         <div class="card-title">
           Live transcript / summary
@@ -200,31 +237,34 @@
         </div>
         <p id="customerSummary" class="small">(none)</p>
       </div>
+    </div>
 
+    <!-- RIGHT: survey checklist -->
+    <div class="column main-right">
       <div class="card">
         <div class="card-title">
           Survey checklist & questions
           <span class="small">Ticks as details are captured</span>
         </div>
         <div id="clarifications" class="clarifications">
-          <span class="small">No questions.</span>
+          <span class="small">No checklist items.</span>
         </div>
       </div>
-    </div>
-
-    <div class="column">
-      <div class="card">
-        <div class="card-title">
-          Depot sections so far
-          <span class="small">Standard layout</span>
-        </div>
-        <div id="sectionsList" class="sections-list">
-          <span class="small">No sections yet.</span>
-        </div>
-      </div>
-
     </div>
   </main>
+
+  <!-- BOTTOM: depot results full width -->
+  <section class="results-row">
+    <div class="card">
+      <div class="card-title">
+        Depot sections so far
+        <span class="small">Standard layout</span>
+      </div>
+      <div id="sectionsList" class="sections-list">
+        <span class="small">No sections yet.</span>
+      </div>
+    </div>
+  </section>
 
   <script>
     // hard-code your worker so it isn't visible
@@ -691,10 +731,11 @@
       // Render each group
       [...byGroup.entries()].forEach(([groupName, items]) => {
         const header = document.createElement("div");
-        header.className = "small";
-        header.style.margin = "4px 0 2px";
-        header.style.fontWeight = "600";
-        header.textContent = groupName;
+        header.className = "check-group-title";
+        header.innerHTML = `
+  <span>${groupName}</span>
+  <span>Depot: ${items[0].section || ""}</span>
+`;
         container.appendChild(header);
 
         items.forEach(item => {

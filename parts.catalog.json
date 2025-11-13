@@ -1,0 +1,14 @@
+{
+  "categories": [
+    {
+      "name": "Boiler",
+      "items": [
+        {
+          "sku": "example-boiler",
+          "item": "Example Boiler 24kW",
+          "notes": "Stub entry for future expansion"
+        }
+      ]
+    }
+  ]
+}

@@ -1,147 +1,79 @@
-{
-  "version": 1,
-  "items": [
-    {
-      "id": "boiler_make_model_confirmed",
-      "group": "New boiler and controls",
-      "section": "New boiler and controls",
-      "label": "Boiler make and model confirmed",
-      "hint": "Record exactly what boiler is being fitted, including make and model.",
-      "match": {
-        "all": [
-          "\\b(worcester(?: bosch)?|vaillant|glow[- ]?worm|viessmann|baxi|ideal|alpha|intergas|ariston|main)\\b",
-          "\\b(boiler|combi|system|regular|heat only)\\b"
-        ]
-      }
-    },
-    {
-      "id": "boiler_wb_15ri_reg",
-      "group": "New boiler and controls",
-      "section": "New boiler and controls",
-      "label": "Worcester 15Ri regular specified",
-      "hint": "Tick when the Worcester Greenstar 15Ri regular is the proposed boiler.",
-      "match": {
-        "all": [
-          "\\bworcester\\b",
-          "\\b15\\s*ri\\b"
-        ]
-      }
-    },
-    {
-      "id": "convert_fully_pumped",
-      "group": "System works",
-      "section": "System characteristics",
-      "label": "System converted to fully pumped",
-      "hint": "Use when the existing gravity/open vent system is being converted to fully pumped.",
-      "match": {
-        "any": [
-          "convert(ed)? to fully pumped",
-          "fully pumped conversion"
-        ]
-      }
-    },
-    {
-      "id": "cyl_ov_98l",
-      "group": "Hot water cylinder",
-      "section": "System characteristics",
-      "label": "98L open vented cylinder noted",
-      "hint": "Tick when fitting or retaining a 98 litre open vented cylinder.",
-      "match": {
-        "all": [
-          "\\b(98l|98 litre|98 liter)\\b",
-          "\\b(open vent(ed)?|ov)\\b",
-          "\\bcylinder\\b"
-        ]
-      }
-    },
-    {
-      "id": "condensate_to_wm",
-      "group": "Pipework & condensate",
-      "section": "Pipe work",
-      "label": "Condensate to washing machine waste",
-      "hint": "Use when the condensate is terminating into a washing machine/sink waste.",
-      "match": {
-        "all": [
-          "\\bcondensate\\b",
-          "\\b(washing machine|wm|sink waste|kitchen waste)\\b"
-        ]
-      }
-    },
-    {
-      "id": "ladder_flue_access",
-      "group": "Access / working at height",
-      "section": "Working at heights",
-      "label": "Ladder access needed for flue",
-      "hint": "Flag when a ladder or tower is needed for the flue position.",
-      "match": {
-        "all": [
-          "\\bladder(s)?\\b",
-          "\\bflue\\b"
-        ]
-      }
-    },
-    {
-      "id": "ladder_loft_access",
-      "group": "Access / working at height",
-      "section": "Working at heights",
-      "label": "Ladder required for loft",
-      "hint": "Use when the loft requires ladder access or boarding.",
-      "match": {
-        "any": [
-          "loft ladder",
-          "ladder to loft",
-          "loft access ladder"
-        ]
-      }
-    },
-    {
-      "id": "customer_clear_areas",
-      "group": "Customer actions",
-      "section": "Customer actions",
-      "label": "Customer to clear working areas",
-      "hint": "Mentioned when the customer must clear cupboards, furniture or access routes.",
-      "match": {
-        "any": [
-          "customer to clear",
-          "customer will clear",
-          "customer needs to clear",
-          "clear (?:cupboard|area|space|furniture)"
-        ]
-      }
-    },
-    {
-      "id": "parking_on_road",
-      "group": "Parking / access",
-      "section": "Restrictions to work",
-      "label": "Parking on road only",
-      "hint": "Use when parking is on the road or subject to permits.",
-      "match": {
-        "any": [
-          "parking on the road",
-          "park on road",
-          "street parking",
-          "permit for parking"
-        ]
-      }
-    },
-    {
-      "id": "no_hazards",
-      "group": "Hazards",
-      "section": "External hazards",
-      "label": "No hazards reported",
-      "hint": "Transcript explicitly states there are no hazards or asbestos concerns.",
-      "match": {
-        "any": [
-          "no hazards",
-          "no hazard noted",
-          "no asbestos",
-          "nothing hazardous"
-        ],
-        "not": [
-          "asbestos (?:present|found)",
-          "hazard noted"
-        ]
-      }
-    }
-  ]
-}
+[
+  {
+    "id": "system_type_recorded",
+    "group": "System",
+    "section": "System characteristics",
+    "label": "Existing & new system type recorded",
+    "hint": "Combi / system / regular, location, cylinder or store?"
+  },
+  {
+    "id": "boiler_wb_15ri_reg",
+    "group": "Boiler",
+    "section": "New boiler and controls",
+    "label": "Worcester 15Ri regular",
+    "hint": "Like-for-like regular replacement"
+  },
+  {
+    "id": "convert_fully_pumped",
+    "group": "Pipework",
+    "section": "Pipe work",
+    "label": "Convert to fully pumped",
+    "hint": "New pump, wiring, valves"
+  },
+  {
+    "id": "cyl_ov_98l",
+    "group": "Cylinder",
+    "section": "System characteristics",
+    "label": "98L open-vented cylinder",
+    "hint": "Replace existing open-vented cylinder"
+  },
+  {
+    "id": "condensate_to_wm",
+    "group": "Pipework",
+    "section": "Pipe work",
+    "label": "Condensate to washing machine waste",
+    "hint": "Connect condensate into WM waste trap"
+  },
+  {
+    "id": "ladder_flue_access",
+    "group": "Working at heights",
+    "section": "Working at heights",
+    "label": "Ladder access to flue",
+    "hint": "Safe access to terminal"
+  },
+  {
+    "id": "ladder_loft_access",
+    "group": "Working at heights",
+    "section": "Working at heights",
+    "label": "Ladder / loft access required",
+    "hint": "Loft boarding, lighting, headroom"
+  },
+  {
+    "id": "powerflush_and_filter",
+    "group": "System clean",
+    "section": "New boiler and controls",
+    "label": "Power flush + magnetic filter",
+    "hint": "Flush and fit 22mm magnetic filter"
+  },
+  {
+    "id": "customer_clear_areas",
+    "group": "Customer actions",
+    "section": "Customer actions",
+    "label": "Customer to clear working areas",
+    "hint": "Cupboards, furniture, access routes"
+  },
+  {
+    "id": "parking_on_road",
+    "group": "Access",
+    "section": "Restrictions to work",
+    "label": "Parking on road / restricted",
+    "hint": "Permit, limited parking or narrow street"
+  },
+  {
+    "id": "no_hazards",
+    "group": "Hazards",
+    "section": "External hazards",
+    "label": "No hazards noted",
+    "hint": "Asbestos, pets, site safety"
+  }
+]

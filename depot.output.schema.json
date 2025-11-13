@@ -1,75 +1,18 @@
 {
-  "version": 1,
   "sections": [
-    {
-      "name": "Needs",
-      "order": 1,
-      "description": "Key needs or must-haves called out by the customer."
-    },
-    {
-      "name": "Working at heights",
-      "order": 2,
-      "description": "Anything involving ladders, lofts, scaffolds or special access kit."
-    },
-    {
-      "name": "System characteristics",
-      "order": 3,
-      "description": "Existing system summary, proposed boiler, cylinders and storage."
-    },
-    {
-      "name": "Components that require assistance",
-      "order": 4,
-      "description": "Items that need two-person lifts or specialist handling."
-    },
-    {
-      "name": "Restrictions to work",
-      "order": 5,
-      "description": "Parking limits, permits or building restrictions."
-    },
-    {
-      "name": "External hazards",
-      "order": 6,
-      "description": "Asbestos, site hazards, aggressive pets or anything notable externally."
-    },
-    {
-      "name": "Delivery notes",
-      "order": 7,
-      "description": "Delivery constraints, storage space and timings."
-    },
-    {
-      "name": "Office notes",
-      "order": 8,
-      "description": "Anything for the office team: planning, conservation, notifications."
-    },
-    {
-      "name": "New boiler and controls",
-      "order": 9,
-      "description": "What is being fitted: boiler, controls, flushing, filters."
-    },
-    {
-      "name": "Flue",
-      "order": 10,
-      "description": "Flue position, routing, plume kits and terminal notes."
-    },
-    {
-      "name": "Pipe work",
-      "order": 11,
-      "description": "Gas, condensate and system pipe alterations."
-    },
-    {
-      "name": "Disruption",
-      "order": 12,
-      "description": "Power flush, draining, floor lifting or decorations impacted."
-    },
-    {
-      "name": "Customer actions",
-      "order": 13,
-      "description": "Things the customer has to sort before install."
-    },
-    {
-      "name": "Future plans",
-      "order": 14,
-      "description": "Anything the customer plans after install, or future upgrades."
-    }
+    { "name": "Needs", "order": 1, "description": "Key needs or must-haves called out by the customer." },
+    { "name": "Working at heights", "order": 2, "description": "Ladders, loft access, towers, scaffolds or special access kit." },
+    { "name": "System characteristics", "order": 3, "description": "Existing system, proposed boiler, cylinders and storage." },
+    { "name": "Components that require assistance", "order": 4, "description": "Items needing two-person lifts or specialist handling." },
+    { "name": "Restrictions to work", "order": 5, "description": "Parking limits, permits or building restrictions." },
+    { "name": "External hazards", "order": 6, "description": "Asbestos, hazards, aggressive pets or notable site risks." },
+    { "name": "Delivery notes", "order": 7, "description": "Delivery constraints, storage space and timings." },
+    { "name": "Office notes", "order": 8, "description": "For the office team: planning, conservation, notifications." },
+    { "name": "New boiler and controls", "order": 9, "description": "What is being fitted: boiler, controls, flushing, filters." },
+    { "name": "Flue", "order": 10, "description": "Flue position, routing, plume kits and terminals." },
+    { "name": "Pipe work", "order": 11, "description": "Gas, condensate and system pipe alterations." },
+    { "name": "Disruption", "order": 12, "description": "Power flush, draining, floor lifting or decorations impacted." },
+    { "name": "Customer actions", "order": 13, "description": "Things the customer has to sort before install." },
+    { "name": "Future plans", "order": 14, "description": "Customer’s future plans or potential upgrades." }
   ]
 }

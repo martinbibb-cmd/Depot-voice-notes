@@ -10,7 +10,9 @@
       --card: #ffffff;
       --border: #d4dbe5;
       --accent: #0f766e;
+      --accent-soft: #14b8a6;
       --muted: #64748b;
+      --danger: #b91c1c;
       --radius: 16px;
     }
     * { box-sizing: border-box; }
@@ -33,25 +35,13 @@
       flex-wrap: wrap;
     }
     header h1 { margin: 0; font-size: 1.05rem; }
-    .worker-input {
-      background: rgba(255,255,255,.08);
-      border: 1px solid rgba(255,255,255,.15);
-      border-radius: 10px;
-      padding: 4px 8px;
+    .toolbar-row {
       display: flex;
-      gap: 6px;
-      flex: 1 1 250px;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      margin-left: auto;
     }
-    .worker-input label { font-size: .62rem; }
-    .worker-input input {
-      border: none;
-      background: transparent;
-      outline: none;
-      color: #fff;
-      flex: 1;
-      font-size: .65rem;
-    }
-
     main {
       padding: 14px;
       display: grid;
@@ -67,18 +57,12 @@
           "right";
       }
     }
-    .main-left {
-      grid-area: left;
-    }
-    .main-right {
-      grid-area: right;
-    }
+    .main-left { grid-area: left; }
+    .main-right { grid-area: right; }
     .column { display: flex; flex-direction: column; gap: 14px; }
-
     .results-row {
       padding: 0 14px 14px;
     }
-
     .card {
       background: var(--card);
       border: 1px solid var(--border);
@@ -97,7 +81,6 @@
       align-items: baseline;
     }
     .small { font-size: .68rem; color: var(--muted); }
-
     textarea {
       width: 100%;
       border-radius: 10px;
@@ -119,8 +102,14 @@
       gap: 6px;
       align-items: center;
     }
-    button:disabled { opacity: .5; cursor: default; }
-
+    button:disabled { opacity: .55; cursor: default; }
+    .pill-secondary {
+      background: rgba(148,163,184,.16);
+      color: #e2e8f0;
+    }
+    .pill-danger {
+      background: var(--danger);
+    }
     .mic-btn {
       width: 36px;
       height: 36px;
@@ -137,7 +126,6 @@
       background: #b91c1c;
       box-shadow: 0 0 0 3px rgba(248,113,113,.4);
     }
-
     .clarifications {
       display: flex;
       flex-direction: column;
@@ -155,7 +143,6 @@
       background: #fef9c3;
       border-color: #fde68a;
     }
-
     .sections-list { display: flex; flex-direction: column; gap: 7px; }
     .section-item {
       background: #f8fafc;
@@ -172,13 +159,11 @@
       white-space: pre-wrap;
       font-size: .64rem;
     }
-
     .statusbar {
       font-size: .6rem;
       color: var(--muted);
       margin-top: 4px;
     }
-
     .check-group-title {
       margin: 6px 0 2px;
       font-size: .72rem;
@@ -193,7 +178,6 @@
       font-weight: 500;
       font-size: .64rem;
     }
-
     .checklist-item {
       display: flex;
       align-items: flex-start;
@@ -216,46 +200,87 @@
       background: #ecfdf3;
       border-color: #bbf7d0;
     }
-
-    .toolbar-row {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      align-items: center;
-    }
-    .settings-link {
-      margin-left: auto;
-      color: #fff;
-      font-size: .7rem;
+    #voice-error {
+      display: none;
+      color: #b91c1c;
       font-weight: 600;
-      text-decoration: none;
-      padding: 6px 12px;
-      border: 1px solid rgba(255,255,255,.3);
-      border-radius: 999px;
-      transition: background .2s ease;
+      margin: 0.5rem 1rem;
+      font-size: .7rem;
     }
-    .settings-link:hover {
-      background: rgba(255,255,255,.12);
+    /* Settings overlay */
+    .settings-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(15,23,42,.7);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 999;
+    }
+    .settings-panel {
+      background: #0b1120;
+      color: #e5e7eb;
+      border-radius: 18px;
+      padding: 16px 16px 12px;
+      max-width: 960px;
+      width: calc(100% - 24px);
+      max-height: calc(100% - 24px);
+      overflow: auto;
+      box-shadow: 0 20px 40px rgba(15,23,42,.65);
+      font-size: .75rem;
+    }
+    .settings-panel h2 {
+      margin: 0 0 6px;
+      font-size: .9rem;
+    }
+    .settings-panel textarea {
+      width: 100%;
+      min-height: 140px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: .7rem;
+      background: #020617;
+      color: #e5e7eb;
+      border-radius: 10px;
+      border: 1px solid #1e293b;
+    }
+    .settings-panel .row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    @media (max-width: 900px) {
+      .settings-panel .row {
+        grid-template-columns: 1fr;
+      }
+    }
+    .pill-muted {
+      background: rgba(148,163,184,.16);
+      border-radius: 999px;
+      padding: 3px 9px;
+      font-size: .65rem;
+      color: #94a3b8;
     }
   </style>
 </head>
 <body>
   <header>
     <h1>Survey Brain</h1>
-    <div class="worker-input" style="display:none;">
-      <label for="workerUrl">Worker</label>
-      <input id="workerUrl" value="https://survey-brain-api.martinbibb.workers.dev" />
-    </div>
     <div class="toolbar-row">
-      <button id="exportBtn">Send notes</button>
-      <button id="saveSessionBtn">Save session file</button>
-      <button id="loadSessionBtn">Load session file</button>
-      <button id="importAudioBtn">Use audio file</button>
-      <a class="settings-link" href="settings.html">Settings</a>
+      <button id="sendTextBtn">Send text</button>
+      <button id="micBtn" class="mic-btn" title="Record voice / send audio">🎙</button>
+      <label class="small" style="display:flex;align-items:center;gap:4px;">
+        <input type="checkbox" id="autoNotesToggle" style="margin:0;">
+        Auto notes (chunked)
+      </label>
+      <button id="importAudioBtn" class="pill-secondary">Use audio file</button>
+      <button id="exportBtn" class="pill-secondary">Send notes</button>
+      <button id="saveSessionBtn" class="pill-secondary">Save session</button>
+      <button id="loadSessionBtn" class="pill-secondary">Load session</button>
+      <button id="settingsBtn" class="pill-secondary">Settings</button>
     </div>
   </header>
 
-  <div id="voice-error" style="display:none;color:#b00020;font-weight:bold;margin:0.5rem 1rem 0.5rem;"></div>
+  <div id="voice-error"></div>
 
   <main>
     <!-- LEFT: transcript + customer summary -->
@@ -263,20 +288,11 @@
       <div class="card">
         <div class="card-title">
           Live transcript / summary
-          <span class="small">You talk to customer / system listens</span>
+          <span class="small">You talk to customer • system listens</span>
         </div>
-        <textarea id="transcriptInput" placeholder="Replace the existing 15ri with a new 15ri ..."></textarea>
+        <textarea id="transcriptInput" placeholder="Replace existing combi in the same place, fit Hive, reuse flue where possible..."></textarea>
 
-        <div class="toolbar-row" style="margin-top:6px;">
-          <button id="sendTextBtn">Send text</button>
-          <button id="micBtn" class="mic-btn" title="Record voice / auto notes">🎙</button>
-
-          <label class="small" style="display:flex;align-items:center;gap:4px;margin-left:auto;">
-            <input type="checkbox" id="autoNotesToggle" style="margin:0;">
-            Auto notes
-          </label>
-        </div>
-        <span class="statusbar" id="statusBar">Idle</span>
+        <div class="statusbar" id="statusBar">Idle (Online • Manual)</div>
       </div>
 
       <div class="card">
@@ -288,7 +304,7 @@
       </div>
     </div>
 
-    <!-- RIGHT: grouped survey checklist -->
+    <!-- RIGHT: checklist + parts -->
     <div class="column main-right">
       <div class="card">
         <div class="card-title">
@@ -296,7 +312,7 @@
           <span class="small">Ticks as details are captured</span>
         </div>
         <div id="clarifications" class="clarifications">
-          <span class="small">No checklist items.</span>
+          <span class="small">No checklist items yet.</span>
         </div>
       </div>
 
@@ -325,168 +341,159 @@
     </div>
   </section>
 
+  <!-- File inputs -->
   <input id="loadSessionInput" type="file" accept=".depotvoice.json,application/json" style="display:none;">
   <input id="importAudioInput" type="file" accept="audio/*" style="display:none;">
 
-  <script type="module">
-    import {
-      loadChecklistConfig,
-      loadDepotSchema,
-      loadChecklistState,
-      saveChecklistState,
-      loadWorkerUrl,
-      DEFAULT_WORKER_URL as STATE_DEFAULT_WORKER_URL
-    } from "./src/app/state.js";
-    import { initDepotRenderers, refreshDepotNotesFromChecklist } from "./src/app/renderDepot.js";
+  <!-- Settings overlay -->
+  <div id="settingsOverlay" class="settings-overlay">
+    <div class="settings-panel">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+        <div>
+          <h2>Survey Brain Settings</h2>
+          <div class="small">Edit how sections and checklist items behave on this device.</div>
+        </div>
+        <button id="closeSettingsBtn" class="pill-secondary">Close</button>
+      </div>
+      <div class="row">
+        <section>
+          <h3>Depot section schema</h3>
+          <p class="small">Controls section names and ordering. Each entry needs <code>name</code> and optional <code>description</code>.</p>
+          <textarea id="schemaEditor"></textarea>
+          <div style="margin-top:6px;display:flex;gap:6px;">
+            <button id="schemaSaveBtn">Save schema (local)</button>
+            <button id="schemaResetBtn" class="pill-secondary">Reset to defaults</button>
+          </div>
+        </section>
+        <section>
+          <h3>Checklist items</h3>
+          <p class="small">List of survey checklist items the AI can tick (id, group, section, label, hint).</p>
+          <textarea id="checklistEditor"></textarea>
+          <div style="margin-top:6px;display:flex;gap:6px;">
+            <button id="checklistSaveBtn">Save checklist (local)</button>
+            <button id="checklistResetBtn" class="pill-secondary">Reset to defaults</button>
+          </div>
+        </section>
+      </div>
+      <p class="small" style="margin-top:8px;">
+        <span class="pill-muted">Note</span> Changes are stored in this browser only (localStorage).  
+        To ship new defaults for everyone, update <code>depot.output.schema.json</code> and <code>checklist.config.json</code> in the repo.
+      </p>
+    </div>
+  </div>
 
-    // Worker endpoint can be overridden from the settings page
-    const WORKER_URL = loadWorkerUrl(STATE_DEFAULT_WORKER_URL);
+  <script>
+    // --- CONFIG: worker endpoint ---
+    const WORKER_URL = "https://survey-brain-api.martinbibb.workers.dev";
 
-    const sendTextBtn = document.getElementById('sendTextBtn');
-    const transcriptInput = document.getElementById('transcriptInput');
-    const customerSummaryEl = document.getElementById('customerSummary');
-    const clarificationsEl = document.getElementById('clarifications');
-    const sectionsListEl = document.getElementById('sectionsList');
-    const statusBar = document.getElementById('statusBar');
-    const micBtn = document.getElementById('micBtn');
-    const exportBtn = document.getElementById('exportBtn');
-    const autoNotesToggle = document.getElementById('autoNotesToggle');
-    const saveSessionBtn = document.getElementById('saveSessionBtn');
-    const loadSessionBtn = document.getElementById('loadSessionBtn');
-    const loadSessionInput = document.getElementById('loadSessionInput');
-    const importAudioBtn = document.getElementById('importAudioBtn');
-    const importAudioInput = document.getElementById('importAudioInput');
-    const partsListEl = document.getElementById('partsList');
-    initDepotRenderers({ sectionsEl: sectionsListEl, materialsEl: partsListEl });
-    let checklistState = loadChecklistState() || {};
+    // --- ELEMENTS ---
+    const sendTextBtn = document.getElementById("sendTextBtn");
+    const transcriptInput = document.getElementById("transcriptInput");
+    const customerSummaryEl = document.getElementById("customerSummary");
+    const clarificationsEl = document.getElementById("clarifications");
+    const sectionsListEl = document.getElementById("sectionsList");
+    const statusBar = document.getElementById("statusBar");
+    const micBtn = document.getElementById("micBtn");
+    const exportBtn = document.getElementById("exportBtn");
+    const autoNotesToggle = document.getElementById("autoNotesToggle");
+    const saveSessionBtn = document.getElementById("saveSessionBtn");
+    const loadSessionBtn = document.getElementById("loadSessionBtn");
+    const loadSessionInput = document.getElementById("loadSessionInput");
+    const importAudioBtn = document.getElementById("importAudioBtn");
+    const importAudioInput = document.getElementById("importAudioInput");
+    const partsListEl = document.getElementById("partsList");
+    const voiceErrorEl = document.getElementById("voice-error");
+    const settingsBtn = document.getElementById("settingsBtn");
+    const settingsOverlay = document.getElementById("settingsOverlay");
+    const closeSettingsBtn = document.getElementById("closeSettingsBtn");
+    const schemaEditor = document.getElementById("schemaEditor");
+    const checklistEditor = document.getElementById("checklistEditor");
+    const schemaSaveBtn = document.getElementById("schemaSaveBtn");
+    const schemaResetBtn = document.getElementById("schemaResetBtn");
+    const checklistSaveBtn = document.getElementById("checklistSaveBtn");
+    const checklistResetBtn = document.getElementById("checklistResetBtn");
+
+    // --- STATE ---
     let lastMaterials = [];
     let lastRawSections = [];
-    let lastCheckedItems = Object.keys(checklistState).filter(id => checklistState[id]?.checked);
+    let lastSections = [];
+    let lastCheckedItems = [];
     let lastMissingInfo = [];
     let lastCustomerSummary = "";
+    let SECTION_SCHEMA = [];
+    let SECTION_ORDER = {};
+    let CHECKLIST_SOURCE = [];
+    let CHECKLIST_ITEMS = [];
 
+    // Auto notes state (simplified)
+    const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition || null;
+    let recognition = null;
+    let recognizing = false;
+    let segments = [];    // { text }
+    let lastSentIndex = 0;
+    let chunkTimerId = null;
+    let chunkIntervalMs = 45000; // 45s by default
+
+    // --- LOCALSTORAGE KEYS ---
+    const LS_SCHEMA_KEY = "surveybrain-schema";
+    const LS_CHECKLIST_KEY = "surveybrain-checklist";
+
+    // --- HELPERS ---
     function showVoiceError(message) {
-      const el = document.getElementById("voice-error");
-      if (!el) {
+      if (!voiceErrorEl) {
         console.error("Voice error:", message);
         alert(message);
         return;
       }
-      el.textContent = message;
-      el.style.display = "block";
+      voiceErrorEl.textContent = message;
+      voiceErrorEl.style.display = "block";
     }
-
     function clearVoiceError() {
-      const el = document.getElementById("voice-error");
-      if (el) {
-        el.textContent = "";
-        el.style.display = "none";
-      }
+      if (!voiceErrorEl) return;
+      voiceErrorEl.textContent = "";
+      voiceErrorEl.style.display = "none";
     }
-
-    let mediaRecorder, chunks = [];
-    let lastSections = [];
-
-    let initialOutput = null;
-    try {
-      initialOutput = refreshDepotNotesFromChecklist(checklistState);
-    } catch (err) {
-      console.warn('Checklist render failed', err);
-    }
-    if (initialOutput) {
-      lastSections = initialOutput.sections || [];
-      lastMaterials = initialOutput.materials || [];
-    }
-
-    const SECTION_FALLBACK = [
-      { name: "Needs", order: 1, description: "Key needs or must-haves called out by the customer." },
-      { name: "Working at heights", order: 2, description: "Anything involving ladders, lofts, scaffolds or special access kit." },
-      { name: "System characteristics", order: 3, description: "Existing system summary, proposed boiler, cylinders and storage." },
-      { name: "Components that require assistance", order: 4, description: "Items that need two-person lifts or specialist handling." },
-      { name: "Restrictions to work", order: 5, description: "Parking limits, permits or building restrictions." },
-      { name: "External hazards", order: 6, description: "Asbestos, site hazards, aggressive pets or anything notable externally." },
-      { name: "Delivery notes", order: 7, description: "Delivery constraints, storage space and timings." },
-      { name: "Office notes", order: 8, description: "Anything for the office team: planning, conservation, notifications." },
-      { name: "New boiler and controls", order: 9, description: "What is being fitted: boiler, controls, flushing, filters." },
-      { name: "Flue", order: 10, description: "Flue position, routing, plume kits and terminal notes." },
-      { name: "Pipe work", order: 11, description: "Gas, condensate and system pipe alterations." },
-      { name: "Disruption", order: 12, description: "Power flush, draining, floor lifting or decorations impacted." },
-      { name: "Customer actions", order: 13, description: "Things the customer has to sort before install." },
-      { name: "Future plans", order: 14, description: "Anything the customer plans after install, or future upgrades." }
-    ];
-
-    let SECTION_SCHEMA = [];
-    let SECTION_ORDER = {};
-    const SECTION_HINT_MAP = {
-      "hive": "New boiler and controls",
-      "smart control": "New boiler and controls",
-      "controller": "New boiler and controls",
-      "pump": "New boiler and controls",
-      "valve": "New boiler and controls",
-      "condensate": "Pipe work",
-      "condensate upgrade": "Pipe work",
-      "pipe": "Pipe work",
-      "gas run": "Pipe work",
-      "reuse flue": "Flue",
-      "new flue": "Flue",
-      "balanced flue": "Flue",
-      "ladders": "Working at heights",
-      "loft": "Working at heights",
-      "power flush": "New boiler and controls",
-      "magnetic filter": "New boiler and controls"
-    };
-
-    const STRUCTURE_HINTS = {
-      expectedSections: [],
-      sectionHints: SECTION_HINT_MAP,
-      forceStructured: true
-    };
-
-    let CHECKLIST_SOURCE = [];
-    let CHECKLIST_ITEMS = [];
-
-    // Auto notes session state
-    const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition || null;
-    let recognition = null;
-    let recognizing = false;
-    let sessionStartMs = 0;
-    let segments = []; // { startMs, endMs, text }
-    let lastSentIndex = 0;
-    let sessionAudioChunks = [];
-    let chunkTimerId = null;
-    let chunkIntervalMs = 60000;
-    let consecutiveFailures = 0;
-
     function setStatus(msg) {
-      const onlinePart =
-        navigator.onLine ? "Online" : "Offline";
-      const modePart =
-        autoNotesToggle && autoNotesToggle.checked ? "Auto notes" : "Manual";
+      const onlinePart = navigator.onLine ? "Online" : "Offline";
+      const modePart = autoNotesToggle && autoNotesToggle.checked ? "Auto notes" : "Manual";
       statusBar.textContent = `${msg || "Idle"} (${onlinePart} • ${modePart})`;
+    }
+    function cloneDeep(val) {
+      try { return JSON.parse(JSON.stringify(val)); } catch (_) { return val; }
     }
 
     async function postJSON(path, body) {
       const base = WORKER_URL.replace(/\/$/, "");
-      const url1 = base + path;
-      let res = await fetch(url1, {
+      const url = base + path;
+      const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body)
       });
-      if (res.status === 404 || res.status === 405) {
-        const url2 = base;
-        res = await fetch(url2, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body)
-        });
-      }
       return res;
     }
 
+    // --- SECTION / SCHEMA LOADING & NORMALISATION ---
+    const SECTION_FALLBACK = [
+      { name: "Needs", order: 1, description: "Key needs or must-haves called out by the customer." },
+      { name: "Working at heights", order: 2, description: "Ladders, loft access, towers, scaffolds or special access kit." },
+      { name: "System characteristics", order: 3, description: "Existing system, proposed boiler, cylinders and storage." },
+      { name: "Components that require assistance", order: 4, description: "Items needing two-person lifts or specialist handling." },
+      { name: "Restrictions to work", order: 5, description: "Parking limits, permits or building restrictions." },
+      { name: "External hazards", order: 6, description: "Asbestos, hazards, aggressive pets or notable site risks." },
+      { name: "Delivery notes", order: 7, description: "Delivery constraints, storage space and timings." },
+      { name: "Office notes", order: 8, description: "For the office team: planning, conservation, notifications." },
+      { name: "New boiler and controls", order: 9, description: "What is being fitted: boiler, controls, flushing, filters." },
+      { name: "Flue", order: 10, description: "Flue position, routing, plume kits and terminals." },
+      { name: "Pipe work", order: 11, description: "Gas, condensate and system pipe alterations." },
+      { name: "Disruption", order: 12, description: "Power flush, draining, floor lifting or decorations impacted." },
+      { name: "Customer actions", order: 13, description: "Things the customer has to sort before install." },
+      { name: "Future plans", order: 14, description: "Customer’s future plans or potential upgrades." }
+    ];
+
     function normaliseSectionSchema(entries) {
-      if (entries && typeof entries === "object" && !Array.isArray(entries)) {
-        if (Array.isArray(entries.sections)) return normaliseSectionSchema(entries.sections);
+      if (entries && typeof entries === "object" && !Array.isArray(entries) && Array.isArray(entries.sections)) {
+        return normaliseSectionSchema(entries.sections);
       }
       if (!Array.isArray(entries)) return [];
       return entries.map((entry, idx) => {
@@ -513,14 +520,11 @@
         const order = typeof sec.order === "number" ? sec.order : idx + 1;
         SECTION_ORDER[sec.name] = order;
       });
-      STRUCTURE_HINTS.expectedSections = fallback.map(sec => sec.name);
     }
 
-    applySectionSchema(SECTION_FALLBACK);
-
     function normaliseChecklistConfig(items) {
-      if (items && typeof items === "object" && !Array.isArray(items)) {
-        if (Array.isArray(items.items)) return normaliseChecklistConfig(items.items);
+      if (items && typeof items === "object" && !Array.isArray(items) && Array.isArray(items.items)) {
+        return normaliseChecklistConfig(items.items);
       }
       if (!Array.isArray(items)) return [];
       return items.map(item => {
@@ -537,98 +541,27 @@
       }).filter(Boolean);
     }
 
-    function cloneSections(sections) {
-      try {
-        return JSON.parse(JSON.stringify(sections || []));
-      } catch (_) {
-        return Array.isArray(sections) ? sections.slice() : [];
-      }
-    }
-
-    function refreshUiFromState() {
-      customerSummaryEl.textContent = lastCustomerSummary || "(none)";
-      const processed = postProcessSections(cloneSections(lastRawSections || []));
-      lastSections = processed;
-      sectionsListEl.innerHTML = "";
-      if (processed.length) {
-        processed.forEach(sec => {
-          const div = document.createElement("div");
-          div.className = "section-item";
-          div.innerHTML = `
-            <h4>${sec.section}</h4>
-            <pre>${sec.plainText || ""}</pre>
-            <p class="small" style="margin-top:3px;">${sec.naturalLanguage || ""}</p>
-          `;
-          sectionsListEl.appendChild(div);
-        });
-      } else {
-        sectionsListEl.innerHTML = `<span class="small">No sections yet.</span>`;
-      }
-      renderPartsList(lastMaterials);
-      renderChecklist(clarificationsEl, lastCheckedItems, lastMissingInfo);
-    }
-
-    function loadStaticConfig() {
-      try {
-        const schemaData = loadDepotSchema();
-        applySectionSchema(schemaData?.sections || schemaData);
-      } catch (err) {
-        console.warn('Depot schema load failed', err);
-        applySectionSchema(SECTION_FALLBACK);
-      }
-
-      try {
-        const checklistConfig = loadChecklistConfig();
-        const raw = checklistConfig?.items || checklistConfig;
-        CHECKLIST_SOURCE = Array.isArray(raw) ? raw : [];
-        CHECKLIST_ITEMS = normaliseChecklistConfig(CHECKLIST_SOURCE);
-      } catch (err) {
-        console.warn('Checklist config load failed', err);
-        CHECKLIST_SOURCE = [];
-        CHECKLIST_ITEMS = [];
-      }
-
-      refreshUiFromState();
-    }
-
-    loadStaticConfig();
-
+    // Plaintext shaping helpers
     function ensureSemi(s){ s=String(s||"").trim(); return s ? (s.endsWith(";")?s:s+";") : s; }
-    function splitGeneralClauses(text){
+    function splitClauses(text){
       return String(text||"")
         .split(/[\n;]+/)
         .map(s => s.trim())
         .filter(Boolean);
     }
-    function splitPipeRoute(text){
-      const cues = [
-        "from ","off the ","pick up ","drop to ","under ","behind ","through ",
-        "along ","across ","continue ","then ","past ","to ","into ","up ",
-        "come up ","rise in ","down ","fall to "
-      ];
-      const rx = new RegExp("(?:;|—|–|,)|\\b(" + cues.map(c=>c.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")).join("|") + ")", "ig");
-      const bits=[]; let cur="";
-      (" "+String(text||"").replace(/\s+/g," ").trim()+" ").split(rx).forEach(ch=>{
-        if (!ch) return;
-        const isCue = cues.some(c=>ch.toLowerCase().startsWith(c.trim()));
-        if (isCue && cur.trim()){ bits.push(cur.trim()); cur=ch; } else { cur += ch; }
-      });
-      if (cur.trim()) bits.push(cur.trim());
-      return bits.map(s=>s.replace(/^and\s+/i,"").trim()).filter(Boolean);
-    }
-    function stripSequencingPreamble(line){
+    function stripPreamble(line){
       let s = String(line||"").trim();
       s = s
         .replace(/^(then|next|first|second|after|before|finally|so)\b[:,\s-]*/i, "")
         .replace(/^(we(?:'|’)ll|we will|i(?:'|’)ll|engineer will|installer will|we need to|need to|we can|we should)\b[:,\s-]*/i, "")
-        .replace(/^(please|note|recommend(?:ed)? to)\b[:,\s-]*/i, "");
+        .replace(/^(please|note|recommended to)\b[:,\s-]*/i, "");
       s = s.replace(/\bwill need to\b/gi, "required to");
       return s.trim();
     }
     function bulletify(lines){
       const out=[];
       for (let raw of lines){
-        const t = stripSequencingPreamble(raw);
+        const t = stripPreamble(raw);
         if (!t) continue;
         out.push("• " + ensureSemi(t));
       }
@@ -636,24 +569,17 @@
     }
     function formatPlainTextForSection(section, plain){
       if (!plain) return "";
-      if (section === "Pipe work"){
-        const steps = splitPipeRoute(plain);
-        if (steps.length) return bulletify(steps);
-      }
-      return bulletify(splitGeneralClauses(plain));
+      return bulletify(splitClauses(plain));
     }
 
     function renderPartsList(materials) {
       lastMaterials = Array.isArray(materials) ? materials.slice() : [];
       if (!partsListEl) return;
-
       partsListEl.innerHTML = "";
       if (!lastMaterials.length) {
         partsListEl.innerHTML = `<span class="small">No suggestions yet.</span>`;
         return;
       }
-
-      // group by category
       const byCategory = new Map();
       lastMaterials.forEach(item => {
         const cat = item.category || "Misc";
@@ -661,7 +587,6 @@
         arr.push(item);
         byCategory.set(cat, arr);
       });
-
       byCategory.forEach((items, cat) => {
         const h = document.createElement("div");
         h.className = "small";
@@ -669,12 +594,10 @@
         h.style.margin = "4px 0 2px";
         h.textContent = cat;
         partsListEl.appendChild(h);
-
         const ul = document.createElement("ul");
         ul.style.margin = "0 0 4px 14px";
         ul.style.padding = "0";
         ul.style.listStyle = "disc";
-
         items.forEach(p => {
           const li = document.createElement("li");
           li.style.fontSize = ".68rem";
@@ -685,315 +608,29 @@
           li.textContent = detail.length ? detail.join(" — ") : (p.item || "Item");
           ul.appendChild(li);
         });
-
         partsListEl.appendChild(ul);
       });
     }
+
     function postProcessSections(sections) {
       const out = [];
-      let boilerControlsPlain = "";
-      let boilerControlsNL = "";
-      let needsDisruptionFlushNote = false;
-      let pipeWorkPlain = "";
-      let pipeWorkNL = "";
-      const parkingSections = [];
-      const permissionSections = [];
-      const doubleHandedSections = [];
-
-      let heightsPlain = "";
-      let heightsNL = "";
-      let hazardsPlain = "";
-      let hazardsNL = "";
-      let customerPlain = "";
-      let customerNL = "";
-
       sections.forEach(sec => {
-        const name = sec.section || "";
-        const pt = sec.plainText || "";
-        const nl = sec.naturalLanguage || "";
-        const combined = (pt + " " + nl).toLowerCase();
-
-        const isControl = combined.includes("hive")
-          || combined.includes("smart control")
-          || combined.includes("controller")
-          || combined.includes("pump")
-          || combined.includes("valve");
-
-        const isPipe = combined.includes("condensate")
-          || combined.includes("pipe")
-          || combined.includes("gas run");
-
-        const isPowerFlush = combined.includes("power flush") || combined.includes("powerflush");
-
-        const isParking = combined.includes("parking")
-          || combined.includes("permit")
-          || combined.includes("no parking");
-
-        const isPermission = combined.includes("planning permission")
-          || combined.includes("listed building")
-          || combined.includes("conservation area")
-          || combined.includes("needs permission");
-
-        const isDoubleHanded = combined.includes("double handed")
-          || combined.includes("2 man")
-          || combined.includes("two man")
-          || combined.includes("two engineers")
-          || combined.includes("2 engineers");
-
-        const isHeightsNote =
-          combined.includes("working at height") ||
-          combined.includes("working at heights") ||
-          combined.includes("ladder") ||
-          combined.includes("loft");
-
-        const isHazardsNote =
-          combined.includes("asbestos") ||
-          combined.includes("no safety issues") ||
-          combined.includes("safety issues") ||
-          combined.includes("dogs on site") ||
-          combined.includes("aggressive dog");
-
-        const isCustomerNote =
-          combined.includes("customer to") ||
-          combined.includes("customer will") ||
-          combined.includes("clear route") ||
-          combined.includes("clear access");
-
-        if (isControl) {
-          boilerControlsPlain += pt + " ";
-          boilerControlsNL += nl + " ";
-        } else if (isPipe && name !== "Pipe work") {
-          pipeWorkPlain += pt + " ";
-          pipeWorkNL += nl + " ";
-        } else if (isParking) {
-          parkingSections.push(sec);
-        } else if (isPermission) {
-          permissionSections.push(sec);
-        } else if (isDoubleHanded && name !== "Components that require assistance") {
-          doubleHandedSections.push(sec);
-          out.push(sec);
-        } else {
-          out.push(sec);
-        }
-
-        if (isPowerFlush) {
-          needsDisruptionFlushNote = true;
-        }
-
-        if (isHeightsNote) {
-          heightsPlain += pt + " ";
-          heightsNL += nl + " ";
-        }
-        if (isHazardsNote) {
-          hazardsPlain += pt + " ";
-          hazardsNL += nl + " ";
-        }
-        if (isCustomerNote) {
-          customerPlain += pt + " ";
-          customerNL += nl + " ";
-        }
+        if (!sec || !sec.section) return;
+        out.push({
+          section: sec.section,
+          plainText: sec.plainText || "",
+          naturalLanguage: sec.naturalLanguage || ""
+        });
       });
-
-      if (boilerControlsPlain.trim().length > 0) {
-        out.push({
-          section: "New boiler and controls",
-          plainText: boilerControlsPlain.trim(),
-          naturalLanguage: boilerControlsNL.trim() || "Boiler and control items to be fitted."
-        });
-      }
-
-      if (pipeWorkPlain.trim().length > 0) {
-        out.push({
-          section: "Pipe work",
-          plainText: pipeWorkPlain.trim(),
-          naturalLanguage: pipeWorkNL.trim() || "Pipework/condensate adjustments are required."
-        });
-      }
-
-      if (parkingSections.length > 0) {
-        const existing = out.find(s => s.section === "Restrictions to work");
-        const parkingPT = parkingSections.map(s => s.plainText || "").join(" ");
-        const parkingNL = parkingSections.map(s => s.naturalLanguage || "").join(" ");
-        if (existing) {
-          existing.plainText = (existing.plainText || "") + " " + parkingPT;
-          existing.naturalLanguage = (existing.naturalLanguage || "") + " " + parkingNL;
-        } else {
-          out.push({
-            section: "Restrictions to work",
-            plainText: parkingPT.trim(),
-            naturalLanguage: parkingNL.trim() || "There are parking/access restrictions at the property."
-          });
-        }
-      }
-
-      if (permissionSections.length > 0) {
-        const existing = out.find(s => s.section === "Office notes");
-        const permPT = permissionSections.map(s => s.plainText || "").join(" ");
-        const permNL = permissionSections.map(s => s.naturalLanguage || "").join(" ");
-        if (existing) {
-          existing.plainText = (existing.plainText || "") + " " + permPT;
-          existing.naturalLanguage = (existing.naturalLanguage || "") + " " + permNL;
-        } else {
-          out.push({
-            section: "Office notes",
-            plainText: permPT.trim(),
-            naturalLanguage: permNL.trim() || "Planning / office action required (listed/conservation/permission)."
-          });
-        }
-      }
-
-      if (doubleHandedSections.length > 0) {
-        const existing = out.find(s => s.section === "Components that require assistance");
-        const dhPT = doubleHandedSections.map(s => s.plainText || "").join(" ");
-        const dhNL = doubleHandedSections.map(s => s.naturalLanguage || "").join(" ");
-        if (existing) {
-          existing.plainText = (existing.plainText || "") + " " + dhPT;
-          existing.naturalLanguage = (existing.naturalLanguage || "") + " " + dhNL;
-        } else {
-          out.push({
-            section: "Components that require assistance",
-            plainText: dhPT.trim(),
-            naturalLanguage: dhNL.trim() || "A two-person lift / additional engineer is required."
-          });
-        }
-      }
-
-      if (needsDisruptionFlushNote) {
-        const existing = out.find(s => s.section === "Disruption");
-        const addPT = "✅ Power flush to be carried out | Allow extra time and clear access;";
-        const addNL = "A power flush will be carried out, so extra time and access are needed.";
-        if (existing) {
-          existing.plainText = (existing.plainText || "") + " " + addPT;
-          existing.naturalLanguage = (existing.naturalLanguage || "") + " " + addNL;
-        } else {
-          out.push({
-            section: "Disruption",
-            plainText: addPT,
-            naturalLanguage: addNL
-          });
-        }
-      }
-
-      if (heightsPlain.trim().length > 0) {
-        const existing = out.find(s => s.section === "Working at heights");
-        if (existing) {
-          existing.plainText = (existing.plainText || "") + " " + heightsPlain.trim();
-          existing.naturalLanguage = (existing.naturalLanguage || "") + " " + (heightsNL.trim() || "Working at height requirements / notes.");
-        } else {
-          out.push({
-            section: "Working at heights",
-            plainText: heightsPlain.trim(),
-            naturalLanguage: heightsNL.trim() || "Working at height requirements / notes."
-          });
-        }
-      }
-
-      if (hazardsPlain.trim().length > 0) {
-        const existing = out.find(s => s.section === "External hazards");
-        if (existing) {
-          existing.plainText = (existing.plainText || "") + " " + hazardsPlain.trim();
-          existing.naturalLanguage = (existing.naturalLanguage || "") + " " + (hazardsNL.trim() || "Site hazards / asbestos / safety notes.");
-        } else {
-          out.push({
-            section: "External hazards",
-            plainText: hazardsPlain.trim(),
-            naturalLanguage: hazardsNL.trim() || "Site hazards / asbestos / safety notes."
-          });
-        }
-      }
-
-      if (customerPlain.trim().length > 0) {
-        const existing = out.find(s => s.section === "Customer actions");
-        if (existing) {
-          existing.plainText = (existing.plainText || "") + " " + customerPlain.trim();
-          existing.naturalLanguage = (existing.naturalLanguage || "") + " " + (customerNL.trim() || "Customer to complete these actions before installation.");
-        } else {
-          out.push({
-            section: "Customer actions",
-            plainText: customerPlain.trim(),
-            naturalLanguage: customerNL.trim() || "Customer to complete these actions before installation."
-          });
-        }
-      }
-
-      out.sort((a, b) => {
+      out.sort((a,b) => {
         const oa = SECTION_ORDER[a.section] || 999;
         const ob = SECTION_ORDER[b.section] || 999;
         return oa - ob;
       });
-
-      // Bulletify for display
       out.forEach(sec => {
-        if (sec.plainText) {
-          sec.plainText = formatPlainTextForSection(sec.section, sec.plainText);
-        }
+        if (sec.plainText) sec.plainText = formatPlainTextForSection(sec.section, sec.plainText);
       });
-
       return out;
-    }
-
-    function detectChecklistFromText(text) {
-      if (!text) {
-        return { checked: [], questions: [] };
-      }
-      const lower = text.toLowerCase();
-      const matchedIds = CHECKLIST_ITEMS
-        .filter(item => item.label && lower.includes(item.label.toLowerCase()))
-        .map(item => item.id);
-      return {
-        checked: matchedIds,
-        questions: []
-      };
-    }
-
-    function applyDetectedChecklist(detected) {
-      if (!detected || typeof detected !== "object") return;
-      const nowIso = new Date().toISOString();
-      if (Array.isArray(detected.checked) && detected.checked.length) {
-        const newIds = detected.checked.map(String).filter(Boolean);
-        newIds.forEach(id => {
-          if (!id) return;
-          if (!checklistState[id]) checklistState[id] = {};
-          checklistState[id].checked = true;
-          checklistState[id].updatedAt = nowIso;
-        });
-        if (newIds.length) {
-          const merged = new Set([...lastCheckedItems.map(String), ...newIds]);
-          lastCheckedItems = Array.from(merged);
-        }
-        saveChecklistState(checklistState);
-      }
-      if (!lastMissingInfo.length && Array.isArray(detected.questions) && detected.questions.length) {
-        lastMissingInfo = detected.questions.map(q => ({
-          target: q.target || "engineer",
-          question: q.question || String(q || "")
-        }));
-      }
-    }
-
-    function toggleChecklistItem(id) {
-      if (!id) return;
-      const current = !!(checklistState?.[id]?.checked);
-      const updatedEntry = {
-        ...(checklistState?.[id] || {}),
-        checked: !current,
-        updatedAt: new Date().toISOString()
-      };
-      checklistState = {
-        ...checklistState,
-        [id]: updatedEntry
-      };
-      saveChecklistState(checklistState);
-
-      if (!current) {
-        if (!lastCheckedItems.includes(id)) {
-          lastCheckedItems = [...lastCheckedItems, id];
-        }
-      } else {
-        lastCheckedItems = lastCheckedItems.filter(existing => existing !== id);
-      }
-
-      refreshUiFromState();
     }
 
     function renderChecklist(container, checkedIds, missingInfoFromServer) {
@@ -1020,13 +657,6 @@
         byGroup.set(group, arr);
       });
 
-      const knownIds = new Set(CHECKLIST_ITEMS.map(item => item.id));
-      const orphanIds = [...checkedSet].filter(id => !knownIds.has(id));
-      if (orphanIds.length) {
-        const arr = orphanIds.map(id => ({ id, section: "", label: id, hint: "", done: true }));
-        byGroup.set("Other", (byGroup.get("Other") || []).concat(arr));
-      }
-
       if (!byGroup.size && !questions.length) {
         container.innerHTML = `<span class="small">No checklist items.</span>`;
         return;
@@ -1035,18 +665,14 @@
       [...byGroup.entries()].forEach(([groupName, items]) => {
         const header = document.createElement("div");
         header.className = "check-group-title";
-        header.innerHTML = `
-          <span>${groupName}</span>
-          <span>${items[0].section || ""}</span>
-        `;
+        header.innerHTML = `<span>${groupName}</span><span>${items[0].section || ""}</span>`;
         container.appendChild(header);
 
         items.forEach(item => {
-          const done = checkedSet.has(item.id) || !!(checklistState?.[item.id]?.checked);
           const div = document.createElement("div");
-          div.className = "clar-chip checklist-item" + (done ? " done" : "");
+          div.className = "clar-chip checklist-item" + (item.done ? " done" : "");
           div.innerHTML = `
-            <span class="icon">${done ? "✅" : "⭕"}</span>
+            <span class="icon">${item.done ? "✅" : "⭕"}</span>
             <span class="label">
               ${item.label}
               <span class="hint">
@@ -1055,8 +681,6 @@
               </span>
             </span>
           `;
-          div.style.cursor = "pointer";
-          div.addEventListener("click", () => toggleChecklistItem(item.id));
           container.appendChild(div);
         });
       });
@@ -1067,14 +691,37 @@
         sep.style.marginTop = "6px";
         sep.textContent = "Additional questions:";
         container.appendChild(sep);
-
         questions.forEach(q => {
           const div = document.createElement("div");
           div.className = "clar-chip";
-          div.innerHTML = `<strong>${q.target || "engineer"}</strong> ${q.question}`;
+          div.dataset.target = q.target || "engineer";
+          div.innerHTML = `<strong>${q.target || "engineer"}:</strong> ${q.question}`;
           container.appendChild(div);
         });
       }
+    }
+
+    function refreshUiFromState() {
+      customerSummaryEl.textContent = lastCustomerSummary || "(none)";
+      const processed = postProcessSections(cloneDeep(lastRawSections || []));
+      lastSections = processed;
+      sectionsListEl.innerHTML = "";
+      if (processed.length) {
+        processed.forEach(sec => {
+          const div = document.createElement("div");
+          div.className = "section-item";
+          div.innerHTML = `
+            <h4>${sec.section}</h4>
+            <pre>${sec.plainText || ""}</pre>
+            <p class="small" style="margin-top:3px;">${sec.naturalLanguage || ""}</p>
+          `;
+          sectionsListEl.appendChild(div);
+        });
+      } else {
+        sectionsListEl.innerHTML = `<span class="small">No sections yet.</span>`;
+      }
+      renderPartsList(lastMaterials);
+      renderChecklist(clarificationsEl, lastCheckedItems, lastMissingInfo);
     }
 
     function applyVoiceResult(result) {
@@ -1083,7 +730,7 @@
         return;
       }
 
-      const prevSections = cloneSections(lastRawSections || []);
+      const prevSections = cloneDeep(lastRawSections || []);
       const prevMaterials = Array.isArray(lastMaterials) ? lastMaterials.slice() : [];
       const prevSummary = lastCustomerSummary;
       const prevChecked = Array.isArray(lastCheckedItems) ? lastCheckedItems.slice() : [];
@@ -1095,13 +742,11 @@
         ? result.sections
         : (result.depotNotes && Array.isArray(result.depotNotes.sections))
           ? result.depotNotes.sections
-          : Array.isArray(result.depotSectionsSoFar)
-            ? result.depotSectionsSoFar
-            : [];
+          : [];
       const sectionsCandidate = Array.isArray(sectionsCandidateRaw) ? sectionsCandidateRaw : [];
 
       if (sectionsCandidate.length) {
-        lastRawSections = cloneSections(sectionsCandidate);
+        lastRawSections = cloneDeep(sectionsCandidate);
         updated = true;
       } else {
         lastRawSections = prevSections;
@@ -1117,15 +762,7 @@
       }
 
       if (Array.isArray(result.checkedItems)) {
-        lastCheckedItems = result.checkedItems.map(String);
-        const nowIso = new Date().toISOString();
-        lastCheckedItems.forEach(id => {
-          if (!id) return;
-          if (!checklistState[id]) checklistState[id] = {};
-          checklistState[id].checked = true;
-          checklistState[id].updatedAt = nowIso;
-        });
-        saveChecklistState(checklistState);
+        lastCheckedItems = result.checkedItems.slice();
       } else if (result.checkedItems === undefined) {
         lastCheckedItems = prevChecked;
       }
@@ -1159,27 +796,8 @@
           showVoiceError("AI didn’t return any depot notes. Existing notes kept.");
         }
       }
-      const textParts = [];
-      if (typeof result.customerSummary === "string") textParts.push(result.customerSummary);
-      if (typeof result.summary === "string") textParts.push(result.summary);
-      const sectionTexts = (Array.isArray(result.sections) ? result.sections : [])
-        .concat(Array.isArray(result.depotNotes?.sections) ? result.depotNotes.sections : [])
-        .concat(Array.isArray(result.depotSectionsSoFar) ? result.depotSectionsSoFar : []);
-      sectionTexts.forEach(sec => {
-        if (sec && typeof sec === "object") {
-          if (typeof sec.plainText === "string") textParts.push(sec.plainText);
-          if (typeof sec.naturalLanguage === "string") textParts.push(sec.naturalLanguage);
-        }
-      });
-
-      const detected = detectChecklistFromText(textParts.join(" "));
-      applyDetectedChecklist(detected);
 
       refreshUiFromState();
-    }
-
-    function handleBrainResponse(data) {
-      applyVoiceResult(data);
     }
 
     async function sendText() {
@@ -1190,10 +808,6 @@
       try {
         const res = await postJSON("/text", {
           transcript,
-          alreadyCaptured: [],
-          expectedSections: STRUCTURE_HINTS.expectedSections,
-          sectionHints: STRUCTURE_HINTS.sectionHints,
-          forceStructured: STRUCTURE_HINTS.forceStructured,
           checklistItems: CHECKLIST_SOURCE,
           depotSections: SECTION_SCHEMA
         });
@@ -1211,7 +825,7 @@
           parseError.voiceMessage = parseError.message;
           throw parseError;
         }
-        handleBrainResponse(data);
+        applyVoiceResult(data);
         setStatus("Done.");
       } catch (err) {
         console.error(err);
@@ -1222,58 +836,14 @@
         setStatus("Text send failed.");
       }
     }
-    sendTextBtn.addEventListener("click", sendText);
-
-    exportBtn.addEventListener("click", async () => {
-      setStatus("Preparing notes…");
-      const payload = {
-        exportedAt: new Date().toISOString(),
-        sections: lastSections || []
-      };
-      const pretty = JSON.stringify(payload, null, 2);
-      const blob = new Blob([pretty], { type: "application/json" });
-
-      // Manual file naming
-      const defaultName = "depot-notes";
-      const userName = prompt("File name (without extension):", defaultName);
-      if (userName === null) {
-        setStatus("Export cancelled.");
-        return;
-      }
-      const safeName = (userName || defaultName).replace(/[^a-z0-9_\-]+/gi, "-");
-      const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-      const filename = `${safeName}-${timestamp}.json`;
-
-      const fileForShare = new File([blob], filename, { type: "application/json" });
-
-      if (navigator.canShare && navigator.canShare({ files: [fileForShare] })) {
-        try {
-          await navigator.share({ files: [fileForShare] });
-          setStatus("Notes shared.");
-          return;
-        } catch (err) {
-          console.error("Share failed", err);
-        }
-      }
-
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = filename;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-      setStatus("Notes downloaded.");
-    });
 
     async function sendAudio(blob) {
       setStatus("Uploading audio…");
       clearVoiceError();
       try {
-        let res = await fetch(WORKER_URL.replace(/\/$/, "") + "/audio", {
+        const res = await fetch(WORKER_URL.replace(/\/$/, "") + "/audio", {
           method: "POST",
-          headers: { "Content-Type": blob.type },
+          headers: { "Content-Type": blob.type || "audio/webm" },
           body: blob
         });
         const raw = await res.text();
@@ -1290,7 +860,7 @@
           parseError.voiceMessage = parseError.message;
           throw parseError;
         }
-        handleBrainResponse(data);
+        applyVoiceResult(data);
         setStatus("Audio processed.");
       } catch (err) {
         console.error(err);
@@ -1305,7 +875,133 @@
       }
     }
 
-    // Auto notes: local speech segmentation + periodic /text calls
+    // --- EXPORT / SESSION / AUDIO IMPORT ---
+    exportBtn.onclick = async () => {
+      setStatus("Preparing notes…");
+      const payload = {
+        exportedAt: new Date().toISOString(),
+        sections: lastSections || []
+      };
+      const pretty = JSON.stringify(payload, null, 2);
+      const blob = new Blob([pretty], { type: "application/json" });
+      const defaultName = "depot-notes";
+      const userName = prompt("File name (without extension):", defaultName);
+      if (userName === null) {
+        setStatus("Export cancelled.");
+        return;
+      }
+      const safeName = (userName || defaultName).replace(/[^a-z0-9_\-]+/gi, "-");
+      const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+      const filename = `${safeName}-${timestamp}.json`;
+      const fileForShare = new File([blob], filename, { type: "application/json" });
+      if (navigator.canShare && navigator.canShare({ files: [fileForShare] })) {
+        try {
+          await navigator.share({ files: [fileForShare] });
+          setStatus("Notes shared.");
+          return;
+        } catch (err) {
+          console.error("Share failed", err);
+        }
+      }
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      setStatus("Notes downloaded.");
+    };
+
+    function blobToBase64(blob) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result.split(",")[1] || "");
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+    }
+    function base64ToBlob(b64, mime) {
+      const byteChars = atob(b64);
+      const byteNums = new Array(byteChars.length);
+      for (let i = 0; i < byteChars.length; i++) {
+        byteNums[i] = byteChars.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNums);
+      return new Blob([byteArray], { type: mime || "application/octet-stream" });
+    }
+
+    async function saveSessionToFile() {
+      const fullTranscript = transcriptInput.value.trim();
+      if (!fullTranscript) {
+        alert("No transcript yet.");
+        return;
+      }
+      const session = {
+        version: 1,
+        createdAt: new Date().toISOString(),
+        fullTranscript,
+        sections: lastRawSections,
+        materials: lastMaterials,
+        checkedItems: lastCheckedItems,
+        missingInfo: lastMissingInfo,
+        customerSummary: lastCustomerSummary
+      };
+      const jsonStr = JSON.stringify(session, null, 2);
+      const fileBlob = new Blob([jsonStr], { type: "application/json" });
+      const defaultName = "depot-voice-session";
+      const userName = prompt("Session file name (without extension):", defaultName);
+      if (userName === null) return;
+      const safeName = (userName || defaultName).replace(/[^a-z0-9_\-]+/gi, "-");
+      const ts = new Date().toISOString().replace(/[:.]/g, "-");
+      const filename = `${safeName}-${ts}.depotvoice.json`;
+      const url = URL.createObjectURL(fileBlob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }
+
+    saveSessionBtn.onclick = saveSessionToFile;
+
+    importAudioBtn.onclick = () => importAudioInput.click();
+    importAudioInput.onchange = async (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      try {
+        await sendAudio(file);
+      } catch (_) {}
+      importAudioInput.value = "";
+    };
+
+    loadSessionBtn.onclick = () => loadSessionInput.click();
+    loadSessionInput.onchange = async (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      try {
+        const text = await file.text();
+        const session = JSON.parse(text);
+        transcriptInput.value = session.fullTranscript || "";
+        lastRawSections = Array.isArray(session.sections) ? session.sections : [];
+        lastMaterials = Array.isArray(session.materials) ? session.materials : [];
+        lastCheckedItems = Array.isArray(session.checkedItems) ? session.checkedItems : [];
+        lastMissingInfo = Array.isArray(session.missingInfo) ? session.missingInfo : [];
+        lastCustomerSummary = session.customerSummary || "";
+        refreshUiFromState();
+        setStatus("Session loaded.");
+      } catch (err) {
+        console.error(err);
+        showVoiceError("Could not load session file: " + (err.message || "Unknown error"));
+      } finally {
+        loadSessionInput.value = "";
+      }
+    };
+
+    // --- MIC / AUTO NOTES ---
     if (SpeechRec) {
       recognition = new SpeechRec();
       recognition.continuous = true;
@@ -1315,7 +1011,6 @@
       recognition.onresult = (event) => {
         let finalText = "";
         let interimText = "";
-
         for (let i = 0; i < event.results.length; i++) {
           const r = event.results[i];
           if (r.isFinal) {
@@ -1324,33 +1019,19 @@
             interimText += r[0].transcript + " ";
           }
         }
-
-        const now = performance.now();
-        const nowOffset = now - sessionStartMs;
-
         finalText.split(/[.!?]+/).forEach(sentence => {
           const t = sentence.trim();
           if (!t) return;
-          const prevEnd = segments.length ? segments[segments.length - 1].endMs : 0;
-          segments.push({
-            startMs: prevEnd,
-            endMs: nowOffset,
-            text: t
-          });
+          segments.push({ text: t });
         });
-
         const fullText = segments.map(s => s.text).join(". ") + (interimText ? " " + interimText.trim() : "");
         transcriptInput.value = fullText.trim();
-
-        renderChecklist(clarificationsEl, lastCheckedItems, lastMissingInfo);
       };
-
-      recognition.onerror = (e) => {
+      recognition.onerror = () => {
         recognizing = false;
         micBtn.classList.remove("active");
         setStatus("Speech error.");
       };
-
       recognition.onend = () => {
         recognizing = false;
         micBtn.classList.remove("active");
@@ -1363,24 +1044,16 @@
 
     async function sendTranscriptChunkToWorker() {
       if (!segments.length || lastSentIndex >= segments.length) return;
-
       if (!navigator.onLine) {
         setStatus("Offline – storing notes locally.");
         return;
       }
-
-      const newSegs = segments.slice(lastSentIndex);
       const fullTranscript = segments.map(s => s.text).join(". ");
-
       try {
         setStatus("Updating notes…");
         clearVoiceError();
         const res = await postJSON("/text", {
           transcript: fullTranscript,
-          alreadyCaptured: [],
-          expectedSections: STRUCTURE_HINTS.expectedSections,
-          sectionHints: STRUCTURE_HINTS.sectionHints,
-          forceStructured: STRUCTURE_HINTS.forceStructured,
           checklistItems: CHECKLIST_SOURCE,
           depotSections: SECTION_SCHEMA
         });
@@ -1395,26 +1068,15 @@
         } catch (e) {
           console.error("Voice worker returned non-JSON:", raw);
           showVoiceError("AI response wasn't in the expected format. Please try again.");
-          consecutiveFailures++;
-          chunkIntervalMs = Math.min(120000, chunkIntervalMs * 2);
-          setStatus("Update failed – will retry less often.");
           return;
         }
-        handleBrainResponse(data);
-
+        applyVoiceResult(data);
         lastSentIndex = segments.length;
-        consecutiveFailures = 0;
-        chunkIntervalMs = 30000;
         setStatus("Listening (auto notes)…");
       } catch (err) {
         console.error(err);
-        const message = err && err.voiceMessage
-          ? err.voiceMessage
-          : "Voice AI failed: " + (err && err.message ? err.message : "Unknown error");
-        showVoiceError(message);
-        consecutiveFailures++;
-        chunkIntervalMs = Math.min(120000, chunkIntervalMs * 2);
-        setStatus("Update failed – will retry less often.");
+        showVoiceError("Voice AI failed: " + (err.message || "Unknown error"));
+        setStatus("Update failed – will retry later.");
       }
     }
 
@@ -1426,15 +1088,12 @@
       }, chunkIntervalMs);
     }
 
-    micBtn.addEventListener("click", async () => {
+    micBtn.onclick = async () => {
       const autoMode = autoNotesToggle && autoNotesToggle.checked;
 
       if (autoMode && recognizing) {
         if (recognition) recognition.stop();
         if (chunkTimerId) { clearTimeout(chunkTimerId); chunkTimerId = null; }
-        if (mediaRecorder && mediaRecorder.state === "recording") {
-          mediaRecorder.stop();
-        }
         micBtn.classList.remove("active");
         setStatus("Auto notes stopped.");
         return;
@@ -1445,235 +1104,177 @@
           setStatus("Auto notes: browser speech not supported.");
           return;
         }
-        if (!navigator.mediaDevices || !window.MediaRecorder) {
-          setStatus("Auto notes: mic not supported.");
-          return;
-        }
-
-        sessionStartMs = performance.now();
         segments = [];
         lastSentIndex = 0;
-        sessionAudioChunks = [];
-        chunkIntervalMs = 60000;
-        consecutiveFailures = 0;
-
+        chunkIntervalMs = 45000;
         try {
-          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-          mediaRecorder = new MediaRecorder(stream, {
-            mimeType: MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
-              ? "audio/webm;codecs=opus"
-              : undefined
-          });
-
-          mediaRecorder.ondataavailable = (e) => {
-            if (e.data && e.data.size > 0) {
-              sessionAudioChunks.push(e.data);
-            }
-          };
-
-          mediaRecorder.onstop = () => {
-            stream.getTracks().forEach(t => t.stop());
-          };
-
-          mediaRecorder.start();
+          recognizing = true;
+          recognition.start();
         } catch (err) {
           console.error(err);
-          setStatus("Auto notes: mic error.");
+          setStatus("Auto notes: speech error.");
+          recognizing = false;
           return;
         }
-
-        recognizing = true;
-        recognition.start();
         scheduleNextChunk();
-
         micBtn.classList.add("active");
         setStatus("Auto notes running…");
         return;
       }
 
-      if (mediaRecorder && mediaRecorder.state === "recording") {
-        mediaRecorder.stop();
-        micBtn.classList.remove("active");
-        return;
-      }
-
+      // Manual audio: single clip -> /audio
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        mediaRecorder = new MediaRecorder(stream, {
-          mimeType: MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
-            ? "audio/webm;codecs=opus"
-            : undefined
-        });
-        chunks = [];
-        mediaRecorder.ondataavailable = (e) => chunks.push(e.data);
+        const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+          ? "audio/webm;codecs=opus"
+          : undefined;
+        const mediaRecorder = new MediaRecorder(stream, { mimeType });
+        const chunks = [];
+        mediaRecorder.ondataavailable = (e) => {
+          if (e.data && e.data.size > 0) chunks.push(e.data);
+        };
         mediaRecorder.onstop = async () => {
-          const blob = new Blob(chunks, { type: mediaRecorder.mimeType });
           stream.getTracks().forEach(t => t.stop());
+          const blob = new Blob(chunks, { type: mediaRecorder.mimeType || "audio/webm" });
           try {
             await sendAudio(blob);
-          } catch (err) {
-            // Error already surfaced via showVoiceError
-          }
+          } catch (_) {}
         };
         mediaRecorder.start();
         micBtn.classList.add("active");
         setStatus("Recording… tap again to send");
+        micBtn.onclick = () => {
+          if (mediaRecorder.state === "recording") {
+            mediaRecorder.stop();
+            micBtn.onclick = async () => {
+              // rebind normal handler after stop
+              micBtn.onclick = async () => { await micBtn.click(); };
+            };
+          }
+        };
       } catch (err) {
         console.error(err);
         setStatus("Mic error.");
       }
-    });
+    };
 
-    function blobToBase64(blob) {
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result.split(",")[1] || "");
-        reader.onerror = reject;
-        reader.readAsDataURL(blob);
-      });
-    }
-
-    async function saveSessionToFile() {
-      if (!segments.length) {
-        alert("No session data to save yet.");
-        return;
-      }
-
-      const fullTranscript = segments.map(s => s.text).join(". ");
-      const durationMs = segments.length ? segments[segments.length - 1].endMs : 0;
-
-      const audioBlob = sessionAudioChunks.length
-        ? new Blob(sessionAudioChunks, { type: "audio/webm" })
-        : null;
-
-      const audioBase64 = audioBlob ? await blobToBase64(audioBlob) : null;
-
-      const session = {
-        version: 1,
-        createdAt: new Date().toISOString(),
-        durationMs,
-        segments,
-        fullTranscript,
-        audioMime: audioBlob ? audioBlob.type : null,
-        audioBase64
-      };
-
-      const jsonStr = JSON.stringify(session, null, 2);
-      const fileBlob = new Blob([jsonStr], { type: "application/json" });
-
-      const defaultName = "depot-voice-session";
-      const userName = prompt("Session file name (without extension):", defaultName);
-      if (userName === null) return;
-      const safeName = (userName || defaultName).replace(/[^a-z0-9_\-]+/gi, "-");
-      const ts = new Date().toISOString().replace(/[:.]/g, "-");
-      const filename = `${safeName}-${ts}.depotvoice.json`;
-
-      const url = URL.createObjectURL(fileBlob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = filename;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-    }
-
-    function base64ToBlob(b64, mime) {
-      const byteChars = atob(b64);
-      const byteNums = new Array(byteChars.length);
-      for (let i = 0; i < byteChars.length; i++) {
-        byteNums[i] = byteChars.charCodeAt(i);
-      }
-      const byteArray = new Uint8Array(byteNums);
-      return new Blob([byteArray], { type: mime || "application/octet-stream" });
-    }
-
-    saveSessionBtn.addEventListener("click", saveSessionToFile);
-
-    importAudioBtn.addEventListener("click", () => {
-      importAudioInput.click();
-    });
-
-    importAudioInput.addEventListener("change", async (e) => {
-      const file = e.target.files && e.target.files[0];
-      if (!file) return;
-
+    // --- SETTINGS ---
+    function loadLocalOrDefault(key, fallback) {
       try {
-        setStatus("Uploading audio file…");
-        await sendAudio(file); // reuse the existing /audio flow
-        setStatus("Audio file processed.");
+        const raw = localStorage.getItem(key);
+        if (!raw) return fallback;
+        return JSON.parse(raw);
+      } catch (_) { return fallback; }
+    }
+
+    async function loadStaticConfig() {
+      // schema
+      try {
+        const local = loadLocalOrDefault(LS_SCHEMA_KEY, null);
+        if (local) {
+          applySectionSchema(local);
+          schemaEditor.value = JSON.stringify(local, null, 2);
+        } else {
+          const res = await fetch("depot.output.schema.json", { cache: "no-store" });
+          if (res.ok) {
+            const data = await res.json();
+            applySectionSchema(data.sections || data);
+            schemaEditor.value = JSON.stringify(data.sections || data, null, 2);
+          } else {
+            applySectionSchema(SECTION_FALLBACK);
+            schemaEditor.value = JSON.stringify(SECTION_FALLBACK, null, 2);
+          }
+        }
+      } catch {
+        applySectionSchema(SECTION_FALLBACK);
+        schemaEditor.value = JSON.stringify(SECTION_FALLBACK, null, 2);
+      }
+
+      // checklist
+      try {
+        const local = loadLocalOrDefault(LS_CHECKLIST_KEY, null);
+        if (local) {
+          CHECKLIST_SOURCE = Array.isArray(local) ? local : (local.items || []);
+          CHECKLIST_ITEMS = normaliseChecklistConfig(CHECKLIST_SOURCE);
+          checklistEditor.value = JSON.stringify(CHECKLIST_SOURCE, null, 2);
+        } else {
+          const res = await fetch("checklist.config.json", { cache: "no-store" });
+          if (res.ok) {
+            const data = await res.json();
+            CHECKLIST_SOURCE = Array.isArray(data) ? data : (data.items || []);
+            CHECKLIST_ITEMS = normaliseChecklistConfig(CHECKLIST_SOURCE);
+            checklistEditor.value = JSON.stringify(CHECKLIST_SOURCE, null, 2);
+          } else {
+            CHECKLIST_SOURCE = [];
+            CHECKLIST_ITEMS = [];
+            checklistEditor.value = "[]";
+          }
+        }
+      } catch {
+        CHECKLIST_SOURCE = [];
+        CHECKLIST_ITEMS = [];
+        checklistEditor.value = "[]";
+      }
+
+      refreshUiFromState();
+    }
+
+    settingsBtn.onclick = () => {
+      settingsOverlay.style.display = "flex";
+    };
+    closeSettingsBtn.onclick = () => {
+      settingsOverlay.style.display = "none";
+    };
+    settingsOverlay.addEventListener("click", (e) => {
+      if (e.target === settingsOverlay) settingsOverlay.style.display = "none";
+    });
+
+    schemaSaveBtn.onclick = () => {
+      try {
+        const data = JSON.parse(schemaEditor.value);
+        applySectionSchema(data);
+        localStorage.setItem(LS_SCHEMA_KEY, JSON.stringify(data));
+        refreshUiFromState();
+        alert("Schema saved for this device.");
       } catch (err) {
-        setStatus("Audio file failed.");
-      } finally {
-        importAudioInput.value = "";
+        alert("Schema JSON invalid: " + err.message);
       }
-    });
+    };
+    schemaResetBtn.onclick = () => {
+      localStorage.removeItem(LS_SCHEMA_KEY);
+      applySectionSchema(SECTION_FALLBACK);
+      schemaEditor.value = JSON.stringify(SECTION_FALLBACK, null, 2);
+      refreshUiFromState();
+    };
 
-    loadSessionBtn.addEventListener("click", () => loadSessionInput.click());
-
-    loadSessionInput.addEventListener("change", async (e) => {
-      const file = e.target.files && e.target.files[0];
-      if (!file) return;
-
+    checklistSaveBtn.onclick = () => {
       try {
-        const text = await file.text();
-        const session = JSON.parse(text);
-
-        segments = session.segments || [];
-        lastSentIndex = 0;
-        sessionAudioChunks = [];
-
-        if (session.audioBase64 && session.audioMime) {
-          const audioBlob = base64ToBlob(session.audioBase64, session.audioMime);
-          sessionAudioChunks.push(audioBlob);
-        }
-
-        const fullTranscript = session.fullTranscript || segments.map(s => s.text).join(". ");
-        transcriptInput.value = fullTranscript;
-
-        clearVoiceError();
-        const res = await postJSON("/text", {
-          transcript: fullTranscript,
-          alreadyCaptured: [],
-          expectedSections: STRUCTURE_HINTS.expectedSections,
-          sectionHints: STRUCTURE_HINTS.sectionHints,
-          forceStructured: STRUCTURE_HINTS.forceStructured,
-          checklistItems: CHECKLIST_SOURCE,
-          depotSections: SECTION_SCHEMA
-        });
-        const raw = await res.text();
-        if (!res.ok) {
-          const snippet = raw ? `: ${raw.slice(0, 200)}` : "";
-          throw new Error(`Worker error ${res.status} ${res.statusText}${snippet}`);
-        }
-        let data;
-        try {
-          data = JSON.parse(raw);
-        } catch (e) {
-          console.error("Voice worker returned non-JSON:", raw);
-          showVoiceError("AI response wasn't in the expected format. Please try again.");
-          setStatus("Session load failed.");
-          return;
-        }
-        handleBrainResponse(data);
-
+        const data = JSON.parse(checklistEditor.value);
+        CHECKLIST_SOURCE = Array.isArray(data) ? data : (data.items || []);
+        CHECKLIST_ITEMS = normaliseChecklistConfig(CHECKLIST_SOURCE);
+        localStorage.setItem(LS_CHECKLIST_KEY, JSON.stringify(CHECKLIST_SOURCE));
         renderChecklist(clarificationsEl, lastCheckedItems, lastMissingInfo);
-        setStatus("Session loaded.");
+        alert("Checklist saved for this device.");
       } catch (err) {
-        console.error(err);
-        showVoiceError("Voice AI failed: " + (err.message || "Unknown error"));
-        alert("Could not load session file.");
-      } finally {
-        loadSessionInput.value = "";
+        alert("Checklist JSON invalid: " + err.message);
       }
-    });
+    };
+    checklistResetBtn.onclick = () => {
+      localStorage.removeItem(LS_CHECKLIST_KEY);
+      CHECKLIST_SOURCE = [];
+      CHECKLIST_ITEMS = [];
+      checklistEditor.value = "[]";
+      renderChecklist(clarificationsEl, lastCheckedItems, lastMissingInfo);
+    };
 
+    // --- BOOT ---
+    sendTextBtn.onclick = sendText;
     transcriptInput.addEventListener("input", () => {
+      // just keep UI in sync; AI drives checklist primarily
       renderChecklist(clarificationsEl, lastCheckedItems, lastMissingInfo);
     });
-
-    // initial checklist
-    renderChecklist(clarificationsEl, lastCheckedItems, lastMissingInfo);
+    loadStaticConfig();
+    renderChecklist(clarificationsEl, [], []);
     setStatus("Idle");
   </script>
 </body>

@@ -290,7 +290,7 @@ function appendSection(bucket, name, pt, nl = "") {
 
 function splitGeneralClauses(text){
   return String(text||"")
-    .split(/(?:;|—|–|,|\band\b|\bbut\b|\bso\b|\bthen\b)/i)
+    .split(/[\n;]+/)
     .map(s=>s.trim()).filter(Boolean);
 }
 

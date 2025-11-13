@@ -350,9 +350,11 @@
     const importAudioBtn = document.getElementById('importAudioBtn');
     const importAudioInput = document.getElementById('importAudioInput');
     const partsListEl = document.getElementById('partsList');
+    initDepotRenderers({ sectionsEl: sectionsListEl, materialsEl: partsListEl });
+    let checklistState = loadChecklistState() || {};
     let lastMaterials = [];
     let lastRawSections = [];
-    let lastCheckedItems = [];
+    let lastCheckedItems = Object.keys(checklistState).filter(id => checklistState[id]?.checked);
     let lastMissingInfo = [];
     let lastCustomerSummary = "";
 
@@ -377,10 +379,13 @@
 
     let mediaRecorder, chunks = [];
     let lastSections = [];
-    let lastMaterials = [];
-    let lastExtraQuestions = [];
 
-    const initialOutput = refreshDepotNotesFromChecklist(checklistState);
+    let initialOutput = null;
+    try {
+      initialOutput = refreshDepotNotesFromChecklist(checklistState);
+    } catch (err) {
+      console.warn('Checklist render failed', err);
+    }
     if (initialOutput) {
       lastSections = initialOutput.sections || [];
       lastMaterials = initialOutput.materials || [];
@@ -556,27 +561,24 @@
       renderChecklist(clarificationsEl, lastCheckedItems, lastMissingInfo);
     }
 
-    async function loadStaticConfig() {
+    function loadStaticConfig() {
       try {
-        const res = await fetch('depot.output.schema.json', { cache: 'no-store' });
-        if (res.ok) {
-          const data = await res.json();
-          applySectionSchema(data.sections || data);
-        }
+        const schemaData = loadDepotSchema();
+        applySectionSchema(schemaData?.sections || schemaData);
       } catch (err) {
         console.warn('Depot schema load failed', err);
+        applySectionSchema(SECTION_FALLBACK);
       }
 
       try {
-        const res = await fetch('checklist.config.json', { cache: 'no-store' });
-        if (res.ok) {
-          const data = await res.json();
-          const raw = data.items || data;
-          CHECKLIST_SOURCE = Array.isArray(raw) ? raw : [];
-          CHECKLIST_ITEMS = normaliseChecklistConfig(CHECKLIST_SOURCE);
-        }
+        const checklistConfig = loadChecklistConfig();
+        const raw = checklistConfig?.items || checklistConfig;
+        CHECKLIST_SOURCE = Array.isArray(raw) ? raw : [];
+        CHECKLIST_ITEMS = normaliseChecklistConfig(CHECKLIST_SOURCE);
       } catch (err) {
         console.warn('Checklist config load failed', err);
+        CHECKLIST_SOURCE = [];
+        CHECKLIST_ITEMS = [];
       }
 
       refreshUiFromState();
@@ -923,6 +925,70 @@
       return out;
     }
 
+    function detectChecklistFromText(text) {
+      if (!text) {
+        return { checked: [], questions: [] };
+      }
+      const lower = text.toLowerCase();
+      const matchedIds = CHECKLIST_ITEMS
+        .filter(item => item.label && lower.includes(item.label.toLowerCase()))
+        .map(item => item.id);
+      return {
+        checked: matchedIds,
+        questions: []
+      };
+    }
+
+    function applyDetectedChecklist(detected) {
+      if (!detected || typeof detected !== "object") return;
+      const nowIso = new Date().toISOString();
+      if (Array.isArray(detected.checked) && detected.checked.length) {
+        const newIds = detected.checked.map(String).filter(Boolean);
+        newIds.forEach(id => {
+          if (!id) return;
+          if (!checklistState[id]) checklistState[id] = {};
+          checklistState[id].checked = true;
+          checklistState[id].updatedAt = nowIso;
+        });
+        if (newIds.length) {
+          const merged = new Set([...lastCheckedItems.map(String), ...newIds]);
+          lastCheckedItems = Array.from(merged);
+        }
+        saveChecklistState(checklistState);
+      }
+      if (!lastMissingInfo.length && Array.isArray(detected.questions) && detected.questions.length) {
+        lastMissingInfo = detected.questions.map(q => ({
+          target: q.target || "engineer",
+          question: q.question || String(q || "")
+        }));
+      }
+    }
+
+    function toggleChecklistItem(id) {
+      if (!id) return;
+      const current = !!(checklistState?.[id]?.checked);
+      const updatedEntry = {
+        ...(checklistState?.[id] || {}),
+        checked: !current,
+        updatedAt: new Date().toISOString()
+      };
+      checklistState = {
+        ...checklistState,
+        [id]: updatedEntry
+      };
+      saveChecklistState(checklistState);
+
+      if (!current) {
+        if (!lastCheckedItems.includes(id)) {
+          lastCheckedItems = [...lastCheckedItems, id];
+        }
+      } else {
+        lastCheckedItems = lastCheckedItems.filter(existing => existing !== id);
+      }
+
+      refreshUiFromState();
+    }
+
     function renderChecklist(container, checkedIds, missingInfoFromServer) {
       const checkedSet = new Set((checkedIds || []).map(String));
       const questions = Array.isArray(missingInfoFromServer) ? missingInfoFromServer : [];
@@ -969,7 +1035,7 @@
         container.appendChild(header);
 
         items.forEach(item => {
-          const done = !!(state?.[item.id]?.checked);
+          const done = checkedSet.has(item.id) || !!(checklistState?.[item.id]?.checked);
           const div = document.createElement("div");
           div.className = "clar-chip checklist-item" + (done ? " done" : "");
           div.innerHTML = `
@@ -1044,7 +1110,15 @@
       }
 
       if (Array.isArray(result.checkedItems)) {
-        lastCheckedItems = result.checkedItems.slice();
+        lastCheckedItems = result.checkedItems.map(String);
+        const nowIso = new Date().toISOString();
+        lastCheckedItems.forEach(id => {
+          if (!id) return;
+          if (!checklistState[id]) checklistState[id] = {};
+          checklistState[id].checked = true;
+          checklistState[id].updatedAt = nowIso;
+        });
+        saveChecklistState(checklistState);
       } else if (result.checkedItems === undefined) {
         lastCheckedItems = prevChecked;
       }
@@ -1078,8 +1152,18 @@
           showVoiceError("AI didn’t return any depot notes. Existing notes kept.");
         }
       }
-      if (data.customerSummary) textParts.push(data.customerSummary);
-      if (data.summary) textParts.push(data.summary);
+      const textParts = [];
+      if (typeof result.customerSummary === "string") textParts.push(result.customerSummary);
+      if (typeof result.summary === "string") textParts.push(result.summary);
+      const sectionTexts = (Array.isArray(result.sections) ? result.sections : [])
+        .concat(Array.isArray(result.depotNotes?.sections) ? result.depotNotes.sections : [])
+        .concat(Array.isArray(result.depotSectionsSoFar) ? result.depotSectionsSoFar : []);
+      sectionTexts.forEach(sec => {
+        if (sec && typeof sec === "object") {
+          if (typeof sec.plainText === "string") textParts.push(sec.plainText);
+          if (typeof sec.naturalLanguage === "string") textParts.push(sec.naturalLanguage);
+        }
+      });
 
       const detected = detectChecklistFromText(textParts.join(" "));
       applyDetectedChecklist(detected);
@@ -1131,9 +1215,9 @@
         setStatus("Text send failed.");
       }
     }
-    sendTextBtn.onclick = sendText;
+    sendTextBtn.addEventListener("click", sendText);
 
-    exportBtn.onclick = async () => {
+    exportBtn.addEventListener("click", async () => {
       setStatus("Preparing notes…");
       const payload = {
         exportedAt: new Date().toISOString(),
@@ -1174,7 +1258,7 @@
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
       setStatus("Notes downloaded.");
-    };
+    });
 
     async function sendAudio(blob) {
       setStatus("Uploading audio…");
@@ -1335,7 +1419,7 @@
       }, chunkIntervalMs);
     }
 
-    micBtn.onclick = async () => {
+    micBtn.addEventListener("click", async () => {
       const autoMode = autoNotesToggle && autoNotesToggle.checked;
 
       if (autoMode && recognizing) {
@@ -1431,7 +1515,7 @@
         console.error(err);
         setStatus("Mic error.");
       }
-    };
+    });
 
     function blobToBase64(blob) {
       return new Promise((resolve, reject) => {
@@ -1497,13 +1581,13 @@
       return new Blob([byteArray], { type: mime || "application/octet-stream" });
     }
 
-    saveSessionBtn.onclick = saveSessionToFile;
+    saveSessionBtn.addEventListener("click", saveSessionToFile);
 
-    importAudioBtn.onclick = () => {
+    importAudioBtn.addEventListener("click", () => {
       importAudioInput.click();
-    };
+    });
 
-    importAudioInput.onchange = async (e) => {
+    importAudioInput.addEventListener("change", async (e) => {
       const file = e.target.files && e.target.files[0];
       if (!file) return;
 
@@ -1516,11 +1600,11 @@
       } finally {
         importAudioInput.value = "";
       }
-    };
+    });
 
-    loadSessionBtn.onclick = () => loadSessionInput.click();
+    loadSessionBtn.addEventListener("click", () => loadSessionInput.click());
 
-    loadSessionInput.onchange = async (e) => {
+    loadSessionInput.addEventListener("change", async (e) => {
       const file = e.target.files && e.target.files[0];
       if (!file) return;
 
@@ -1546,7 +1630,9 @@
           alreadyCaptured: [],
           expectedSections: STRUCTURE_HINTS.expectedSections,
           sectionHints: STRUCTURE_HINTS.sectionHints,
-          forceStructured: STRUCTURE_HINTS.forceStructured
+          forceStructured: STRUCTURE_HINTS.forceStructured,
+          checklistItems: CHECKLIST_SOURCE,
+          depotSections: SECTION_SCHEMA
         });
         const raw = await res.text();
         if (!res.ok) {
@@ -1573,14 +1659,14 @@
       } finally {
         loadSessionInput.value = "";
       }
-    };
+    });
 
     transcriptInput.addEventListener("input", () => {
       renderChecklist(clarificationsEl, lastCheckedItems, lastMissingInfo);
     });
 
     // initial checklist
-    renderChecklist(clarificationsEl, [], []);
+    renderChecklist(clarificationsEl, lastCheckedItems, lastMissingInfo);
     setStatus("Idle");
   </script>
 </body>

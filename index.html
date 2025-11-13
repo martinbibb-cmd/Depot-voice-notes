@@ -122,6 +122,28 @@
       padding: 5px 10px 6px;
       font-size: .65rem;
     }
+    .checklist-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 6px;
+      padding: 4px 8px 5px;
+    }
+    .checklist-item .icon {
+      font-size: .8rem;
+      line-height: 1.2;
+    }
+    .checklist-item.done {
+      background: #ecfdf3;
+      border-color: #bbf7d0;
+    }
+    .checklist-item .label {
+      font-size: .7rem;
+    }
+    .checklist-item .hint {
+      display: block;
+      font-size: .62rem;
+      color: var(--muted);
+    }
     .clar-chip[data-target="engineer"] {
       background: #fef9c3;
       border-color: #fde68a;
@@ -181,8 +203,8 @@
 
       <div class="card">
         <div class="card-title">
-          Clarification questions
-          <span class="small">System & customer</span>
+          Survey checklist & questions
+          <span class="small">Ticks as details are captured</span>
         </div>
         <div id="clarifications" class="clarifications">
           <span class="small">No questions.</span>
@@ -259,6 +281,89 @@
       },
       forceStructured: true
     };
+
+    const CHECK_DEFS = [
+      {
+        id: "smartControl",
+        label: "Smart control offered / status noted",
+        hint: "Hive / Nest / other smart, or that customer is keeping existing controls.",
+        test(txt) {
+          return /hive|nest|smart (control|stat|thermostat)|keep existing (stat|controls)|no smart control/i.test(txt);
+        }
+      },
+      {
+        id: "filter",
+        label: "Magnetic filter / dirt filter discussed",
+        hint: "Either being fitted or explicitly not required.",
+        test(txt) {
+          return /magnetic filter|dirt filter|system filter/i.test(txt);
+        }
+      },
+      {
+        id: "flush",
+        label: "System clean / flush considered",
+        hint: "Power flush, mains flush, or decision that no flush needed.",
+        test(txt) {
+          return /power ?flush|system flush|mains flush|no flush required|water looks clean enough/i.test(txt);
+        }
+      },
+      {
+        id: "gasRun",
+        label: "Gas pipe size / run checked",
+        hint: "Confirmed adequate or noted for upgrade.",
+        test(txt) {
+          return /gas (run|pipe|supply)|22 ?mm gas|15 ?mm gas|upgrade gas/i.test(txt);
+        }
+      },
+      {
+        id: "condensate",
+        label: "Condensate route + freeze risk checked",
+        hint: "Internal vs external, pump, upsizing, or freeze protection.",
+        test(txt) {
+          return /condensate|condense pipe|condensate pump|32 ?mm/i.test(txt);
+        }
+      },
+      {
+        id: "flue",
+        label: "Flue route / terminal discussed",
+        hint: "Direction, vertical/horizontal, turret, plume kit, clearances.",
+        test(txt) {
+          return /flue|plume kit|terminal|turret|vertical flue|rear flue|side flue/i.test(txt);
+        }
+      },
+      {
+        id: "heights",
+        label: "Access / working at height checked",
+        hint: "Ladders, loft access, tower, boards, headroom.",
+        test(txt) {
+          return /loft|ladder|ladders|steps|tower|scaffold|edge protection|headroom/i.test(txt);
+        }
+      },
+      {
+        id: "hazards",
+        label: "Hazards / asbestos / site risks noted",
+        hint: "Asbestos presence or absence, confined space, other site risks.",
+        test(txt) {
+          return /asbestos|no asbestos|hazard|risk|confined space|unsafe/i.test(txt);
+        }
+      },
+      {
+        id: "parking",
+        label: "Parking / permit / access for van checked",
+        hint: "Driveway, street parking, permit, restrictions.",
+        test(txt) {
+          return /parking|permit|double yellow|no parking|driveway|access (issues)?/i.test(txt);
+        }
+      },
+      {
+        id: "customerActions",
+        label: "Customer actions / pre-works recorded",
+        hint: "Cupboards, furniture, decorating, pets, clearing space.",
+        test(txt) {
+          return /cupboard|wardrobe|furniture|decorating|make good|clear access|customer to/i.test(txt);
+        }
+      }
+    ];
 
     async function postJSON(urlPath, body, extraHeaders = {}) {
       const base = WORKER_URL.replace(/\/$/, "");
@@ -501,23 +606,66 @@
       return out;
     }
 
+    function computeChecklist(sections, missingInfoFromServer) {
+      const joined = (sections || [])
+        .map(sec => `${sec.section}: ${sec.plainText || ""} ${sec.naturalLanguage || ""}`)
+        .join(" ")
+        .toLowerCase();
+
+      const checklist = CHECK_DEFS.map(def => ({
+        id: def.id,
+        label: def.label,
+        hint: def.hint,
+        done: !!def.test(joined)
+      }));
+
+      const extraQuestions = Array.isArray(missingInfoFromServer) ? missingInfoFromServer : [];
+      return { checklist, extraQuestions };
+    }
+
+    function renderChecklist(container, sections, missingInfoFromServer) {
+      const { checklist, extraQuestions } = computeChecklist(sections, missingInfoFromServer);
+      container.innerHTML = "";
+
+      if (!checklist.length && !extraQuestions.length) {
+        container.innerHTML = `<span class="small">No checklist items.</span>`;
+        return;
+      }
+
+      if (checklist.length) {
+        checklist.forEach(item => {
+          const div = document.createElement("div");
+          div.className = "clar-chip checklist-item" + (item.done ? " done" : "");
+          div.innerHTML = `
+          <span class="icon">${item.done ? "✅" : "⭕"}</span>
+          <span class="label">
+            ${item.label}
+            ${item.hint ? `<span class="hint">${item.hint}</span>` : ""}
+          </span>
+        `;
+          container.appendChild(div);
+        });
+      }
+
+      if (extraQuestions.length) {
+        const sep = document.createElement("div");
+        sep.className = "small";
+        sep.style.marginTop = "6px";
+        sep.textContent = "Additional questions:";
+        container.appendChild(sep);
+
+        extraQuestions.forEach(q => {
+          const div = document.createElement("div");
+          div.className = "clar-chip";
+          div.innerHTML = `<strong>${q.target || "engineer"}</strong> ${q.question}`;
+          container.appendChild(div);
+        });
+      }
+    }
+
     function handleBrainResponse(data) {
       customerSummaryEl.textContent = data.customerSummary || data.summary || "(none)";
 
-      clarificationsEl.innerHTML = "";
-      if (Array.isArray(data.missingInfo) && data.missingInfo.length) {
-        data.missingInfo.forEach(q => {
-          const div = document.createElement("div");
-          div.className = "clar-chip";
-          if (q.target) div.dataset.target = q.target;
-          div.innerHTML = `<strong>${q.target || "engineer"}</strong> ${q.question}`;
-          clarificationsEl.appendChild(div);
-        });
-      } else {
-        clarificationsEl.innerHTML = `<span class="small">No questions.</span>`;
-      }
-
-      sectionsListEl.innerHTML = "";
       let sections =
         data.depotNotes?.sections ||
         data.depotSectionsSoFar ||
@@ -525,6 +673,10 @@
       sections = postProcessSections(sections);
       lastSections = sections;
 
+      // Clarifications / checklist
+      renderChecklist(clarificationsEl, sections, data.missingInfo || []);
+
+      sectionsListEl.innerHTML = "";
       if (sections.length) {
         sections.forEach(sec => {
           const div = document.createElement("div");

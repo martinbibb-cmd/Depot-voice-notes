@@ -223,11 +223,16 @@
           <span class="small">You talk to customer / system listens</span>
         </div>
         <textarea id="transcriptInput" placeholder="Replace the existing 15ri with a new 15ri ..."></textarea>
-        <div style="display:flex;gap:8px;align-items:center;margin-top:6px;">
+        <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:6px;">
           <button id="sendTextBtn">Send text</button>
           <button id="micBtn" class="mic-btn" title="Record voice chunk">🎙</button>
-          <span class="statusbar" id="statusBar">Idle</span>
+
+          <label class="small" style="display:flex;align-items:center;gap:4px;margin-left:auto;">
+            <input type="checkbox" id="localMicToggle" style="margin:0;">
+            Live text mic
+          </label>
         </div>
+        <span class="statusbar" id="statusBar">Idle</span>
       </div>
 
       <div class="card">
@@ -278,9 +283,104 @@
     const statusBar = document.getElementById('statusBar');
     const micBtn = document.getElementById('micBtn');
     const exportBtn = document.getElementById('exportBtn');
+    const localMicToggle = document.getElementById('localMicToggle');
 
     let mediaRecorder, chunks = [];
     let lastSections = [];
+
+    // NEW: status for cloud worker + live speech
+    let workerOnline = null;
+    const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition || null;
+    let recognition = null;
+    let recognizing = false;
+    let manualTranscriptBase = "";
+    const mediaRecorderSupported = !!(navigator.mediaDevices && window.MediaRecorder);
+
+    function setStatus(msg) {
+      const onlinePart =
+        workerOnline === null ? "AI audio: checking…" :
+        workerOnline ? "AI audio: online" : "AI audio: offline";
+      const modePart =
+        localMicToggle && localMicToggle.checked ? "Mic: live text" :
+        mediaRecorderSupported ? "Mic: AI audio" : "Mic: text only";
+      statusBar.textContent = `${msg || "Idle"} (${onlinePart} • ${modePart})`;
+    }
+
+    async function checkWorkerOnline() {
+      workerOnline = null;
+      setStatus("Idle");
+      try {
+        const url = WORKER_URL.replace(/\/$/, "") + "/ping?ts=" + Date.now();
+        // We don't care about status code; only network success/failure
+        await fetch(url, { method: "GET" });
+        workerOnline = true;
+      } catch (e) {
+        workerOnline = false;
+      }
+      setStatus("Idle");
+    }
+
+    // Kick off an online check on load
+    checkWorkerOnline();
+    // Re-check when connection comes back
+    window.addEventListener("online", checkWorkerOnline);
+    window.addEventListener("offline", () => {
+      workerOnline = false;
+      setStatus("Idle");
+    });
+
+    if (SpeechRec) {
+      recognition = new SpeechRec();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = "en-GB";
+
+      recognition.onresult = (event) => {
+        let finalText = "";
+        let interimText = "";
+        for (let i = 0; i < event.results.length; i++) {
+          const r = event.results[i];
+          if (r.isFinal) {
+            finalText += r[0].transcript + " ";
+          } else {
+            interimText += r[0].transcript + " ";
+          }
+        }
+        transcriptInput.value = (manualTranscriptBase + " " + finalText + " " + interimText).trim();
+        transcriptInput.dispatchEvent(new Event("input", { bubbles: true }));
+        // keep checklist in sync with live speech
+        renderChecklist(clarificationsEl, lastSections || [], [], transcriptInput.value);
+      };
+
+      recognition.onerror = (e) => {
+        setStatus("Speech error: " + (e.error || "unknown"));
+        recognizing = false;
+        micBtn.classList.remove("active");
+      };
+
+      recognition.onend = () => {
+        recognizing = false;
+        micBtn.classList.remove("active");
+        setStatus("Idle");
+      };
+    } else {
+      // No browser speech support – disable the toggle
+      if (localMicToggle) {
+        localMicToggle.disabled = true;
+        localMicToggle.title = "Live text mic not supported in this browser.";
+      }
+    }
+
+    if (localMicToggle) {
+      localMicToggle.addEventListener("change", () => {
+        if (!localMicToggle.checked && recognizing && recognition) {
+          recognition.stop();
+        }
+        setStatus(recognizing ? "Listening…" : "Idle");
+      });
+    }
+
+    setStatus("Idle");
 
     const SECTION_ORDER = {
       "Needs": 1,
@@ -475,7 +575,7 @@
       const transcript = transcriptInput.value.trim();
       if (!transcript) return;
 
-      statusBar.textContent = "Sending text…";
+      setStatus("Sending text…");
 
       try {
         const r = await postJSON("/api/recommend", {
@@ -486,16 +586,16 @@
         });
 
         if (!r.ok) {
-          statusBar.textContent = `Error: ${r.status}`;
+          setStatus(`Error: ${r.status}`);
           transcriptInput.value += `\n\n⚠️ /api/recommend ${r.status}: ${r.text.slice(0,300)}`;
           return;
         }
 
         handleBrainResponse(r.json || {});
-        statusBar.textContent = "Done.";
+        setStatus("Done.");
       } catch (err) {
         console.error(err);
-        statusBar.textContent = "Text send failed.";
+        setStatus("Text send failed.");
       }
     }
     sendTextBtn.onclick = sendText;
@@ -897,7 +997,7 @@
     });
 
     exportBtn.onclick = async () => {
-      statusBar.textContent = "Preparing notes…";
+      setStatus("Preparing notes…");
       const payload = {
         exportedAt: new Date().toISOString(),
         sections: lastSections || []
@@ -914,7 +1014,7 @@
           await navigator.share({
             files: [fileForShare]
           });
-          statusBar.textContent = "Notes shared.";
+          setStatus("Notes shared.");
           return;
         } catch (err) {
           console.error("Share failed", err);
@@ -929,42 +1029,74 @@
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
-      statusBar.textContent = "Notes downloaded.";
+      setStatus("Notes downloaded.");
     };
 
     micBtn.onclick = async () => {
+      const shouldUseLive =
+        (localMicToggle && localMicToggle.checked) ||
+        workerOnline === false ||
+        !mediaRecorderSupported;
+
+      if (shouldUseLive) {
+        if (!SpeechRec || !recognition) {
+          setStatus("Live text mic not supported.");
+          return;
+        }
+
+        if (recognizing) {
+          recognition.stop();
+          // onend handler will reset status
+          return;
+        }
+
+        manualTranscriptBase = transcriptInput.value || "";
+        try {
+          recognition.start();
+        } catch (err) {
+          console.warn("[speechRecognition]", err);
+          setStatus("Live text mic error.");
+          return;
+        }
+        recognizing = true;
+        micBtn.classList.add("active");
+        setStatus("Listening (live text)… tap again to stop");
+        return;
+      }
+
+      // Otherwise use AI audio via MediaRecorder -> Worker
       if (mediaRecorder && mediaRecorder.state === "recording") {
         mediaRecorder.stop();
+        micBtn.classList.remove("active");
         return;
       }
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        const mime = MediaRecorder.isTypeSupported("audio/webm;codecs=opus") ? "audio/webm;codecs=opus"
-                   : MediaRecorder.isTypeSupported("audio/mp4")               ? "audio/mp4"
-                   : "";
-        mediaRecorder = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+        const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+          ? "audio/webm;codecs=opus"
+          : MediaRecorder.isTypeSupported("audio/mp4")
+            ? "audio/mp4"
+            : "";
+        mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
         chunks = [];
         mediaRecorder.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
         mediaRecorder.onstop = async () => {
           stream.getTracks().forEach(t => t.stop());
-          if (!chunks.length) { statusBar.textContent = "No audio captured."; return; }
-          const usedType = mediaRecorder.mimeType || chunks[0].type || "application/octet-stream";
-          const blob = new Blob(chunks, { type: usedType });
+          if (!chunks.length) { setStatus("No audio captured."); return; }
+          const blob = new Blob(chunks, { type: mediaRecorder.mimeType || mimeType || "application/octet-stream" });
           await sendAudio(blob);
         };
         mediaRecorder.start();
         micBtn.classList.add("active");
-        statusBar.textContent = "Recording… tap again to send.";
+        setStatus("Recording… tap again to send");
       } catch (err) {
         console.warn("[getUserMedia]", err);
-        statusBar.textContent = "Mic error.";
-        startSpeechRecognitionFallback();
+        setStatus("Mic error.");
       }
     };
 
     async function sendAudio(blob) {
-      statusBar.textContent = "Uploading audio…";
-      micBtn.classList.remove("active");
+      setStatus("Uploading audio…");
 
       const base = WORKER_URL.replace(/\/$/, "");
       const url = base + "/api/transcribe";
@@ -1007,18 +1139,18 @@
         }
         if (!r.ok) {
           console.warn("[/api/transcribe]", r.status, r.text);
-          statusBar.textContent = "Audio failed.";
-          // Soft fallback to SR if available
-          startSpeechRecognitionFallback();
+          workerOnline = false;
+          setStatus("Audio failed.");
           return;
         }
 
+        workerOnline = true;
         // Expect at least { transcript: "..." }
         const transcript = r.json?.transcript || "";
         if (transcript) {
           transcriptInput.value = (transcriptInput.value ? transcriptInput.value + "\n" : "") + transcript;
           transcriptInput.dispatchEvent(new Event("input", { bubbles: true }));
-          statusBar.textContent = "Processing notes…";
+          setStatus("Processing notes…");
           // Now structure via /api/recommend (re-using your sendText flow inline)
           const recommend = await postJSON("/api/recommend", {
             transcript,
@@ -1028,40 +1160,21 @@
           });
           if (!recommend.ok) {
             transcriptInput.value += `\n\n⚠️ /api/recommend ${recommend.status}: ${recommend.text.slice(0,300)}`;
-            statusBar.textContent = "Text send failed.";
+            setStatus("Text send failed.");
             return;
           }
           handleBrainResponse(recommend.json || {});
-          statusBar.textContent = "Audio processed.";
+          setStatus("Audio processed.");
         } else {
-          statusBar.textContent = "No transcript returned.";
-          startSpeechRecognitionFallback();
+          setStatus("No transcript returned.");
         }
       } catch (err) {
         console.error(err);
-        statusBar.textContent = "Audio failed.";
-        startSpeechRecognitionFallback();
-      }
-    }
-
-    function startSpeechRecognitionFallback() {
-      const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-      if (!SR) return;
-      try {
-        const rec = new SR();
-        rec.continuous = true;
-        rec.interimResults = true;
-        rec.lang = "en-GB";
-        rec.onresult = (ev) => {
-          let t = transcriptInput.value || "";
-          for (let i = ev.resultIndex; i < ev.results.length; i++) t += ev.results[i][0].transcript;
-          transcriptInput.value = t;
-          transcriptInput.dispatchEvent(new Event("input", { bubbles: true }));
-        };
-        rec.start();
-        statusBar.textContent = "Listening (fallback)…";
-      } catch (e) {
-        console.warn("[SR fallback failed]", e);
+        workerOnline = false;
+        setStatus("Audio failed.");
+      } finally {
+        micBtn.classList.remove("active");
+        setStatus("Idle");
       }
     }
 

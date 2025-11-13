@@ -236,6 +236,7 @@
       <button id="exportBtn">Send notes</button>
       <button id="saveSessionBtn">Save session file</button>
       <button id="loadSessionBtn">Load session file</button>
+      <button id="importAudioBtn">Use audio file</button>
     </div>
   </header>
 
@@ -298,6 +299,7 @@
   </section>
 
   <input id="loadSessionInput" type="file" accept=".depotvoice.json,application/json" style="display:none;">
+  <input id="importAudioInput" type="file" accept="audio/*" style="display:none;">
 
   <script>
     // hard-code your worker so it isn't visible
@@ -315,6 +317,8 @@
     const saveSessionBtn = document.getElementById('saveSessionBtn');
     const loadSessionBtn = document.getElementById('loadSessionBtn');
     const loadSessionInput = document.getElementById('loadSessionInput');
+    const importAudioBtn = document.getElementById('importAudioBtn');
+    const importAudioInput = document.getElementById('importAudioInput');
 
     let mediaRecorder, chunks = [];
     let lastSections = [];
@@ -1269,6 +1273,26 @@
     }
 
     saveSessionBtn.onclick = saveSessionToFile;
+
+    importAudioBtn.onclick = () => {
+      importAudioInput.click();
+    };
+
+    importAudioInput.onchange = async (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+
+      try {
+        setStatus("Uploading audio file…");
+        await sendAudio(file); // reuse the existing /audio flow
+        setStatus("Audio file processed.");
+      } catch (err) {
+        console.error(err);
+        setStatus("Audio file failed.");
+      } finally {
+        importAudioInput.value = "";
+      }
+    };
 
     loadSessionBtn.onclick = () => loadSessionInput.click();
 

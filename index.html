@@ -51,6 +51,7 @@
       flex: 1;
       font-size: .65rem;
     }
+
     main {
       padding: 14px;
       display: grid;
@@ -58,7 +59,6 @@
       grid-template-areas: "left right";
       gap: 14px;
     }
-
     @media (max-width: 970px) {
       main {
         grid-template-columns: 1fr;
@@ -67,34 +67,18 @@
           "right";
       }
     }
-
     .main-left {
       grid-area: left;
     }
     .main-right {
       grid-area: right;
     }
+    .column { display: flex; flex-direction: column; gap: 14px; }
 
     .results-row {
       padding: 0 14px 14px;
     }
 
-    .check-group-title {
-      margin: 6px 0 2px;
-      font-size: .72rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: .04em;
-      color: var(--muted);
-      display: flex;
-      justify-content: space-between;
-    }
-
-    .check-group-title span {
-      font-weight: 500;
-      font-size: .64rem;
-    }
-    .column { display: flex; flex-direction: column; gap: 14px; }
     .card {
       background: var(--card);
       border: 1px solid var(--border);
@@ -110,15 +94,17 @@
       display: flex;
       justify-content: space-between;
       gap: 8px;
+      align-items: baseline;
     }
     .small { font-size: .68rem; color: var(--muted); }
+
     textarea {
       width: 100%;
       border-radius: 10px;
       border: 1px solid #cbd5e1;
       padding: 8px 9px;
       font-size: .75rem;
-      min-height: 90px;
+      min-height: 120px;
     }
     button {
       border: none;
@@ -133,7 +119,8 @@
       gap: 6px;
       align-items: center;
     }
-    button:disabled { opacity: .5; }
+    button:disabled { opacity: .5; cursor: default; }
+
     .mic-btn {
       width: 36px;
       height: 36px;
@@ -150,7 +137,13 @@
       background: #b91c1c;
       box-shadow: 0 0 0 3px rgba(248,113,113,.4);
     }
-    .clarifications { display: flex; gap: 10px; flex-wrap: wrap; }
+
+    .clarifications {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      flex-wrap: nowrap;
+    }
     .clar-chip {
       background: #ecfeff;
       border: 1px solid #cffafe;
@@ -158,32 +151,11 @@
       padding: 5px 10px 6px;
       font-size: .65rem;
     }
-    .checklist-item {
-      display: flex;
-      align-items: flex-start;
-      gap: 6px;
-      padding: 4px 8px 5px;
-    }
-    .checklist-item .icon {
-      font-size: .8rem;
-      line-height: 1.2;
-    }
-    .checklist-item.done {
-      background: #ecfdf3;
-      border-color: #bbf7d0;
-    }
-    .checklist-item .label {
-      font-size: .7rem;
-    }
-    .checklist-item .hint {
-      display: block;
-      font-size: .62rem;
-      color: var(--muted);
-    }
     .clar-chip[data-target="engineer"] {
       background: #fef9c3;
       border-color: #fde68a;
     }
+
     .sections-list { display: flex; flex-direction: column; gap: 7px; }
     .section-item {
       background: #f8fafc;
@@ -200,18 +172,71 @@
       white-space: pre-wrap;
       font-size: .64rem;
     }
-    .statusbar { font-size: .6rem; color: var(--muted); margin-top: 4px; }
+
+    .statusbar {
+      font-size: .6rem;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+
+    .check-group-title {
+      margin: 6px 0 2px;
+      font-size: .72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      color: var(--muted);
+      display: flex;
+      justify-content: space-between;
+    }
+    .check-group-title span {
+      font-weight: 500;
+      font-size: .64rem;
+    }
+
+    .checklist-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 6px;
+      padding: 4px 8px 5px;
+    }
+    .checklist-item .icon {
+      font-size: .8rem;
+      line-height: 1.2;
+    }
+    .checklist-item .label {
+      font-size: .7rem;
+    }
+    .checklist-item .hint {
+      display: block;
+      font-size: .62rem;
+      color: var(--muted);
+    }
+    .checklist-item.done {
+      background: #ecfdf3;
+      border-color: #bbf7d0;
+    }
+
+    .toolbar-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
   </style>
 </head>
 <body>
   <header>
     <h1>Survey Brain</h1>
-    <!-- keep the worker input but hide it for future tweaks -->
     <div class="worker-input" style="display:none;">
       <label for="workerUrl">Worker</label>
       <input id="workerUrl" value="https://survey-brain-api.martinbibb.workers.dev" />
     </div>
-    <button id="exportBtn">Send notes</button>
+    <div class="toolbar-row">
+      <button id="exportBtn">Send notes</button>
+      <button id="saveSessionBtn">Save session file</button>
+      <button id="loadSessionBtn">Load session file</button>
+    </div>
   </header>
 
   <main>
@@ -223,13 +248,14 @@
           <span class="small">You talk to customer / system listens</span>
         </div>
         <textarea id="transcriptInput" placeholder="Replace the existing 15ri with a new 15ri ..."></textarea>
-        <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:6px;">
+
+        <div class="toolbar-row" style="margin-top:6px;">
           <button id="sendTextBtn">Send text</button>
-          <button id="micBtn" class="mic-btn" title="Record voice chunk">🎙</button>
+          <button id="micBtn" class="mic-btn" title="Record voice / auto notes">🎙</button>
 
           <label class="small" style="display:flex;align-items:center;gap:4px;margin-left:auto;">
-            <input type="checkbox" id="localMicToggle" style="margin:0;">
-            Live text mic
+            <input type="checkbox" id="autoNotesToggle" style="margin:0;">
+            Auto notes
           </label>
         </div>
         <span class="statusbar" id="statusBar">Idle</span>
@@ -244,11 +270,11 @@
       </div>
     </div>
 
-    <!-- RIGHT: survey checklist -->
+    <!-- RIGHT: grouped survey checklist -->
     <div class="column main-right">
       <div class="card">
         <div class="card-title">
-          Survey checklist & questions
+          Survey checklist &amp; questions
           <span class="small">Ticks as details are captured</span>
         </div>
         <div id="clarifications" class="clarifications">
@@ -271,9 +297,11 @@
     </div>
   </section>
 
+  <input id="loadSessionInput" type="file" accept=".depotvoice.json,application/json" style="display:none;">
+
   <script>
     // hard-code your worker so it isn't visible
-    const WORKER_URL = "https://depot-voice-notes.martinbibb.workers.dev";
+    const WORKER_URL = "https://survey-brain-api.martinbibb.workers.dev";
 
     const sendTextBtn = document.getElementById('sendTextBtn');
     const transcriptInput = document.getElementById('transcriptInput');
@@ -283,104 +311,25 @@
     const statusBar = document.getElementById('statusBar');
     const micBtn = document.getElementById('micBtn');
     const exportBtn = document.getElementById('exportBtn');
-    const localMicToggle = document.getElementById('localMicToggle');
+    const autoNotesToggle = document.getElementById('autoNotesToggle');
+    const saveSessionBtn = document.getElementById('saveSessionBtn');
+    const loadSessionBtn = document.getElementById('loadSessionBtn');
+    const loadSessionInput = document.getElementById('loadSessionInput');
 
     let mediaRecorder, chunks = [];
     let lastSections = [];
 
-    // NEW: status for cloud worker + live speech
-    let workerOnline = null;
+    // Auto notes session state
     const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition || null;
     let recognition = null;
     let recognizing = false;
-    let manualTranscriptBase = "";
-    const mediaRecorderSupported = !!(navigator.mediaDevices && window.MediaRecorder);
-
-    function setStatus(msg) {
-      const onlinePart =
-        workerOnline === null ? "AI audio: checking…" :
-        workerOnline ? "AI audio: online" : "AI audio: offline";
-      const modePart =
-        localMicToggle && localMicToggle.checked ? "Mic: live text" :
-        mediaRecorderSupported ? "Mic: AI audio" : "Mic: text only";
-      statusBar.textContent = `${msg || "Idle"} (${onlinePart} • ${modePart})`;
-    }
-
-    async function checkWorkerOnline() {
-      workerOnline = null;
-      setStatus("Idle");
-      try {
-        const url = WORKER_URL.replace(/\/$/, "") + "/ping?ts=" + Date.now();
-        // We don't care about status code; only network success/failure
-        await fetch(url, { method: "GET" });
-        workerOnline = true;
-      } catch (e) {
-        workerOnline = false;
-      }
-      setStatus("Idle");
-    }
-
-    // Kick off an online check on load
-    checkWorkerOnline();
-    // Re-check when connection comes back
-    window.addEventListener("online", checkWorkerOnline);
-    window.addEventListener("offline", () => {
-      workerOnline = false;
-      setStatus("Idle");
-    });
-
-    if (SpeechRec) {
-      recognition = new SpeechRec();
-      recognition.continuous = true;
-      recognition.interimResults = true;
-      recognition.lang = "en-GB";
-
-      recognition.onresult = (event) => {
-        let finalText = "";
-        let interimText = "";
-        for (let i = 0; i < event.results.length; i++) {
-          const r = event.results[i];
-          if (r.isFinal) {
-            finalText += r[0].transcript + " ";
-          } else {
-            interimText += r[0].transcript + " ";
-          }
-        }
-        transcriptInput.value = (manualTranscriptBase + " " + finalText + " " + interimText).trim();
-        transcriptInput.dispatchEvent(new Event("input", { bubbles: true }));
-        // keep checklist in sync with live speech
-        renderChecklist(clarificationsEl, lastSections || [], [], transcriptInput.value);
-      };
-
-      recognition.onerror = (e) => {
-        setStatus("Speech error: " + (e.error || "unknown"));
-        recognizing = false;
-        micBtn.classList.remove("active");
-      };
-
-      recognition.onend = () => {
-        recognizing = false;
-        micBtn.classList.remove("active");
-        setStatus("Idle");
-      };
-    } else {
-      // No browser speech support – disable the toggle
-      if (localMicToggle) {
-        localMicToggle.disabled = true;
-        localMicToggle.title = "Live text mic not supported in this browser.";
-      }
-    }
-
-    if (localMicToggle) {
-      localMicToggle.addEventListener("change", () => {
-        if (!localMicToggle.checked && recognizing && recognition) {
-          recognition.stop();
-        }
-        setStatus(recognizing ? "Listening…" : "Idle");
-      });
-    }
-
-    setStatus("Idle");
+    let sessionStartMs = 0;
+    let segments = []; // { startMs, endMs, text }
+    let lastSentIndex = 0;
+    let sessionAudioChunks = [];
+    let chunkTimerId = null;
+    let chunkIntervalMs = 60000;
+    let consecutiveFailures = 0;
 
     const SECTION_ORDER = {
       "Needs": 1,
@@ -422,6 +371,327 @@
       forceStructured: true
     };
 
+    function setStatus(msg) {
+      const onlinePart =
+        navigator.onLine ? "Online" : "Offline";
+      const modePart =
+        autoNotesToggle && autoNotesToggle.checked ? "Auto notes" : "Manual";
+      statusBar.textContent = `${msg || "Idle"} (${onlinePart} • ${modePart})`;
+    }
+
+    async function postJSON(path, body) {
+      const base = WORKER_URL.replace(/\/$/, "");
+      const url1 = base + path;
+      let res = await fetch(url1, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      });
+      if (res.status === 404 || res.status === 405) {
+        const url2 = base;
+        res = await fetch(url2, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body)
+        });
+      }
+      return res;
+    }
+
+    function ensureSemi(s){ s=String(s||"").trim(); return s ? (s.endsWith(";")?s:s+";") : s; }
+    function splitGeneralClauses(text){
+      return String(text||"")
+        .split(/[\n;]+/)
+        .map(s => s.trim())
+        .filter(Boolean);
+    }
+    function splitPipeRoute(text){
+      const cues = [
+        "from ","off the ","pick up ","drop to ","under ","behind ","through ",
+        "along ","across ","continue ","then ","past ","to ","into ","up ",
+        "come up ","rise in ","down ","fall to "
+      ];
+      const rx = new RegExp("(?:;|—|–|,)|\\b(" + cues.map(c=>c.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")).join("|") + ")", "ig");
+      const bits=[]; let cur="";
+      (" "+String(text||"").replace(/\s+/g," ").trim()+" ").split(rx).forEach(ch=>{
+        if (!ch) return;
+        const isCue = cues.some(c=>ch.toLowerCase().startsWith(c.trim()));
+        if (isCue && cur.trim()){ bits.push(cur.trim()); cur=ch; } else { cur += ch; }
+      });
+      if (cur.trim()) bits.push(cur.trim());
+      return bits.map(s=>s.replace(/^and\s+/i,"").trim()).filter(Boolean);
+    }
+    function stripSequencingPreamble(line){
+      let s = String(line||"").trim();
+      s = s
+        .replace(/^(then|next|first|second|after|before|finally|so)\b[:,\s-]*/i, "")
+        .replace(/^(we(?:'|’)ll|we will|i(?:'|’)ll|engineer will|installer will|we need to|need to|we can|we should)\b[:,\s-]*/i, "")
+        .replace(/^(please|note|recommend(?:ed)? to)\b[:,\s-]*/i, "");
+      s = s.replace(/\bwill need to\b/gi, "required to");
+      return s.trim();
+    }
+    function bulletify(lines){
+      const out=[];
+      for (let raw of lines){
+        const t = stripSequencingPreamble(raw);
+        if (!t) continue;
+        out.push("• " + ensureSemi(t));
+      }
+      return out.join("\n");
+    }
+    function formatPlainTextForSection(section, plain){
+      if (!plain) return "";
+      if (section === "Pipe work"){
+        const steps = splitPipeRoute(plain);
+        if (steps.length) return bulletify(steps);
+      }
+      return bulletify(splitGeneralClauses(plain));
+    }
+
+    function postProcessSections(sections) {
+      const out = [];
+      let boilerControlsPlain = "";
+      let boilerControlsNL = "";
+      let needsDisruptionFlushNote = false;
+      let pipeWorkPlain = "";
+      let pipeWorkNL = "";
+      const parkingSections = [];
+      const permissionSections = [];
+      const doubleHandedSections = [];
+
+      let heightsPlain = "";
+      let heightsNL = "";
+      let hazardsPlain = "";
+      let hazardsNL = "";
+      let customerPlain = "";
+      let customerNL = "";
+
+      sections.forEach(sec => {
+        const name = sec.section || "";
+        const pt = sec.plainText || "";
+        const nl = sec.naturalLanguage || "";
+        const combined = (pt + " " + nl).toLowerCase();
+
+        const isControl = combined.includes("hive")
+          || combined.includes("smart control")
+          || combined.includes("controller")
+          || combined.includes("pump")
+          || combined.includes("valve");
+
+        const isPipe = combined.includes("condensate")
+          || combined.includes("pipe")
+          || combined.includes("gas run");
+
+        const isPowerFlush = combined.includes("power flush") || combined.includes("powerflush");
+
+        const isParking = combined.includes("parking")
+          || combined.includes("permit")
+          || combined.includes("no parking");
+
+        const isPermission = combined.includes("planning permission")
+          || combined.includes("listed building")
+          || combined.includes("conservation area")
+          || combined.includes("needs permission");
+
+        const isDoubleHanded = combined.includes("double handed")
+          || combined.includes("2 man")
+          || combined.includes("two man")
+          || combined.includes("two engineers")
+          || combined.includes("2 engineers");
+
+        const isHeightsNote =
+          combined.includes("working at height") ||
+          combined.includes("working at heights") ||
+          combined.includes("ladder") ||
+          combined.includes("loft");
+
+        const isHazardsNote =
+          combined.includes("asbestos") ||
+          combined.includes("no safety issues") ||
+          combined.includes("safety issues") ||
+          combined.includes("dogs on site") ||
+          combined.includes("aggressive dog");
+
+        const isCustomerNote =
+          combined.includes("customer to") ||
+          combined.includes("customer will") ||
+          combined.includes("clear route") ||
+          combined.includes("clear access");
+
+        if (isControl) {
+          boilerControlsPlain += pt + " ";
+          boilerControlsNL += nl + " ";
+        } else if (isPipe && name !== "Pipe work") {
+          pipeWorkPlain += pt + " ";
+          pipeWorkNL += nl + " ";
+        } else if (isParking) {
+          parkingSections.push(sec);
+        } else if (isPermission) {
+          permissionSections.push(sec);
+        } else if (isDoubleHanded && name !== "Components that require assistance") {
+          doubleHandedSections.push(sec);
+          out.push(sec);
+        } else {
+          out.push(sec);
+        }
+
+        if (isPowerFlush) {
+          needsDisruptionFlushNote = true;
+        }
+
+        if (isHeightsNote) {
+          heightsPlain += pt + " ";
+          heightsNL += nl + " ";
+        }
+        if (isHazardsNote) {
+          hazardsPlain += pt + " ";
+          hazardsNL += nl + " ";
+        }
+        if (isCustomerNote) {
+          customerPlain += pt + " ";
+          customerNL += nl + " ";
+        }
+      });
+
+      if (boilerControlsPlain.trim().length > 0) {
+        out.push({
+          section: "New boiler and controls",
+          plainText: boilerControlsPlain.trim(),
+          naturalLanguage: boilerControlsNL.trim() || "Boiler and control items to be fitted."
+        });
+      }
+
+      if (pipeWorkPlain.trim().length > 0) {
+        out.push({
+          section: "Pipe work",
+          plainText: pipeWorkPlain.trim(),
+          naturalLanguage: pipeWorkNL.trim() || "Pipework/condensate adjustments are required."
+        });
+      }
+
+      if (parkingSections.length > 0) {
+        const existing = out.find(s => s.section === "Restrictions to work");
+        const parkingPT = parkingSections.map(s => s.plainText || "").join(" ");
+        const parkingNL = parkingSections.map(s => s.naturalLanguage || "").join(" ");
+        if (existing) {
+          existing.plainText = (existing.plainText || "") + " " + parkingPT;
+          existing.naturalLanguage = (existing.naturalLanguage || "") + " " + parkingNL;
+        } else {
+          out.push({
+            section: "Restrictions to work",
+            plainText: parkingPT.trim(),
+            naturalLanguage: parkingNL.trim() || "There are parking/access restrictions at the property."
+          });
+        }
+      }
+
+      if (permissionSections.length > 0) {
+        const existing = out.find(s => s.section === "Office notes");
+        const permPT = permissionSections.map(s => s.plainText || "").join(" ");
+        const permNL = permissionSections.map(s => s.naturalLanguage || "").join(" ");
+        if (existing) {
+          existing.plainText = (existing.plainText || "") + " " + permPT;
+          existing.naturalLanguage = (existing.naturalLanguage || "") + " " + permNL;
+        } else {
+          out.push({
+            section: "Office notes",
+            plainText: permPT.trim(),
+            naturalLanguage: permNL.trim() || "Planning / office action required (listed/conservation/permission)."
+          });
+        }
+      }
+
+      if (doubleHandedSections.length > 0) {
+        const existing = out.find(s => s.section === "Components that require assistance");
+        const dhPT = doubleHandedSections.map(s => s.plainText || "").join(" ");
+        const dhNL = doubleHandedSections.map(s => s.naturalLanguage || "").join(" ");
+        if (existing) {
+          existing.plainText = (existing.plainText || "") + " " + dhPT;
+          existing.naturalLanguage = (existing.naturalLanguage || "") + " " + dhNL;
+        } else {
+          out.push({
+            section: "Components that require assistance",
+            plainText: dhPT.trim(),
+            naturalLanguage: dhNL.trim() || "A two-person lift / additional engineer is required."
+          });
+        }
+      }
+
+      if (needsDisruptionFlushNote) {
+        const existing = out.find(s => s.section === "Disruption");
+        const addPT = "✅ Power flush to be carried out | Allow extra time and clear access;";
+        const addNL = "A power flush will be carried out, so extra time and access are needed.";
+        if (existing) {
+          existing.plainText = (existing.plainText || "") + " " + addPT;
+          existing.naturalLanguage = (existing.naturalLanguage || "") + " " + addNL;
+        } else {
+          out.push({
+            section: "Disruption",
+            plainText: addPT,
+            naturalLanguage: addNL
+          });
+        }
+      }
+
+      if (heightsPlain.trim().length > 0) {
+        const existing = out.find(s => s.section === "Working at heights");
+        if (existing) {
+          existing.plainText = (existing.plainText || "") + " " + heightsPlain.trim();
+          existing.naturalLanguage = (existing.naturalLanguage || "") + " " + (heightsNL.trim() || "Working at height requirements / notes.");
+        } else {
+          out.push({
+            section: "Working at heights",
+            plainText: heightsPlain.trim(),
+            naturalLanguage: heightsNL.trim() || "Working at height requirements / notes."
+          });
+        }
+      }
+
+      if (hazardsPlain.trim().length > 0) {
+        const existing = out.find(s => s.section === "External hazards");
+        if (existing) {
+          existing.plainText = (existing.plainText || "") + " " + hazardsPlain.trim();
+          existing.naturalLanguage = (existing.naturalLanguage || "") + " " + (hazardsNL.trim() || "Site hazards / asbestos / safety notes.");
+        } else {
+          out.push({
+            section: "External hazards",
+            plainText: hazardsPlain.trim(),
+            naturalLanguage: hazardsNL.trim() || "Site hazards / asbestos / safety notes."
+          });
+        }
+      }
+
+      if (customerPlain.trim().length > 0) {
+        const existing = out.find(s => s.section === "Customer actions");
+        if (existing) {
+          existing.plainText = (existing.plainText || "") + " " + customerPlain.trim();
+          existing.naturalLanguage = (existing.naturalLanguage || "") + " " + (customerNL.trim() || "Customer to complete these actions before installation.");
+        } else {
+          out.push({
+            section: "Customer actions",
+            plainText: customerPlain.trim(),
+            naturalLanguage: customerNL.trim() || "Customer to complete these actions before installation."
+          });
+        }
+      }
+
+      out.sort((a, b) => {
+        const oa = SECTION_ORDER[a.section] || 999;
+        const ob = SECTION_ORDER[b.section] || 999;
+        return oa - ob;
+      });
+
+      // Bulletify for display
+      out.forEach(sec => {
+        if (sec.plainText) {
+          sec.plainText = formatPlainTextForSection(sec.section, sec.plainText);
+        }
+      });
+
+      return out;
+    }
+
+    // Checklist definitions
     const CHECK_DEFS = [
       // SYSTEM
       {
@@ -434,7 +704,6 @@
           return /\b(existing|proposed|replace|switching|moving)\b.*\b(combi|combination|system|regular|open[- ]vented|storage combi|highflow)\b/i.test(txt);
         }
       },
-
       // BOILER & CONTROLS
       {
         id: "smartControl",
@@ -466,7 +735,6 @@
           return /power ?flush|system flush|mains flush|no flush required|water looks clean enough/i.test(txt);
         }
       },
-
       // PIPEWORK & CONDENSATE
       {
         id: "gasRun",
@@ -488,7 +756,6 @@
           return /condensate|condense pipe|condensate pump|32 ?mm/i.test(txt);
         }
       },
-
       // FLUE
       {
         id: "flue",
@@ -500,7 +767,6 @@
           return /flue|plume kit|terminal|turret|vertical flue|rear flue|side flue/i.test(txt);
         }
       },
-
       // ACCESS / HEIGHTS
       {
         id: "heights",
@@ -512,7 +778,6 @@
           return /loft|ladder|ladders|steps|tower|scaffold|edge protection|headroom|working at height[s]?/i.test(txt);
         }
       },
-
       // HAZARDS
       {
         id: "hazards",
@@ -524,7 +789,6 @@
           return /asbestos|no asbestos|hazard|risk|confined space|unsafe|dogs? on site|aggressive dog/i.test(txt);
         }
       },
-
       // PARKING / ACCESS
       {
         id: "parking",
@@ -536,7 +800,6 @@
           return /parking|permit|double yellow|no parking|driveway|access (issues)?/i.test(txt);
         }
       },
-
       // CUSTOMER ACTIONS
       {
         id: "customerActions",
@@ -549,331 +812,6 @@
         }
       }
     ];
-
-    async function postJSON(urlPath, body, extraHeaders = {}) {
-      const base = WORKER_URL.replace(/\/$/, "");
-      const url = urlPath.startsWith("http") ? urlPath : base + urlPath;
-
-      const res = await fetch(url, {
-        method: "POST",
-        mode: "cors",
-        headers: {
-          "Accept": "application/json",
-          "Content-Type": "application/json",
-          ...extraHeaders
-        },
-        body: JSON.stringify(body)
-      });
-
-      const text = await res.text();
-      let json; try { json = JSON.parse(text); } catch {}
-      console.log("[POST]", url, "→", res.status, res.statusText, json ?? text);
-      return { ok: res.ok, status: res.status, json, text, url };
-    }
-
-    async function sendText() {
-      const transcript = transcriptInput.value.trim();
-      if (!transcript) return;
-
-      setStatus("Sending text…");
-
-      try {
-        const r = await postJSON("/api/recommend", {
-          transcript,
-          expectedSections: STRUCTURE_HINTS.expectedSections,
-          sectionHints: STRUCTURE_HINTS.sectionHints,
-          forceStructured: STRUCTURE_HINTS.forceStructured
-        });
-
-        if (!r.ok) {
-          setStatus(`Error: ${r.status}`);
-          transcriptInput.value += `\n\n⚠️ /api/recommend ${r.status}: ${r.text.slice(0,300)}`;
-          return;
-        }
-
-        handleBrainResponse(r.json || {});
-        setStatus("Done.");
-      } catch (err) {
-        console.error(err);
-        setStatus("Text send failed.");
-      }
-    }
-    sendTextBtn.onclick = sendText;
-
-    (async () => {
-      try {
-        const u = WORKER_URL.replace(/\/$/, "") + "/health";
-        const res = await fetch(u, { method: "GET", mode: "cors" });
-        console.log("[health]", u, "→", res.status, res.statusText);
-      } catch (e) {
-        console.warn("[health failed]", e.message || e);
-      }
-    })();
-
-    function postProcessSections(sections) {
-      const out = [];
-      let boilerControlsPlain = "";
-      let boilerControlsNL = "";
-      let needsDisruptionFlushNote = false;
-      let pipeWorkPlain = "";
-      let pipeWorkNL = "";
-      const parkingSections = [];
-      const permissionSections = [];
-      const doubleHandedSections = [];
-      // accumulators for extra sections
-      let heightsPlain = "";
-      let heightsNL = "";
-      let hazardsPlain = "";
-      let hazardsNL = "";
-      let customerPlain = "";
-      let customerNL = "";
-
-      sections.forEach(sec => {
-        const name = sec.section || "";
-        const pt = sec.plainText || "";
-        const nl = sec.naturalLanguage || "";
-        const combined = (pt + " " + nl).toLowerCase();
-
-        const isControl = combined.includes("hive")
-          || combined.includes("smart control")
-          || combined.includes("controller")
-          || combined.includes("pump")
-          || combined.includes("valve");
-
-        const isPipe = combined.includes("condensate")
-          || combined.includes("pipe")
-          || combined.includes("gas run");
-
-        const isPowerFlush = combined.includes("power flush") || combined.includes("powerflush");
-
-        const isParking = combined.includes("parking")
-          || combined.includes("permit")
-          || combined.includes("no parking");
-
-        // permissions / planning / listed building → Office notes
-        const isPermission = combined.includes("planning permission")
-          || combined.includes("listed building")
-          || combined.includes("conservation area")
-          || combined.includes("needs permission");
-
-        // double handed / 2 man / two engineers → Components that require assistance
-        const isDoubleHanded = combined.includes("double handed")
-          || combined.includes("2 man")
-          || combined.includes("two man")
-          || combined.includes("two engineers")
-          || combined.includes("2 engineers");
-
-        const isHeightsNote = combined.includes("working at height")
-          || combined.includes("working at heights")
-          || combined.includes("ladder")
-          || combined.includes("loft");
-
-        const isHazardsNote = combined.includes("asbestos")
-          || combined.includes("no safety issues")
-          || combined.includes("safety issues")
-          || combined.includes("dogs on site")
-          || combined.includes("aggressive dog");
-
-        const isCustomerNote = combined.includes("customer to")
-          || combined.includes("customer will")
-          || combined.includes("clear route")
-          || combined.includes("clear access");
-
-        // controls → New boiler and controls
-        if (isControl) {
-          boilerControlsPlain += pt + " ";
-          boilerControlsNL += nl + " ";
-          return;
-        }
-
-        // pipe → Pipe work
-        if (isPipe && name !== "Pipe work") {
-          pipeWorkPlain += pt + " ";
-          pipeWorkNL += nl + " ";
-          return;
-        }
-
-        // parking → stash for Restrictions to work
-        if (isParking) {
-          parkingSections.push(sec);
-          return;
-        }
-
-        // permissions → stash for Office notes
-        if (isPermission) {
-          permissionSections.push(sec);
-          return;
-        }
-
-        // double handed → stash for Components that require assistance
-        if (isDoubleHanded && name !== "Components that require assistance") {
-          doubleHandedSections.push(sec);
-          return;
-        }
-
-        // Copy (not move) key lines into the right extra sections
-        if (isHeightsNote) {
-          heightsPlain += pt + " ";
-          heightsNL += nl + " ";
-        }
-
-        if (isHazardsNote) {
-          hazardsPlain += pt + " ";
-          hazardsNL += nl + " ";
-        }
-
-        if (isCustomerNote) {
-          customerPlain += pt + " ";
-          customerNL += nl + " ";
-        }
-
-        out.push(sec);
-
-        if (isPowerFlush) {
-          needsDisruptionFlushNote = true;
-        }
-      });
-
-      // add New boiler and controls
-      if (boilerControlsPlain.trim().length > 0) {
-        out.push({
-          section: "New boiler and controls",
-          plainText: boilerControlsPlain.trim(),
-          naturalLanguage: boilerControlsNL.trim() || "Boiler and control items to be fitted."
-        });
-      }
-
-      // add Pipe work
-      if (pipeWorkPlain.trim().length > 0) {
-        out.push({
-          section: "Pipe work",
-          plainText: pipeWorkPlain.trim(),
-          naturalLanguage: pipeWorkNL.trim() || "Pipework/condensate adjustments are required."
-        });
-      }
-
-      // add/mix parking into Restrictions to work
-      if (parkingSections.length > 0) {
-        const existing = out.find(s => s.section === "Restrictions to work");
-        const parkingPT = parkingSections.map(s => s.plainText || "").join(" ");
-        const parkingNL = parkingSections.map(s => s.naturalLanguage || "").join(" ");
-        if (existing) {
-          existing.plainText = (existing.plainText || "") + " " + parkingPT;
-          existing.naturalLanguage = (existing.naturalLanguage || "") + " " + parkingNL;
-        } else {
-          out.push({
-            section: "Restrictions to work",
-            plainText: parkingPT.trim(),
-            naturalLanguage: parkingNL.trim() || "There are parking/access restrictions at the property."
-          });
-        }
-      }
-
-      // add planning / listed into Office notes
-      if (permissionSections.length > 0) {
-        const existing = out.find(s => s.section === "Office notes");
-        const permPT = permissionSections.map(s => s.plainText || "").join(" ");
-        const permNL = permissionSections.map(s => s.naturalLanguage || "").join(" ");
-        if (existing) {
-          existing.plainText = (existing.plainText || "") + " " + permPT;
-          existing.naturalLanguage = (existing.naturalLanguage || "") + " " + permNL;
-        } else {
-          out.push({
-            section: "Office notes",
-            plainText: permPT.trim(),
-            naturalLanguage: permNL.trim() || "Planning / office action required (listed/conservation/permission)."
-          });
-        }
-      }
-
-      // add double-handed into Components that require assistance
-      if (doubleHandedSections.length > 0) {
-        const existing = out.find(s => s.section === "Components that require assistance");
-        const dhPT = doubleHandedSections.map(s => s.plainText || "").join(" ");
-        const dhNL = doubleHandedSections.map(s => s.naturalLanguage || "").join(" ");
-        if (existing) {
-          existing.plainText = (existing.plainText || "") + " " + dhPT;
-          existing.naturalLanguage = (existing.naturalLanguage || "") + " " + dhNL;
-        } else {
-          out.push({
-            section: "Components that require assistance",
-            plainText: dhPT.trim(),
-            naturalLanguage: dhNL.trim() || "A two-person lift / additional engineer is required."
-          });
-        }
-      }
-
-      // Working at heights from any heights notes
-      if (heightsPlain.trim().length > 0) {
-        const existing = out.find(s => s.section === "Working at heights");
-        if (existing) {
-          existing.plainText = (existing.plainText || "") + " " + heightsPlain.trim();
-          existing.naturalLanguage = (existing.naturalLanguage || "") + " " + (heightsNL.trim() || "Working at height requirements / notes.");
-        } else {
-          out.push({
-            section: "Working at heights",
-            plainText: heightsPlain.trim(),
-            naturalLanguage: heightsNL.trim() || "Working at height requirements / notes."
-          });
-        }
-      }
-
-      // External hazards (asbestos / safety / dogs / other risks)
-      if (hazardsPlain.trim().length > 0) {
-        const existing = out.find(s => s.section === "External hazards");
-        if (existing) {
-          existing.plainText = (existing.plainText || "") + " " + hazardsPlain.trim();
-          existing.naturalLanguage = (existing.naturalLanguage || "") + " " + (hazardsNL.trim() || "Site hazards / asbestos / safety notes.");
-        } else {
-          out.push({
-            section: "External hazards",
-            plainText: hazardsPlain.trim(),
-            naturalLanguage: hazardsNL.trim() || "Site hazards / asbestos / safety notes."
-          });
-        }
-      }
-
-      // Customer actions (clear route / cupboards / etc.)
-      if (customerPlain.trim().length > 0) {
-        const existing = out.find(s => s.section === "Customer actions");
-        if (existing) {
-          existing.plainText = (existing.plainText || "") + " " + customerPlain.trim();
-          existing.naturalLanguage = (existing.naturalLanguage || "") + " " + (customerNL.trim() || "Customer to complete these actions before installation.");
-        } else {
-          out.push({
-            section: "Customer actions",
-            plainText: customerPlain.trim(),
-            naturalLanguage: customerNL.trim() || "Customer to complete these actions before installation."
-          });
-        }
-      }
-
-      // add Disruption note for power flush ONLY
-      if (needsDisruptionFlushNote) {
-        const existing = out.find(s => s.section === "Disruption");
-        const addPT = "✅ Power flush to be carried out | Allow extra time and clear access;";
-        const addNL = "A power flush will be carried out, so extra time and access are needed.";
-        if (existing) {
-          existing.plainText = (existing.plainText || "") + " " + addPT;
-          existing.naturalLanguage = (existing.naturalLanguage || "") + " " + addNL;
-        } else {
-          out.push({
-            section: "Disruption",
-            plainText: addPT,
-            naturalLanguage: addNL
-          });
-        }
-      }
-
-      // final order
-      out.sort((a, b) => {
-        const oa = SECTION_ORDER[a.section] || 999;
-        const ob = SECTION_ORDER[b.section] || 999;
-        return oa - ob;
-      });
-
-      return out;
-    }
 
     function computeChecklist(sections, missingInfoFromServer, liveText) {
       const joinedSections = (sections || [])
@@ -904,7 +842,6 @@
         return;
       }
 
-      // Group by 'group' in defined order
       const byGroup = new Map();
       checklist.forEach(item => {
         const arr = byGroup.get(item.group) || [];
@@ -912,34 +849,32 @@
         byGroup.set(item.group, arr);
       });
 
-      // Render each group
       [...byGroup.entries()].forEach(([groupName, items]) => {
         const header = document.createElement("div");
         header.className = "check-group-title";
         header.innerHTML = `
-  <span>${groupName}</span>
-  <span>Depot: ${items[0].section || ""}</span>
-`;
+          <span>${groupName}</span>
+          <span>Depot: ${items[0].section || ""}</span>
+        `;
         container.appendChild(header);
 
         items.forEach(item => {
           const div = document.createElement("div");
           div.className = "clar-chip checklist-item" + (item.done ? " done" : "");
           div.innerHTML = `
-        <span class="icon">${item.done ? "✅" : "⭕"}</span>
-        <span class="label">
-          ${item.label}
-          <span class="hint">
-            ${item.hint}
-            ${item.section ? ` • <strong>${item.section}</strong>` : ""}
-          </span>
-        </span>
-      `;
+            <span class="icon">${item.done ? "✅" : "⭕"}</span>
+            <span class="label">
+              ${item.label}
+              <span class="hint">
+                ${item.hint}
+                ${item.section ? ` • <strong>${item.section}</strong>` : ""}
+              </span>
+            </span>
+          `;
           container.appendChild(div);
         });
       });
 
-      // Extra free-form questions from the Worker
       if (extraQuestions.length) {
         const sep = document.createElement("div");
         sep.className = "small";
@@ -957,10 +892,8 @@
     }
 
     function handleBrainResponse(data) {
-      // 1) Customer summary
       customerSummaryEl.textContent = data.customerSummary || data.summary || "(none)";
 
-      // 2) Sections list
       sectionsListEl.innerHTML = "";
       let sections =
         data.depotNotes?.sections ||
@@ -984,17 +917,32 @@
         sectionsListEl.innerHTML = `<span class="small">No sections yet.</span>`;
       }
 
-      // 3) Checklist + any missingInfo from worker
       renderChecklist(clarificationsEl, sections, data.missingInfo || [], transcriptInput.value);
     }
 
-    // Show the checklist as soon as the app loads (all ⭕ to start with)
-    renderChecklist(clarificationsEl, [], [], transcriptInput.value);
-
-    // Live update checklist as you type, even before sending to the worker
-    transcriptInput.addEventListener("input", () => {
-      renderChecklist(clarificationsEl, lastSections || [], [], transcriptInput.value);
-    });
+    async function sendText() {
+      const transcript = transcriptInput.value.trim();
+      if (!transcript) return;
+      setStatus("Sending text…");
+      try {
+        const res = await postJSON("/text", {
+          transcript,
+          alreadyCaptured: [],
+          expectedSections: STRUCTURE_HINTS.expectedSections,
+          sectionHints: STRUCTURE_HINTS.sectionHints,
+          forceStructured: STRUCTURE_HINTS.forceStructured
+        });
+        const txt = await res.text();
+        let data = {};
+        try { data = JSON.parse(txt); } catch (_) {}
+        handleBrainResponse(data);
+        setStatus("Done.");
+      } catch (err) {
+        console.error(err);
+        setStatus("Text send failed.");
+      }
+    }
+    sendTextBtn.onclick = sendText;
 
     exportBtn.onclick = async () => {
       setStatus("Preparing notes…");
@@ -1004,16 +952,23 @@
       };
       const pretty = JSON.stringify(payload, null, 2);
       const blob = new Blob([pretty], { type: "application/json" });
+
+      // Manual file naming
+      const defaultName = "depot-notes";
+      const userName = prompt("File name (without extension):", defaultName);
+      if (userName === null) {
+        setStatus("Export cancelled.");
+        return;
+      }
+      const safeName = (userName || defaultName).replace(/[^a-z0-9_\-]+/gi, "-");
       const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-      const filename = `depot-notes-${timestamp}.json`;
+      const filename = `${safeName}-${timestamp}.json`;
 
       const fileForShare = new File([blob], filename, { type: "application/json" });
 
       if (navigator.canShare && navigator.canShare({ files: [fileForShare] })) {
         try {
-          await navigator.share({
-            files: [fileForShare]
-          });
+          await navigator.share({ files: [fileForShare] });
           setStatus("Notes shared.");
           return;
         } catch (err) {
@@ -1032,167 +987,340 @@
       setStatus("Notes downloaded.");
     };
 
-    micBtn.onclick = async () => {
-      const shouldUseLive =
-        (localMicToggle && localMicToggle.checked) ||
-        workerOnline === false ||
-        !mediaRecorderSupported;
+    async function sendAudio(blob) {
+      setStatus("Uploading audio…");
+      try {
+        let res = await fetch(WORKER_URL.replace(/\/$/, "") + "/audio", {
+          method: "POST",
+          headers: { "Content-Type": blob.type },
+          body: blob
+        });
+        const txt = await res.text();
+        let data = {};
+        try { data = JSON.parse(txt); } catch (_) {}
+        handleBrainResponse(data);
+        setStatus("Audio processed.");
+      } catch (err) {
+        console.error(err);
+        setStatus("Audio failed.");
+      } finally {
+        micBtn.classList.remove("active");
+      }
+    }
 
-      if (shouldUseLive) {
-        if (!SpeechRec || !recognition) {
-          setStatus("Live text mic not supported.");
-          return;
+    // Auto notes: local speech segmentation + periodic /text calls
+    if (SpeechRec) {
+      recognition = new SpeechRec();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = "en-GB";
+
+      recognition.onresult = (event) => {
+        let finalText = "";
+        let interimText = "";
+
+        for (let i = 0; i < event.results.length; i++) {
+          const r = event.results[i];
+          if (r.isFinal) {
+            finalText += r[0].transcript + " ";
+          } else {
+            interimText += r[0].transcript + " ";
+          }
         }
 
-        if (recognizing) {
-          recognition.stop();
-          // onend handler will reset status
-          return;
-        }
+        const now = performance.now();
+        const nowOffset = now - sessionStartMs;
 
-        manualTranscriptBase = transcriptInput.value || "";
-        try {
-          recognition.start();
-        } catch (err) {
-          console.warn("[speechRecognition]", err);
-          setStatus("Live text mic error.");
-          return;
-        }
-        recognizing = true;
-        micBtn.classList.add("active");
-        setStatus("Listening (live text)… tap again to stop");
+        finalText.split(/[.!?]+/).forEach(sentence => {
+          const t = sentence.trim();
+          if (!t) return;
+          const prevEnd = segments.length ? segments[segments.length - 1].endMs : 0;
+          segments.push({
+            startMs: prevEnd,
+            endMs: nowOffset,
+            text: t
+          });
+        });
+
+        const fullText = segments.map(s => s.text).join(". ") + (interimText ? " " + interimText.trim() : "");
+        transcriptInput.value = fullText.trim();
+
+        renderChecklist(clarificationsEl, lastSections || [], [], transcriptInput.value);
+      };
+
+      recognition.onerror = (e) => {
+        recognizing = false;
+        micBtn.classList.remove("active");
+        setStatus("Speech error.");
+      };
+
+      recognition.onend = () => {
+        recognizing = false;
+        micBtn.classList.remove("active");
+        setStatus("Idle");
+      };
+    } else {
+      autoNotesToggle.disabled = true;
+      autoNotesToggle.title = "Auto notes live captions not supported in this browser.";
+    }
+
+    async function sendTranscriptChunkToWorker() {
+      if (!segments.length || lastSentIndex >= segments.length) return;
+
+      if (!navigator.onLine) {
+        setStatus("Offline – storing notes locally.");
         return;
       }
 
-      // Otherwise use AI audio via MediaRecorder -> Worker
+      const newSegs = segments.slice(lastSentIndex);
+      const chunkText = newSegs.map(s => s.text).join(". ");
+      const fullTranscript = segments.map(s => s.text).join(". ");
+
+      try {
+        setStatus("Updating notes…");
+        const res = await postJSON("/text", {
+          transcript: fullTranscript,
+          alreadyCaptured: [],
+          expectedSections: STRUCTURE_HINTS.expectedSections,
+          sectionHints: STRUCTURE_HINTS.sectionHints,
+          forceStructured: STRUCTURE_HINTS.forceStructured
+        });
+        const txt = await res.text();
+        let data = {};
+        try { data = JSON.parse(txt); } catch (_) {}
+        handleBrainResponse(data);
+
+        lastSentIndex = segments.length;
+        consecutiveFailures = 0;
+        chunkIntervalMs = 30000;
+        setStatus("Listening (auto notes)…");
+      } catch (err) {
+        console.error(err);
+        consecutiveFailures++;
+        chunkIntervalMs = Math.min(120000, chunkIntervalMs * 2);
+        setStatus("Update failed – will retry less often.");
+      }
+    }
+
+    function scheduleNextChunk() {
+      if (chunkTimerId) clearTimeout(chunkTimerId);
+      chunkTimerId = setTimeout(async () => {
+        await sendTranscriptChunkToWorker();
+        scheduleNextChunk();
+      }, chunkIntervalMs);
+    }
+
+    micBtn.onclick = async () => {
+      const autoMode = autoNotesToggle && autoNotesToggle.checked;
+
+      if (autoMode && recognizing) {
+        if (recognition) recognition.stop();
+        if (chunkTimerId) { clearTimeout(chunkTimerId); chunkTimerId = null; }
+        if (mediaRecorder && mediaRecorder.state === "recording") {
+          mediaRecorder.stop();
+        }
+        micBtn.classList.remove("active");
+        setStatus("Auto notes stopped.");
+        return;
+      }
+
+      if (autoMode) {
+        if (!SpeechRec || !recognition) {
+          setStatus("Auto notes: browser speech not supported.");
+          return;
+        }
+        if (!navigator.mediaDevices || !window.MediaRecorder) {
+          setStatus("Auto notes: mic not supported.");
+          return;
+        }
+
+        sessionStartMs = performance.now();
+        segments = [];
+        lastSentIndex = 0;
+        sessionAudioChunks = [];
+        chunkIntervalMs = 60000;
+        consecutiveFailures = 0;
+
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          mediaRecorder = new MediaRecorder(stream, {
+            mimeType: MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+              ? "audio/webm;codecs=opus"
+              : undefined
+          });
+
+          mediaRecorder.ondataavailable = (e) => {
+            if (e.data && e.data.size > 0) {
+              sessionAudioChunks.push(e.data);
+            }
+          };
+
+          mediaRecorder.onstop = () => {
+            stream.getTracks().forEach(t => t.stop());
+          };
+
+          mediaRecorder.start();
+        } catch (err) {
+          console.error(err);
+          setStatus("Auto notes: mic error.");
+          return;
+        }
+
+        recognizing = true;
+        recognition.start();
+        scheduleNextChunk();
+
+        micBtn.classList.add("active");
+        setStatus("Auto notes running…");
+        return;
+      }
+
       if (mediaRecorder && mediaRecorder.state === "recording") {
         mediaRecorder.stop();
         micBtn.classList.remove("active");
         return;
       }
+
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
-          ? "audio/webm;codecs=opus"
-          : MediaRecorder.isTypeSupported("audio/mp4")
-            ? "audio/mp4"
-            : "";
-        mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+        mediaRecorder = new MediaRecorder(stream, {
+          mimeType: MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+            ? "audio/webm;codecs=opus"
+            : undefined
+        });
         chunks = [];
-        mediaRecorder.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
+        mediaRecorder.ondataavailable = (e) => chunks.push(e.data);
         mediaRecorder.onstop = async () => {
+          const blob = new Blob(chunks, { type: mediaRecorder.mimeType });
           stream.getTracks().forEach(t => t.stop());
-          if (!chunks.length) { setStatus("No audio captured."); return; }
-          const blob = new Blob(chunks, { type: mediaRecorder.mimeType || mimeType || "application/octet-stream" });
           await sendAudio(blob);
         };
         mediaRecorder.start();
         micBtn.classList.add("active");
         setStatus("Recording… tap again to send");
       } catch (err) {
-        console.warn("[getUserMedia]", err);
+        console.error(err);
         setStatus("Mic error.");
       }
     };
 
-    async function sendAudio(blob) {
-      setStatus("Uploading audio…");
-
-      const base = WORKER_URL.replace(/\/$/, "");
-      const url = base + "/api/transcribe";
-
-      // Try raw bytes first, then data URL if the server refuses content-type
-      async function postRaw() {
-        const res = await fetch(url, {
-          method: "POST",
-          mode: "cors",
-          headers: { "Accept": "application/json", "Content-Type": blob.type || "application/octet-stream" },
-          body: blob
-        });
-        const text = await res.text();
-        let json; try { json = JSON.parse(text); } catch {}
-        return { ok: res.ok, status: res.status, json, text };
-      }
-
-      async function postDataUrl() {
-        const dataUrl = await new Promise((resolve) => {
-          const r = new FileReader();
-          r.onload = () => resolve(r.result);
-          r.readAsDataURL(blob);
-        });
-        const res = await fetch(url, {
-          method: "POST",
-          mode: "cors",
-          headers: { "Accept": "application/json", "Content-Type": "application/json" },
-          body: JSON.stringify({ audioDataUrl: dataUrl })
-        });
-        const text = await res.text();
-        let json; try { json = JSON.parse(text); } catch {}
-        return { ok: res.ok, status: res.status, json, text };
-      }
-
-      try {
-        let r = await postRaw();
-        if (!r.ok) {
-          // Some Workers only accept JSON bodies; try dataUrl form
-          r = await postDataUrl();
-        }
-        if (!r.ok) {
-          console.warn("[/api/transcribe]", r.status, r.text);
-          workerOnline = false;
-          setStatus("Audio failed.");
-          return;
-        }
-
-        workerOnline = true;
-        // Expect at least { transcript: "..." }
-        const transcript = r.json?.transcript || "";
-        if (transcript) {
-          transcriptInput.value = (transcriptInput.value ? transcriptInput.value + "\n" : "") + transcript;
-          transcriptInput.dispatchEvent(new Event("input", { bubbles: true }));
-          setStatus("Processing notes…");
-          // Now structure via /api/recommend (re-using your sendText flow inline)
-          const recommend = await postJSON("/api/recommend", {
-            transcript,
-            expectedSections: STRUCTURE_HINTS.expectedSections,
-            sectionHints: STRUCTURE_HINTS.sectionHints,
-            forceStructured: STRUCTURE_HINTS.forceStructured
-          });
-          if (!recommend.ok) {
-            transcriptInput.value += `\n\n⚠️ /api/recommend ${recommend.status}: ${recommend.text.slice(0,300)}`;
-            setStatus("Text send failed.");
-            return;
-          }
-          handleBrainResponse(recommend.json || {});
-          setStatus("Audio processed.");
-        } else {
-          setStatus("No transcript returned.");
-        }
-      } catch (err) {
-        console.error(err);
-        workerOnline = false;
-        setStatus("Audio failed.");
-      } finally {
-        micBtn.classList.remove("active");
-        setStatus("Idle");
-      }
+    function blobToBase64(blob) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result.split(",")[1] || "");
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
     }
 
-    (async () => {
-      try {
-        const base = WORKER_URL.replace(/\/$/, "");
-        const health = await fetch(base + "/health", { method: "GET", mode: "cors" });
-        console.log("[health]", health.status, health.statusText);
-      } catch (e) {
-        console.warn("[health failed]", e.message || e);
+    async function saveSessionToFile() {
+      if (!segments.length) {
+        alert("No session data to save yet.");
+        return;
       }
-      try {
-        const probe = await fetch(WORKER_URL.replace(/\/$/, "") + "/api/recommend", { method: "OPTIONS", mode: "cors" });
-        console.log("[options probe]", probe.status, probe.statusText, [...probe.headers.entries()]);
-      } catch (e) {
-        console.warn("[options probe failed]", e.message || e);
+
+      const fullTranscript = segments.map(s => s.text).join(". ");
+      const durationMs = segments.length ? segments[segments.length - 1].endMs : 0;
+
+      const audioBlob = sessionAudioChunks.length
+        ? new Blob(sessionAudioChunks, { type: "audio/webm" })
+        : null;
+
+      const audioBase64 = audioBlob ? await blobToBase64(audioBlob) : null;
+
+      const session = {
+        version: 1,
+        createdAt: new Date().toISOString(),
+        durationMs,
+        segments,
+        fullTranscript,
+        audioMime: audioBlob ? audioBlob.type : null,
+        audioBase64
+      };
+
+      const jsonStr = JSON.stringify(session, null, 2);
+      const fileBlob = new Blob([jsonStr], { type: "application/json" });
+
+      const defaultName = "depot-voice-session";
+      const userName = prompt("Session file name (without extension):", defaultName);
+      if (userName === null) return;
+      const safeName = (userName || defaultName).replace(/[^a-z0-9_\-]+/gi, "-");
+      const ts = new Date().toISOString().replace(/[:.]/g, "-");
+      const filename = `${safeName}-${ts}.depotvoice.json`;
+
+      const url = URL.createObjectURL(fileBlob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }
+
+    function base64ToBlob(b64, mime) {
+      const byteChars = atob(b64);
+      const byteNums = new Array(byteChars.length);
+      for (let i = 0; i < byteChars.length; i++) {
+        byteNums[i] = byteChars.charCodeAt(i);
       }
-    })();
+      const byteArray = new Uint8Array(byteNums);
+      return new Blob([byteArray], { type: mime || "application/octet-stream" });
+    }
+
+    saveSessionBtn.onclick = saveSessionToFile;
+
+    loadSessionBtn.onclick = () => loadSessionInput.click();
+
+    loadSessionInput.onchange = async (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+
+      try {
+        const text = await file.text();
+        const session = JSON.parse(text);
+
+        segments = session.segments || [];
+        lastSentIndex = 0;
+        sessionAudioChunks = [];
+
+        if (session.audioBase64 && session.audioMime) {
+          const audioBlob = base64ToBlob(session.audioBase64, session.audioMime);
+          sessionAudioChunks.push(audioBlob);
+        }
+
+        const fullTranscript = session.fullTranscript || segments.map(s => s.text).join(". ");
+        transcriptInput.value = fullTranscript;
+
+        const res = await postJSON("/text", {
+          transcript: fullTranscript,
+          alreadyCaptured: [],
+          expectedSections: STRUCTURE_HINTS.expectedSections,
+          sectionHints: STRUCTURE_HINTS.sectionHints,
+          forceStructured: STRUCTURE_HINTS.forceStructured
+        });
+        const txt = await res.text();
+        let data = {};
+        try { data = JSON.parse(txt); } catch (_) {}
+        handleBrainResponse(data);
+
+        renderChecklist(clarificationsEl, lastSections || [], [], fullTranscript);
+        setStatus("Session loaded.");
+      } catch (err) {
+        console.error(err);
+        alert("Could not load session file.");
+      } finally {
+        loadSessionInput.value = "";
+      }
+    };
+
+    transcriptInput.addEventListener("input", () => {
+      renderChecklist(clarificationsEl, lastSections || [], [], transcriptInput.value);
+    });
+
+    // initial checklist
+    renderChecklist(clarificationsEl, [], [], transcriptInput.value);
+    setStatus("Idle");
   </script>
 </body>
 </html>

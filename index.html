@@ -409,7 +409,7 @@
         label: "Access / working at height checked",
         hint: "Ladders, loft access, tower, boards, headroom.",
         test(txt) {
-          return /loft|ladder|ladders|steps|tower|scaffold|edge protection|headroom/i.test(txt);
+          return /loft|ladder|ladders|steps|tower|scaffold|edge protection|headroom|working at height[s]?/i.test(txt);
         }
       },
 
@@ -520,6 +520,13 @@
       const parkingSections = [];
       const permissionSections = [];
       const doubleHandedSections = [];
+      // accumulators for extra sections
+      let heightsPlain = "";
+      let heightsNL = "";
+      let hazardsPlain = "";
+      let hazardsNL = "";
+      let customerPlain = "";
+      let customerNL = "";
 
       sections.forEach(sec => {
         const name = sec.section || "";
@@ -556,6 +563,22 @@
           || combined.includes("two engineers")
           || combined.includes("2 engineers");
 
+        const isHeightsNote = combined.includes("working at height")
+          || combined.includes("working at heights")
+          || combined.includes("ladder")
+          || combined.includes("loft");
+
+        const isHazardsNote = combined.includes("asbestos")
+          || combined.includes("no safety issues")
+          || combined.includes("safety issues")
+          || combined.includes("dogs on site")
+          || combined.includes("aggressive dog");
+
+        const isCustomerNote = combined.includes("customer to")
+          || combined.includes("customer will")
+          || combined.includes("clear route")
+          || combined.includes("clear access");
+
         // controls → New boiler and controls
         if (isControl) {
           boilerControlsPlain += pt + " ";
@@ -586,6 +609,22 @@
         if (isDoubleHanded && name !== "Components that require assistance") {
           doubleHandedSections.push(sec);
           return;
+        }
+
+        // Copy (not move) key lines into the right extra sections
+        if (isHeightsNote) {
+          heightsPlain += pt + " ";
+          heightsNL += nl + " ";
+        }
+
+        if (isHazardsNote) {
+          hazardsPlain += pt + " ";
+          hazardsNL += nl + " ";
+        }
+
+        if (isCustomerNote) {
+          customerPlain += pt + " ";
+          customerNL += nl + " ";
         }
 
         out.push(sec);
@@ -660,6 +699,51 @@
             section: "Components that require assistance",
             plainText: dhPT.trim(),
             naturalLanguage: dhNL.trim() || "A two-person lift / additional engineer is required."
+          });
+        }
+      }
+
+      // Working at heights from any heights notes
+      if (heightsPlain.trim().length > 0) {
+        const existing = out.find(s => s.section === "Working at heights");
+        if (existing) {
+          existing.plainText = (existing.plainText || "") + " " + heightsPlain.trim();
+          existing.naturalLanguage = (existing.naturalLanguage || "") + " " + (heightsNL.trim() || "Working at height requirements / notes.");
+        } else {
+          out.push({
+            section: "Working at heights",
+            plainText: heightsPlain.trim(),
+            naturalLanguage: heightsNL.trim() || "Working at height requirements / notes."
+          });
+        }
+      }
+
+      // External hazards (asbestos / safety / dogs / other risks)
+      if (hazardsPlain.trim().length > 0) {
+        const existing = out.find(s => s.section === "External hazards");
+        if (existing) {
+          existing.plainText = (existing.plainText || "") + " " + hazardsPlain.trim();
+          existing.naturalLanguage = (existing.naturalLanguage || "") + " " + (hazardsNL.trim() || "Site hazards / asbestos / safety notes.");
+        } else {
+          out.push({
+            section: "External hazards",
+            plainText: hazardsPlain.trim(),
+            naturalLanguage: hazardsNL.trim() || "Site hazards / asbestos / safety notes."
+          });
+        }
+      }
+
+      // Customer actions (clear route / cupboards / etc.)
+      if (customerPlain.trim().length > 0) {
+        const existing = out.find(s => s.section === "Customer actions");
+        if (existing) {
+          existing.plainText = (existing.plainText || "") + " " + customerPlain.trim();
+          existing.naturalLanguage = (existing.naturalLanguage || "") + " " + (customerNL.trim() || "Customer to complete these actions before installation.");
+        } else {
+          out.push({
+            section: "Customer actions",
+            plainText: customerPlain.trim(),
+            naturalLanguage: customerNL.trim() || "Customer to complete these actions before installation."
           });
         }
       }

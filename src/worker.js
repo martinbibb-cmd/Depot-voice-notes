@@ -556,18 +556,6 @@ async function structureDepotNotes(input, cfg = {}) {
 
   let sections = buildSections();
 
-  if (sections.some(s => s.section === "Disruption" && /Power flush/i.test(s.plainText))) {
-    const bc = merged.get("New boiler and controls") || { section: "New boiler and controls", plainText: "", naturalLanguage: "" };
-    const adds = [
-      "Carry out system flush during commissioning",
-      "Complete electrical works at commissioning stage"
-    ];
-    const added = bulletify(adds);
-    bc.plainText = bc.plainText ? `${bc.plainText}\n${added}` : added;
-    merged.set("New boiler and controls", bc);
-    sections = buildSections();
-  }
-
   (function duplicateCustomerImpact(){
     const impactRx = /\b(cupboard|wardrobe|furniture|decorating|make good|permit|parking|clear access)\b/i;
     const collected = [];

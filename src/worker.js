@@ -132,108 +132,142 @@ export default {
     const url = new URL(request.url);
     if (request.method === "OPTIONS") return cors(new Response(null, { status: 204 }));
 
+    if (request.method === "POST") {
+      if (url.pathname === "/text") {
+        return handleTextRequest(request, env);
+      }
+      if (url.pathname === "/audio") {
+        return handleAudioRequest(request, env);
+      }
+      if (url.pathname === "/image" || url.pathname === "/refine") {
+        return handleImageRequest(request);
+      }
+    }
+
     if (request.method === "GET" && url.pathname === "/health") {
       return cors(json({ ok: true, service: "depot-voice-notes" }));
     }
 
     if (request.method === "POST" && url.pathname === "/api/recommend") {
-      const { data } = await readBodyFlexible(request);
-      const transcript = data?.transcript ?? data?.text ?? "";
-      const expectedSections = data?.expectedSections ?? DEFAULT_SECTION_ORDER_NAMES;
-      const sectionHints = data?.sectionHints ?? DEFAULT_SECTION_HINTS;
-      const forceStructured = !!(data?.forceStructured);
-
-      const result = await structureDepotNotes(transcript, {
-        env,
-        expectedSections,
-        sectionHints,
-        forceStructured,
-        checklistItems: data?.checklistItems,
-        depotSections: data?.depotSections
-      });
-      return cors(json({
-        summary: result.customerSummary,
-        customerSummary: result.customerSummary,
-        missingInfo: result.missingInfo,
-        checkedItems: result.checkedItems,
-        sections: result.sections,
-        materials: result.materials,
-        depotNotes: { exportedAt: new Date().toISOString(), sections: result.sections },
-        depotSectionsSoFar: result.sections
-      }));
+      return handleTextRequest(request, env);
     }
 
     if (request.method === "POST" && url.pathname === "/api/transcribe") {
-      // Accept either raw audio or JSON with audioDataUrl
-      const ct = request.headers.get("content-type") || "";
-      let audioBytes;
-
-      if (ct.startsWith("application/json") || ct.startsWith("text/plain")) {
-        const { data } = await readBodyFlexible(request);
-        const dataUrl = data?.audioDataUrl || data?.dataUrl || null;
-        if (!dataUrl || !/^data:audio\/[\w+.-]+;base64,/.test(dataUrl)) {
-          return cors(bad(400, { error: "Provide audioDataUrl as a valid data:audio/*;base64,..." }));
-        }
-        const b64 = dataUrl.split(",")[1];
-        audioBytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
-      } else {
-        // Raw bytes
-        const buf = await request.arrayBuffer();
-        audioBytes = new Uint8Array(buf);
-      }
-
-      let transcript = "";
-
-      // Optional STT via OpenAI Whisper if OPENAI_API_KEY is configured
-      if (env.OPENAI_API_KEY) {
-        try {
-          // Multipart form per OpenAI audio transcription API (whisper-1)
-          const form = new FormData();
-          // Build a File from bytes; Workers support this in 2025 runtimes
-          form.append("file", new File([audioBytes], "audio.webm", { type: "audio/webm" }));
-          form.append("model", "whisper-1");
-          const r = await fetch("https://api.openai.com/v1/audio/transcriptions", {
-            method: "POST",
-            headers: { "Authorization": `Bearer ${env.OPENAI_API_KEY}` },
-            body: form
-          });
-          const txt = await r.text();
-          let j; try { j = JSON.parse(txt); } catch {}
-          if (!r.ok) throw new Error(`Whisper ${r.status}: ${txt.slice(0,200)}`);
-          transcript = j?.text || "";
-        } catch (e) {
-          console.warn("Whisper failed:", e);
-          // Fall through: return empty transcript rather than 5xx
-        }
-      }
-
-      // Return something useful even if STT not configured
-      const payload = { ok: true, transcript };
-
-      // If we did get text, also structure it so the client can render immediately
-      if (transcript) {
-        const result = await structureDepotNotes(transcript, {
-          env,
-          expectedSections: DEFAULT_SECTION_ORDER_NAMES,
-          sectionHints: DEFAULT_SECTION_HINTS,
-          forceStructured: true
-        });
-        payload.customerSummary = result.customerSummary;
-        payload.summary = result.customerSummary;
-        payload.missingInfo = result.missingInfo;
-        payload.checkedItems = result.checkedItems;
-        payload.sections = result.sections;
-        payload.materials = result.materials;
-        payload.depotNotes = { exportedAt: new Date().toISOString(), sections: result.sections };
-        payload.depotSectionsSoFar = result.sections;
-      }
-
-      return cors(json(payload));
+      return handleAudioRequest(request, env);
     }
 
     return cors(bad(404, { error: "Not found" }));
   }
 };
+
+async function handleTextRequest(request, env) {
+  const { data } = await readBodyFlexible(request);
+  const transcript = data?.transcript ?? data?.text ?? "";
+  if (!transcript || !String(transcript).trim()) {
+    return cors(bad(400, { error: "transcript required" }));
+  }
+
+  const expectedSections = data?.expectedSections ?? DEFAULT_SECTION_ORDER_NAMES;
+  const sectionHints = data?.sectionHints ?? DEFAULT_SECTION_HINTS;
+  const forceStructured = !!(data?.forceStructured);
+
+  const result = await structureDepotNotes(transcript, {
+    env,
+    expectedSections,
+    sectionHints,
+    forceStructured,
+    checklistItems: data?.checklistItems,
+    depotSections: data?.depotSections
+  });
+
+  return cors(json({
+    summary: result.customerSummary,
+    customerSummary: result.customerSummary,
+    missingInfo: result.missingInfo,
+    checkedItems: result.checkedItems,
+    sections: result.sections,
+    materials: result.materials,
+    depotNotes: { exportedAt: new Date().toISOString(), sections: result.sections },
+    depotSectionsSoFar: result.sections
+  }));
+}
+
+async function handleAudioRequest(request, env) {
+  // Accept either raw audio or JSON with audioDataUrl
+  const ct = request.headers.get("content-type") || "";
+  let audioBytes;
+
+  if (ct.startsWith("application/json") || ct.startsWith("text/plain")) {
+    const { data } = await readBodyFlexible(request);
+    const dataUrl = data?.audioDataUrl || data?.dataUrl || null;
+    if (!dataUrl || !/^data:audio\/[\w+.-]+;base64,/.test(dataUrl)) {
+      return cors(bad(400, { error: "Provide audioDataUrl as a valid data:audio/*;base64,..." }));
+    }
+    const b64 = dataUrl.split(",")[1];
+    audioBytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+  } else {
+    // Raw bytes
+    const buf = await request.arrayBuffer();
+    audioBytes = new Uint8Array(buf);
+  }
+
+  let transcript = "";
+
+  // Optional STT via OpenAI Whisper if OPENAI_API_KEY is configured
+  if (env.OPENAI_API_KEY) {
+    try {
+      // Multipart form per OpenAI audio transcription API (whisper-1)
+      const form = new FormData();
+      // Build a File from bytes; Workers support this in 2025 runtimes
+      form.append("file", new File([audioBytes], "audio.webm", { type: "audio/webm" }));
+      form.append("model", "whisper-1");
+      const r = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${env.OPENAI_API_KEY}` },
+        body: form
+      });
+      const txt = await r.text();
+      let j; try { j = JSON.parse(txt); } catch {}
+      if (!r.ok) throw new Error(`Whisper ${r.status}: ${txt.slice(0,200)}`);
+      transcript = j?.text || "";
+    } catch (e) {
+      console.warn("Whisper failed:", e);
+      // Fall through: return empty transcript rather than 5xx
+    }
+  }
+
+  // Return something useful even if STT not configured
+  const payload = { ok: true, transcript };
+
+  // If we did get text, also structure it so the client can render immediately
+  if (transcript) {
+    const result = await structureDepotNotes(transcript, {
+      env,
+      expectedSections: DEFAULT_SECTION_ORDER_NAMES,
+      sectionHints: DEFAULT_SECTION_HINTS,
+      forceStructured: true
+    });
+    payload.customerSummary = result.customerSummary;
+    payload.summary = result.customerSummary;
+    payload.missingInfo = result.missingInfo;
+    payload.checkedItems = result.checkedItems;
+    payload.sections = result.sections;
+    payload.materials = result.materials;
+    payload.depotNotes = { exportedAt: new Date().toISOString(), sections: result.sections };
+    payload.depotSectionsSoFar = result.sections;
+  }
+
+  return cors(json(payload));
+}
+
+async function handleImageRequest(request) {
+  const body = await request.json().catch(() => null);
+  if (!body || !body.image) {
+    return cors(bad(400, { error: "image data URL required" }));
+  }
+
+  return cors(json({ status: "image OK" }));
+}
 
 /* ---------- shared helpers ---------- */
 function cors(res) {

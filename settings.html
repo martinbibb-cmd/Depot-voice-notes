@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Depot Settings</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    :root {
+      --bg: #eef2f7;
+      --card: #ffffff;
+      --border: #d4dbe5;
+      --accent: #0f766e;
+      --muted: #64748b;
+      --radius: 16px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: #0f172a;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 40px 16px;
+    }
+    main {
+      width: min(960px, 100%);
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      box-shadow: 0 10px 20px rgba(15, 23, 42, 0.05);
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+    h1 {
+      margin: 0;
+      font-size: 1.4rem;
+    }
+    section h2 {
+      margin: 0 0 8px;
+      font-size: 1rem;
+    }
+    p {
+      margin: 0 0 12px;
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+    textarea {
+      width: 100%;
+      min-height: 240px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      border-radius: 12px;
+      border: 1px solid #cbd5e1;
+      padding: 12px;
+      font-size: 0.8rem;
+      background: #f8fafc;
+      color: #0f172a;
+      resize: vertical;
+    }
+    textarea#settings-schema-json {
+      min-height: 180px;
+    }
+    .btn-row {
+      margin-top: 10px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    button {
+      border: none;
+      background: var(--accent);
+      color: #fff;
+      border-radius: 999px;
+      padding: 8px 16px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      gap: 6px;
+      align-items: center;
+    }
+    button.secondary {
+      background: transparent;
+      color: var(--accent);
+      border: 1px solid var(--accent);
+    }
+    a.back-link {
+      font-size: 0.8rem;
+      color: var(--accent);
+      text-decoration: none;
+      margin-bottom: -12px;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <a class="back-link" href="index.html">← Back to notes</a>
+    <h1>Depot Settings</h1>
+    <section>
+      <h2>Checklist configuration</h2>
+      <p>Edit the mapping from checklist ticks to Depot notes &amp; materials. Changes are stored locally on this device.</p>
+      <textarea id="settings-checklist-json"></textarea>
+      <div class="btn-row">
+        <button id="btn-save-checklist">Save (this device)</button>
+        <button id="btn-reset-checklist" class="secondary">Reset to defaults</button>
+      </div>
+    </section>
+    <section>
+      <h2>Depot output schema</h2>
+      <p>Control Depot section names and ordering. Overrides apply locally until cleared.</p>
+      <textarea id="settings-schema-json"></textarea>
+      <div class="btn-row">
+        <button id="btn-save-schema">Save (this device)</button>
+        <button id="btn-reset-schema" class="secondary">Reset to defaults</button>
+      </div>
+    </section>
+  </main>
+  <script type="module" src="./src/settings/settings.js"></script>
+</body>
+</html>

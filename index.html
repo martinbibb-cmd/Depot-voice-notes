@@ -223,6 +223,20 @@
       gap: 8px;
       align-items: center;
     }
+    .settings-link {
+      margin-left: auto;
+      color: #fff;
+      font-size: .7rem;
+      font-weight: 600;
+      text-decoration: none;
+      padding: 6px 12px;
+      border: 1px solid rgba(255,255,255,.3);
+      border-radius: 999px;
+      transition: background .2s ease;
+    }
+    .settings-link:hover {
+      background: rgba(255,255,255,.12);
+    }
   </style>
 </head>
 <body>
@@ -237,6 +251,7 @@
       <button id="saveSessionBtn">Save session file</button>
       <button id="loadSessionBtn">Load session file</button>
       <button id="importAudioBtn">Use audio file</button>
+      <a class="settings-link" href="settings.html">Settings</a>
     </div>
   </header>
 
@@ -313,7 +328,10 @@
   <input id="loadSessionInput" type="file" accept=".depotvoice.json,application/json" style="display:none;">
   <input id="importAudioInput" type="file" accept="audio/*" style="display:none;">
 
-  <script>
+  <script type="module">
+    import { loadChecklistConfig, loadDepotSchema, loadChecklistState, saveChecklistState } from "./src/app/state.js";
+    import { initDepotRenderers, refreshDepotNotesFromChecklist } from "./src/app/renderDepot.js";
+
     // hard-code your worker so it isn't visible
     const WORKER_URL = "https://survey-brain-api.martinbibb.workers.dev";
 
@@ -359,6 +377,14 @@
 
     let mediaRecorder, chunks = [];
     let lastSections = [];
+    let lastMaterials = [];
+    let lastExtraQuestions = [];
+
+    const initialOutput = refreshDepotNotesFromChecklist(checklistState);
+    if (initialOutput) {
+      lastSections = initialOutput.sections || [];
+      lastMaterials = initialOutput.materials || [];
+    }
 
     const SECTION_FALLBACK = [
       { name: "Needs", order: 1, description: "Key needs or must-haves called out by the customer." },
@@ -943,10 +969,11 @@
         container.appendChild(header);
 
         items.forEach(item => {
+          const done = !!(state?.[item.id]?.checked);
           const div = document.createElement("div");
-          div.className = "clar-chip checklist-item" + (item.done ? " done" : "");
+          div.className = "clar-chip checklist-item" + (done ? " done" : "");
           div.innerHTML = `
-            <span class="icon">${item.done ? "✅" : "⭕"}</span>
+            <span class="icon">${done ? "✅" : "⭕"}</span>
             <span class="label">
               ${item.label}
               <span class="hint">
@@ -955,6 +982,8 @@
               </span>
             </span>
           `;
+          div.style.cursor = "pointer";
+          div.addEventListener("click", () => toggleChecklistItem(item.id));
           container.appendChild(div);
         });
       });
@@ -1049,6 +1078,11 @@
           showVoiceError("AI didn’t return any depot notes. Existing notes kept.");
         }
       }
+      if (data.customerSummary) textParts.push(data.customerSummary);
+      if (data.summary) textParts.push(data.summary);
+
+      const detected = detectChecklistFromText(textParts.join(" "));
+      applyDetectedChecklist(detected);
 
       refreshUiFromState();
     }

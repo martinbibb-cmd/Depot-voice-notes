@@ -282,6 +282,16 @@
           <span class="small">No checklist items.</span>
         </div>
       </div>
+
+      <div class="card">
+        <div class="card-title">
+          Suggested parts list
+          <span class="small">Draft list – refine before quoting</span>
+        </div>
+        <div id="partsList">
+          <span class="small">No suggestions yet.</span>
+        </div>
+      </div>
     </div>
   </main>
 
@@ -319,6 +329,8 @@
     const loadSessionInput = document.getElementById('loadSessionInput');
     const importAudioBtn = document.getElementById('importAudioBtn');
     const importAudioInput = document.getElementById('importAudioInput');
+    const partsListEl = document.getElementById('partsList');
+    let lastParts = [];
 
     let mediaRecorder, chunks = [];
     let lastSections = [];
@@ -450,6 +462,206 @@
         if (steps.length) return bulletify(steps);
       }
       return bulletify(splitGeneralClauses(plain));
+    }
+
+    function renderPartsList(parts) {
+      lastParts = parts || [];
+      if (!partsListEl) return;
+
+      partsListEl.innerHTML = "";
+      if (!lastParts.length) {
+        partsListEl.innerHTML = `<span class="small">No suggestions yet.</span>`;
+        return;
+      }
+
+      // group by category
+      const byCategory = new Map();
+      lastParts.forEach(p => {
+        const cat = p.category || "Other";
+        const arr = byCategory.get(cat) || [];
+        arr.push(p);
+        byCategory.set(cat, arr);
+      });
+
+      byCategory.forEach((items, cat) => {
+        const h = document.createElement("div");
+        h.className = "small";
+        h.style.fontWeight = "600";
+        h.style.margin = "4px 0 2px";
+        h.textContent = cat;
+        partsListEl.appendChild(h);
+
+        const ul = document.createElement("ul");
+        ul.style.margin = "0 0 4px 14px";
+        ul.style.padding = "0";
+        ul.style.listStyle = "disc";
+
+        items.forEach(p => {
+          const li = document.createElement("li");
+          li.style.fontSize = ".68rem";
+          li.textContent = p.text;
+          ul.appendChild(li);
+        });
+
+        partsListEl.appendChild(ul);
+      });
+    }
+
+    function updatePartsSuggestions(transcript, sections) {
+      const allSectionsText = (sections || [])
+        .map(sec => `${sec.section}: ${sec.plainText || ""} ${sec.naturalLanguage || ""}`)
+        .join(" ");
+      const raw = (transcript || "") + " " + allSectionsText;
+      const text = raw.replace(/\s+/g, " ").trim();
+      const lower = text.toLowerCase();
+
+      if (!text) {
+        renderPartsList([]);
+        return;
+      }
+
+      const parts = [];
+      const addPart = (category, text) => {
+        if (!text) return;
+        parts.push({ category, text });
+      };
+
+      // --- Boiler suggestion ---
+      let boilerType = null;
+      if (/storage combi|highflow/i.test(text)) {
+        boilerType = "storage combi / highflow boiler";
+      } else if (/\b(combi|combination)\b/i.test(text)) {
+        boilerType = "combi boiler";
+      } else if (/\bsystem boiler\b/i.test(text)) {
+        boilerType = "system boiler";
+      } else if (/\bregular\b|\bheat only\b|\bopen[- ]vented\b/i.test(text)) {
+        boilerType = "heat only / regular boiler";
+      }
+
+      let boilerBrand = null;
+      if (/worcester|greenstar/i.test(lower)) boilerBrand = "Worcester Bosch";
+      else if (/vaillant/i.test(lower)) boilerBrand = "Vaillant";
+      else if (/glow[\s-]?worm|glowworm/i.test(lower)) boilerBrand = "Glow-worm";
+      else if (/ideal/i.test(lower)) boilerBrand = "Ideal";
+      else if (/viessmann/i.test(lower)) boilerBrand = "Viessmann";
+
+      let kwMatch = text.match(/(\d+)\s*kw/i);
+      const boilerSizeKw = kwMatch ? kwMatch[1] : null;
+
+      if (boilerType || boilerBrand || boilerSizeKw) {
+        let desc = "New ";
+        if (boilerBrand) desc += boilerBrand + " ";
+        desc += boilerType || "boiler";
+        if (boilerSizeKw) desc += ` ~${boilerSizeKw} kW`;
+        addPart("Boiler", desc);
+      }
+
+      // --- Cylinder suggestion ---
+      let cylType = null;
+      if (/mixergy/i.test(lower)) {
+        cylType = "Mixergy smart cylinder";
+      } else if (/unvented/i.test(lower)) {
+        cylType = "unvented cylinder";
+      } else if (/vented|header tank|cws tank/i.test(lower)) {
+        cylType = "vented cylinder";
+      } else if (/thermal store|boilermate|thermal battery/i.test(lower)) {
+        cylType = "thermal store";
+      }
+
+      let cylSizeMatch = text.match(/(\d+)\s*(l|litre|liter)s?/i);
+      const cylSizeL = cylSizeMatch ? cylSizeMatch[1] : null;
+
+      if (cylType) {
+        let desc = cylType;
+        if (cylSizeL) desc += ` ~${cylSizeL} L`;
+        addPart("Cylinder", desc);
+      }
+
+      // --- Flue ---
+      const hasFlue = /flue/i.test(text);
+      if (hasFlue) {
+        let flueDesc = "";
+
+        const isVertical = /vertical flue|flue up through (the )?roof/i.test(lower);
+        const isRear = /rear flue|turret rear/i.test(lower);
+        const isSide = /side flue|turret side|through side wall/i.test(lower);
+        const hasPlume = /plume kit|plume management/i.test(lower);
+        const reuse = /reuse flue|re-use flue|keep existing flue/i.test(lower);
+
+        if (reuse) {
+          flueDesc = "Reuse existing flue if compliant and in good condition";
+        } else if (isVertical) {
+          flueDesc = "Vertical flue kit with roof terminal";
+        } else if (isRear || isSide) {
+          flueDesc = "Horizontal flue kit to external wall";
+        } else {
+          flueDesc = "Flue kit to suit boiler position (check orientation on survey)";
+        }
+
+        addPart("Flue", flueDesc);
+
+        if (hasPlume) {
+          addPart("Flue", "Plume management kit (orientation to suit terminal)");
+        }
+      }
+
+      // --- Condensate ---
+      if (/condensate pump/i.test(lower)) {
+        addPart("Condensate", "Condensate pump with pipework and power supply");
+      }
+      if (/condensate.*(under sink|to sink|sink waste)/i.test(lower)) {
+        addPart("Condensate", "Condensate connection into sink waste (check trap and fall)");
+      }
+      if (/external condensate|outside wall.*condensate/i.test(lower)) {
+        addPart("Condensate", "Upgraded external condensate in 32mm with insulation / trace as required");
+      }
+
+      // --- Flush / clean ---
+      const mentionsFlush = /power ?flush|system flush|mains flush/i.test(lower);
+      let radCount = null;
+      const radMatch = text.match(/(\d+)\s*(rads?|radiators?)/i);
+      if (radMatch) radCount = radMatch[1];
+
+      if (mentionsFlush) {
+        let flushDesc = "System power flush";
+        if (radCount) flushDesc += ` for approx ${radCount} radiators`;
+        addPart("System clean", flushDesc);
+      }
+
+      // --- Filter ---
+      const mentionsFilter = /magnetic filter|system filter|dirt filter/i.test(lower);
+      if (mentionsFilter) {
+        let pipeSize = null;
+        const mm22 = text.match(/22\s*mm/i);
+        const mm28 = text.match(/28\s*mm/i);
+        if (mm28) pipeSize = "28mm";
+        else if (mm22) pipeSize = "22mm";
+
+        let filterDesc = "Magnetic system filter";
+        if (pipeSize) filterDesc += ` (${pipeSize})`;
+        addPart("Filter", filterDesc);
+      }
+
+      // --- Controls (Hive etc.) ---
+      if (/hive/i.test(lower)) {
+        addPart("Controls", "Hive smart heating control kit");
+      }
+      if (/nest/i.test(lower)) {
+        addPart("Controls", "Nest smart heating control kit");
+      }
+      if (/wireless stat|wireless thermostat/i.test(lower)) {
+        addPart("Controls", "Wireless room thermostat (location to suit customer)");
+      }
+
+      // --- Safety / extras hints (very light-touch) ---
+      if (/scale reducer|limescale|hard water/i.test(lower)) {
+        addPart("Water treatment", "Scale reducer / limescale protection where appropriate");
+      }
+      if (/lagging|insulation|pipe insulation/i.test(lower)) {
+        addPart("Accessories", "Pipe insulation / lagging for exposed primary and condensate pipework");
+      }
+
+      renderPartsList(parts);
     }
 
     function postProcessSections(sections) {
@@ -921,6 +1133,8 @@
         sectionsListEl.innerHTML = `<span class="small">No sections yet.</span>`;
       }
 
+      // Update parts suggestions and checklist based on latest view of job
+      updatePartsSuggestions(transcriptInput.value, sections);
       renderChecklist(clarificationsEl, sections, data.missingInfo || [], transcriptInput.value);
     }
 
@@ -1049,6 +1263,7 @@
         const fullText = segments.map(s => s.text).join(". ") + (interimText ? " " + interimText.trim() : "");
         transcriptInput.value = fullText.trim();
 
+        updatePartsSuggestions(transcriptInput.value, lastSections || []);
         renderChecklist(clarificationsEl, lastSections || [], [], transcriptInput.value);
       };
 
@@ -1339,6 +1554,7 @@
     };
 
     transcriptInput.addEventListener("input", () => {
+      updatePartsSuggestions(transcriptInput.value, lastSections || []);
       renderChecklist(clarificationsEl, lastSections || [], [], transcriptInput.value);
     });
 

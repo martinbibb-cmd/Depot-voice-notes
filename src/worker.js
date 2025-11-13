@@ -1,5 +1,34 @@
+import checklistConfig from "../checklist.config.json" assert { type: "json" };
+import depotSchema from "../depot.output.schema.json" assert { type: "json" };
+
 let __CONFIG_CACHE = { at: 0, data: null };
 const CONFIG_TTL_MS = 5 * 60 * 1000;
+
+const BUILTIN_SECTION_FALLBACK = [
+  { name: "Needs", order: 1 },
+  { name: "Working at heights", order: 2 },
+  { name: "System characteristics", order: 3 },
+  { name: "Components that require assistance", order: 4 },
+  { name: "Restrictions to work", order: 5 },
+  { name: "External hazards", order: 6 },
+  { name: "Delivery notes", order: 7 },
+  { name: "Office notes", order: 8 },
+  { name: "New boiler and controls", order: 9 },
+  { name: "Flue", order: 10 },
+  { name: "Pipe work", order: 11 },
+  { name: "Disruption", order: 12 },
+  { name: "Customer actions", order: 13 },
+  { name: "Future plans", order: 14 }
+];
+
+const DEFAULT_SECTION_META = normaliseSectionMeta(
+  depotSchema?.sections || BUILTIN_SECTION_FALLBACK
+);
+const DEFAULT_CHECKLIST_ITEMS = normaliseChecklistItems(checklistConfig?.items || []);
+const SECTION_ORDER = Object.fromEntries(
+  DEFAULT_SECTION_META.map(sec => [sec.name, typeof sec.order === "number" ? sec.order : 999])
+);
+const SECTION_NAMES = DEFAULT_SECTION_META.map(sec => sec.name);
 
 async function getConfig(env) {
   const now = Date.now();
@@ -114,11 +143,21 @@ export default {
       const sectionHints = data?.sectionHints ?? DEFAULT_SECTION_HINTS;
       const forceStructured = !!(data?.forceStructured);
 
-      const result = await structureDepotNotes(transcript, { env, expectedSections, sectionHints, forceStructured });
+      const result = await structureDepotNotes(transcript, {
+        env,
+        expectedSections,
+        sectionHints,
+        forceStructured,
+        checklistItems: data?.checklistItems,
+        depotSections: data?.depotSections
+      });
       return cors(json({
         summary: result.customerSummary,
         customerSummary: result.customerSummary,
         missingInfo: result.missingInfo,
+        checkedItems: result.checkedItems,
+        sections: result.sections,
+        materials: result.materials,
         depotNotes: { exportedAt: new Date().toISOString(), sections: result.sections },
         depotSectionsSoFar: result.sections
       }));
@@ -179,7 +218,14 @@ export default {
           sectionHints: DEFAULT_SECTION_HINTS,
           forceStructured: true
         });
+        payload.customerSummary = result.customerSummary;
+        payload.summary = result.customerSummary;
+        payload.missingInfo = result.missingInfo;
+        payload.checkedItems = result.checkedItems;
+        payload.sections = result.sections;
+        payload.materials = result.materials;
         payload.depotNotes = { exportedAt: new Date().toISOString(), sections: result.sections };
+        payload.depotSectionsSoFar = result.sections;
       }
 
       return cors(json(payload));
@@ -214,24 +260,6 @@ async function readBodyFlexible(request) {
 }
 
 /* ---------- structuring logic ---------- */
-const SECTION_ORDER = {
-  "Needs": 1,
-  "Working at heights": 2,
-  "System characteristics": 3,
-  "Components that require assistance": 4,
-  "Restrictions to work": 5,
-  "External hazards": 6,
-  "Delivery notes": 7,
-  "Office notes": 8,
-  "New boiler and controls": 9,
-  "Flue": 10,
-  "Pipe work": 11,
-  "Disruption": 12,
-  "Customer actions": 13,
-  "Future plans": 14
-};
-const SECTION_NAMES = Object.keys(SECTION_ORDER);
-
 function splitStatements(raw) {
   const text = String(raw || "").replace(/\r/g, " ").replace(/\s+/g, " ").trim();
   if (!text) return [];
@@ -454,11 +482,11 @@ function buildIntents(cfg) {
   };
 }
 
-function routeStatement(stmt, intents, overrides) {
+function routeStatement(stmt, intents, overrides, sectionNames = SECTION_NAMES) {
   const s = stmt.trim();
   const low = s.toLowerCase();
 
-  for (const name of SECTION_NAMES) {
+  for (const name of sectionNames) {
     const rx = new RegExp("^\\s*" + name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\s*[:\\-]", "i");
     if (rx.test(s)) return { section: name, text: s };
   }
@@ -484,6 +512,12 @@ async function structureDepotNotes(input, cfg = {}) {
   const env = cfg.env || {};
   const routingCfg = await getConfig(env);
   const text = applyASRNormalise(String(input || ""), routingCfg);
+  const sectionMeta = resolveSectionMeta(cfg.depotSections || routingCfg.depotSections);
+  const resolvedSectionOrder = Object.fromEntries(
+    sectionMeta.map((sec, idx) => [sec.name, typeof sec.order === "number" ? sec.order : idx + 1])
+  );
+  const resolvedSectionNames = sectionMeta.map(sec => sec.name);
+  const checklistItems = resolveChecklistItems(cfg.checklistItems || routingCfg.checklist);
 
   const intents = buildIntents(routingCfg);
   const overrides = routingCfg.phrase_overrides || {};
@@ -491,7 +525,7 @@ async function structureDepotNotes(input, cfg = {}) {
   const bucket = new Map();
 
   for (const stmt of statements) {
-    const routed = routeStatement(stmt, intents, overrides);
+    const routed = routeStatement(stmt, intents, overrides, resolvedSectionNames);
     if (routed.section) appendSection(bucket, routed.section, routed.text);
   }
 
@@ -537,7 +571,7 @@ async function structureDepotNotes(input, cfg = {}) {
         naturalLanguage: s.naturalLanguage.trim()
       }))
       .filter(s => s.plainText || s.naturalLanguage);
-    arr.sort((a, b) => (SECTION_ORDER[a.section] || 999) - (SECTION_ORDER[b.section] || 999));
+    arr.sort((a, b) => (resolvedSectionOrder[a.section] || 999) - (resolvedSectionOrder[b.section] || 999));
     return arr;
   };
 
@@ -561,7 +595,7 @@ async function structureDepotNotes(input, cfg = {}) {
   })();
 
   if (cfg.forceStructured && sections.length === 0) {
-    const expected = cfg.expectedSections && cfg.expectedSections.length ? cfg.expectedSections : SECTION_NAMES;
+    const expected = cfg.expectedSections && cfg.expectedSections.length ? cfg.expectedSections : resolvedSectionNames;
     sections = expected.map(n => ({ section: n, plainText: "", naturalLanguage: "" }));
   }
 
@@ -594,8 +628,302 @@ async function structureDepotNotes(input, cfg = {}) {
     missingInfo.push({ target: "engineer", question: "Confirm condensate route and termination." });
   }
 
-  return { sections, customerSummary, missingInfo };
+  const checkedItems = computeCheckedItems(input, text, sections, checklistItems);
+  const materials = inferMaterials(input, sections);
+
+  return { sections, customerSummary, missingInfo, checkedItems, materials };
 }
 
 const DEFAULT_SECTION_ORDER_NAMES = SECTION_NAMES;
 const DEFAULT_SECTION_HINTS = {};
+
+function resolveChecklistItems(overrides) {
+  if (overrides && typeof overrides === "object" && !Array.isArray(overrides)) {
+    if (Array.isArray(overrides.items)) {
+      return normaliseChecklistItems(overrides.items);
+    }
+  }
+  if (Array.isArray(overrides) && overrides.length) {
+    const normalised = normaliseChecklistItems(overrides);
+    return normalised.length ? normalised : DEFAULT_CHECKLIST_ITEMS;
+  }
+  return DEFAULT_CHECKLIST_ITEMS;
+}
+
+function normaliseChecklistItems(items) {
+  if (items && typeof items === "object" && !Array.isArray(items)) {
+    if (Array.isArray(items.items)) return normaliseChecklistItems(items.items);
+  }
+  if (!Array.isArray(items)) return [];
+  const out = [];
+  for (let i = 0; i < items.length; i++) {
+    const raw = items[i];
+    if (!raw) continue;
+    if (raw.__normalized) { out.push(raw); continue; }
+    const id = raw.id != null ? String(raw.id).trim() : "";
+    if (!id) continue;
+    const normalised = {
+      id,
+      group: raw.group || raw.category || "",
+      section: raw.section || raw.sectionName || "",
+      label: raw.label || raw.name || id,
+      hint: raw.hint || raw.description || "",
+      match: normaliseChecklistMatch(raw.match)
+    };
+    Object.defineProperty(normalised, "__normalized", { value: true, enumerable: false });
+    out.push(normalised);
+  }
+  return out;
+}
+
+function normaliseChecklistMatch(match) {
+  if (match && match.__normalized) return match;
+  if (!match) {
+    const empty = { any: [], all: [], not: [] };
+    Object.defineProperty(empty, "__normalized", { value: true, enumerable: false });
+    return empty;
+  }
+  if (typeof match === "string" || match instanceof RegExp) {
+    const rx = toRegExp(match);
+    const single = { any: rx ? [rx] : [], all: [], not: [] };
+    Object.defineProperty(single, "__normalized", { value: true, enumerable: false });
+    return single;
+  }
+  const any = ensureArray(match.any || match.includes || match.patterns || match.regex || match.contains)
+    .map(toRegExp)
+    .filter(Boolean);
+  const all = ensureArray(match.all || match.required)
+    .map(toRegExp)
+    .filter(Boolean);
+  const not = ensureArray(match.not || match.excludes || match.never)
+    .map(toRegExp)
+    .filter(Boolean);
+  const normalised = { any, all, not };
+  Object.defineProperty(normalised, "__normalized", { value: true, enumerable: false });
+  return normalised;
+}
+
+function ensureArray(value) {
+  if (value == null) return [];
+  return Array.isArray(value) ? value.filter(v => v != null) : [value];
+}
+
+function toRegExp(value) {
+  if (value instanceof RegExp) return value;
+  const str = value != null ? String(value) : "";
+  if (!str) return null;
+  try {
+    return new RegExp(str, "i");
+  } catch (_) {
+    return null;
+  }
+}
+
+function normaliseSectionMeta(entries) {
+  if (!Array.isArray(entries)) return [];
+  const out = [];
+  entries.forEach((entry, idx) => {
+    if (entry == null) return;
+    if (entry.__normalizedSection) { out.push(entry); return; }
+    if (typeof entry === "string") {
+      const name = entry.trim();
+      if (!name) return;
+      const obj = { name, order: idx + 1, description: "" };
+      Object.defineProperty(obj, "__normalizedSection", { value: true, enumerable: false });
+      out.push(obj);
+      return;
+    }
+    const name = String(entry.name || entry.section || "").trim();
+    if (!name) return;
+    const order = typeof entry.order === "number" ? entry.order : idx + 1;
+    const description = String(entry.description || entry.hint || "").trim();
+    const obj = { name, order, description };
+    Object.defineProperty(obj, "__normalizedSection", { value: true, enumerable: false });
+    out.push(obj);
+  });
+  return out;
+}
+
+function resolveSectionMeta(overrides) {
+  let candidate = overrides;
+  if (overrides && typeof overrides === "object" && !Array.isArray(overrides)) {
+    if (Array.isArray(overrides.sections)) candidate = overrides.sections;
+  }
+  const meta = normaliseSectionMeta(candidate);
+  if (meta.length) return meta;
+  return DEFAULT_SECTION_META;
+}
+
+function computeCheckedItems(transcriptRaw, normalizedText, sections, checklistItems) {
+  const sectionText = (sections || [])
+    .map(sec => `${sec.section || ""}: ${sec.plainText || ""} ${sec.naturalLanguage || ""}`)
+    .join(" ");
+  const haystack = `${transcriptRaw || ""} ${normalizedText || ""} ${sectionText}`.trim();
+  if (!haystack) return [];
+  const out = [];
+  const seen = new Set();
+  for (const item of checklistItems || []) {
+    if (!item || !item.id || seen.has(item.id)) continue;
+    if (evaluateChecklistMatch(item.match, haystack)) {
+      out.push(item.id);
+      seen.add(item.id);
+    }
+  }
+  return out;
+}
+
+function evaluateChecklistMatch(match, haystack) {
+  if (!match || !haystack) return false;
+  const { any = [], all = [], not = [] } = match;
+  if (not.length && not.some(rx => regexTest(rx, haystack))) {
+    // if any exclusion matches, bail out
+    return false;
+  }
+  if (all.length && !all.every(rx => regexTest(rx, haystack))) {
+    return false;
+  }
+  if (any.length) {
+    if (!any.some(rx => regexTest(rx, haystack))) return false;
+  } else if (!all.length) {
+    return false;
+  }
+  return true;
+}
+
+function regexTest(pattern, haystack) {
+  if (!pattern) return false;
+  try {
+    if (pattern instanceof RegExp) {
+      pattern.lastIndex = 0;
+      return pattern.test(haystack);
+    }
+    const rx = new RegExp(pattern, "i");
+    return rx.test(haystack);
+  } catch (_) {
+    return false;
+  }
+}
+
+function inferMaterials(transcriptRaw, sections) {
+  const raw = String(transcriptRaw || "");
+  const sectionText = (sections || [])
+    .map(sec => `${sec.section || ""}: ${sec.plainText || ""} ${sec.naturalLanguage || ""}`)
+    .join(" ");
+  const combined = `${raw} ${sectionText}`.trim();
+  if (!combined) return [];
+
+  const materials = [];
+  const seen = new Set();
+  const add = (category, item, qty = 1, notes = "") => {
+    const clean = cleanupMaterial(item);
+    if (!clean) return;
+    const normalisedNotes = cleanupMaterial(notes);
+    const key = `${category}|${clean}|${normalisedNotes}`.toLowerCase();
+    if (seen.has(key)) return;
+    materials.push({
+      category,
+      item: clean,
+      qty: typeof qty === "number" && qty > 0 ? qty : 1,
+      notes: normalisedNotes || ""
+    });
+    seen.add(key);
+  };
+
+  const boilerPatterns = [
+    "\\b(?:worcester(?: bosch)?|vaillant|glow[- ]?worm|viessmann|baxi|ideal|alpha|intergas|ariston|main)\\b[^.\n]{0,80}\\b(?:boiler|combi|system|regular|heat only)\\b",
+    "\\b(?:combi|system|regular|heat only|storage combi|highflow)\\b[^.\n]{0,80}\\bboiler\\b"
+  ];
+  const boiler = extractFirstMatch(raw, boilerPatterns) || extractFirstMatch(combined, boilerPatterns);
+  if (boiler) add("Boiler", boiler);
+
+  const cylinderPatterns = [
+    "\\b(?:mixergy|megaflo|joule|ideal|glow[- ]?worm|baxi|main|ariston|vaillant)\\b[^.\n]{0,80}\\b(?:cylinder|store)\\b",
+    "\\b(?:unvented|open vent(?:ed)?|vented|thermal store|thermal battery)\\b[^.\n]{0,60}\\b(?:cylinder|store)\\b",
+    "\\b\\d{2,3}\s*(?:l|litre|liter)\\b[^.\n]{0,40}\\b(?:cylinder|store)\\b"
+  ];
+  const cylinder = extractFirstMatch(raw, cylinderPatterns) || extractFirstMatch(combined, cylinderPatterns);
+  if (cylinder) add("Cylinder", cylinder);
+
+  const controlPatterns = [
+    "\\bHive\\b[^.\n]{0,40}(?:control|thermostat|receiver)",
+    "\\bNest\\b[^.\n]{0,40}(?:control|thermostat)",
+    "smart control",
+    "\\bwireless (?:stat|thermostat)\\b"
+  ];
+  const control = extractFirstMatch(combined, controlPatterns);
+  if (control) add("Controls", control);
+
+  const filterPatterns = [
+    "\\b\\d{2}\s*mm[^.\n]{0,40}(?:magnetic|system|dirt) filter\\b",
+    "\\b(?:magnetic|system|dirt) filter\\b[^.\n]{0,40}"
+  ];
+  const filter = extractFirstMatch(combined, filterPatterns);
+  if (filter) add("Filter", filter);
+
+  const flushPatterns = [
+    "\\b(?:power|mains|chemical) flush\\b[^.\n]{0,40}",
+    "\\bsystem (?:power )?flush\\b[^.\n]{0,40}",
+    "\\bsystem clean\\b[^.\n]{0,40}"
+  ];
+  const flush = extractFirstMatch(combined, flushPatterns);
+  if (flush) {
+    const radMatch = combined.match(/(\d+)\s*(?:rads?|radiators?)/i);
+    const notes = radMatch ? `${radMatch[1]} radiators mentioned` : "";
+    add("System clean", flush, 1, notes);
+  }
+
+  const verticalFlue = extractFirstMatch(combined, ["\\bvertical flue[^.\n]{0,40}"]);
+  if (verticalFlue) add("Flue", verticalFlue);
+  const rearFlue = extractFirstMatch(combined, ["\\b(?:rear|turret rear) flue[^.\n]{0,40}", "\\brear flue\\b"]);
+  if (rearFlue) add("Flue", rearFlue);
+  const sideFlue = extractFirstMatch(combined, ["\\b(?:side|turret side) flue[^.\n]{0,40}", "\\bside flue\\b"]);
+  if (sideFlue) add("Flue", sideFlue);
+  const plumeMatches = findAllMatches(combined, /\bplume kit\b[^.\n]{0,40}/gi);
+  plumeMatches.forEach(item => add("Flue", item));
+
+  const condensatePump = extractFirstMatch(combined, ["\\bcondensate pump\b[^.\n]{0,40}"]);
+  if (condensatePump) add("Misc", condensatePump);
+
+  return materials;
+}
+
+function extractFirstMatch(text, patterns) {
+  const haystack = String(text || "");
+  if (!haystack) return null;
+  for (const pat of patterns || []) {
+    const rx = toRegExp(pat);
+    if (!rx) continue;
+    rx.lastIndex = 0;
+    const m = rx.exec(haystack);
+    if (m && m[0]) return cleanupMaterial(m[0]);
+  }
+  return null;
+}
+
+function findAllMatches(text, pattern) {
+  const haystack = String(text || "");
+  if (!haystack) return [];
+  let rx;
+  if (pattern instanceof RegExp) {
+    const flags = pattern.flags.includes("g") ? pattern.flags : pattern.flags + "g";
+    rx = new RegExp(pattern.source, flags);
+  } else {
+    rx = new RegExp(String(pattern), "ig");
+  }
+  const out = [];
+  let m;
+  while ((m = rx.exec(haystack))) {
+    if (m[0]) out.push(cleanupMaterial(m[0]));
+    if (!rx.global) break;
+  }
+  return out;
+}
+
+function cleanupMaterial(text) {
+  return String(text || "")
+    .replace(/\s+/g, " ")
+    .replace(/^[\s,;:.-]+/, "")
+    .replace(/[\s,;:.-]+$/, "")
+    .trim();
+}
+

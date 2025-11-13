@@ -330,10 +330,61 @@
     const importAudioBtn = document.getElementById('importAudioBtn');
     const importAudioInput = document.getElementById('importAudioInput');
     const partsListEl = document.getElementById('partsList');
-    let lastParts = [];
+    let lastMaterials = [];
+    let lastRawSections = [];
+    let lastCheckedItems = [];
+    let lastMissingInfo = [];
+    let lastCustomerSummary = "";
 
     let mediaRecorder, chunks = [];
     let lastSections = [];
+
+    const SECTION_FALLBACK = [
+      { name: "Needs", order: 1, description: "Key needs or must-haves called out by the customer." },
+      { name: "Working at heights", order: 2, description: "Anything involving ladders, lofts, scaffolds or special access kit." },
+      { name: "System characteristics", order: 3, description: "Existing system summary, proposed boiler, cylinders and storage." },
+      { name: "Components that require assistance", order: 4, description: "Items that need two-person lifts or specialist handling." },
+      { name: "Restrictions to work", order: 5, description: "Parking limits, permits or building restrictions." },
+      { name: "External hazards", order: 6, description: "Asbestos, site hazards, aggressive pets or anything notable externally." },
+      { name: "Delivery notes", order: 7, description: "Delivery constraints, storage space and timings." },
+      { name: "Office notes", order: 8, description: "Anything for the office team: planning, conservation, notifications." },
+      { name: "New boiler and controls", order: 9, description: "What is being fitted: boiler, controls, flushing, filters." },
+      { name: "Flue", order: 10, description: "Flue position, routing, plume kits and terminal notes." },
+      { name: "Pipe work", order: 11, description: "Gas, condensate and system pipe alterations." },
+      { name: "Disruption", order: 12, description: "Power flush, draining, floor lifting or decorations impacted." },
+      { name: "Customer actions", order: 13, description: "Things the customer has to sort before install." },
+      { name: "Future plans", order: 14, description: "Anything the customer plans after install, or future upgrades." }
+    ];
+
+    let SECTION_SCHEMA = [];
+    let SECTION_ORDER = {};
+    const SECTION_HINT_MAP = {
+      "hive": "New boiler and controls",
+      "smart control": "New boiler and controls",
+      "controller": "New boiler and controls",
+      "pump": "New boiler and controls",
+      "valve": "New boiler and controls",
+      "condensate": "Pipe work",
+      "condensate upgrade": "Pipe work",
+      "pipe": "Pipe work",
+      "gas run": "Pipe work",
+      "reuse flue": "Flue",
+      "new flue": "Flue",
+      "balanced flue": "Flue",
+      "ladders": "Working at heights",
+      "loft": "Working at heights",
+      "power flush": "New boiler and controls",
+      "magnetic filter": "New boiler and controls"
+    };
+
+    const STRUCTURE_HINTS = {
+      expectedSections: [],
+      sectionHints: SECTION_HINT_MAP,
+      forceStructured: true
+    };
+
+    let CHECKLIST_SOURCE = [];
+    let CHECKLIST_ITEMS = [];
 
     // Auto notes session state
     const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition || null;
@@ -414,6 +465,118 @@
       return res;
     }
 
+    function normaliseSectionSchema(entries) {
+      if (entries && typeof entries === "object" && !Array.isArray(entries)) {
+        if (Array.isArray(entries.sections)) return normaliseSectionSchema(entries.sections);
+      }
+      if (!Array.isArray(entries)) return [];
+      return entries.map((entry, idx) => {
+        if (!entry) return null;
+        if (typeof entry === "string") {
+          const name = entry.trim();
+          if (!name) return null;
+          return { name, order: idx + 1, description: "" };
+        }
+        const name = String(entry.name || entry.section || "").trim();
+        if (!name) return null;
+        const order = typeof entry.order === "number" ? entry.order : idx + 1;
+        const description = String(entry.description || entry.hint || "").trim();
+        return { name, order, description };
+      }).filter(Boolean);
+    }
+
+    function applySectionSchema(entries) {
+      const normalised = normaliseSectionSchema(entries);
+      const fallback = normalised.length ? normalised : normaliseSectionSchema(SECTION_FALLBACK);
+      SECTION_SCHEMA = fallback;
+      SECTION_ORDER = {};
+      fallback.forEach((sec, idx) => {
+        const order = typeof sec.order === "number" ? sec.order : idx + 1;
+        SECTION_ORDER[sec.name] = order;
+      });
+      STRUCTURE_HINTS.expectedSections = fallback.map(sec => sec.name);
+    }
+
+    applySectionSchema(SECTION_FALLBACK);
+
+    function normaliseChecklistConfig(items) {
+      if (items && typeof items === "object" && !Array.isArray(items)) {
+        if (Array.isArray(items.items)) return normaliseChecklistConfig(items.items);
+      }
+      if (!Array.isArray(items)) return [];
+      return items.map(item => {
+        if (!item) return null;
+        const id = item.id != null ? String(item.id).trim() : "";
+        if (!id) return null;
+        return {
+          id,
+          group: item.group || item.category || "Checklist",
+          section: item.section || item.sectionName || "",
+          label: item.label || item.name || id,
+          hint: item.hint || item.description || ""
+        };
+      }).filter(Boolean);
+    }
+
+    function cloneSections(sections) {
+      try {
+        return JSON.parse(JSON.stringify(sections || []));
+      } catch (_) {
+        return Array.isArray(sections) ? sections.slice() : [];
+      }
+    }
+
+    function refreshUiFromState() {
+      customerSummaryEl.textContent = lastCustomerSummary || "(none)";
+      const processed = postProcessSections(cloneSections(lastRawSections || []));
+      lastSections = processed;
+      sectionsListEl.innerHTML = "";
+      if (processed.length) {
+        processed.forEach(sec => {
+          const div = document.createElement("div");
+          div.className = "section-item";
+          div.innerHTML = `
+            <h4>${sec.section}</h4>
+            <pre>${sec.plainText || ""}</pre>
+            <p class="small" style="margin-top:3px;">${sec.naturalLanguage || ""}</p>
+          `;
+          sectionsListEl.appendChild(div);
+        });
+      } else {
+        sectionsListEl.innerHTML = `<span class="small">No sections yet.</span>`;
+      }
+      renderPartsList(lastMaterials);
+      renderChecklist(clarificationsEl, lastCheckedItems, lastMissingInfo);
+    }
+
+    async function loadStaticConfig() {
+      try {
+        const res = await fetch('depot.output.schema.json', { cache: 'no-store' });
+        if (res.ok) {
+          const data = await res.json();
+          applySectionSchema(data.sections || data);
+        }
+      } catch (err) {
+        console.warn('Depot schema load failed', err);
+      }
+
+      try {
+        const res = await fetch('checklist.config.json', { cache: 'no-store' });
+        if (res.ok) {
+          const data = await res.json();
+          const raw = data.items || data;
+          CHECKLIST_SOURCE = Array.isArray(raw) ? raw : [];
+          CHECKLIST_ITEMS = normaliseChecklistConfig(CHECKLIST_SOURCE);
+        }
+      } catch (err) {
+        console.warn('Checklist config load failed', err);
+      }
+
+      refreshUiFromState();
+    }
+
+    loadStaticConfig();
+
     function ensureSemi(s){ s=String(s||"").trim(); return s ? (s.endsWith(";")?s:s+";") : s; }
     function splitGeneralClauses(text){
       return String(text||"")
@@ -464,22 +627,22 @@
       return bulletify(splitGeneralClauses(plain));
     }
 
-    function renderPartsList(parts) {
-      lastParts = parts || [];
+    function renderPartsList(materials) {
+      lastMaterials = Array.isArray(materials) ? materials.slice() : [];
       if (!partsListEl) return;
 
       partsListEl.innerHTML = "";
-      if (!lastParts.length) {
+      if (!lastMaterials.length) {
         partsListEl.innerHTML = `<span class="small">No suggestions yet.</span>`;
         return;
       }
 
       // group by category
       const byCategory = new Map();
-      lastParts.forEach(p => {
-        const cat = p.category || "Other";
+      lastMaterials.forEach(item => {
+        const cat = item.category || "Misc";
         const arr = byCategory.get(cat) || [];
-        arr.push(p);
+        arr.push(item);
         byCategory.set(cat, arr);
       });
 
@@ -499,171 +662,17 @@
         items.forEach(p => {
           const li = document.createElement("li");
           li.style.fontSize = ".68rem";
-          li.textContent = p.text;
+          const detail = [];
+          if (p.item) detail.push(p.item);
+          if (p.qty && Number(p.qty) !== 1) detail.push(`× ${p.qty}`);
+          if (p.notes) detail.push(p.notes);
+          li.textContent = detail.length ? detail.join(" — ") : (p.item || "Item");
           ul.appendChild(li);
         });
 
         partsListEl.appendChild(ul);
       });
     }
-
-    function updatePartsSuggestions(transcript, sections) {
-      const allSectionsText = (sections || [])
-        .map(sec => `${sec.section}: ${sec.plainText || ""} ${sec.naturalLanguage || ""}`)
-        .join(" ");
-      const raw = (transcript || "") + " " + allSectionsText;
-      const text = raw.replace(/\s+/g, " ").trim();
-      const lower = text.toLowerCase();
-
-      if (!text) {
-        renderPartsList([]);
-        return;
-      }
-
-      const parts = [];
-      const addPart = (category, text) => {
-        if (!text) return;
-        parts.push({ category, text });
-      };
-
-      // --- Boiler suggestion ---
-      let boilerType = null;
-      if (/storage combi|highflow/i.test(text)) {
-        boilerType = "storage combi / highflow boiler";
-      } else if (/\b(combi|combination)\b/i.test(text)) {
-        boilerType = "combi boiler";
-      } else if (/\bsystem boiler\b/i.test(text)) {
-        boilerType = "system boiler";
-      } else if (/\bregular\b|\bheat only\b|\bopen[- ]vented\b/i.test(text)) {
-        boilerType = "heat only / regular boiler";
-      }
-
-      let boilerBrand = null;
-      if (/worcester|greenstar/i.test(lower)) boilerBrand = "Worcester Bosch";
-      else if (/vaillant/i.test(lower)) boilerBrand = "Vaillant";
-      else if (/glow[\s-]?worm|glowworm/i.test(lower)) boilerBrand = "Glow-worm";
-      else if (/ideal/i.test(lower)) boilerBrand = "Ideal";
-      else if (/viessmann/i.test(lower)) boilerBrand = "Viessmann";
-
-      let kwMatch = text.match(/(\d+)\s*kw/i);
-      const boilerSizeKw = kwMatch ? kwMatch[1] : null;
-
-      if (boilerType || boilerBrand || boilerSizeKw) {
-        let desc = "New ";
-        if (boilerBrand) desc += boilerBrand + " ";
-        desc += boilerType || "boiler";
-        if (boilerSizeKw) desc += ` ~${boilerSizeKw} kW`;
-        addPart("Boiler", desc);
-      }
-
-      // --- Cylinder suggestion ---
-      let cylType = null;
-      if (/mixergy/i.test(lower)) {
-        cylType = "Mixergy smart cylinder";
-      } else if (/unvented/i.test(lower)) {
-        cylType = "unvented cylinder";
-      } else if (/vented|header tank|cws tank/i.test(lower)) {
-        cylType = "vented cylinder";
-      } else if (/thermal store|boilermate|thermal battery/i.test(lower)) {
-        cylType = "thermal store";
-      }
-
-      let cylSizeMatch = text.match(/(\d+)\s*(l|litre|liter)s?/i);
-      const cylSizeL = cylSizeMatch ? cylSizeMatch[1] : null;
-
-      if (cylType) {
-        let desc = cylType;
-        if (cylSizeL) desc += ` ~${cylSizeL} L`;
-        addPart("Cylinder", desc);
-      }
-
-      // --- Flue ---
-      const hasFlue = /flue/i.test(text);
-      if (hasFlue) {
-        let flueDesc = "";
-
-        const isVertical = /vertical flue|flue up through (the )?roof/i.test(lower);
-        const isRear = /rear flue|turret rear/i.test(lower);
-        const isSide = /side flue|turret side|through side wall/i.test(lower);
-        const hasPlume = /plume kit|plume management/i.test(lower);
-        const reuse = /reuse flue|re-use flue|keep existing flue/i.test(lower);
-
-        if (reuse) {
-          flueDesc = "Reuse existing flue if compliant and in good condition";
-        } else if (isVertical) {
-          flueDesc = "Vertical flue kit with roof terminal";
-        } else if (isRear || isSide) {
-          flueDesc = "Horizontal flue kit to external wall";
-        } else {
-          flueDesc = "Flue kit to suit boiler position (check orientation on survey)";
-        }
-
-        addPart("Flue", flueDesc);
-
-        if (hasPlume) {
-          addPart("Flue", "Plume management kit (orientation to suit terminal)");
-        }
-      }
-
-      // --- Condensate ---
-      if (/condensate pump/i.test(lower)) {
-        addPart("Condensate", "Condensate pump with pipework and power supply");
-      }
-      if (/condensate.*(under sink|to sink|sink waste)/i.test(lower)) {
-        addPart("Condensate", "Condensate connection into sink waste (check trap and fall)");
-      }
-      if (/external condensate|outside wall.*condensate/i.test(lower)) {
-        addPart("Condensate", "Upgraded external condensate in 32mm with insulation / trace as required");
-      }
-
-      // --- Flush / clean ---
-      const mentionsFlush = /power ?flush|system flush|mains flush/i.test(lower);
-      let radCount = null;
-      const radMatch = text.match(/(\d+)\s*(rads?|radiators?)/i);
-      if (radMatch) radCount = radMatch[1];
-
-      if (mentionsFlush) {
-        let flushDesc = "System power flush";
-        if (radCount) flushDesc += ` for approx ${radCount} radiators`;
-        addPart("System clean", flushDesc);
-      }
-
-      // --- Filter ---
-      const mentionsFilter = /magnetic filter|system filter|dirt filter/i.test(lower);
-      if (mentionsFilter) {
-        let pipeSize = null;
-        const mm22 = text.match(/22\s*mm/i);
-        const mm28 = text.match(/28\s*mm/i);
-        if (mm28) pipeSize = "28mm";
-        else if (mm22) pipeSize = "22mm";
-
-        let filterDesc = "Magnetic system filter";
-        if (pipeSize) filterDesc += ` (${pipeSize})`;
-        addPart("Filter", filterDesc);
-      }
-
-      // --- Controls (Hive etc.) ---
-      if (/hive/i.test(lower)) {
-        addPart("Controls", "Hive smart heating control kit");
-      }
-      if (/nest/i.test(lower)) {
-        addPart("Controls", "Nest smart heating control kit");
-      }
-      if (/wireless stat|wireless thermostat/i.test(lower)) {
-        addPart("Controls", "Wireless room thermostat (location to suit customer)");
-      }
-
-      // --- Safety / extras hints (very light-touch) ---
-      if (/scale reducer|limescale|hard water/i.test(lower)) {
-        addPart("Water treatment", "Scale reducer / limescale protection where appropriate");
-      }
-      if (/lagging|insulation|pipe insulation/i.test(lower)) {
-        addPart("Accessories", "Pipe insulation / lagging for exposed primary and condensate pipework");
-      }
-
-      renderPartsList(parts);
-    }
-
     function postProcessSections(sections) {
       const out = [];
       let boilerControlsPlain = "";
@@ -907,170 +916,48 @@
       return out;
     }
 
-    // Checklist definitions
-    const CHECK_DEFS = [
-      // SYSTEM
-      {
-        id: "sysType",
-        group: "System",
-        section: "System characteristics",
-        label: "Existing & new system type recorded",
-        hint: "Combi / system / regular, location, any cylinder / store.",
-        test(txt) {
-          return /\b(existing|proposed|replace|switching|moving)\b.*\b(combi|combination|system|regular|open[- ]vented|storage combi|highflow)\b/i.test(txt);
-        }
-      },
-      // BOILER & CONTROLS
-      {
-        id: "smartControl",
-        group: "Boiler & controls",
-        section: "New boiler and controls",
-        label: "Smart control offered / status noted",
-        hint: "Hive / Nest / other smart, or that customer is keeping existing controls.",
-        test(txt) {
-          return /hive|nest|smart (control|stat|thermostat)|keep existing (stat|controls)|no smart control/i.test(txt);
-        }
-      },
-      {
-        id: "filter",
-        group: "Boiler & controls",
-        section: "New boiler and controls",
-        label: "Magnetic / dirt filter discussed",
-        hint: "Either being fitted or explicitly not required.",
-        test(txt) {
-          return /magnetic filter|dirt filter|system filter/i.test(txt);
-        }
-      },
-      {
-        id: "flush",
-        group: "Boiler & controls",
-        section: "New boiler and controls",
-        label: "System clean / flush considered",
-        hint: "Power flush, mains flush, or decision that no flush is needed.",
-        test(txt) {
-          return /power ?flush|system flush|mains flush|no flush required|water looks clean enough/i.test(txt);
-        }
-      },
-      // PIPEWORK & CONDENSATE
-      {
-        id: "gasRun",
-        group: "Pipework & condensate",
-        section: "Pipe work",
-        label: "Gas pipe size / run checked",
-        hint: "Confirmed adequate or noted for upgrade.",
-        test(txt) {
-          return /gas (run|pipe|supply)|22 ?mm gas|15 ?mm gas|upgrade gas/i.test(txt);
-        }
-      },
-      {
-        id: "condensate",
-        group: "Pipework & condensate",
-        section: "Pipe work",
-        label: "Condensate route + freeze risk checked",
-        hint: "Internal vs external, pump, upsizing, or freeze protection.",
-        test(txt) {
-          return /condensate|condense pipe|condensate pump|32 ?mm/i.test(txt);
-        }
-      },
-      // FLUE
-      {
-        id: "flue",
-        group: "Flue",
-        section: "Flue",
-        label: "Flue route / terminal discussed",
-        hint: "Direction, vertical/horizontal, turret, plume kit, clearances.",
-        test(txt) {
-          return /flue|plume kit|terminal|turret|vertical flue|rear flue|side flue/i.test(txt);
-        }
-      },
-      // ACCESS / HEIGHTS
-      {
-        id: "heights",
-        group: "Access / working at height",
-        section: "Working at heights",
-        label: "Access / working at height checked",
-        hint: "Ladders, loft access, tower, boards, headroom.",
-        test(txt) {
-          return /loft|ladder|ladders|steps|tower|scaffold|edge protection|headroom|working at height[s]?/i.test(txt);
-        }
-      },
-      // HAZARDS
-      {
-        id: "hazards",
-        group: "Hazards & site conditions",
-        section: "External hazards",
-        label: "Hazards / asbestos / site risks noted",
-        hint: "Asbestos presence or absence, confined space, pets, trip risks.",
-        test(txt) {
-          return /asbestos|no asbestos|hazard|risk|confined space|unsafe|dogs? on site|aggressive dog/i.test(txt);
-        }
-      },
-      // PARKING / ACCESS
-      {
-        id: "parking",
-        group: "Parking / access",
-        section: "Restrictions to work",
-        label: "Parking / permit / access for van checked",
-        hint: "Driveway, street parking, permit, restrictions.",
-        test(txt) {
-          return /parking|permit|double yellow|no parking|driveway|access (issues)?/i.test(txt);
-        }
-      },
-      // CUSTOMER ACTIONS
-      {
-        id: "customerActions",
-        group: "Customer actions",
-        section: "Customer actions",
-        label: "Customer actions / pre-works recorded",
-        hint: "Cupboards, furniture, decorating, pets, clearing space.",
-        test(txt) {
-          return /cupboard|wardrobe|furniture|decorating|make good|clear access|clear route|customer to/i.test(txt);
-        }
-      }
-    ];
-
-    function computeChecklist(sections, missingInfoFromServer, liveText) {
-      const joinedSections = (sections || [])
-        .map(sec => `${sec.section}: ${sec.plainText || ""} ${sec.naturalLanguage || ""}`)
-        .join(" ");
-
-      const joined = (joinedSections + " " + (liveText || "")).toLowerCase();
-
-      const checklist = CHECK_DEFS.map(def => ({
-        id: def.id,
-        group: def.group,
-        section: def.section,
-        label: def.label,
-        hint: def.hint,
-        done: !!def.test(joined)
-      }));
-
-      const extraQuestions = Array.isArray(missingInfoFromServer) ? missingInfoFromServer : [];
-      return { checklist, extraQuestions };
-    }
-
-    function renderChecklist(container, sections, missingInfoFromServer, liveText) {
-      const { checklist, extraQuestions } = computeChecklist(sections, missingInfoFromServer, liveText || "");
+    function renderChecklist(container, checkedIds, missingInfoFromServer) {
+      const checkedSet = new Set((checkedIds || []).map(String));
+      const questions = Array.isArray(missingInfoFromServer) ? missingInfoFromServer : [];
       container.innerHTML = "";
 
-      if (!checklist.length && !extraQuestions.length) {
+      if (!CHECKLIST_ITEMS.length && !checkedSet.size && !questions.length) {
         container.innerHTML = `<span class="small">No checklist items.</span>`;
         return;
       }
 
       const byGroup = new Map();
-      checklist.forEach(item => {
-        const arr = byGroup.get(item.group) || [];
-        arr.push(item);
-        byGroup.set(item.group, arr);
+      CHECKLIST_ITEMS.forEach(item => {
+        const group = item.group || "Checklist";
+        const arr = byGroup.get(group) || [];
+        arr.push({
+          id: item.id,
+          section: item.section || "",
+          label: item.label || item.id,
+          hint: item.hint || "",
+          done: checkedSet.has(item.id)
+        });
+        byGroup.set(group, arr);
       });
+
+      const knownIds = new Set(CHECKLIST_ITEMS.map(item => item.id));
+      const orphanIds = [...checkedSet].filter(id => !knownIds.has(id));
+      if (orphanIds.length) {
+        const arr = orphanIds.map(id => ({ id, section: "", label: id, hint: "", done: true }));
+        byGroup.set("Other", (byGroup.get("Other") || []).concat(arr));
+      }
+
+      if (!byGroup.size && !questions.length) {
+        container.innerHTML = `<span class="small">No checklist items.</span>`;
+        return;
+      }
 
       [...byGroup.entries()].forEach(([groupName, items]) => {
         const header = document.createElement("div");
         header.className = "check-group-title";
         header.innerHTML = `
           <span>${groupName}</span>
-          <span>Depot: ${items[0].section || ""}</span>
+          <span>${items[0].section || ""}</span>
         `;
         container.appendChild(header);
 
@@ -1082,7 +969,7 @@
             <span class="label">
               ${item.label}
               <span class="hint">
-                ${item.hint}
+                ${item.hint || ""}
                 ${item.section ? ` • <strong>${item.section}</strong>` : ""}
               </span>
             </span>
@@ -1091,14 +978,14 @@
         });
       });
 
-      if (extraQuestions.length) {
+      if (questions.length) {
         const sep = document.createElement("div");
         sep.className = "small";
         sep.style.marginTop = "6px";
         sep.textContent = "Additional questions:";
         container.appendChild(sep);
 
-        extraQuestions.forEach(q => {
+        questions.forEach(q => {
           const div = document.createElement("div");
           div.className = "clar-chip";
           div.innerHTML = `<strong>${q.target || "engineer"}</strong> ${q.question}`;
@@ -1108,34 +995,14 @@
     }
 
     function handleBrainResponse(data) {
-      customerSummaryEl.textContent = data.customerSummary || data.summary || "(none)";
-
-      sectionsListEl.innerHTML = "";
-      let sections =
-        data.depotNotes?.sections ||
-        data.depotSectionsSoFar ||
-        [];
-      sections = postProcessSections(sections);
-      lastSections = sections;
-
-      if (sections.length) {
-        sections.forEach(sec => {
-          const div = document.createElement("div");
-          div.className = "section-item";
-          div.innerHTML = `
-            <h4>${sec.section}</h4>
-            <pre>${sec.plainText || ""}</pre>
-            <p class="small" style="margin-top:3px;">${sec.naturalLanguage || ""}</p>
-          `;
-          sectionsListEl.appendChild(div);
-        });
-      } else {
-        sectionsListEl.innerHTML = `<span class="small">No sections yet.</span>`;
-      }
-
-      // Update parts suggestions and checklist based on latest view of job
-      updatePartsSuggestions(transcriptInput.value, sections);
-      renderChecklist(clarificationsEl, sections, data.missingInfo || [], transcriptInput.value);
+      const safe = data && typeof data === "object" ? data : {};
+      lastCustomerSummary = safe.customerSummary || safe.summary || "(none)";
+      const rawSections = safe.sections || safe.depotNotes?.sections || safe.depotSectionsSoFar || [];
+      lastRawSections = cloneSections(rawSections);
+      lastCheckedItems = Array.isArray(safe.checkedItems) ? safe.checkedItems.slice() : [];
+      lastMaterials = Array.isArray(safe.materials) ? safe.materials.slice() : [];
+      lastMissingInfo = Array.isArray(safe.missingInfo) ? safe.missingInfo.slice() : [];
+      refreshUiFromState();
     }
 
     async function sendText() {
@@ -1148,7 +1015,9 @@
           alreadyCaptured: [],
           expectedSections: STRUCTURE_HINTS.expectedSections,
           sectionHints: STRUCTURE_HINTS.sectionHints,
-          forceStructured: STRUCTURE_HINTS.forceStructured
+          forceStructured: STRUCTURE_HINTS.forceStructured,
+          checklistItems: CHECKLIST_SOURCE,
+          depotSections: SECTION_SCHEMA
         });
         const txt = await res.text();
         let data = {};
@@ -1263,8 +1132,7 @@
         const fullText = segments.map(s => s.text).join(". ") + (interimText ? " " + interimText.trim() : "");
         transcriptInput.value = fullText.trim();
 
-        updatePartsSuggestions(transcriptInput.value, lastSections || []);
-        renderChecklist(clarificationsEl, lastSections || [], [], transcriptInput.value);
+        renderChecklist(clarificationsEl, lastCheckedItems, lastMissingInfo);
       };
 
       recognition.onerror = (e) => {
@@ -1292,7 +1160,6 @@
       }
 
       const newSegs = segments.slice(lastSentIndex);
-      const chunkText = newSegs.map(s => s.text).join(". ");
       const fullTranscript = segments.map(s => s.text).join(". ");
 
       try {
@@ -1302,7 +1169,9 @@
           alreadyCaptured: [],
           expectedSections: STRUCTURE_HINTS.expectedSections,
           sectionHints: STRUCTURE_HINTS.sectionHints,
-          forceStructured: STRUCTURE_HINTS.forceStructured
+          forceStructured: STRUCTURE_HINTS.forceStructured,
+          checklistItems: CHECKLIST_SOURCE,
+          depotSections: SECTION_SCHEMA
         });
         const txt = await res.text();
         let data = {};
@@ -1543,7 +1412,7 @@
         try { data = JSON.parse(txt); } catch (_) {}
         handleBrainResponse(data);
 
-        renderChecklist(clarificationsEl, lastSections || [], [], fullTranscript);
+        renderChecklist(clarificationsEl, lastCheckedItems, lastMissingInfo);
         setStatus("Session loaded.");
       } catch (err) {
         console.error(err);
@@ -1554,12 +1423,11 @@
     };
 
     transcriptInput.addEventListener("input", () => {
-      updatePartsSuggestions(transcriptInput.value, lastSections || []);
-      renderChecklist(clarificationsEl, lastSections || [], [], transcriptInput.value);
+      renderChecklist(clarificationsEl, lastCheckedItems, lastMissingInfo);
     });
 
     // initial checklist
-    renderChecklist(clarificationsEl, [], [], transcriptInput.value);
+    renderChecklist(clarificationsEl, [], []);
     setStatus("Idle");
   </script>
 </body>

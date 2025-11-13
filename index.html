@@ -223,6 +223,20 @@
       gap: 8px;
       align-items: center;
     }
+    .settings-link {
+      margin-left: auto;
+      color: #fff;
+      font-size: .7rem;
+      font-weight: 600;
+      text-decoration: none;
+      padding: 6px 12px;
+      border: 1px solid rgba(255,255,255,.3);
+      border-radius: 999px;
+      transition: background .2s ease;
+    }
+    .settings-link:hover {
+      background: rgba(255,255,255,.12);
+    }
   </style>
 </head>
 <body>
@@ -237,6 +251,7 @@
       <button id="saveSessionBtn">Save session file</button>
       <button id="loadSessionBtn">Load session file</button>
       <button id="importAudioBtn">Use audio file</button>
+      <a class="settings-link" href="settings.html">Settings</a>
     </div>
   </header>
 
@@ -311,7 +326,10 @@
   <input id="loadSessionInput" type="file" accept=".depotvoice.json,application/json" style="display:none;">
   <input id="importAudioInput" type="file" accept="audio/*" style="display:none;">
 
-  <script>
+  <script type="module">
+    import { loadChecklistConfig, loadDepotSchema, loadChecklistState, saveChecklistState } from "./src/app/state.js";
+    import { initDepotRenderers, refreshDepotNotesFromChecklist } from "./src/app/renderDepot.js";
+
     // hard-code your worker so it isn't visible
     const WORKER_URL = "https://survey-brain-api.martinbibb.workers.dev";
 
@@ -330,10 +348,29 @@
     const importAudioBtn = document.getElementById('importAudioBtn');
     const importAudioInput = document.getElementById('importAudioInput');
     const partsListEl = document.getElementById('partsList');
-    let lastParts = [];
+
+    const checklistConfig = loadChecklistConfig();
+    const depotSchema = loadDepotSchema();
+    let checklistState = loadChecklistState();
+
+    const SECTION_ORDER = {};
+    const sectionOrderList = depotSchema?.sectionsOrder || checklistConfig?.sectionsOrder || [];
+    sectionOrderList.forEach((name, idx) => {
+      SECTION_ORDER[name] = idx + 1;
+    });
+
+    initDepotRenderers({ sectionsEl: sectionsListEl, materialsEl: partsListEl });
 
     let mediaRecorder, chunks = [];
     let lastSections = [];
+    let lastMaterials = [];
+    let lastExtraQuestions = [];
+
+    const initialOutput = refreshDepotNotesFromChecklist(checklistState);
+    if (initialOutput) {
+      lastSections = initialOutput.sections || [];
+      lastMaterials = initialOutput.materials || [];
+    }
 
     // Auto notes session state
     const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition || null;
@@ -347,25 +384,8 @@
     let chunkIntervalMs = 60000;
     let consecutiveFailures = 0;
 
-    const SECTION_ORDER = {
-      "Needs": 1,
-      "Working at heights": 2,
-      "System characteristics": 3,
-      "Components that require assistance": 4,
-      "Restrictions to work": 5,
-      "External hazards": 6,
-      "Delivery notes": 7,
-      "Office notes": 8,
-      "New boiler and controls": 9,
-      "Flue": 10,
-      "Pipe work": 11,
-      "Disruption": 12,
-      "Customer actions": 13,
-      "Future plans": 14
-    };
-
     const STRUCTURE_HINTS = {
-      expectedSections: Object.keys(SECTION_ORDER),
+      expectedSections: sectionOrderList.length ? sectionOrderList : Object.keys(SECTION_ORDER),
       sectionHints: {
         "hive": "New boiler and controls",
         "smart control": "New boiler and controls",
@@ -414,655 +434,21 @@
       return res;
     }
 
-    function ensureSemi(s){ s=String(s||"").trim(); return s ? (s.endsWith(";")?s:s+";") : s; }
-    function splitGeneralClauses(text){
-      return String(text||"")
-        .split(/[\n;]+/)
-        .map(s => s.trim())
-        .filter(Boolean);
-    }
-    function splitPipeRoute(text){
-      const cues = [
-        "from ","off the ","pick up ","drop to ","under ","behind ","through ",
-        "along ","across ","continue ","then ","past ","to ","into ","up ",
-        "come up ","rise in ","down ","fall to "
-      ];
-      const rx = new RegExp("(?:;|—|–|,)|\\b(" + cues.map(c=>c.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")).join("|") + ")", "ig");
-      const bits=[]; let cur="";
-      (" "+String(text||"").replace(/\s+/g," ").trim()+" ").split(rx).forEach(ch=>{
-        if (!ch) return;
-        const isCue = cues.some(c=>ch.toLowerCase().startsWith(c.trim()));
-        if (isCue && cur.trim()){ bits.push(cur.trim()); cur=ch; } else { cur += ch; }
-      });
-      if (cur.trim()) bits.push(cur.trim());
-      return bits.map(s=>s.replace(/^and\s+/i,"").trim()).filter(Boolean);
-    }
-    function stripSequencingPreamble(line){
-      let s = String(line||"").trim();
-      s = s
-        .replace(/^(then|next|first|second|after|before|finally|so)\b[:,\s-]*/i, "")
-        .replace(/^(we(?:'|’)ll|we will|i(?:'|’)ll|engineer will|installer will|we need to|need to|we can|we should)\b[:,\s-]*/i, "")
-        .replace(/^(please|note|recommend(?:ed)? to)\b[:,\s-]*/i, "");
-      s = s.replace(/\bwill need to\b/gi, "required to");
-      return s.trim();
-    }
-    function bulletify(lines){
-      const out=[];
-      for (let raw of lines){
-        const t = stripSequencingPreamble(raw);
-        if (!t) continue;
-        out.push("• " + ensureSemi(t));
-      }
-      return out.join("\n");
-    }
-    function formatPlainTextForSection(section, plain){
-      if (!plain) return "";
-      if (section === "Pipe work"){
-        const steps = splitPipeRoute(plain);
-        if (steps.length) return bulletify(steps);
-      }
-      return bulletify(splitGeneralClauses(plain));
-    }
-
-    function renderPartsList(parts) {
-      lastParts = parts || [];
-      if (!partsListEl) return;
-
-      partsListEl.innerHTML = "";
-      if (!lastParts.length) {
-        partsListEl.innerHTML = `<span class="small">No suggestions yet.</span>`;
-        return;
-      }
-
-      // group by category
-      const byCategory = new Map();
-      lastParts.forEach(p => {
-        const cat = p.category || "Other";
-        const arr = byCategory.get(cat) || [];
-        arr.push(p);
-        byCategory.set(cat, arr);
-      });
-
-      byCategory.forEach((items, cat) => {
-        const h = document.createElement("div");
-        h.className = "small";
-        h.style.fontWeight = "600";
-        h.style.margin = "4px 0 2px";
-        h.textContent = cat;
-        partsListEl.appendChild(h);
-
-        const ul = document.createElement("ul");
-        ul.style.margin = "0 0 4px 14px";
-        ul.style.padding = "0";
-        ul.style.listStyle = "disc";
-
-        items.forEach(p => {
-          const li = document.createElement("li");
-          li.style.fontSize = ".68rem";
-          li.textContent = p.text;
-          ul.appendChild(li);
-        });
-
-        partsListEl.appendChild(ul);
-      });
-    }
-
-    function updatePartsSuggestions(transcript, sections) {
-      const allSectionsText = (sections || [])
-        .map(sec => `${sec.section}: ${sec.plainText || ""} ${sec.naturalLanguage || ""}`)
-        .join(" ");
-      const raw = (transcript || "") + " " + allSectionsText;
-      const text = raw.replace(/\s+/g, " ").trim();
-      const lower = text.toLowerCase();
-
-      if (!text) {
-        renderPartsList([]);
-        return;
-      }
-
-      const parts = [];
-      const addPart = (category, text) => {
-        if (!text) return;
-        parts.push({ category, text });
-      };
-
-      // --- Boiler suggestion ---
-      let boilerType = null;
-      if (/storage combi|highflow/i.test(text)) {
-        boilerType = "storage combi / highflow boiler";
-      } else if (/\b(combi|combination)\b/i.test(text)) {
-        boilerType = "combi boiler";
-      } else if (/\bsystem boiler\b/i.test(text)) {
-        boilerType = "system boiler";
-      } else if (/\bregular\b|\bheat only\b|\bopen[- ]vented\b/i.test(text)) {
-        boilerType = "heat only / regular boiler";
-      }
-
-      let boilerBrand = null;
-      if (/worcester|greenstar/i.test(lower)) boilerBrand = "Worcester Bosch";
-      else if (/vaillant/i.test(lower)) boilerBrand = "Vaillant";
-      else if (/glow[\s-]?worm|glowworm/i.test(lower)) boilerBrand = "Glow-worm";
-      else if (/ideal/i.test(lower)) boilerBrand = "Ideal";
-      else if (/viessmann/i.test(lower)) boilerBrand = "Viessmann";
-
-      let kwMatch = text.match(/(\d+)\s*kw/i);
-      const boilerSizeKw = kwMatch ? kwMatch[1] : null;
-
-      if (boilerType || boilerBrand || boilerSizeKw) {
-        let desc = "New ";
-        if (boilerBrand) desc += boilerBrand + " ";
-        desc += boilerType || "boiler";
-        if (boilerSizeKw) desc += ` ~${boilerSizeKw} kW`;
-        addPart("Boiler", desc);
-      }
-
-      // --- Cylinder suggestion ---
-      let cylType = null;
-      if (/mixergy/i.test(lower)) {
-        cylType = "Mixergy smart cylinder";
-      } else if (/unvented/i.test(lower)) {
-        cylType = "unvented cylinder";
-      } else if (/vented|header tank|cws tank/i.test(lower)) {
-        cylType = "vented cylinder";
-      } else if (/thermal store|boilermate|thermal battery/i.test(lower)) {
-        cylType = "thermal store";
-      }
-
-      let cylSizeMatch = text.match(/(\d+)\s*(l|litre|liter)s?/i);
-      const cylSizeL = cylSizeMatch ? cylSizeMatch[1] : null;
-
-      if (cylType) {
-        let desc = cylType;
-        if (cylSizeL) desc += ` ~${cylSizeL} L`;
-        addPart("Cylinder", desc);
-      }
-
-      // --- Flue ---
-      const hasFlue = /flue/i.test(text);
-      if (hasFlue) {
-        let flueDesc = "";
-
-        const isVertical = /vertical flue|flue up through (the )?roof/i.test(lower);
-        const isRear = /rear flue|turret rear/i.test(lower);
-        const isSide = /side flue|turret side|through side wall/i.test(lower);
-        const hasPlume = /plume kit|plume management/i.test(lower);
-        const reuse = /reuse flue|re-use flue|keep existing flue/i.test(lower);
-
-        if (reuse) {
-          flueDesc = "Reuse existing flue if compliant and in good condition";
-        } else if (isVertical) {
-          flueDesc = "Vertical flue kit with roof terminal";
-        } else if (isRear || isSide) {
-          flueDesc = "Horizontal flue kit to external wall";
-        } else {
-          flueDesc = "Flue kit to suit boiler position (check orientation on survey)";
-        }
-
-        addPart("Flue", flueDesc);
-
-        if (hasPlume) {
-          addPart("Flue", "Plume management kit (orientation to suit terminal)");
-        }
-      }
-
-      // --- Condensate ---
-      if (/condensate pump/i.test(lower)) {
-        addPart("Condensate", "Condensate pump with pipework and power supply");
-      }
-      if (/condensate.*(under sink|to sink|sink waste)/i.test(lower)) {
-        addPart("Condensate", "Condensate connection into sink waste (check trap and fall)");
-      }
-      if (/external condensate|outside wall.*condensate/i.test(lower)) {
-        addPart("Condensate", "Upgraded external condensate in 32mm with insulation / trace as required");
-      }
-
-      // --- Flush / clean ---
-      const mentionsFlush = /power ?flush|system flush|mains flush/i.test(lower);
-      let radCount = null;
-      const radMatch = text.match(/(\d+)\s*(rads?|radiators?)/i);
-      if (radMatch) radCount = radMatch[1];
-
-      if (mentionsFlush) {
-        let flushDesc = "System power flush";
-        if (radCount) flushDesc += ` for approx ${radCount} radiators`;
-        addPart("System clean", flushDesc);
-      }
-
-      // --- Filter ---
-      const mentionsFilter = /magnetic filter|system filter|dirt filter/i.test(lower);
-      if (mentionsFilter) {
-        let pipeSize = null;
-        const mm22 = text.match(/22\s*mm/i);
-        const mm28 = text.match(/28\s*mm/i);
-        if (mm28) pipeSize = "28mm";
-        else if (mm22) pipeSize = "22mm";
-
-        let filterDesc = "Magnetic system filter";
-        if (pipeSize) filterDesc += ` (${pipeSize})`;
-        addPart("Filter", filterDesc);
-      }
-
-      // --- Controls (Hive etc.) ---
-      if (/hive/i.test(lower)) {
-        addPart("Controls", "Hive smart heating control kit");
-      }
-      if (/nest/i.test(lower)) {
-        addPart("Controls", "Nest smart heating control kit");
-      }
-      if (/wireless stat|wireless thermostat/i.test(lower)) {
-        addPart("Controls", "Wireless room thermostat (location to suit customer)");
-      }
-
-      // --- Safety / extras hints (very light-touch) ---
-      if (/scale reducer|limescale|hard water/i.test(lower)) {
-        addPart("Water treatment", "Scale reducer / limescale protection where appropriate");
-      }
-      if (/lagging|insulation|pipe insulation/i.test(lower)) {
-        addPart("Accessories", "Pipe insulation / lagging for exposed primary and condensate pipework");
-      }
-
-      renderPartsList(parts);
-    }
-
-    function postProcessSections(sections) {
-      const out = [];
-      let boilerControlsPlain = "";
-      let boilerControlsNL = "";
-      let needsDisruptionFlushNote = false;
-      let pipeWorkPlain = "";
-      let pipeWorkNL = "";
-      const parkingSections = [];
-      const permissionSections = [];
-      const doubleHandedSections = [];
-
-      let heightsPlain = "";
-      let heightsNL = "";
-      let hazardsPlain = "";
-      let hazardsNL = "";
-      let customerPlain = "";
-      let customerNL = "";
-
-      sections.forEach(sec => {
-        const name = sec.section || "";
-        const pt = sec.plainText || "";
-        const nl = sec.naturalLanguage || "";
-        const combined = (pt + " " + nl).toLowerCase();
-
-        const isControl = combined.includes("hive")
-          || combined.includes("smart control")
-          || combined.includes("controller")
-          || combined.includes("pump")
-          || combined.includes("valve");
-
-        const isPipe = combined.includes("condensate")
-          || combined.includes("pipe")
-          || combined.includes("gas run");
-
-        const isPowerFlush = combined.includes("power flush") || combined.includes("powerflush");
-
-        const isParking = combined.includes("parking")
-          || combined.includes("permit")
-          || combined.includes("no parking");
-
-        const isPermission = combined.includes("planning permission")
-          || combined.includes("listed building")
-          || combined.includes("conservation area")
-          || combined.includes("needs permission");
-
-        const isDoubleHanded = combined.includes("double handed")
-          || combined.includes("2 man")
-          || combined.includes("two man")
-          || combined.includes("two engineers")
-          || combined.includes("2 engineers");
-
-        const isHeightsNote =
-          combined.includes("working at height") ||
-          combined.includes("working at heights") ||
-          combined.includes("ladder") ||
-          combined.includes("loft");
-
-        const isHazardsNote =
-          combined.includes("asbestos") ||
-          combined.includes("no safety issues") ||
-          combined.includes("safety issues") ||
-          combined.includes("dogs on site") ||
-          combined.includes("aggressive dog");
-
-        const isCustomerNote =
-          combined.includes("customer to") ||
-          combined.includes("customer will") ||
-          combined.includes("clear route") ||
-          combined.includes("clear access");
-
-        if (isControl) {
-          boilerControlsPlain += pt + " ";
-          boilerControlsNL += nl + " ";
-        } else if (isPipe && name !== "Pipe work") {
-          pipeWorkPlain += pt + " ";
-          pipeWorkNL += nl + " ";
-        } else if (isParking) {
-          parkingSections.push(sec);
-        } else if (isPermission) {
-          permissionSections.push(sec);
-        } else if (isDoubleHanded && name !== "Components that require assistance") {
-          doubleHandedSections.push(sec);
-          out.push(sec);
-        } else {
-          out.push(sec);
-        }
-
-        if (isPowerFlush) {
-          needsDisruptionFlushNote = true;
-        }
-
-        if (isHeightsNote) {
-          heightsPlain += pt + " ";
-          heightsNL += nl + " ";
-        }
-        if (isHazardsNote) {
-          hazardsPlain += pt + " ";
-          hazardsNL += nl + " ";
-        }
-        if (isCustomerNote) {
-          customerPlain += pt + " ";
-          customerNL += nl + " ";
-        }
-      });
-
-      if (boilerControlsPlain.trim().length > 0) {
-        out.push({
-          section: "New boiler and controls",
-          plainText: boilerControlsPlain.trim(),
-          naturalLanguage: boilerControlsNL.trim() || "Boiler and control items to be fitted."
-        });
-      }
-
-      if (pipeWorkPlain.trim().length > 0) {
-        out.push({
-          section: "Pipe work",
-          plainText: pipeWorkPlain.trim(),
-          naturalLanguage: pipeWorkNL.trim() || "Pipework/condensate adjustments are required."
-        });
-      }
-
-      if (parkingSections.length > 0) {
-        const existing = out.find(s => s.section === "Restrictions to work");
-        const parkingPT = parkingSections.map(s => s.plainText || "").join(" ");
-        const parkingNL = parkingSections.map(s => s.naturalLanguage || "").join(" ");
-        if (existing) {
-          existing.plainText = (existing.plainText || "") + " " + parkingPT;
-          existing.naturalLanguage = (existing.naturalLanguage || "") + " " + parkingNL;
-        } else {
-          out.push({
-            section: "Restrictions to work",
-            plainText: parkingPT.trim(),
-            naturalLanguage: parkingNL.trim() || "There are parking/access restrictions at the property."
-          });
-        }
-      }
-
-      if (permissionSections.length > 0) {
-        const existing = out.find(s => s.section === "Office notes");
-        const permPT = permissionSections.map(s => s.plainText || "").join(" ");
-        const permNL = permissionSections.map(s => s.naturalLanguage || "").join(" ");
-        if (existing) {
-          existing.plainText = (existing.plainText || "") + " " + permPT;
-          existing.naturalLanguage = (existing.naturalLanguage || "") + " " + permNL;
-        } else {
-          out.push({
-            section: "Office notes",
-            plainText: permPT.trim(),
-            naturalLanguage: permNL.trim() || "Planning / office action required (listed/conservation/permission)."
-          });
-        }
-      }
-
-      if (doubleHandedSections.length > 0) {
-        const existing = out.find(s => s.section === "Components that require assistance");
-        const dhPT = doubleHandedSections.map(s => s.plainText || "").join(" ");
-        const dhNL = doubleHandedSections.map(s => s.naturalLanguage || "").join(" ");
-        if (existing) {
-          existing.plainText = (existing.plainText || "") + " " + dhPT;
-          existing.naturalLanguage = (existing.naturalLanguage || "") + " " + dhNL;
-        } else {
-          out.push({
-            section: "Components that require assistance",
-            plainText: dhPT.trim(),
-            naturalLanguage: dhNL.trim() || "A two-person lift / additional engineer is required."
-          });
-        }
-      }
-
-      if (needsDisruptionFlushNote) {
-        const existing = out.find(s => s.section === "Disruption");
-        const addPT = "✅ Power flush to be carried out | Allow extra time and clear access;";
-        const addNL = "A power flush will be carried out, so extra time and access are needed.";
-        if (existing) {
-          existing.plainText = (existing.plainText || "") + " " + addPT;
-          existing.naturalLanguage = (existing.naturalLanguage || "") + " " + addNL;
-        } else {
-          out.push({
-            section: "Disruption",
-            plainText: addPT,
-            naturalLanguage: addNL
-          });
-        }
-      }
-
-      if (heightsPlain.trim().length > 0) {
-        const existing = out.find(s => s.section === "Working at heights");
-        if (existing) {
-          existing.plainText = (existing.plainText || "") + " " + heightsPlain.trim();
-          existing.naturalLanguage = (existing.naturalLanguage || "") + " " + (heightsNL.trim() || "Working at height requirements / notes.");
-        } else {
-          out.push({
-            section: "Working at heights",
-            plainText: heightsPlain.trim(),
-            naturalLanguage: heightsNL.trim() || "Working at height requirements / notes."
-          });
-        }
-      }
-
-      if (hazardsPlain.trim().length > 0) {
-        const existing = out.find(s => s.section === "External hazards");
-        if (existing) {
-          existing.plainText = (existing.plainText || "") + " " + hazardsPlain.trim();
-          existing.naturalLanguage = (existing.naturalLanguage || "") + " " + (hazardsNL.trim() || "Site hazards / asbestos / safety notes.");
-        } else {
-          out.push({
-            section: "External hazards",
-            plainText: hazardsPlain.trim(),
-            naturalLanguage: hazardsNL.trim() || "Site hazards / asbestos / safety notes."
-          });
-        }
-      }
-
-      if (customerPlain.trim().length > 0) {
-        const existing = out.find(s => s.section === "Customer actions");
-        if (existing) {
-          existing.plainText = (existing.plainText || "") + " " + customerPlain.trim();
-          existing.naturalLanguage = (existing.naturalLanguage || "") + " " + (customerNL.trim() || "Customer to complete these actions before installation.");
-        } else {
-          out.push({
-            section: "Customer actions",
-            plainText: customerPlain.trim(),
-            naturalLanguage: customerNL.trim() || "Customer to complete these actions before installation."
-          });
-        }
-      }
-
-      out.sort((a, b) => {
-        const oa = SECTION_ORDER[a.section] || 999;
-        const ob = SECTION_ORDER[b.section] || 999;
-        return oa - ob;
-      });
-
-      // Bulletify for display
-      out.forEach(sec => {
-        if (sec.plainText) {
-          sec.plainText = formatPlainTextForSection(sec.section, sec.plainText);
-        }
-      });
-
-      return out;
-    }
-
-    // Checklist definitions
-    const CHECK_DEFS = [
-      // SYSTEM
-      {
-        id: "sysType",
-        group: "System",
-        section: "System characteristics",
-        label: "Existing & new system type recorded",
-        hint: "Combi / system / regular, location, any cylinder / store.",
-        test(txt) {
-          return /\b(existing|proposed|replace|switching|moving)\b.*\b(combi|combination|system|regular|open[- ]vented|storage combi|highflow)\b/i.test(txt);
-        }
-      },
-      // BOILER & CONTROLS
-      {
-        id: "smartControl",
-        group: "Boiler & controls",
-        section: "New boiler and controls",
-        label: "Smart control offered / status noted",
-        hint: "Hive / Nest / other smart, or that customer is keeping existing controls.",
-        test(txt) {
-          return /hive|nest|smart (control|stat|thermostat)|keep existing (stat|controls)|no smart control/i.test(txt);
-        }
-      },
-      {
-        id: "filter",
-        group: "Boiler & controls",
-        section: "New boiler and controls",
-        label: "Magnetic / dirt filter discussed",
-        hint: "Either being fitted or explicitly not required.",
-        test(txt) {
-          return /magnetic filter|dirt filter|system filter/i.test(txt);
-        }
-      },
-      {
-        id: "flush",
-        group: "Boiler & controls",
-        section: "New boiler and controls",
-        label: "System clean / flush considered",
-        hint: "Power flush, mains flush, or decision that no flush is needed.",
-        test(txt) {
-          return /power ?flush|system flush|mains flush|no flush required|water looks clean enough/i.test(txt);
-        }
-      },
-      // PIPEWORK & CONDENSATE
-      {
-        id: "gasRun",
-        group: "Pipework & condensate",
-        section: "Pipe work",
-        label: "Gas pipe size / run checked",
-        hint: "Confirmed adequate or noted for upgrade.",
-        test(txt) {
-          return /gas (run|pipe|supply)|22 ?mm gas|15 ?mm gas|upgrade gas/i.test(txt);
-        }
-      },
-      {
-        id: "condensate",
-        group: "Pipework & condensate",
-        section: "Pipe work",
-        label: "Condensate route + freeze risk checked",
-        hint: "Internal vs external, pump, upsizing, or freeze protection.",
-        test(txt) {
-          return /condensate|condense pipe|condensate pump|32 ?mm/i.test(txt);
-        }
-      },
-      // FLUE
-      {
-        id: "flue",
-        group: "Flue",
-        section: "Flue",
-        label: "Flue route / terminal discussed",
-        hint: "Direction, vertical/horizontal, turret, plume kit, clearances.",
-        test(txt) {
-          return /flue|plume kit|terminal|turret|vertical flue|rear flue|side flue/i.test(txt);
-        }
-      },
-      // ACCESS / HEIGHTS
-      {
-        id: "heights",
-        group: "Access / working at height",
-        section: "Working at heights",
-        label: "Access / working at height checked",
-        hint: "Ladders, loft access, tower, boards, headroom.",
-        test(txt) {
-          return /loft|ladder|ladders|steps|tower|scaffold|edge protection|headroom|working at height[s]?/i.test(txt);
-        }
-      },
-      // HAZARDS
-      {
-        id: "hazards",
-        group: "Hazards & site conditions",
-        section: "External hazards",
-        label: "Hazards / asbestos / site risks noted",
-        hint: "Asbestos presence or absence, confined space, pets, trip risks.",
-        test(txt) {
-          return /asbestos|no asbestos|hazard|risk|confined space|unsafe|dogs? on site|aggressive dog/i.test(txt);
-        }
-      },
-      // PARKING / ACCESS
-      {
-        id: "parking",
-        group: "Parking / access",
-        section: "Restrictions to work",
-        label: "Parking / permit / access for van checked",
-        hint: "Driveway, street parking, permit, restrictions.",
-        test(txt) {
-          return /parking|permit|double yellow|no parking|driveway|access (issues)?/i.test(txt);
-        }
-      },
-      // CUSTOMER ACTIONS
-      {
-        id: "customerActions",
-        group: "Customer actions",
-        section: "Customer actions",
-        label: "Customer actions / pre-works recorded",
-        hint: "Cupboards, furniture, decorating, pets, clearing space.",
-        test(txt) {
-          return /cupboard|wardrobe|furniture|decorating|make good|clear access|clear route|customer to/i.test(txt);
-        }
-      }
-    ];
-
-    function computeChecklist(sections, missingInfoFromServer, liveText) {
-      const joinedSections = (sections || [])
-        .map(sec => `${sec.section}: ${sec.plainText || ""} ${sec.naturalLanguage || ""}`)
-        .join(" ");
-
-      const joined = (joinedSections + " " + (liveText || "")).toLowerCase();
-
-      const checklist = CHECK_DEFS.map(def => ({
-        id: def.id,
-        group: def.group,
-        section: def.section,
-        label: def.label,
-        hint: def.hint,
-        done: !!def.test(joined)
-      }));
-
-      const extraQuestions = Array.isArray(missingInfoFromServer) ? missingInfoFromServer : [];
-      return { checklist, extraQuestions };
-    }
-
-    function renderChecklist(container, sections, missingInfoFromServer, liveText) {
-      const { checklist, extraQuestions } = computeChecklist(sections, missingInfoFromServer, liveText || "");
+    function renderChecklist(container, config, state, extraQuestions = []) {
+      const items = Array.isArray(config?.items) ? config.items : [];
       container.innerHTML = "";
 
-      if (!checklist.length && !extraQuestions.length) {
+      if (!items.length && !extraQuestions.length) {
         container.innerHTML = `<span class="small">No checklist items.</span>`;
         return;
       }
 
       const byGroup = new Map();
-      checklist.forEach(item => {
-        const arr = byGroup.get(item.group) || [];
+      items.forEach(item => {
+        const groupName = item.group || "Checklist";
+        const arr = byGroup.get(groupName) || [];
         arr.push(item);
-        byGroup.set(item.group, arr);
+        byGroup.set(groupName, arr);
       });
 
       [...byGroup.entries()].forEach(([groupName, items]) => {
@@ -1070,23 +456,26 @@
         header.className = "check-group-title";
         header.innerHTML = `
           <span>${groupName}</span>
-          <span>Depot: ${items[0].section || ""}</span>
+          <span>Depot: ${items[0].depotSection || ""}</span>
         `;
         container.appendChild(header);
 
         items.forEach(item => {
+          const done = !!(state?.[item.id]?.checked);
           const div = document.createElement("div");
-          div.className = "clar-chip checklist-item" + (item.done ? " done" : "");
+          div.className = "clar-chip checklist-item" + (done ? " done" : "");
           div.innerHTML = `
-            <span class="icon">${item.done ? "✅" : "⭕"}</span>
+            <span class="icon">${done ? "✅" : "⭕"}</span>
             <span class="label">
               ${item.label}
               <span class="hint">
-                ${item.hint}
-                ${item.section ? ` • <strong>${item.section}</strong>` : ""}
+                ${item.hint || ""}
+                ${item.depotSection ? ` • <strong>${item.depotSection}</strong>` : ""}
               </span>
             </span>
           `;
+          div.style.cursor = "pointer";
+          div.addEventListener("click", () => toggleChecklistItem(item.id));
           container.appendChild(div);
         });
       });
@@ -1107,35 +496,90 @@
       }
     }
 
+    const CHECKLIST_DETECTORS = {
+      sysType: (txt) => /\b(existing|proposed|replace|switching|moving)\b.*\b(combi|combination|system|regular|open[- ]vented|storage combi|highflow)\b/i.test(txt),
+      smartControl: (txt) => /hive|nest|smart (control|stat|thermostat)|keep existing (stat|controls)|no smart control/i.test(txt),
+      filter: (txt) => /magnetic filter|dirt filter|system filter/i.test(txt),
+      flush: (txt) => /power ?flush|system flush|mains flush|no flush required|water looks clean enough/i.test(txt),
+      gasRun: (txt) => /gas (run|pipe|supply)|22 ?mm gas|15 ?mm gas|upgrade gas/i.test(txt),
+      condensate: (txt) => /condensate|condense pipe|condensate pump|32 ?mm/i.test(txt),
+      flue: (txt) => /flue|plume kit|terminal|turret|vertical flue|rear flue|side flue/i.test(txt),
+      heights: (txt) => /loft|ladder|ladders|steps|tower|scaffold|edge protection|headroom|working at height[s]?/i.test(txt),
+      hazards: (txt) => /asbestos|no asbestos|hazard|risk|confined space|unsafe|dogs? on site|aggressive dog/i.test(txt),
+      parking: (txt) => /parking|permit|double yellow|no parking|driveway|access (issues)?/i.test(txt),
+      customerActions: (txt) => /cupboard|wardrobe|furniture|decorating|make good|clear access|clear route|customer to/i.test(txt)
+    };
+
+    function detectChecklistFromText(text) {
+      const detected = new Set();
+      const joined = String(text || "").toLowerCase();
+      Object.entries(CHECKLIST_DETECTORS).forEach(([id, test]) => {
+        try {
+          if (typeof test === "function" && test(joined)) {
+            detected.add(id);
+          }
+        } catch (err) {
+          console.warn("Checklist detector failed", id, err);
+        }
+      });
+      return detected;
+    }
+
+    function applyDetectedChecklist(detectedIds) {
+      let changed = false;
+      (checklistConfig.items || []).forEach(item => {
+        const prev = checklistState[item.id] || {};
+        const nextChecked = detectedIds.has(item.id) ? true : !!prev.checked;
+        if (!!prev.checked !== nextChecked) {
+          changed = true;
+        }
+        checklistState[item.id] = { ...prev, checked: nextChecked };
+      });
+      if (changed) {
+        saveChecklistState(checklistState);
+      }
+      return changed;
+    }
+
+    function toggleChecklistItem(id) {
+      const prev = checklistState[id] || {};
+      const nextChecked = !prev.checked;
+      checklistState[id] = { ...prev, checked: nextChecked };
+      saveChecklistState(checklistState);
+      const output = refreshDepotNotesFromChecklist(checklistState) || { sections: [], materials: [] };
+      lastSections = output.sections || [];
+      lastMaterials = output.materials || [];
+      renderChecklist(clarificationsEl, checklistConfig, checklistState, lastExtraQuestions);
+    }
+
     function handleBrainResponse(data) {
       customerSummaryEl.textContent = data.customerSummary || data.summary || "(none)";
 
-      sectionsListEl.innerHTML = "";
-      let sections =
-        data.depotNotes?.sections ||
-        data.depotSectionsSoFar ||
-        [];
-      sections = postProcessSections(sections);
-      lastSections = sections;
+      const sectionsFromWorker = data.depotNotes?.sections || data.depotSectionsSoFar || [];
+      const extraQuestions = Array.isArray(data.missingInfo) ? data.missingInfo : [];
 
-      if (sections.length) {
-        sections.forEach(sec => {
-          const div = document.createElement("div");
-          div.className = "section-item";
-          div.innerHTML = `
-            <h4>${sec.section}</h4>
-            <pre>${sec.plainText || ""}</pre>
-            <p class="small" style="margin-top:3px;">${sec.naturalLanguage || ""}</p>
-          `;
-          sectionsListEl.appendChild(div);
+      lastExtraQuestions = extraQuestions;
+
+      const textParts = [];
+      if (transcriptInput.value) textParts.push(transcriptInput.value);
+      if (Array.isArray(sectionsFromWorker)) {
+        sectionsFromWorker.forEach(sec => {
+          textParts.push(sec.section || "");
+          textParts.push(sec.plainText || "");
+          textParts.push(sec.naturalLanguage || "");
         });
-      } else {
-        sectionsListEl.innerHTML = `<span class="small">No sections yet.</span>`;
       }
+      if (data.customerSummary) textParts.push(data.customerSummary);
+      if (data.summary) textParts.push(data.summary);
 
-      // Update parts suggestions and checklist based on latest view of job
-      updatePartsSuggestions(transcriptInput.value, sections);
-      renderChecklist(clarificationsEl, sections, data.missingInfo || [], transcriptInput.value);
+      const detected = detectChecklistFromText(textParts.join(" "));
+      applyDetectedChecklist(detected);
+
+      const output = refreshDepotNotesFromChecklist(checklistState) || { sections: [], materials: [] };
+      lastSections = output.sections || [];
+      lastMaterials = output.materials || [];
+
+      renderChecklist(clarificationsEl, checklistConfig, checklistState, extraQuestions);
     }
 
     async function sendText() {
@@ -1263,8 +707,12 @@
         const fullText = segments.map(s => s.text).join(". ") + (interimText ? " " + interimText.trim() : "");
         transcriptInput.value = fullText.trim();
 
-        updatePartsSuggestions(transcriptInput.value, lastSections || []);
-        renderChecklist(clarificationsEl, lastSections || [], [], transcriptInput.value);
+        const detected = detectChecklistFromText(transcriptInput.value);
+        applyDetectedChecklist(detected);
+        const output = refreshDepotNotesFromChecklist(checklistState) || { sections: [], materials: [] };
+        lastSections = output.sections || [];
+        lastMaterials = output.materials || [];
+        renderChecklist(clarificationsEl, checklistConfig, checklistState, lastExtraQuestions);
       };
 
       recognition.onerror = (e) => {
@@ -1542,8 +990,6 @@
         let data = {};
         try { data = JSON.parse(txt); } catch (_) {}
         handleBrainResponse(data);
-
-        renderChecklist(clarificationsEl, lastSections || [], [], fullTranscript);
         setStatus("Session loaded.");
       } catch (err) {
         console.error(err);
@@ -1554,12 +1000,16 @@
     };
 
     transcriptInput.addEventListener("input", () => {
-      updatePartsSuggestions(transcriptInput.value, lastSections || []);
-      renderChecklist(clarificationsEl, lastSections || [], [], transcriptInput.value);
+      const detected = detectChecklistFromText(transcriptInput.value);
+      applyDetectedChecklist(detected);
+      const output = refreshDepotNotesFromChecklist(checklistState) || { sections: [], materials: [] };
+      lastSections = output.sections || [];
+      lastMaterials = output.materials || [];
+      renderChecklist(clarificationsEl, checklistConfig, checklistState, lastExtraQuestions);
     });
 
     // initial checklist
-    renderChecklist(clarificationsEl, [], [], transcriptInput.value);
+    renderChecklist(clarificationsEl, checklistConfig, checklistState, lastExtraQuestions);
     setStatus("Idle");
   </script>
 </body>

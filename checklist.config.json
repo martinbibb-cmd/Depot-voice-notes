@@ -1,79 +1,83 @@
+feat(checklist): align Survey Brain checklist with real Depot survey tiles
+
+# File: checklist.config.json
+
 [
   {
     "id": "system_type_recorded",
     "group": "System",
     "section": "System characteristics",
     "label": "Existing & new system type recorded",
-    "hint": "Combi / system / regular, location, cylinder or store?"
+    "hint": "Combi / system / regular, location, cylinder / store"
   },
   {
-    "id": "boiler_wb_15ri_reg",
-    "group": "Boiler",
+    "id": "smart_control_offered",
+    "group": "Boiler & controls",
     "section": "New boiler and controls",
-    "label": "Worcester 15Ri regular",
-    "hint": "Like-for-like regular replacement"
+    "label": "Smart control offered / status noted",
+    "hint": "Hive / Nest / other smart, or keeping existing controls"
   },
   {
-    "id": "convert_fully_pumped",
-    "group": "Pipework",
-    "section": "Pipe work",
-    "label": "Convert to fully pumped",
-    "hint": "New pump, wiring, valves"
-  },
-  {
-    "id": "cyl_ov_98l",
-    "group": "Cylinder",
-    "section": "System characteristics",
-    "label": "98L open-vented cylinder",
-    "hint": "Replace existing open-vented cylinder"
-  },
-  {
-    "id": "condensate_to_wm",
-    "group": "Pipework",
-    "section": "Pipe work",
-    "label": "Condensate to washing machine waste",
-    "hint": "Connect condensate into WM waste trap"
-  },
-  {
-    "id": "ladder_flue_access",
-    "group": "Working at heights",
-    "section": "Working at heights",
-    "label": "Ladder access to flue",
-    "hint": "Safe access to terminal"
-  },
-  {
-    "id": "ladder_loft_access",
-    "group": "Working at heights",
-    "section": "Working at heights",
-    "label": "Ladder / loft access required",
-    "hint": "Loft boarding, lighting, headroom"
-  },
-  {
-    "id": "powerflush_and_filter",
-    "group": "System clean",
+    "id": "mag_filter_discussed",
+    "group": "Boiler & controls",
     "section": "New boiler and controls",
-    "label": "Power flush + magnetic filter",
-    "hint": "Flush and fit 22mm magnetic filter"
+    "label": "Magnetic / dirt filter discussed",
+    "hint": "Either being fitted or explicitly not required"
   },
   {
-    "id": "customer_clear_areas",
+    "id": "system_clean_flush_considered",
+    "group": "Boiler & controls",
+    "section": "New boiler and controls",
+    "label": "System clean / flush considered",
+    "hint": "Power flush, mains flush, or decision that no flush is needed"
+  },
+  {
+    "id": "gas_pipe_size_run_checked",
+    "group": "Pipework & condensate",
+    "section": "Pipe work",
+    "label": "Gas pipe size / run checked",
+    "hint": "Confirmed adequate or noted for upgrade"
+  },
+  {
+    "id": "condensate_route_checked",
+    "group": "Pipework & condensate",
+    "section": "Pipe work",
+    "label": "Condensate route + freeze risk checked",
+    "hint": "Internal vs external, pump, upsizing, or freeze protection"
+  },
+  {
+    "id": "flue_route_terminal_discussed",
+    "group": "Flue",
+    "section": "Flue",
+    "label": "Flue route / terminal discussed",
+    "hint": "Direction, horiz/vertical, turret, plume kit, clearances"
+  },
+  {
+    "id": "access_working_at_height_checked",
+    "group": "Access / working at height",
+    "section": "Working at heights",
+    "label": "Access / working at height checked",
+    "hint": "Ladders, loft, tower, boards, headroom"
+  },
+  {
+    "id": "hazards_asbestos_site_risks_noted",
+    "group": "Hazards / site conditions",
+    "section": "External hazards",
+    "label": "Hazards / asbestos / site risks noted",
+    "hint": "Asbestos presence/absence, confined space, pets, trip risks"
+  },
+  {
+    "id": "parking_permit_access_checked",
+    "group": "Parking / access",
+    "section": "Restrictions to work",
+    "label": "Parking / permit / access for van checked",
+    "hint": "Driveway, street parking, permits, restrictions"
+  },
+  {
+    "id": "customer_actions_preworks_recorded",
     "group": "Customer actions",
     "section": "Customer actions",
-    "label": "Customer to clear working areas",
-    "hint": "Cupboards, furniture, access routes"
-  },
-  {
-    "id": "parking_on_road",
-    "group": "Access",
-    "section": "Restrictions to work",
-    "label": "Parking on road / restricted",
-    "hint": "Permit, limited parking or narrow street"
-  },
-  {
-    "id": "no_hazards",
-    "group": "Hazards",
-    "section": "External hazards",
-    "label": "No hazards noted",
-    "hint": "Asbestos, pets, site safety"
+    "label": "Customer actions / pre-works recorded",
+    "hint": "Cupboards, furniture, decorating, pets, clearing space"
   }
 ]

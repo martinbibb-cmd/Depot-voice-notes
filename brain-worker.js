@@ -248,9 +248,14 @@ Always preserve boiler/cylinder make & model exactly as spoken.
     throw new Error("No content from model");
   }
 
+  const trimmedContent = content.trim();
+  if (!trimmedContent) {
+    throw new Error("Model content was empty");
+  }
+
   let jsonOut;
   try {
-    jsonOut = JSON.parse(content);
+    jsonOut = JSON.parse(trimmedContent);
   } catch (err) {
     throw new Error(`Model content was not valid JSON: ${String(err)} :: ${content}`);
   }

@@ -4,6 +4,13 @@ import assert from 'node:assert/strict';
 import worker from '../src/worker.js';
 import depotSchema from '../depot.output.schema.json' assert { type: 'json' };
 
+function extractDefaultSections(schema) {
+  if (schema && typeof schema === 'object' && Array.isArray(schema.sections)) {
+    return schema.sections;
+  }
+  return Array.isArray(schema) ? schema : [];
+}
+
 async function parseJson(response) {
   const text = await response.text();
   try {
@@ -48,6 +55,7 @@ test('POST /text forwards structured payload and normalises model output', async
     globalThis.fetch = originalFetch;
   });
 
+  const defaultSections = extractDefaultSections(depotSchema);
   const requestBody = {
     transcript,
     alreadyCaptured: [{ section: 'Needs', plainText: 'Existing note' }],
@@ -55,7 +63,7 @@ test('POST /text forwards structured payload and normalises model output', async
     sectionHints: { hive: 'New boiler and controls' },
     forceStructured: true,
     checklistItems: [],
-    depotSections: []
+    depotSections: defaultSections
   };
 
   const request = new Request('https://example.com/text', {
@@ -68,7 +76,7 @@ test('POST /text forwards structured payload and normalises model output', async
   assert.equal(response.status, 200);
   const body = await parseJson(response);
 
-  const expectedSectionOrder = depotSchema.map((entry) => entry.name);
+  const expectedSectionOrder = defaultSections.map((entry) => entry.name);
   const expectedSections = expectedSectionOrder.map((name) => {
     if (name === 'New boiler and controls') {
       return {

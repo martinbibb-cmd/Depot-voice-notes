@@ -1,18 +1,17 @@
+import {
+  WORKER_ENDPOINT_STORAGE_KEYS,
+  clearWorkerEndpointOverride
+} from "../app/worker-config.js";
+
 const SECTION_STORAGE_KEY = "depot.sectionSchema";
 const LEGACY_SECTION_STORAGE_KEY = "surveybrain-schema";
 const CHECKLIST_STORAGE_KEY = "depot.checklistConfig";
 const CHECKLIST_CONFIG_URL = "../checklist.config.json";
-const WORKER_URL_STORAGE_KEY = "depot.workerUrl";
 const FUTURE_PLANS_NAME = "Future plans";
 const FUTURE_PLANS_DESCRIPTION = "Notes about any future work or follow-on visits.";
-const DEFAULT_WORKER_URL = "";
 const AUTOSAVE_STORAGE_KEY = "surveyBrainAutosave";
 const LEGACY_SCHEMA_STORAGE_KEY = "depot-output-schema";
 const CHECKLIST_STATE_STORAGE_KEY = "depot-checklist-state";
-const ALT_WORKER_URL_STORAGE_KEY = "depot-worker-url";
-
-let workerInputEl = null;
-let workerStatusEl = null;
 
 function sanitiseSectionSchema(input) {
   const asArray = (value) => {
@@ -169,13 +168,42 @@ function sanitiseChecklistArray(value) {
   return cleaned;
 }
 
+function normaliseSectionOrder(order) {
+  if (!Array.isArray(order)) return [];
+  const normalised = [];
+  const seen = new Set();
+  order.forEach((name) => {
+    const trimmed = typeof name === "string" ? name.trim() : String(name || "").trim();
+    if (!trimmed || seen.has(trimmed)) return;
+    seen.add(trimmed);
+    normalised.push(trimmed);
+  });
+  return normalised;
+}
+
+function normaliseChecklistConfigSource(raw) {
+  const base = {
+    sectionsOrder: [],
+    items: []
+  };
+
+  if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+    base.sectionsOrder = normaliseSectionOrder(raw.sectionsOrder);
+    base.items = sanitiseChecklistArray(raw.items);
+    return base;
+  }
+
+  base.items = sanitiseChecklistArray(raw);
+  return base;
+}
+
 async function loadChecklistConfig() {
-  let defaultConfig = [];
+  let defaultConfig = { sectionsOrder: [], items: [] };
   try {
     const res = await fetch(CHECKLIST_CONFIG_URL, { cache: "no-store" });
     if (res.ok) {
       const data = await res.json();
-      defaultConfig = sanitiseChecklistArray(data);
+      defaultConfig = normaliseChecklistConfigSource(data);
     }
   } catch (err) {
     console.warn("Failed to fetch default checklist", err);
@@ -191,58 +219,22 @@ async function loadChecklistConfig() {
     console.warn("Failed to read checklist override", err);
   }
 
-  const candidate = sanitiseChecklistArray(local);
-  const finalConfig = candidate.length ? candidate : defaultConfig;
+  const candidate = normaliseChecklistConfigSource(local);
+  if (candidate.items.length) {
+    return candidate;
+  }
 
-  return sanitiseChecklistArray(finalConfig);
+  return defaultConfig;
 }
 
 function saveLocalChecklistConfig(value) {
-  const cleaned = sanitiseChecklistArray(value);
+  const config = normaliseChecklistConfigSource(value);
   try {
-    localStorage.setItem(CHECKLIST_STORAGE_KEY, JSON.stringify(cleaned));
+    localStorage.setItem(CHECKLIST_STORAGE_KEY, JSON.stringify(config));
   } catch (err) {
     alert("Unable to save checklist: " + (err?.message || err));
   }
-  return cleaned;
-}
-
-function loadWorkerUrl() {
-  try {
-    const raw = localStorage.getItem(WORKER_URL_STORAGE_KEY);
-    if (!raw) return DEFAULT_WORKER_URL;
-    const trimmed = raw.trim();
-    return trimmed || DEFAULT_WORKER_URL;
-  } catch (_) {
-    return DEFAULT_WORKER_URL;
-  }
-}
-
-function saveWorkerUrl(url) {
-  try {
-    const trimmed = (url || "").trim();
-    if (!trimmed) {
-      localStorage.removeItem(WORKER_URL_STORAGE_KEY);
-    } else {
-      localStorage.setItem(WORKER_URL_STORAGE_KEY, trimmed);
-    }
-  } catch (err) {
-    alert("Unable to save worker URL: " + (err?.message || err));
-  }
-}
-
-function updateWorkerInputPresentation(savedValue) {
-  if (!workerInputEl) return;
-  const defaultPlaceholder = workerInputEl.dataset.placeholderDefault || workerInputEl.getAttribute("placeholder") || "";
-  const savedPlaceholder = workerInputEl.dataset.placeholderSaved || "Worker URL saved locally";
-  const hasSaved = Boolean((savedValue || "").trim());
-  workerInputEl.value = "";
-  workerInputEl.placeholder = hasSaved ? savedPlaceholder : defaultPlaceholder;
-  if (workerStatusEl) {
-    workerStatusEl.textContent = hasSaved
-      ? "A worker URL is saved on this device. Enter a new value to replace it or reset to remove it."
-      : "No worker URL is currently saved. Enter a worker URL to enable Pro transcription.";
-  }
+  return config;
 }
 
 function clearLocalDepotStorage() {
@@ -250,11 +242,10 @@ function clearLocalDepotStorage() {
     SECTION_STORAGE_KEY,
     LEGACY_SECTION_STORAGE_KEY,
     CHECKLIST_STORAGE_KEY,
-    WORKER_URL_STORAGE_KEY,
     AUTOSAVE_STORAGE_KEY,
     LEGACY_SCHEMA_STORAGE_KEY,
     CHECKLIST_STATE_STORAGE_KEY,
-    ALT_WORKER_URL_STORAGE_KEY
+    ...WORKER_ENDPOINT_STORAGE_KEYS
   ];
   try {
     knownKeys.forEach((key) => {
@@ -308,6 +299,12 @@ function clearLocalDepotStorage() {
   } catch (_) {
     // ignore if sessionStorage unavailable
   }
+
+  try {
+    clearWorkerEndpointOverride();
+  } catch (_) {
+    // ignore inability to clear worker override
+  }
 }
 
 async function unregisterServiceWorkers() {
@@ -346,10 +343,6 @@ async function forceReloadApp(button) {
   }
 
   clearLocalDepotStorage();
-  updateWorkerInputPresentation("");
-  if (workerStatusEl) {
-    workerStatusEl.textContent = "Local data cleared. Reloading…";
-  }
 
   await unregisterServiceWorkers();
   await clearAppCaches();
@@ -368,6 +361,7 @@ let checklistArea;
 let checklistEditor;
 let editableChecklist = [];
 let cachedSectionSchema = [];
+let cachedChecklistOrder = [];
 
 function ensureFuturePresence() {
   let idx = editableSchema.findIndex((entry) => entry.name === FUTURE_PLANS_NAME);
@@ -496,6 +490,36 @@ function getSectionNames() {
     .filter(Boolean);
 }
 
+function applyChecklistOrder(orderCandidate) {
+  const schemaNames = getSectionNames();
+  const candidate = normaliseSectionOrder(orderCandidate);
+  const seen = new Set();
+  const order = [];
+
+  schemaNames.forEach((name) => {
+    if (candidate.includes(name) && !seen.has(name)) {
+      order.push(name);
+      seen.add(name);
+    }
+  });
+
+  candidate.forEach((name) => {
+    if (!seen.has(name) && !schemaNames.includes(name)) {
+      order.push(name);
+      seen.add(name);
+    }
+  });
+
+  schemaNames.forEach((name) => {
+    if (!seen.has(name)) {
+      order.push(name);
+      seen.add(name);
+    }
+  });
+
+  cachedChecklistOrder = order;
+}
+
 function setEditableChecklistFromRaw(rawItems) {
   const sectionNames = getSectionNames();
   const fallbackSection = sectionNames[0] || "";
@@ -548,7 +572,13 @@ function getEditableChecklistSnapshot() {
 function updateChecklistTextarea(items) {
   if (!checklistArea) return;
   const payloadSource = Array.isArray(items) ? items : getEditableChecklistSnapshot();
-  const payload = sanitiseChecklistArray(payloadSource);
+  const payloadItems = sanitiseChecklistArray(payloadSource);
+  applyChecklistOrder(cachedChecklistOrder);
+  const order = cachedChecklistOrder.slice();
+  const payload = {
+    sectionsOrder: order,
+    items: payloadItems
+  };
   checklistArea.value = JSON.stringify(payload, null, 2);
 }
 
@@ -777,17 +807,27 @@ function renderChecklistEditor(config, sectionSchema) {
   if (Array.isArray(sectionSchema)) {
     cachedSectionSchema = sectionSchema.filter((entry) => entry && entry.name);
   }
-  if (Array.isArray(config)) {
-    setEditableChecklistFromRaw(config);
+
+  let items = [];
+  if (config && typeof config === "object" && !Array.isArray(config)) {
+    if (Array.isArray(config.items)) {
+      items = config.items;
+    }
+    applyChecklistOrder(config.sectionsOrder);
+  } else if (Array.isArray(config)) {
+    items = config;
+    applyChecklistOrder(cachedChecklistOrder);
+  } else {
+    applyChecklistOrder(cachedChecklistOrder);
   }
+
+  setEditableChecklistFromRaw(items);
   drawChecklistEditor();
 }
 
 async function initSettingsPage() {
   checklistArea = document.getElementById("settings-checklist-json");
   schemaArea = document.getElementById("settings-schema-json");
-  workerInputEl = document.getElementById("settings-worker-url");
-  workerStatusEl = document.getElementById("worker-url-status");
   sectionEditor = document.getElementById("settings-section-editor");
   checklistEditor = document.getElementById("checklist-editor");
   const forceReloadBtn = document.getElementById("btn-force-reload");
@@ -809,10 +849,6 @@ async function initSettingsPage() {
 
   renderChecklistEditor(checklist, cachedSectionSchema);
   updateChecklistTextarea();
-
-  if (workerInputEl) {
-    updateWorkerInputPresentation(loadWorkerUrl());
-  }
 
   document.getElementById("btn-save-schema")?.addEventListener("click", () => {
     try {
@@ -863,7 +899,9 @@ async function initSettingsPage() {
   checklistArea.addEventListener("change", () => {
     try {
       const parsed = JSON.parse(checklistArea.value);
-      setEditableChecklistFromRaw(parsed);
+      const config = normaliseChecklistConfigSource(parsed);
+      applyChecklistOrder(config.sectionsOrder);
+      setEditableChecklistFromRaw(config.items);
       drawChecklistEditor();
       updateChecklistTextarea();
     } catch (err) {
@@ -875,7 +913,8 @@ async function initSettingsPage() {
     try {
       const parsed = JSON.parse(checklistArea.value);
       const saved = saveLocalChecklistConfig(parsed);
-      setEditableChecklistFromRaw(saved);
+      applyChecklistOrder(saved.sectionsOrder);
+      setEditableChecklistFromRaw(saved.items);
       drawChecklistEditor();
       updateChecklistTextarea();
       alert("Checklist config saved (local to this device).");
@@ -891,36 +930,6 @@ async function initSettingsPage() {
     updateChecklistTextarea();
     alert("Checklist reset to defaults.");
   });
-
-  if (workerInputEl) {
-    document.getElementById("btn-save-worker")?.addEventListener("click", () => {
-      const value = workerInputEl.value.trim();
-      if (!value) {
-        saveWorkerUrl("");
-        updateWorkerInputPresentation(loadWorkerUrl());
-        alert("Worker URL cleared – default will be used.");
-        return;
-      }
-      try {
-        const url = new URL(value);
-        if (!/^https?:$/i.test(url.protocol)) {
-          throw new Error("Worker URL must use http or https.");
-        }
-      } catch (err) {
-        alert("Worker URL invalid: " + (err?.message || err));
-        return;
-      }
-      saveWorkerUrl(value);
-      updateWorkerInputPresentation(loadWorkerUrl());
-      alert("Worker URL saved (local to this device).");
-    });
-
-    document.getElementById("btn-reset-worker")?.addEventListener("click", () => {
-      saveWorkerUrl("");
-      updateWorkerInputPresentation(loadWorkerUrl());
-      alert("Worker URL reset to default.");
-    });
-  }
 
   if (forceReloadBtn) {
     forceReloadBtn.addEventListener("click", () => {

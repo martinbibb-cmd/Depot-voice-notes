@@ -1,7 +1,3 @@
-feat(checklist): align Survey Brain checklist with real Depot survey tiles
-
-# File: checklist.config.json
-
 [
   {
     "id": "system_type_recorded",

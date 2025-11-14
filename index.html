@@ -191,6 +191,17 @@
       margin: 0.5rem 1rem;
       font-size: .7rem;
     }
+    #sleep-warning {
+      display: none;
+      margin: 0.5rem 0.8rem 0;
+      background: #fef3c7;
+      border: 1px solid #fcd34d;
+      color: #92400e;
+      font-size: .7rem;
+      padding: 6px 8px;
+      border-radius: 8px;
+      font-weight: 500;
+    }
     /* Settings overlay */
     .settings-overlay {
       position: fixed;
@@ -263,6 +274,7 @@
   </header>
 
   <div id="voice-error"></div>
+  <div id="sleep-warning"></div>
 
   <main>
     <!-- LEFT: transcript + customer summary -->
@@ -386,6 +398,7 @@
     const importAudioInput = document.getElementById("importAudioInput");
     const partsListEl = document.getElementById("partsList");
     const voiceErrorEl = document.getElementById("voice-error");
+    const sleepWarningEl = document.getElementById("sleep-warning");
     const settingsBtn = document.getElementById("settingsBtn");
     const settingsOverlay = document.getElementById("settingsOverlay");
     const closeSettingsBtn = document.getElementById("closeSettingsBtn");
@@ -403,6 +416,8 @@
     let lastCheckedItems = [];
     let lastMissingInfo = [];
     let lastCustomerSummary = "";
+    let wasBackgroundedDuringSession = false;
+    let pauseReason = null;
     let SECTION_SCHEMA = [];
     let SECTION_ORDER = {};
     let CHECKLIST_SOURCE = [];
@@ -425,6 +440,7 @@
     // --- LOCALSTORAGE KEYS ---
     const LS_SCHEMA_KEY = "surveybrain-schema";
     const LS_CHECKLIST_KEY = "surveybrain-checklist";
+    const LS_AUTOSAVE_KEY = "surveyBrainAutosave";
 
     // --- HELPERS ---
     function showVoiceError(message) {
@@ -440,6 +456,16 @@
       if (!voiceErrorEl) return;
       voiceErrorEl.textContent = "";
       voiceErrorEl.style.display = "none";
+    }
+    function showSleepWarning(message) {
+      if (!sleepWarningEl) return;
+      sleepWarningEl.textContent = message;
+      sleepWarningEl.style.display = "block";
+    }
+    function clearSleepWarning() {
+      if (!sleepWarningEl) return;
+      sleepWarningEl.textContent = "";
+      sleepWarningEl.style.display = "none";
     }
     function currentModeLabel() {
       return liveState === "running" || liveState === "paused" ? "Live" : "Manual";
@@ -1038,6 +1064,39 @@
 
     saveSessionBtn.onclick = saveSessionToFile;
 
+    function autoSaveSessionToLocal() {
+      try {
+        const fullTranscript = (transcriptInput.value || "").trim();
+        const hasContent =
+          fullTranscript ||
+          (Array.isArray(lastRawSections) && lastRawSections.length) ||
+          (Array.isArray(lastMaterials) && lastMaterials.length) ||
+          (Array.isArray(lastCheckedItems) && lastCheckedItems.length) ||
+          (Array.isArray(lastMissingInfo) && lastMissingInfo.length) ||
+          (lastCustomerSummary && lastCustomerSummary.trim());
+
+        if (!hasContent) {
+          localStorage.removeItem(LS_AUTOSAVE_KEY);
+          return;
+        }
+
+        const snapshot = {
+          version: 1,
+          savedAt: new Date().toISOString(),
+          fullTranscript,
+          sections: lastRawSections,
+          materials: lastMaterials,
+          checkedItems: lastCheckedItems,
+          missingInfo: lastMissingInfo,
+          customerSummary: lastCustomerSummary
+        };
+
+        localStorage.setItem(LS_AUTOSAVE_KEY, JSON.stringify(snapshot));
+      } catch (err) {
+        console.warn("Auto-save failed", err);
+      }
+    }
+
     importAudioBtn.onclick = () => importAudioInput.click();
     importAudioInput.onchange = async (e) => {
       const file = e.target.files && e.target.files[0];
@@ -1065,6 +1124,7 @@
         lastCustomerSummary = session.customerSummary || "";
         refreshUiFromState();
         setStatus("Session loaded.");
+        clearSleepWarning();
       } catch (err) {
         console.error(err);
         showVoiceError("Could not load session file: " + (err.message || "Unknown error"));
@@ -1164,7 +1224,10 @@
         recognitionStopMode = null;
         if (stopMode === "pause") {
           updateTextareaFromBuffers();
-          setStatus("Paused (live)");
+          const pauseMsg = pauseReason === "background"
+            ? "Paused (app in background)."
+            : "Paused (live)";
+          setStatus(pauseMsg);
           return;
         }
         if (stopMode === "finish") {
@@ -1208,6 +1271,9 @@
         return;
       }
       if (liveState === "running") return;
+      clearSleepWarning();
+      wasBackgroundedDuringSession = false;
+      pauseReason = null;
       committedTranscript = transcriptInput.value.trim();
       interimTranscript = "";
       updateTextareaFromBuffers();
@@ -1232,12 +1298,13 @@
       }
     }
 
-    function togglePauseResumeLive() {
+    function togglePauseResumeLive(reason = null) {
       if (!SpeechRec || !recognition) return;
       if (liveState === "running") {
         liveState = "paused";
         shouldRestartRecognition = false;
         recognitionStopMode = "pause";
+        pauseReason = reason || "manual";
         clearChunkTimer();
         updateLiveControls();
         try {
@@ -1253,6 +1320,8 @@
         recognitionStopMode = null;
         liveState = "running";
         clearVoiceError();
+        clearSleepWarning();
+        pauseReason = null;
         updateLiveControls();
         try {
           recognition.start();
@@ -1272,6 +1341,9 @@
     async function finishLiveSession() {
       clearChunkTimer();
       shouldRestartRecognition = false;
+      pauseReason = null;
+      wasBackgroundedDuringSession = false;
+      clearSleepWarning();
       liveState = "idle";
       interimTranscript = "";
       updateTextareaFromBuffers();
@@ -1463,10 +1535,63 @@
       renderChecklist(clarificationsEl, lastCheckedItems, lastMissingInfo);
     };
 
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) {
+        autoSaveSessionToLocal();
+        if (liveState === "running") {
+          wasBackgroundedDuringSession = true;
+          togglePauseResumeLive("background");
+        }
+      } else {
+        let warningShown = false;
+        const autosaved = localStorage.getItem(LS_AUTOSAVE_KEY);
+        if (autosaved) {
+          try {
+            const snap = JSON.parse(autosaved);
+            if (snap && snap.fullTranscript) {
+              const hasExistingContent =
+                (transcriptInput.value && transcriptInput.value.trim()) ||
+                (Array.isArray(lastRawSections) && lastRawSections.length) ||
+                (Array.isArray(lastMaterials) && lastMaterials.length) ||
+                (Array.isArray(lastCheckedItems) && lastCheckedItems.length) ||
+                (Array.isArray(lastMissingInfo) && lastMissingInfo.length) ||
+                (lastCustomerSummary && lastCustomerSummary.trim());
+              if (!hasExistingContent) {
+                transcriptInput.value = snap.fullTranscript || "";
+                committedTranscript = transcriptInput.value.trim();
+                lastSentTranscript = committedTranscript;
+                lastRawSections = Array.isArray(snap.sections) ? snap.sections : [];
+                lastMaterials = Array.isArray(snap.materials) ? snap.materials : [];
+                lastCheckedItems = Array.isArray(snap.checkedItems) ? snap.checkedItems : [];
+                lastMissingInfo = Array.isArray(snap.missingInfo) ? snap.missingInfo : [];
+                lastCustomerSummary = snap.customerSummary || "";
+                refreshUiFromState();
+              }
+              showSleepWarning(
+                "Phone slept or app went into the background. Live capture was paused. Check the recovered notes and tap Start for a new session or Resume to continue."
+              );
+              warningShown = true;
+            }
+          } catch (err) {
+            console.warn("Failed to parse autosave", err);
+          }
+        }
+
+        if (wasBackgroundedDuringSession && !warningShown) {
+          showSleepWarning(
+            "Phone slept or app went into the background. Live capture was paused. Check the recovered notes and tap Start for a new session or Resume to continue."
+          );
+          wasBackgroundedDuringSession = false;
+        } else if (wasBackgroundedDuringSession) {
+          wasBackgroundedDuringSession = false;
+        }
+      }
+    });
+
     // --- BOOT ---
     sendTextBtn.onclick = sendText;
     if (startLiveBtn) startLiveBtn.onclick = startLiveSession;
-    if (pauseLiveBtn) pauseLiveBtn.onclick = togglePauseResumeLive;
+    if (pauseLiveBtn) pauseLiveBtn.onclick = () => togglePauseResumeLive();
     if (finishLiveBtn) finishLiveBtn.onclick = () => { finishLiveSession(); };
     transcriptInput.addEventListener("input", () => {
       if (liveState !== "running") {
@@ -1480,6 +1605,30 @@
     lastSentTranscript = committedTranscript;
     updateLiveControls();
     setStatus("Idle");
+
+    (function restoreAutosaveOnLoad() {
+      try {
+        const autosaved = localStorage.getItem(LS_AUTOSAVE_KEY);
+        if (!autosaved) return;
+        const snap = JSON.parse(autosaved);
+        if (!snap || !snap.fullTranscript) return;
+
+        transcriptInput.value = snap.fullTranscript || "";
+        committedTranscript = transcriptInput.value.trim();
+        lastSentTranscript = committedTranscript;
+        lastRawSections = Array.isArray(snap.sections) ? snap.sections : [];
+        lastMaterials = Array.isArray(snap.materials) ? snap.materials : [];
+        lastCheckedItems = Array.isArray(snap.checkedItems) ? snap.checkedItems : [];
+        lastMissingInfo = Array.isArray(snap.missingInfo) ? snap.missingInfo : [];
+        lastCustomerSummary = snap.customerSummary || "";
+        refreshUiFromState();
+        showSleepWarning(
+          "Recovered an auto-saved session. Check details, then tap Start for a new visit or Resume to continue."
+        );
+      } catch (err) {
+        console.warn("No valid autosave on load", err);
+      }
+    })();
   </script>
 </body>
 </html>

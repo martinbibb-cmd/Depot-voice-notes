@@ -423,6 +423,11 @@
     let CHECKLIST_SOURCE = [];
     let CHECKLIST_ITEMS = [];
 
+    let mediaRecorder = null;
+    let mediaStream = null;
+    let sessionAudioChunks = [];
+    let lastAudioMime = null;
+
     // Live session speech state
     const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition || null;
     let recognition = null;
@@ -487,6 +492,66 @@
         body: JSON.stringify(body)
       });
       return res;
+    }
+
+    async function startAudioCapture(resetChunks = false) {
+      if (!navigator.mediaDevices || typeof window.MediaRecorder === "undefined") {
+        console.warn("MediaRecorder not supported; audio backup disabled.");
+        return;
+      }
+      if (mediaRecorder && mediaRecorder.state === "recording") {
+        return;
+      }
+      try {
+        if (resetChunks) {
+          sessionAudioChunks = [];
+        } else if (!Array.isArray(sessionAudioChunks)) {
+          sessionAudioChunks = [];
+        }
+        mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const options = window.MediaRecorder.isTypeSupported && window.MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+          ? { mimeType: "audio/webm;codecs=opus" }
+          : undefined;
+        mediaRecorder = new MediaRecorder(mediaStream, options);
+        lastAudioMime = mediaRecorder.mimeType || (options && options.mimeType) || lastAudioMime || "audio/webm";
+        mediaRecorder.ondataavailable = (event) => {
+          if (event.data && event.data.size > 0) {
+            sessionAudioChunks.push(event.data);
+          }
+        };
+        mediaRecorder.onstop = () => {
+          if (mediaStream) {
+            mediaStream.getTracks().forEach((track) => track.stop());
+            mediaStream = null;
+          }
+          mediaRecorder = null;
+        };
+        mediaRecorder.start();
+      } catch (err) {
+        console.error("Audio capture error", err);
+        showSleepWarning("Audio backup could not start; text capture still running.");
+      }
+    }
+
+    function stopAudioCapture() {
+      try {
+        if (mediaRecorder && mediaRecorder.state === "recording") {
+          mediaRecorder.stop();
+        }
+      } catch (err) {
+        console.warn("Error stopping audio capture", err);
+      }
+      if (mediaRecorder && mediaRecorder.state !== "recording") {
+        mediaRecorder = null;
+      }
+      if (mediaStream) {
+        try {
+          mediaStream.getTracks().forEach((track) => track.stop());
+        } catch (trackErr) {
+          console.warn("Failed to stop media tracks", trackErr);
+        }
+        mediaStream = null;
+      }
     }
 
     // --- SECTION / SCHEMA LOADING & NORMALISATION ---
@@ -1029,11 +1094,7 @@
     }
 
     async function saveSessionToFile() {
-      const fullTranscript = transcriptInput.value.trim();
-      if (!fullTranscript) {
-        alert("No transcript yet.");
-        return;
-      }
+      const fullTranscript = transcriptInput.value.trim() || committedTranscript || "";
       const session = {
         version: 1,
         createdAt: new Date().toISOString(),
@@ -1044,6 +1105,18 @@
         missingInfo: lastMissingInfo,
         customerSummary: lastCustomerSummary
       };
+
+      if (sessionAudioChunks && sessionAudioChunks.length > 0) {
+        try {
+          const mime = lastAudioMime || (mediaRecorder && mediaRecorder.mimeType) || "audio/webm";
+          const audioBlob = new Blob(sessionAudioChunks, { type: mime });
+          const base64 = await blobToBase64(audioBlob);
+          session.audioMime = mime;
+          session.audioBase64 = base64;
+        } catch (err) {
+          console.warn("Failed to attach audio to session", err);
+        }
+      }
       const jsonStr = JSON.stringify(session, null, 2);
       const fileBlob = new Blob([jsonStr], { type: "application/json" });
       const defaultName = "depot-voice-session";
@@ -1112,6 +1185,7 @@
       const file = e.target.files && e.target.files[0];
       if (!file) return;
       try {
+        stopAudioCapture();
         const text = await file.text();
         const session = JSON.parse(text);
         transcriptInput.value = session.fullTranscript || "";
@@ -1122,6 +1196,22 @@
         lastCheckedItems = Array.isArray(session.checkedItems) ? session.checkedItems : [];
         lastMissingInfo = Array.isArray(session.missingInfo) ? session.missingInfo : [];
         lastCustomerSummary = session.customerSummary || "";
+        if (session.audioBase64) {
+          try {
+            const mime = session.audioMime || "audio/webm";
+            const audioBlob = base64ToBlob(session.audioBase64, mime);
+            sessionAudioChunks = [audioBlob];
+            lastAudioMime = mime || audioBlob.type || "audio/webm";
+          } catch (audioErr) {
+            console.warn("Failed to restore audio from session", audioErr);
+            sessionAudioChunks = [];
+          }
+        } else {
+          sessionAudioChunks = [];
+          lastAudioMime = null;
+        }
+        mediaStream = null;
+        mediaRecorder = null;
         refreshUiFromState();
         setStatus("Session loaded.");
         clearSleepWarning();
@@ -1215,6 +1305,7 @@
           liveState = "idle";
           updateLiveControls();
           setStatus("Speech error.");
+          stopAudioCapture();
         }
       };
 
@@ -1245,6 +1336,7 @@
             updateLiveControls();
             showVoiceError("Could not restart speech recognition.");
             setStatus("Speech stopped.");
+            stopAudioCapture();
           }
           return;
         }
@@ -1265,7 +1357,7 @@
       }
     }
 
-    function startLiveSession() {
+    async function startLiveSession() {
       if (!SpeechRec || !recognition) {
         showVoiceError("On-device speech recognition not supported in this browser.");
         return;
@@ -1286,6 +1378,7 @@
       updateLiveControls();
       try {
         recognition.start();
+        await startAudioCapture(true);
         setStatus("Listening…");
         scheduleNextChunk();
       } catch (err) {
@@ -1295,6 +1388,7 @@
         updateLiveControls();
         showVoiceError("Couldn't start speech recognition: " + (err.message || "Unknown error"));
         setStatus("Live session unavailable.");
+        stopAudioCapture();
       }
     }
 
@@ -1306,6 +1400,7 @@
         recognitionStopMode = "pause";
         pauseReason = reason || "manual";
         clearChunkTimer();
+        stopAudioCapture();
         updateLiveControls();
         try {
           recognition.stop();
@@ -1325,6 +1420,7 @@
         updateLiveControls();
         try {
           recognition.start();
+          startAudioCapture();
           setStatus("Listening…");
           scheduleNextChunk();
         } catch (err) {
@@ -1334,6 +1430,7 @@
           updateLiveControls();
           showVoiceError("Couldn't resume speech recognition: " + (err.message || "Unknown error"));
           setStatus("Live session unavailable.");
+          stopAudioCapture();
         }
       }
     }
@@ -1349,6 +1446,7 @@
       updateTextareaFromBuffers();
       committedTranscript = transcriptInput.value.trim();
       pendingFinishSend = true;
+      stopAudioCapture();
       updateLiveControls();
       setStatus("Finishing live session…");
       if (SpeechRec && recognition && recognitionActive) {

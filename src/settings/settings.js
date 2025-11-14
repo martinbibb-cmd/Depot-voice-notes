@@ -5,7 +5,7 @@ const CHECKLIST_CONFIG_URL = "../checklist.config.json";
 const WORKER_URL_STORAGE_KEY = "depot.workerUrl";
 const FUTURE_PLANS_NAME = "Future plans";
 const FUTURE_PLANS_DESCRIPTION = "Notes about any future work or follow-on visits.";
-const DEFAULT_WORKER_URL = "https://depot-voice-notes.martinbibb.workers.dev";
+const DEFAULT_WORKER_URL = "";
 
 function sanitiseSectionSchema(input) {
   const asArray = (value) => {

@@ -290,10 +290,13 @@
   <input id="loadSessionInput" type="file" accept=".depotvoice.json,application/json" style="display:none;">
   <input id="importAudioInput" type="file" accept="audio/*" style="display:none;">
 
-  <script>
+  <script type="module">
+    import {
+      loadWorkerEndpoint,
+      isWorkerEndpointStorageKey
+    } from "./src/app/worker-config.js";
+
     // --- CONFIG / STORAGE KEYS ---
-    const DEFAULT_WORKER_URL = "";
-    const WORKER_URL_STORAGE_KEY = "depot.workerUrl";
     const SECTION_STORAGE_KEY = "depot.sectionSchema";
     const LEGACY_SECTION_STORAGE_KEY = "surveybrain-schema";
     const CHECKLIST_STORAGE_KEY = "depot.checklistConfig";
@@ -301,7 +304,7 @@
     const FUTURE_PLANS_NAME = "Future plans";
     const FUTURE_PLANS_DESCRIPTION = "Notes about any future work or follow-on visits.";
 
-    let WORKER_URL = loadStoredWorkerUrl();
+    let WORKER_URL = loadWorkerEndpoint();
 
     // --- ELEMENTS ---
     const sendTextBtn = document.getElementById("sendTextBtn");
@@ -437,16 +440,6 @@
     let pendingFinishSend = false;
 
     // --- HELPERS ---
-    function loadStoredWorkerUrl() {
-      try {
-        const raw = localStorage.getItem(WORKER_URL_STORAGE_KEY);
-        if (raw && raw.trim()) {
-          return raw.trim();
-        }
-      } catch (_) {}
-      return DEFAULT_WORKER_URL;
-    }
-
     function readStoredSectionOverride() {
       const keys = [SECTION_STORAGE_KEY, LEGACY_SECTION_STORAGE_KEY];
       for (let i = 0; i < keys.length; i += 1) {
@@ -851,12 +844,12 @@
       const trimmed = (WORKER_URL || "").trim();
       if (!trimmed) {
         const err = new Error("Worker URL not configured");
-        err.voiceMessage = "Voice AI worker URL not configured. Update it in Settings.";
+        err.voiceMessage = "Voice AI worker URL not configured. Contact your admin.";
         throw err;
       }
       if (!/^https?:\/\//i.test(trimmed)) {
         const err = new Error("Worker URL must start with http:// or https://");
-        err.voiceMessage = "Voice AI worker URL looks invalid. Update it in Settings.";
+        err.voiceMessage = "Voice AI worker URL looks invalid. Contact your admin.";
         throw err;
       }
       return trimmed.replace(/\/$/, "");
@@ -1953,7 +1946,7 @@
     }
 
     async function loadStaticConfig() {
-      WORKER_URL = loadStoredWorkerUrl();
+      WORKER_URL = loadWorkerEndpoint();
       await ensureSchemaIntoState();
       await loadChecklistConfigIntoState();
       refreshUiFromState();
@@ -1966,8 +1959,8 @@
     }
 
     window.addEventListener("storage", (event) => {
-      if (event.key === WORKER_URL_STORAGE_KEY) {
-        WORKER_URL = loadStoredWorkerUrl();
+      if (isWorkerEndpointStorageKey(event.key)) {
+        WORKER_URL = loadWorkerEndpoint();
       }
       if (event.key === SECTION_STORAGE_KEY || event.key === LEGACY_SECTION_STORAGE_KEY) {
         clearCachedSchema();

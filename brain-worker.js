@@ -80,13 +80,6 @@ async function handleText(request, env) {
     ? payload.checklistItems
     : [];
 
-  const depotSectionsRaw = payload.depotSections;
-  const depotSections = Array.isArray(depotSectionsRaw)
-    ? depotSectionsRaw
-    : (depotSectionsRaw && Array.isArray(depotSectionsRaw.sections))
-      ? depotSectionsRaw.sections
-      : [];
-
   const alreadyCaptured = normaliseCapturedSections(payload.alreadyCaptured);
   const expectedSections = normaliseExpectedSections(payload.expectedSections);
   const sectionHints = normaliseSectionHints(payload.sectionHints);
@@ -96,7 +89,7 @@ async function handleText(request, env) {
     const result = await callNotesModel(env, {
       transcript,
       checklistItems,
-      depotSections,
+      depotSections: payload.depotSections,
       alreadyCaptured,
       expectedSections,
       sectionHints,
@@ -182,12 +175,16 @@ async function callNotesModel(env, payload) {
   const {
     transcript,
     checklistItems = [],
-    depotSections = [],
+    depotSections: depotSectionsRaw = [],
     alreadyCaptured = [],
-    expectedSections = [],
     sectionHints = {},
     forceStructured = false
   } = payload || {};
+
+  const activeSchemaInfo = getSchemaInfoFromPayload(depotSectionsRaw);
+  const sectionListText = activeSchemaInfo.names
+    .map((name, idx) => `${idx + 1}. ${name}`)
+    .join("\n");
 
   // IMPORTANT: we do NOT use response_format here.
   // Instead we *ask* for JSON and parse it ourselves.
@@ -197,11 +194,15 @@ You are Survey Brain, a heating survey assistant for a British Gas style boiler 
 You receive:
 - A transcript of what was discussed.
 - A list of known checklist items (with ids).
-- A list of depot section names.
+- The depot section names listed below (use them exactly, in this order).
 - Optionally, a list of sections already captured so you can avoid duplicates.
-- Optionally, a list of expected section names to prioritise.
 - Optional hints that map keywords to section names.
 - A forceStructured flag indicating you MUST return structured depot notes even if the transcript is sparse.
+
+Depot section names (in order):
+${sectionListText}
+
+Always return all of these sections, even if a section has no notes. Use the exact names and order.
 
 Your job is to:
 1. Decide which checklist ids are clearly satisfied by the transcript.
@@ -243,9 +244,9 @@ Always preserve boiler/cylinder make & model exactly as spoken.
   const userPayload = {
     transcript,
     checklistItems,
-    depotSections,
+    depotSections: activeSchemaInfo.schema,
     alreadyCaptured,
-    expectedSections,
+    expectedSections: activeSchemaInfo.names,
     sectionHints,
     forceStructured
   };
@@ -306,6 +307,8 @@ Always preserve boiler/cylinder make & model exactly as spoken.
   if (!Array.isArray(jsonOut.missingInfo)) jsonOut.missingInfo = [];
   if (typeof jsonOut.customerSummary !== "string") jsonOut.customerSummary = "";
 
+  jsonOut.sections = normaliseSectionsFromModel(jsonOut.sections, activeSchemaInfo);
+
   return jsonOut;
 }
 
@@ -346,4 +349,177 @@ function normaliseSectionHints(value) {
     out[key] = val;
   }
   return out;
+}
+
+function resolveCanonicalSectionName(name, schemaInfo) {
+  const key = normaliseSectionKey(name);
+  if (!key) return null;
+  return schemaInfo.keyLookup.get(key) || null;
+}
+
+function normaliseSectionsFromModel(rawSections, schemaInfo) {
+  const orderedNames = schemaInfo.names;
+  const map = new Map();
+
+  (Array.isArray(rawSections) ? rawSections : []).forEach((entry) => {
+    if (!entry || typeof entry !== "object") return;
+    const rawName = typeof entry.section === "string"
+      ? entry.section.trim()
+      : typeof entry.name === "string"
+        ? entry.name.trim()
+        : "";
+    if (!rawName) return;
+    const resolved = resolveCanonicalSectionName(rawName, schemaInfo);
+    if (!resolved) return;
+    if (map.has(resolved)) return;
+    const plainText = typeof entry.plainText === "string" ? entry.plainText : String(entry.plainText || "");
+    const naturalLanguage = typeof entry.naturalLanguage === "string"
+      ? entry.naturalLanguage
+      : String(entry.naturalLanguage || entry.summary || "");
+    map.set(resolved, {
+      section: resolved,
+      plainText,
+      naturalLanguage
+    });
+  });
+
+  const missing = [];
+  const normalised = orderedNames.map((name) => {
+    const existing = map.get(name);
+    if (existing) return existing;
+    missing.push(name);
+    return {
+      section: name,
+      plainText: "• No additional notes;",
+      naturalLanguage: "No additional notes."
+    };
+  });
+
+  if (missing.length) {
+    console.warn("Depot notes: model response missing sections:", missing);
+  }
+
+  return normalised;
+}
+import schemaConfig from "./depot.output.schema.json" assert { type: "json" };
+
+const FUTURE_PLANS_NAME = "Future plans";
+const FUTURE_PLANS_DESCRIPTION = "Notes about any future work or follow-on visits.";
+
+function sanitiseSectionSchema(input) {
+  const asArray = (value) => {
+    if (!value) return [];
+    if (Array.isArray(value)) return value;
+    if (value && typeof value === "object" && Array.isArray(value.sections)) {
+      return value.sections;
+    }
+    return [];
+  };
+
+  const rawEntries = asArray(input);
+  const prepared = [];
+  rawEntries.forEach((entry, idx) => {
+    if (!entry) return;
+    const rawName = entry.name ?? entry.section ?? entry.title ?? entry.heading;
+    const name = typeof rawName === "string" ? rawName.trim() : "";
+    if (!name || name === "Arse_cover_notes") return;
+    const rawDescription = entry.description ?? entry.hint ?? "";
+    const description = typeof rawDescription === "string"
+      ? rawDescription.trim()
+      : String(rawDescription || "").trim();
+    const order = typeof entry.order === "number" ? entry.order : idx + 1;
+    prepared.push({ name, description, order, idx });
+  });
+
+  prepared.sort((a, b) => {
+    const aHasOrder = typeof a.order === "number";
+    const bHasOrder = typeof b.order === "number";
+    if (aHasOrder && bHasOrder && a.order !== b.order) {
+      return a.order - b.order;
+    }
+    if (aHasOrder && !bHasOrder) return -1;
+    if (!aHasOrder && bHasOrder) return 1;
+    return a.idx - b.idx;
+  });
+
+  const unique = [];
+  const seen = new Set();
+  prepared.forEach((entry) => {
+    if (seen.has(entry.name)) return;
+    seen.add(entry.name);
+    unique.push({
+      name: entry.name,
+      description: entry.description || "",
+      order: entry.order
+    });
+  });
+
+  let withoutFuture = unique.filter((entry) => entry.name !== FUTURE_PLANS_NAME);
+  let future = unique.find((entry) => entry.name === FUTURE_PLANS_NAME);
+  if (!future) {
+    future = {
+      name: FUTURE_PLANS_NAME,
+      description: FUTURE_PLANS_DESCRIPTION,
+      order: withoutFuture.length + 1
+    };
+  } else if (!future.description) {
+    future = { ...future, description: FUTURE_PLANS_DESCRIPTION };
+  }
+
+  const final = [...withoutFuture, future].map((entry, idx) => ({
+    name: entry.name,
+    description: entry.description || "",
+    order: idx + 1
+  }));
+
+  return final;
+}
+
+function normaliseSectionKey(name) {
+  return String(name || "")
+    .toLowerCase()
+    .replace(/&/g, "and")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+function buildSchemaInfo(raw) {
+  const schema = sanitiseSectionSchema(raw);
+  const names = schema.map((entry) => entry.name);
+  const keyLookup = new Map();
+  schema.forEach((entry) => {
+    const key = normaliseSectionKey(entry.name);
+    if (!key) return;
+    const variants = new Set([key]);
+    if (key.endsWith("s")) variants.add(key.replace(/s$/, ""));
+    if (key.endsWith("ies")) {
+      variants.add(key.replace(/ies$/, "y"));
+    } else if (key.endsWith("y")) {
+      variants.add(key.replace(/y$/, "ies"));
+    }
+    if (key.includes(" and ")) {
+      variants.add(key.replace(/\band\b/g, "").replace(/\s+/g, " ").trim());
+    }
+    variants.forEach((variant) => {
+      if (variant && !keyLookup.has(variant)) {
+        keyLookup.set(variant, entry.name);
+      }
+    });
+  });
+  return { schema, names, keyLookup };
+}
+
+const DEFAULT_SCHEMA_INFO = buildSchemaInfo(schemaConfig);
+
+function getSchemaInfoFromPayload(raw) {
+  const rawArrayLength = Array.isArray(raw)
+    ? raw.length
+    : raw && Array.isArray(raw.sections)
+      ? raw.sections.length
+      : 0;
+  if (rawArrayLength > 0) {
+    return buildSchemaInfo(raw);
+  }
+  return DEFAULT_SCHEMA_INFO;
 }

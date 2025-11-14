@@ -381,48 +381,17 @@
   </div>
 
   <script>
-    // --- CONFIG: worker endpoint ---
-    const WORKER_URL = "https://depot-voice-notes.martinbibb.workers.dev";
+    // --- CONFIG / STORAGE KEYS ---
+    const DEFAULT_WORKER_URL = "https://depot-voice-notes.martinbibb.workers.dev";
+    const WORKER_URL_STORAGE_KEY = "depot.workerUrl";
+    const SECTION_STORAGE_KEY = "depot.sectionSchema";
+    const LEGACY_SECTION_STORAGE_KEY = "surveybrain-schema";
+    const CHECKLIST_STORAGE_KEY = "surveybrain-checklist";
+    const LS_AUTOSAVE_KEY = "surveyBrainAutosave";
+    const FUTURE_PLANS_NAME = "Future plans";
+    const FUTURE_PLANS_DESCRIPTION = "Notes about any future work or follow-on visits.";
 
-    const REQUIRED_SECTIONS = [
-      "System characteristics",
-      "Working at heights",
-      "Restrictions to work",
-      "External hazards",
-      "Existing boiler and controls",
-      "New boiler and controls",
-      "Flue",
-      "Pipe work",
-      "Components that require assistance",
-      "Additional works",
-      "Permissions and notifications",
-      "Disruption",
-      "Customer actions",
-      "Future plans"
-    ];
-    const REQUIRED_SECTION_ORDER = {};
-    REQUIRED_SECTIONS.forEach((name, idx) => {
-      const order = idx + 1;
-      const key = normaliseSectionKey(name);
-      if (!key) return;
-      const variants = new Set([key]);
-      if (key.endsWith("s")) {
-        variants.add(key.replace(/s$/, ""));
-      }
-      if (key.endsWith("ies")) {
-        variants.add(key.replace(/ies$/, "y"));
-      } else if (key.endsWith("y")) {
-        variants.add(key.replace(/y$/, "ies"));
-      }
-      if (key.includes(" and ")) {
-        variants.add(key.replace(/\band\b/g, "").replace(/\s+/g, " ").trim());
-      }
-      variants.forEach((variant) => {
-        if (variant && !REQUIRED_SECTION_ORDER[variant]) {
-          REQUIRED_SECTION_ORDER[variant] = order;
-        }
-      });
-    });
+    let WORKER_URL = loadStoredWorkerUrl();
 
     // --- ELEMENTS ---
     const sendTextBtn = document.getElementById("sendTextBtn");
@@ -464,7 +433,10 @@
     let wasBackgroundedDuringSession = false;
     let pauseReason = null;
     let SECTION_SCHEMA = [];
-    let SECTION_ORDER = {};
+    let SECTION_NAMES = [];
+    let SECTION_ORDER_MAP = new Map();
+    let SECTION_KEY_LOOKUP = new Map();
+    let schemaLoaded = false;
     let CHECKLIST_SOURCE = [];
     let CHECKLIST_ITEMS = [];
 
@@ -487,12 +459,193 @@
     const LIVE_CHUNK_INTERVAL_MS = 20000;
     let pendingFinishSend = false;
 
-    // --- LOCALSTORAGE KEYS ---
-    const LS_SCHEMA_KEY = "surveybrain-schema";
-    const LS_CHECKLIST_KEY = "surveybrain-checklist";
-    const LS_AUTOSAVE_KEY = "surveyBrainAutosave";
-
     // --- HELPERS ---
+    function loadStoredWorkerUrl() {
+      try {
+        const raw = localStorage.getItem(WORKER_URL_STORAGE_KEY);
+        if (raw && raw.trim()) {
+          return raw.trim();
+        }
+      } catch (_) {}
+      return DEFAULT_WORKER_URL;
+    }
+
+    function readStoredSectionOverride() {
+      const keys = [SECTION_STORAGE_KEY, LEGACY_SECTION_STORAGE_KEY];
+      for (let i = 0; i < keys.length; i += 1) {
+        const key = keys[i];
+        try {
+          const raw = localStorage.getItem(key);
+          if (!raw) continue;
+          return JSON.parse(raw);
+        } catch (_) {
+          continue;
+        }
+      }
+      return null;
+    }
+
+    function sanitiseSectionSchema(input) {
+      const asArray = (value) => {
+        if (!value) return [];
+        if (Array.isArray(value)) return value;
+        if (value && typeof value === "object" && Array.isArray(value.sections)) {
+          return value.sections;
+        }
+        return [];
+      };
+
+      const rawEntries = asArray(input);
+      const prepared = [];
+      rawEntries.forEach((entry, idx) => {
+        if (!entry) return;
+        const rawName = entry.name ?? entry.section ?? entry.title ?? entry.heading;
+        const name = typeof rawName === "string" ? rawName.trim() : "";
+        if (!name || name === "Arse_cover_notes") return;
+        const rawDescription = entry.description ?? entry.hint ?? "";
+        const description = typeof rawDescription === "string"
+          ? rawDescription.trim()
+          : String(rawDescription || "").trim();
+        const order = typeof entry.order === "number" ? entry.order : idx + 1;
+        prepared.push({ name, description, order, idx });
+      });
+
+      prepared.sort((a, b) => {
+        const aHasOrder = typeof a.order === "number";
+        const bHasOrder = typeof b.order === "number";
+        if (aHasOrder && bHasOrder && a.order !== b.order) {
+          return a.order - b.order;
+        }
+        if (aHasOrder && !bHasOrder) return -1;
+        if (!aHasOrder && bHasOrder) return 1;
+        return a.idx - b.idx;
+      });
+
+      const unique = [];
+      const seen = new Set();
+      prepared.forEach((entry) => {
+        if (seen.has(entry.name)) return;
+        seen.add(entry.name);
+        unique.push({
+          name: entry.name,
+          description: entry.description || "",
+          order: entry.order
+        });
+      });
+
+      let withoutFuture = unique.filter((entry) => entry.name !== FUTURE_PLANS_NAME);
+      let future = unique.find((entry) => entry.name === FUTURE_PLANS_NAME);
+      if (!future) {
+        future = {
+          name: FUTURE_PLANS_NAME,
+          description: FUTURE_PLANS_DESCRIPTION,
+          order: withoutFuture.length + 1
+        };
+      } else if (!future.description) {
+        future = { ...future, description: FUTURE_PLANS_DESCRIPTION };
+      }
+
+      const final = [...withoutFuture, future].map((entry, idx) => ({
+        name: entry.name,
+        description: entry.description || "",
+        order: idx + 1
+      }));
+
+      return final;
+    }
+
+    async function loadSectionSchema() {
+      let defaultSchema = [];
+      try {
+        const res = await fetch("depot.output.schema.json", { cache: "no-store" });
+        if (res.ok) {
+          const json = await res.json();
+          defaultSchema = sanitiseSectionSchema(json);
+        }
+      } catch (err) {
+        console.warn("Failed to load default section schema", err);
+      }
+
+      let localOverride = null;
+      try {
+        localOverride = readStoredSectionOverride();
+      } catch (_) {
+        localOverride = null;
+      }
+
+      const candidate = Array.isArray(localOverride) && localOverride.length > 0
+        ? sanitiseSectionSchema(localOverride)
+        : defaultSchema;
+
+      if (candidate.length) {
+        return candidate;
+      }
+      return sanitiseSectionSchema([]);
+    }
+
+    function saveLocalSectionSchema(schema) {
+      const final = sanitiseSectionSchema(schema);
+      try {
+        localStorage.setItem(SECTION_STORAGE_KEY, JSON.stringify(final));
+        localStorage.removeItem(LEGACY_SECTION_STORAGE_KEY);
+      } catch (err) {
+        console.warn("Failed to save section schema", err);
+      }
+      return final;
+    }
+
+    function rebuildSectionState(schema) {
+      SECTION_SCHEMA = Array.isArray(schema) ? schema.map((entry, idx) => ({
+        name: entry.name,
+        description: entry.description || "",
+        order: typeof entry.order === "number" ? entry.order : idx + 1
+      })) : [];
+      SECTION_NAMES = SECTION_SCHEMA.map((entry) => entry.name);
+      SECTION_ORDER_MAP = new Map();
+      SECTION_KEY_LOOKUP = new Map();
+
+      SECTION_SCHEMA.forEach((entry, idx) => {
+        const order = idx + 1;
+        SECTION_ORDER_MAP.set(entry.name, order);
+        const key = normaliseSectionKey(entry.name);
+        if (!key) return;
+        const variants = new Set([key]);
+        if (key.endsWith("s")) variants.add(key.replace(/s$/, ""));
+        if (key.endsWith("ies")) {
+          variants.add(key.replace(/ies$/, "y"));
+        } else if (key.endsWith("y")) {
+          variants.add(key.replace(/y$/, "ies"));
+        }
+        if (key.includes(" and ")) {
+          variants.add(key.replace(/\band\b/g, "").replace(/\s+/g, " ").trim());
+        }
+        variants.forEach((variant) => {
+          if (variant && !SECTION_KEY_LOOKUP.has(variant)) {
+            SECTION_KEY_LOOKUP.set(variant, entry.name);
+          }
+        });
+      });
+
+      schemaLoaded = SECTION_SCHEMA.length > 0;
+    }
+
+    async function ensureSectionSchema() {
+      if (schemaLoaded && SECTION_SCHEMA.length) {
+        return SECTION_SCHEMA;
+      }
+      const schema = await loadSectionSchema();
+      rebuildSectionState(schema);
+      return SECTION_SCHEMA;
+    }
+
+    function clearCachedSchema() {
+      schemaLoaded = false;
+      SECTION_SCHEMA = [];
+      SECTION_NAMES = [];
+      SECTION_ORDER_MAP = new Map();
+      SECTION_KEY_LOOKUP = new Map();
+    }
+
     function normaliseSectionKey(name) {
       return String(name || "")
         .toLowerCase()
@@ -505,9 +658,7 @@
     function resolveRequiredSectionName(name) {
       const key = normaliseSectionKey(name);
       if (!key) return null;
-      const order = REQUIRED_SECTION_ORDER[key];
-      if (!order) return null;
-      return REQUIRED_SECTIONS[order - 1] || null;
+      return SECTION_KEY_LOOKUP.get(key) || null;
     }
 
     function firstDefined(...values) {
@@ -647,7 +798,8 @@
       const incomingPartition = partitionSectionsByRequirement(incomingSections);
       const merged = [];
 
-      REQUIRED_SECTIONS.forEach((name) => {
+      const canonicalNames = SECTION_NAMES.length ? SECTION_NAMES : SECTION_SCHEMA.map((entry) => entry.name);
+      canonicalNames.forEach((name) => {
         const mergedEntry = combineSectionEntries(
           prevPartition.required.get(name),
           incomingPartition.required.get(name),
@@ -674,7 +826,12 @@
           sectionName
         );
         if (!mergedEntry) return;
-        const order = nextWrapper ? nextWrapper.order : prevWrapper ? prevWrapper.order : REQUIRED_SECTIONS.length;
+        const fallbackOrder = canonicalNames.length || SECTION_SCHEMA.length || 0;
+        const order = nextWrapper
+          ? nextWrapper.order
+          : prevWrapper
+            ? prevWrapper.order
+            : fallbackOrder;
         extraEntries.push({ entry: mergedEntry, order });
       });
       extraEntries
@@ -795,77 +952,6 @@
       }
     }
 
-    // --- SECTION / SCHEMA LOADING & NORMALISATION ---
-    const CANONICAL_SECTION_ORDER = [...REQUIRED_SECTIONS];
-    const CANONICAL_ORDER_MAP = CANONICAL_SECTION_ORDER.reduce((acc, name, idx) => {
-      acc[name.toLowerCase()] = idx + 1;
-      return acc;
-    }, {});
-    const SECTION_FALLBACK = [
-      { name: "System characteristics", order: 1, description: "Heating system type, property layout and any key characteristics." },
-      { name: "Working at heights", order: 2, description: "Ladders, loft access, towers, scaffolds or special access kit." },
-      { name: "Restrictions to work", order: 3, description: "Parking limits, permits or building restrictions." },
-      { name: "External hazards", order: 4, description: "Asbestos, hazards, aggressive pets or notable site risks." },
-      { name: "Existing boiler and controls", order: 5, description: "Current boiler, controls, condition and configuration." },
-      { name: "New boiler and controls", order: 6, description: "What is being fitted: boiler, controls, flushing, filters." },
-      { name: "Flue", order: 7, description: "Flue position, routing, plume kits and terminals." },
-      { name: "Pipe work", order: 8, description: "Gas, condensate and system pipe alterations." },
-      { name: "Components that require assistance", order: 9, description: "Items needing two-person lifts or specialist handling." },
-      { name: "Additional works", order: 10, description: "Extra works requested beyond the standard install." },
-      { name: "Permissions and notifications", order: 11, description: "Planning, landlord, building control or other notifications." },
-      { name: "Disruption", order: 12, description: "Power flush, draining, floor lifting or decorations impacted." },
-      { name: "Customer actions", order: 13, description: "Things the customer has to sort before install." },
-      { name: "Future plans", order: 14, description: "Customer’s future plans or potential upgrades." }
-    ];
-
-    function normaliseSectionSchema(entries) {
-      if (entries && typeof entries === "object" && !Array.isArray(entries) && Array.isArray(entries.sections)) {
-        return normaliseSectionSchema(entries.sections);
-      }
-      if (!Array.isArray(entries)) return [];
-      return entries.map((entry, idx) => {
-        if (!entry) return null;
-        if (typeof entry === "string") {
-          const name = entry.trim();
-          if (!name) return null;
-          return { name, order: idx + 1, description: "" };
-        }
-        const name = String(entry.name || entry.section || "").trim();
-        if (!name) return null;
-        const order = typeof entry.order === "number" ? entry.order : idx + 1;
-        const description = String(entry.description || entry.hint || "").trim();
-        return { name, order, description };
-      }).filter(Boolean);
-    }
-
-    function applySectionSchema(entries) {
-      const normalised = normaliseSectionSchema(entries);
-      const fallback = normalised.length ? normalised : normaliseSectionSchema(SECTION_FALLBACK);
-      SECTION_SCHEMA = fallback;
-      SECTION_ORDER = {};
-      CANONICAL_SECTION_ORDER.forEach(name => {
-        const key = name.toLowerCase();
-        SECTION_ORDER[name] = CANONICAL_ORDER_MAP[key];
-      });
-      const extras = [];
-      fallback.forEach((sec, idx) => {
-        if (!sec || !sec.name) return;
-        const name = String(sec.name).trim();
-        if (!name) return;
-        if (CANONICAL_ORDER_MAP[name.toLowerCase()]) {
-          SECTION_ORDER[name] = CANONICAL_ORDER_MAP[name.toLowerCase()];
-          return;
-        }
-        const order = typeof sec.order === "number" ? sec.order : idx + 1;
-        extras.push({ name, order });
-      });
-      extras
-        .sort((a, b) => (a.order || 0) - (b.order || 0))
-        .forEach((entry, extraIdx) => {
-          SECTION_ORDER[entry.name] = CANONICAL_SECTION_ORDER.length + extraIdx + 1;
-        });
-    }
-
     function normaliseChecklistConfig(items) {
       if (items && typeof items === "object" && !Array.isArray(items) && Array.isArray(items.items)) {
         return normaliseChecklistConfig(items.items);
@@ -922,7 +1008,7 @@
       return hints;
     }
 
-    function buildVoiceRequestPayload(transcript) {
+    function buildVoiceRequestPayload(transcript, schema = SECTION_SCHEMA) {
       const existingSections = Array.isArray(lastRawSections)
         ? lastRawSections
             .map(sec => {
@@ -938,11 +1024,10 @@
             .filter(sec => sec && sec.section.toLowerCase() !== "arse_cover_notes")
         : [];
 
-      const expectedSections = Array.isArray(SECTION_SCHEMA)
-        ? SECTION_SCHEMA
-            .map(sec => (sec && sec.name ? String(sec.name).trim() : ""))
-            .filter(Boolean)
-        : [];
+      const canonicalSchema = Array.isArray(schema) ? schema : [];
+      const expectedSections = canonicalSchema
+        .map(sec => (sec && sec.name ? String(sec.name).trim() : ""))
+        .filter(Boolean);
 
       return {
         transcript,
@@ -951,8 +1036,58 @@
         sectionHints: deriveSectionHints(),
         forceStructured: true,
         checklistItems: CHECKLIST_SOURCE,
-        depotSections: SECTION_SCHEMA
+        depotSections: canonicalSchema
       };
+    }
+
+    function normaliseSectionsFromResponse(data, schema = SECTION_SCHEMA) {
+      if (!data || typeof data !== "object") return [];
+      const canonicalSchema = Array.isArray(schema) ? schema : [];
+      const orderedNames = canonicalSchema.map((entry) => entry.name).filter(Boolean);
+      if (!orderedNames.length) return [];
+
+      const rawSections = Array.isArray(data.sections) ? data.sections : [];
+      const sectionMap = new Map();
+      rawSections.forEach((entry) => {
+        if (!entry || typeof entry !== "object") return;
+        const rawName = typeof entry.section === "string"
+          ? entry.section.trim()
+          : typeof entry.name === "string"
+            ? entry.name.trim()
+            : "";
+        if (!rawName) return;
+        const resolved = resolveRequiredSectionName(rawName) || rawName;
+        if (!orderedNames.includes(resolved)) return;
+        if (sectionMap.has(resolved)) return;
+        const plainText = typeof entry.plainText === "string" ? entry.plainText : String(entry.plainText || "");
+        const naturalLanguage = typeof entry.naturalLanguage === "string"
+          ? entry.naturalLanguage
+          : String(entry.naturalLanguage || entry.summary || "");
+        sectionMap.set(resolved, {
+          section: resolved,
+          plainText,
+          naturalLanguage
+        });
+      });
+
+      const missing = [];
+      const normalised = orderedNames.map((name) => {
+        const existing = sectionMap.get(name);
+        if (existing) return existing;
+        missing.push(name);
+        return {
+          section: name,
+          plainText: "• No additional notes;",
+          naturalLanguage: "No additional notes."
+        };
+      });
+
+      if (missing.length) {
+        console.warn("Depot notes: worker response missing sections:", missing);
+      }
+
+      data.sections = normalised;
+      return normalised;
     }
 
     // Plaintext shaping helpers
@@ -1028,21 +1163,26 @@
 
     function postProcessSections(sections) {
       const orderFor = (name) => {
-        const key = String(name || "").trim();
-        if (!key) return Number.MAX_SAFE_INTEGER;
-        const canonical = CANONICAL_ORDER_MAP[key.toLowerCase()];
-        if (canonical) return canonical;
-        if (SECTION_ORDER[key]) return SECTION_ORDER[key];
+        if (!name) return Number.MAX_SAFE_INTEGER;
+        const resolved = resolveRequiredSectionName(name) || name;
+        if (SECTION_ORDER_MAP.has(resolved)) {
+          return SECTION_ORDER_MAP.get(resolved);
+        }
         return Number.MAX_SAFE_INTEGER;
       };
 
       const out = [];
-      sections.forEach(sec => {
+      const seen = new Set();
+      (Array.isArray(sections) ? sections : []).forEach(sec => {
         if (!sec || !sec.section) return;
         const name = String(sec.section).trim();
         if (!name || name.toLowerCase() === "arse_cover_notes") return;
+        const resolved = resolveRequiredSectionName(name) || name;
+        if (!resolved || (SECTION_ORDER_MAP.size && !SECTION_ORDER_MAP.has(resolved))) return;
+        if (seen.has(resolved)) return;
+        seen.add(resolved);
         out.push({
-          section: name,
+          section: resolved,
           plainText: sec.plainText || "",
           naturalLanguage: sec.naturalLanguage || ""
         });
@@ -1246,7 +1386,8 @@
       setStatus("Sending text…");
       clearVoiceError();
       try {
-        const res = await postJSON("/text", buildVoiceRequestPayload(transcript));
+        const schemaSnapshot = await ensureSectionSchema();
+        const res = await postJSON("/text", buildVoiceRequestPayload(transcript, schemaSnapshot));
         const raw = await res.text();
         if (!res.ok) {
           const snippet = raw ? `: ${raw.slice(0, 200)}` : "";
@@ -1261,6 +1402,7 @@
           parseError.voiceMessage = parseError.message;
           throw parseError;
         }
+        normaliseSectionsFromResponse(data, schemaSnapshot);
         applyVoiceResult(data);
         setStatus("Done.");
         committedTranscript = transcript;
@@ -1279,6 +1421,7 @@
       setStatus("Uploading audio…");
       clearVoiceError();
       try {
+        const schemaSnapshot = await ensureSectionSchema();
         const res = await fetch(WORKER_URL.replace(/\/$/, "") + "/audio", {
           method: "POST",
           headers: { "Content-Type": blob.type || "audio/webm" },
@@ -1298,6 +1441,7 @@
           parseError.voiceMessage = parseError.message;
           throw parseError;
         }
+        normaliseSectionsFromResponse(data, schemaSnapshot);
         applyVoiceResult(data);
         setStatus("Audio processed.");
       } catch (err) {
@@ -1487,6 +1631,9 @@
         }
         mediaStream = null;
         mediaRecorder = null;
+        await ensureSectionSchema();
+        const normalisedFromSession = normaliseSectionsFromResponse({ sections: lastRawSections }, SECTION_SCHEMA);
+        lastRawSections = Array.isArray(normalisedFromSession) ? normalisedFromSession : [];
         refreshUiFromState();
         setStatus("Session loaded.");
         clearSleepWarning();
@@ -1747,7 +1894,8 @@
       try {
         setStatus("Updating notes…");
         clearVoiceError();
-        const res = await postJSON("/text", buildVoiceRequestPayload(fullTranscript));
+        const schemaSnapshot = await ensureSectionSchema();
+        const res = await postJSON("/text", buildVoiceRequestPayload(fullTranscript, schemaSnapshot));
         const raw = await res.text();
         if (!res.ok) {
           const snippet = raw ? `: ${raw.slice(0, 200)}` : "";
@@ -1761,6 +1909,7 @@
           showVoiceError("AI response wasn't in the expected format. Please try again.");
           return false;
         }
+        normaliseSectionsFromResponse(data, schemaSnapshot);
         applyVoiceResult(data);
         lastSentTranscript = fullTranscript;
         if (liveState === "running") {
@@ -1809,31 +1958,24 @@
     }
 
     async function loadStaticConfig() {
-      // schema
+      WORKER_URL = loadStoredWorkerUrl();
+
       try {
-        const local = loadLocalOrDefault(LS_SCHEMA_KEY, null);
-        if (local) {
-          applySectionSchema(local);
-          schemaEditor.value = JSON.stringify(local, null, 2);
-        } else {
-          const res = await fetch("depot.output.schema.json", { cache: "no-store" });
-          if (res.ok) {
-            const data = await res.json();
-            applySectionSchema(data.sections || data);
-            schemaEditor.value = JSON.stringify(data.sections || data, null, 2);
-          } else {
-            applySectionSchema(SECTION_FALLBACK);
-            schemaEditor.value = JSON.stringify(SECTION_FALLBACK, null, 2);
-          }
+        const schema = await ensureSectionSchema();
+        if (schemaEditor) {
+          schemaEditor.value = JSON.stringify(schema, null, 2);
         }
-      } catch {
-        applySectionSchema(SECTION_FALLBACK);
-        schemaEditor.value = JSON.stringify(SECTION_FALLBACK, null, 2);
+      } catch (err) {
+        console.warn("Falling back to minimal schema", err);
+        const fallback = sanitiseSectionSchema([]);
+        rebuildSectionState(fallback);
+        if (schemaEditor) {
+          schemaEditor.value = JSON.stringify(fallback, null, 2);
+        }
       }
 
-      // checklist
       try {
-        const local = loadLocalOrDefault(LS_CHECKLIST_KEY, null);
+        const local = loadLocalOrDefault(CHECKLIST_STORAGE_KEY, null);
         if (local) {
           CHECKLIST_SOURCE = Array.isArray(local) ? local : (local.items || []);
           CHECKLIST_ITEMS = normaliseChecklistConfig(CHECKLIST_SOURCE);
@@ -1851,7 +1993,8 @@
             checklistEditor.value = "[]";
           }
         }
-      } catch {
+      } catch (err) {
+        console.warn("Failed to load checklist config", err);
         CHECKLIST_SOURCE = [];
         CHECKLIST_ITEMS = [];
         checklistEditor.value = "[]";
@@ -1870,21 +2013,24 @@
       if (e.target === settingsOverlay) settingsOverlay.style.display = "none";
     });
 
-    schemaSaveBtn.onclick = () => {
+    schemaSaveBtn.onclick = async () => {
       try {
         const data = JSON.parse(schemaEditor.value);
-        applySectionSchema(data);
-        localStorage.setItem(LS_SCHEMA_KEY, JSON.stringify(data));
+        const saved = saveLocalSectionSchema(data);
+        rebuildSectionState(saved);
+        schemaEditor.value = JSON.stringify(saved, null, 2);
         refreshUiFromState();
         alert("Schema saved for this device.");
       } catch (err) {
         alert("Schema JSON invalid: " + err.message);
       }
     };
-    schemaResetBtn.onclick = () => {
-      localStorage.removeItem(LS_SCHEMA_KEY);
-      applySectionSchema(SECTION_FALLBACK);
-      schemaEditor.value = JSON.stringify(SECTION_FALLBACK, null, 2);
+    schemaResetBtn.onclick = async () => {
+      localStorage.removeItem(SECTION_STORAGE_KEY);
+      localStorage.removeItem(LEGACY_SECTION_STORAGE_KEY);
+      clearCachedSchema();
+      const schema = await ensureSectionSchema();
+      schemaEditor.value = JSON.stringify(schema, null, 2);
       refreshUiFromState();
     };
 
@@ -1893,7 +2039,7 @@
         const data = JSON.parse(checklistEditor.value);
         CHECKLIST_SOURCE = Array.isArray(data) ? data : (data.items || []);
         CHECKLIST_ITEMS = normaliseChecklistConfig(CHECKLIST_SOURCE);
-        localStorage.setItem(LS_CHECKLIST_KEY, JSON.stringify(CHECKLIST_SOURCE));
+        localStorage.setItem(CHECKLIST_STORAGE_KEY, JSON.stringify(CHECKLIST_SOURCE));
         renderChecklist(clarificationsEl, lastCheckedItems, lastMissingInfo);
         alert("Checklist saved for this device.");
       } catch (err) {
@@ -1901,12 +2047,31 @@
       }
     };
     checklistResetBtn.onclick = () => {
-      localStorage.removeItem(LS_CHECKLIST_KEY);
+      localStorage.removeItem(CHECKLIST_STORAGE_KEY);
       CHECKLIST_SOURCE = [];
       CHECKLIST_ITEMS = [];
       checklistEditor.value = "[]";
       renderChecklist(clarificationsEl, lastCheckedItems, lastMissingInfo);
+      loadStaticConfig();
     };
+
+    window.addEventListener("storage", (event) => {
+      if (event.key === WORKER_URL_STORAGE_KEY) {
+        WORKER_URL = loadStoredWorkerUrl();
+      }
+      if (event.key === SECTION_STORAGE_KEY || event.key === LEGACY_SECTION_STORAGE_KEY) {
+        clearCachedSchema();
+        ensureSectionSchema().then((schema) => {
+          if (schemaEditor) {
+            schemaEditor.value = JSON.stringify(schema, null, 2);
+          }
+          refreshUiFromState();
+        }).catch((err) => console.warn("Failed to refresh schema after storage event", err));
+      }
+      if (event.key === CHECKLIST_STORAGE_KEY) {
+        loadStaticConfig();
+      }
+    });
 
     document.addEventListener("visibilitychange", () => {
       if (document.hidden) {
@@ -2020,7 +2185,7 @@
     updateLiveControls();
     setStatus("Idle");
 
-    (function restoreAutosaveOnLoad() {
+    (async function restoreAutosaveOnLoad() {
       try {
         const autosaved = localStorage.getItem(LS_AUTOSAVE_KEY);
         if (!autosaved) return;
@@ -2035,6 +2200,9 @@
         lastCheckedItems = Array.isArray(snap.checkedItems) ? snap.checkedItems : [];
         lastMissingInfo = Array.isArray(snap.missingInfo) ? snap.missingInfo : [];
         lastCustomerSummary = snap.customerSummary || "";
+        await ensureSectionSchema();
+        const normalisedFromAutosave = normaliseSectionsFromResponse({ sections: lastRawSections }, SECTION_SCHEMA);
+        lastRawSections = Array.isArray(normalisedFromAutosave) ? normalisedFromAutosave : [];
         refreshUiFromState();
         showSleepWarning(
           "Recovered an auto-saved session. Check details, then tap Start for a new visit or Resume to continue."

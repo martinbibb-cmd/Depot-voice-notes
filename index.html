@@ -110,22 +110,6 @@
     .pill-danger {
       background: var(--danger);
     }
-    .mic-btn {
-      width: 36px;
-      height: 36px;
-      border-radius: 999px;
-      background: #ef4444;
-      color: #fff;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      border: none;
-      cursor: pointer;
-    }
-    .mic-btn.active {
-      background: #b91c1c;
-      box-shadow: 0 0 0 3px rgba(248,113,113,.4);
-    }
     .clarifications {
       display: flex;
       flex-direction: column;
@@ -267,11 +251,9 @@
     <h1>Survey Brain</h1>
     <div class="toolbar-row">
       <button id="sendTextBtn">Send text</button>
-      <button id="micBtn" class="mic-btn" title="Record voice / send audio">🎙</button>
-      <label class="small" style="display:flex;align-items:center;gap:4px;">
-        <input type="checkbox" id="autoNotesToggle" style="margin:0;">
-        Auto notes (chunked)
-      </label>
+      <button id="startLiveBtn">Start live</button>
+      <button id="pauseLiveBtn" class="pill-secondary" disabled>Pause</button>
+      <button id="finishLiveBtn" class="pill-secondary" disabled>Finish</button>
       <button id="importAudioBtn" class="pill-secondary">Use audio file</button>
       <button id="exportBtn" class="pill-secondary">Send notes</button>
       <button id="saveSessionBtn" class="pill-secondary">Save session</button>
@@ -393,9 +375,10 @@
     const clarificationsEl = document.getElementById("clarifications");
     const sectionsListEl = document.getElementById("sectionsList");
     const statusBar = document.getElementById("statusBar");
-    const micBtn = document.getElementById("micBtn");
+    const startLiveBtn = document.getElementById("startLiveBtn");
+    const pauseLiveBtn = document.getElementById("pauseLiveBtn");
+    const finishLiveBtn = document.getElementById("finishLiveBtn");
     const exportBtn = document.getElementById("exportBtn");
-    const autoNotesToggle = document.getElementById("autoNotesToggle");
     const saveSessionBtn = document.getElementById("saveSessionBtn");
     const loadSessionBtn = document.getElementById("loadSessionBtn");
     const loadSessionInput = document.getElementById("loadSessionInput");
@@ -425,14 +408,19 @@
     let CHECKLIST_SOURCE = [];
     let CHECKLIST_ITEMS = [];
 
-    // Auto notes state (simplified)
+    // Live session speech state
     const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition || null;
     let recognition = null;
-    let recognizing = false;
-    let segments = [];    // { text }
-    let lastSentIndex = 0;
+    let liveState = "idle"; // idle | running | paused
+    let recognitionActive = false;
+    let shouldRestartRecognition = false;
+    let recognitionStopMode = null; // null | "pause" | "finish"
+    let committedTranscript = "";
+    let interimTranscript = "";
+    let lastSentTranscript = "";
     let chunkTimerId = null;
-    let chunkIntervalMs = 45000; // 45s by default
+    const LIVE_CHUNK_INTERVAL_MS = 20000;
+    let pendingFinishSend = false;
 
     // --- LOCALSTORAGE KEYS ---
     const LS_SCHEMA_KEY = "surveybrain-schema";
@@ -453,10 +441,12 @@
       voiceErrorEl.textContent = "";
       voiceErrorEl.style.display = "none";
     }
+    function currentModeLabel() {
+      return liveState === "running" || liveState === "paused" ? "Live" : "Manual";
+    }
     function setStatus(msg) {
       const onlinePart = navigator.onLine ? "Online" : "Offline";
-      const modePart = autoNotesToggle && autoNotesToggle.checked ? "Auto notes" : "Manual";
-      statusBar.textContent = `${msg || "Idle"} (${onlinePart} • ${modePart})`;
+      statusBar.textContent = `${msg || "Idle"} (${onlinePart} • ${currentModeLabel()})`;
     }
     function cloneDeep(val) {
       try { return JSON.parse(JSON.stringify(val)); } catch (_) { return val; }
@@ -714,18 +704,32 @@
       }
 
       const byGroup = new Map();
+      const knownIds = new Set();
       CHECKLIST_ITEMS.forEach(item => {
         const group = item.group || "Checklist";
         const arr = byGroup.get(group) || [];
+        knownIds.add(String(item.id));
         arr.push({
           id: item.id,
           section: item.section || "",
           label: item.label || item.id,
           hint: item.hint || "",
-          done: checkedSet.has(item.id)
+          done: checkedSet.has(String(item.id))
         });
         byGroup.set(group, arr);
       });
+
+      const unknownFromAi = Array.from(checkedSet).filter(id => id && !knownIds.has(id));
+      if (unknownFromAi.length) {
+        const arr = unknownFromAi.map(id => ({
+          id,
+          section: "",
+          label: String(id),
+          hint: "",
+          done: true
+        }));
+        byGroup.set("Other (from AI)", arr);
+      }
 
       if (!byGroup.size && !questions.length) {
         container.innerHTML = `<span class="small">No checklist items.</span>`;
@@ -893,6 +897,8 @@
         }
         applyVoiceResult(data);
         setStatus("Done.");
+        committedTranscript = transcript;
+        lastSentTranscript = transcript;
       } catch (err) {
         console.error(err);
         const message = err && err.voiceMessage
@@ -936,8 +942,6 @@
         showVoiceError(message);
         setStatus("Audio failed.");
         throw err;
-      } finally {
-        micBtn.classList.remove("active");
       }
     }
 
@@ -1052,6 +1056,8 @@
         const text = await file.text();
         const session = JSON.parse(text);
         transcriptInput.value = session.fullTranscript || "";
+        committedTranscript = transcriptInput.value.trim();
+        lastSentTranscript = committedTranscript;
         lastRawSections = Array.isArray(session.sections) ? session.sections : [];
         lastMaterials = Array.isArray(session.materials) ? session.materials : [];
         lastCheckedItems = Array.isArray(session.checkedItems) ? session.checkedItems : [];
@@ -1067,54 +1073,232 @@
       }
     };
 
-    // --- MIC / AUTO NOTES ---
+    // --- LIVE SPEECH (on-device) ---
+    function updateTextareaFromBuffers() {
+      const committed = committedTranscript.trim();
+      const interim = interimTranscript.trim();
+      const parts = [];
+      if (committed) parts.push(committed);
+      if (interim) parts.push(interim);
+      const combined = parts.join(parts.length > 1 ? " " : "");
+      transcriptInput.value = combined.trim();
+    }
+
+    function updateLiveControls() {
+      if (!startLiveBtn || !pauseLiveBtn || !finishLiveBtn) return;
+      if (!SpeechRec || !recognition) {
+        startLiveBtn.disabled = true;
+        pauseLiveBtn.disabled = true;
+        finishLiveBtn.disabled = true;
+        pauseLiveBtn.textContent = "Pause";
+        return;
+      }
+      const running = liveState === "running";
+      const paused = liveState === "paused";
+      startLiveBtn.disabled = running || paused;
+      pauseLiveBtn.disabled = liveState === "idle";
+      finishLiveBtn.disabled = liveState === "idle";
+      pauseLiveBtn.textContent = paused ? "Resume" : "Pause";
+    }
+
+    async function completeLiveSessionIfNeeded(message = "Live session finished.") {
+      if (!pendingFinishSend) return;
+      pendingFinishSend = false;
+      committedTranscript = transcriptInput.value.trim();
+      const ok = await sendTranscriptChunkToWorker(true);
+      if (ok) {
+        setStatus(message);
+      }
+    }
+
     if (SpeechRec) {
       recognition = new SpeechRec();
       recognition.continuous = true;
       recognition.interimResults = true;
       recognition.lang = "en-GB";
 
+      recognition.onstart = () => {
+        recognitionActive = true;
+      };
+
       recognition.onresult = (event) => {
-        let finalText = "";
-        let interimText = "";
-        for (let i = 0; i < event.results.length; i++) {
+        let sawFinal = false;
+        for (let i = event.resultIndex; i < event.results.length; i++) {
           const r = event.results[i];
+          if (!r || !r[0]) continue;
+          const text = r[0].transcript ? r[0].transcript.trim() : "";
+          if (!text) continue;
           if (r.isFinal) {
-            finalText += r[0].transcript + " ";
+            committedTranscript = committedTranscript
+              ? `${committedTranscript} ${text}`.replace(/\s+/g, " ").trim()
+              : text;
+            interimTranscript = "";
+            sawFinal = true;
           } else {
-            interimText += r[0].transcript + " ";
+            interimTranscript = text;
           }
         }
-        finalText.split(/[.!?]+/).forEach(sentence => {
-          const t = sentence.trim();
-          if (!t) return;
-          segments.push({ text: t });
-        });
-        const fullText = segments.map(s => s.text).join(". ") + (interimText ? " " + interimText.trim() : "");
-        transcriptInput.value = fullText.trim();
+        updateTextareaFromBuffers();
+        if (sawFinal && liveState === "running") {
+          scheduleNextChunk();
+        }
       };
-      recognition.onerror = () => {
-        recognizing = false;
-        micBtn.classList.remove("active");
-        setStatus("Speech error.");
+
+      recognition.onerror = (event) => {
+        console.error("Speech recognition error", event);
+        recognitionActive = false;
+        shouldRestartRecognition = false;
+        clearChunkTimer();
+        if (liveState !== "idle") {
+          const reason = event && event.error ? `: ${event.error}` : "";
+          showVoiceError(`Speech recognition error${reason}`);
+          liveState = "idle";
+          updateLiveControls();
+          setStatus("Speech error.");
+        }
       };
-      recognition.onend = () => {
-        recognizing = false;
-        micBtn.classList.remove("active");
-        setStatus("Idle");
+
+      recognition.onend = async () => {
+        recognitionActive = false;
+        const stopMode = recognitionStopMode;
+        recognitionStopMode = null;
+        if (stopMode === "pause") {
+          updateTextareaFromBuffers();
+          setStatus("Paused (live)");
+          return;
+        }
+        if (stopMode === "finish") {
+          updateTextareaFromBuffers();
+          await completeLiveSessionIfNeeded();
+          return;
+        }
+        if (liveState === "running" && shouldRestartRecognition) {
+          try {
+            recognition.start();
+          } catch (err) {
+            console.error("Speech recognition restart failed", err);
+            liveState = "idle";
+            shouldRestartRecognition = false;
+            updateLiveControls();
+            showVoiceError("Could not restart speech recognition.");
+            setStatus("Speech stopped.");
+          }
+          return;
+        }
+        if (pendingFinishSend) {
+          updateTextareaFromBuffers();
+          await completeLiveSessionIfNeeded();
+        }
       };
     } else {
-      autoNotesToggle.disabled = true;
-      autoNotesToggle.title = "Auto notes live captions not supported in this browser.";
+      if (startLiveBtn && pauseLiveBtn && finishLiveBtn) {
+        const msg = "This browser does not support on-device speech recognition.";
+        startLiveBtn.disabled = true;
+        pauseLiveBtn.disabled = true;
+        finishLiveBtn.disabled = true;
+        startLiveBtn.title = msg;
+        pauseLiveBtn.title = msg;
+        finishLiveBtn.title = msg;
+      }
     }
 
-    async function sendTranscriptChunkToWorker() {
-      if (!segments.length || lastSentIndex >= segments.length) return;
-      if (!navigator.onLine) {
-        setStatus("Offline – storing notes locally.");
+    function startLiveSession() {
+      if (!SpeechRec || !recognition) {
+        showVoiceError("On-device speech recognition not supported in this browser.");
         return;
       }
-      const fullTranscript = segments.map(s => s.text).join(". ");
+      if (liveState === "running") return;
+      committedTranscript = transcriptInput.value.trim();
+      interimTranscript = "";
+      updateTextareaFromBuffers();
+      lastSentTranscript = committedTranscript;
+      shouldRestartRecognition = true;
+      recognitionStopMode = null;
+      pendingFinishSend = false;
+      clearVoiceError();
+      liveState = "running";
+      updateLiveControls();
+      try {
+        recognition.start();
+        setStatus("Listening…");
+        scheduleNextChunk();
+      } catch (err) {
+        console.error("Speech recognition start failed", err);
+        liveState = "idle";
+        shouldRestartRecognition = false;
+        updateLiveControls();
+        showVoiceError("Couldn't start speech recognition: " + (err.message || "Unknown error"));
+        setStatus("Live session unavailable.");
+      }
+    }
+
+    function togglePauseResumeLive() {
+      if (!SpeechRec || !recognition) return;
+      if (liveState === "running") {
+        liveState = "paused";
+        shouldRestartRecognition = false;
+        recognitionStopMode = "pause";
+        clearChunkTimer();
+        updateLiveControls();
+        try {
+          recognition.stop();
+          setStatus("Pausing…");
+        } catch (err) {
+          console.error("Speech recognition pause failed", err);
+          recognitionStopMode = null;
+          setStatus("Paused (live)");
+        }
+      } else if (liveState === "paused") {
+        shouldRestartRecognition = true;
+        recognitionStopMode = null;
+        liveState = "running";
+        clearVoiceError();
+        updateLiveControls();
+        try {
+          recognition.start();
+          setStatus("Listening…");
+          scheduleNextChunk();
+        } catch (err) {
+          console.error("Speech recognition resume failed", err);
+          liveState = "idle";
+          shouldRestartRecognition = false;
+          updateLiveControls();
+          showVoiceError("Couldn't resume speech recognition: " + (err.message || "Unknown error"));
+          setStatus("Live session unavailable.");
+        }
+      }
+    }
+
+    async function finishLiveSession() {
+      clearChunkTimer();
+      shouldRestartRecognition = false;
+      liveState = "idle";
+      interimTranscript = "";
+      updateTextareaFromBuffers();
+      committedTranscript = transcriptInput.value.trim();
+      pendingFinishSend = true;
+      updateLiveControls();
+      setStatus("Finishing live session…");
+      if (SpeechRec && recognition && recognitionActive) {
+        recognitionStopMode = "finish";
+        try {
+          recognition.stop();
+          return;
+        } catch (err) {
+          console.error("Speech recognition stop failed", err);
+        }
+      }
+      recognitionStopMode = null;
+      await completeLiveSessionIfNeeded();
+    }
+
+    async function sendTranscriptChunkToWorker(force = false) {
+      const fullTranscript = transcriptInput.value.trim();
+      if (!force && (!fullTranscript || fullTranscript === lastSentTranscript)) return false;
+      if (!navigator.onLine) {
+        setStatus("Offline – storing notes locally.");
+        return false;
+      }
       try {
         setStatus("Updating notes…");
         clearVoiceError();
@@ -1130,95 +1314,45 @@
         } catch (e) {
           console.error("Voice worker returned non-JSON:", raw);
           showVoiceError("AI response wasn't in the expected format. Please try again.");
-          return;
+          return false;
         }
         applyVoiceResult(data);
-        lastSentIndex = segments.length;
-        setStatus("Listening (auto notes)…");
+        lastSentTranscript = fullTranscript;
+        if (liveState === "running") {
+          setStatus("Listening (live)…");
+        } else if (liveState === "paused") {
+          setStatus("Paused (live)");
+        } else {
+          setStatus("Notes updated.");
+        }
+        return true;
       } catch (err) {
         console.error(err);
         showVoiceError("Voice AI failed: " + (err.message || "Unknown error"));
-        setStatus("Update failed – will retry later.");
+        if (liveState === "running") {
+          setStatus("Update failed – will retry later.");
+        } else {
+          setStatus("Update failed.");
+        }
+        return false;
+      }
+    }
+
+    function clearChunkTimer() {
+      if (chunkTimerId) {
+        clearTimeout(chunkTimerId);
+        chunkTimerId = null;
       }
     }
 
     function scheduleNextChunk() {
-      if (chunkTimerId) clearTimeout(chunkTimerId);
+      clearChunkTimer();
+      if (liveState !== "running") return;
       chunkTimerId = setTimeout(async () => {
         await sendTranscriptChunkToWorker();
         scheduleNextChunk();
-      }, chunkIntervalMs);
+      }, LIVE_CHUNK_INTERVAL_MS);
     }
-
-    micBtn.onclick = async () => {
-      const autoMode = autoNotesToggle && autoNotesToggle.checked;
-
-      if (autoMode && recognizing) {
-        if (recognition) recognition.stop();
-        if (chunkTimerId) { clearTimeout(chunkTimerId); chunkTimerId = null; }
-        micBtn.classList.remove("active");
-        setStatus("Auto notes stopped.");
-        return;
-      }
-
-      if (autoMode) {
-        if (!SpeechRec || !recognition) {
-          setStatus("Auto notes: browser speech not supported.");
-          return;
-        }
-        segments = [];
-        lastSentIndex = 0;
-        chunkIntervalMs = 45000;
-        try {
-          recognizing = true;
-          recognition.start();
-        } catch (err) {
-          console.error(err);
-          setStatus("Auto notes: speech error.");
-          recognizing = false;
-          return;
-        }
-        scheduleNextChunk();
-        micBtn.classList.add("active");
-        setStatus("Auto notes running…");
-        return;
-      }
-
-      // Manual audio: single clip -> /audio
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
-          ? "audio/webm;codecs=opus"
-          : undefined;
-        const mediaRecorder = new MediaRecorder(stream, { mimeType });
-        const chunks = [];
-        mediaRecorder.ondataavailable = (e) => {
-          if (e.data && e.data.size > 0) chunks.push(e.data);
-        };
-        mediaRecorder.onstop = async () => {
-          stream.getTracks().forEach(t => t.stop());
-          const blob = new Blob(chunks, { type: mediaRecorder.mimeType || "audio/webm" });
-          try {
-            await sendAudio(blob);
-          } catch (_) {}
-        };
-        mediaRecorder.start();
-        micBtn.classList.add("active");
-        setStatus("Recording… tap again to send");
-        micBtn.onclick = () => {
-          if (mediaRecorder.state === "recording") {
-            mediaRecorder.stop();
-            micBtn.onclick = async () => {
-              // rebind normal handler after stop
-              micBtn.onclick = async () => { await micBtn.click(); };
-            };
-          }
-        };
-      } catch (err) {
-        console.error(err);
-        setStatus("Mic error.");
-      }
-    };
 
     // --- SETTINGS ---
     function loadLocalOrDefault(key, fallback) {
@@ -1331,12 +1465,20 @@
 
     // --- BOOT ---
     sendTextBtn.onclick = sendText;
+    if (startLiveBtn) startLiveBtn.onclick = startLiveSession;
+    if (pauseLiveBtn) pauseLiveBtn.onclick = togglePauseResumeLive;
+    if (finishLiveBtn) finishLiveBtn.onclick = () => { finishLiveSession(); };
     transcriptInput.addEventListener("input", () => {
-      // just keep UI in sync; AI drives checklist primarily
+      if (liveState !== "running") {
+        committedTranscript = transcriptInput.value.trim();
+      }
       renderChecklist(clarificationsEl, lastCheckedItems, lastMissingInfo);
     });
     loadStaticConfig();
     renderChecklist(clarificationsEl, [], []);
+    committedTranscript = transcriptInput.value.trim();
+    lastSentTranscript = committedTranscript;
+    updateLiveControls();
     setStatus("Idle");
   </script>
 </body>

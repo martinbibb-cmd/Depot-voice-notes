@@ -6,6 +6,13 @@ const WORKER_URL_STORAGE_KEY = "depot.workerUrl";
 const FUTURE_PLANS_NAME = "Future plans";
 const FUTURE_PLANS_DESCRIPTION = "Notes about any future work or follow-on visits.";
 const DEFAULT_WORKER_URL = "";
+const AUTOSAVE_STORAGE_KEY = "surveyBrainAutosave";
+const LEGACY_SCHEMA_STORAGE_KEY = "depot-output-schema";
+const CHECKLIST_STATE_STORAGE_KEY = "depot-checklist-state";
+const ALT_WORKER_URL_STORAGE_KEY = "depot-worker-url";
+
+let workerInputEl = null;
+let workerStatusEl = null;
 
 function sanitiseSectionSchema(input) {
   const asArray = (value) => {
@@ -222,6 +229,136 @@ function saveWorkerUrl(url) {
   } catch (err) {
     alert("Unable to save worker URL: " + (err?.message || err));
   }
+}
+
+function updateWorkerInputPresentation(savedValue) {
+  if (!workerInputEl) return;
+  const defaultPlaceholder = workerInputEl.dataset.placeholderDefault || workerInputEl.getAttribute("placeholder") || "";
+  const savedPlaceholder = workerInputEl.dataset.placeholderSaved || "Worker URL saved locally";
+  const hasSaved = Boolean((savedValue || "").trim());
+  workerInputEl.value = "";
+  workerInputEl.placeholder = hasSaved ? savedPlaceholder : defaultPlaceholder;
+  if (workerStatusEl) {
+    workerStatusEl.textContent = hasSaved
+      ? "A worker URL is saved on this device. Enter a new value to replace it or reset to remove it."
+      : "No worker URL is currently saved. Enter a worker URL to enable Pro transcription.";
+  }
+}
+
+function clearLocalDepotStorage() {
+  const knownKeys = [
+    SECTION_STORAGE_KEY,
+    LEGACY_SECTION_STORAGE_KEY,
+    CHECKLIST_STORAGE_KEY,
+    WORKER_URL_STORAGE_KEY,
+    AUTOSAVE_STORAGE_KEY,
+    LEGACY_SCHEMA_STORAGE_KEY,
+    CHECKLIST_STATE_STORAGE_KEY,
+    ALT_WORKER_URL_STORAGE_KEY
+  ];
+  try {
+    knownKeys.forEach((key) => {
+      if (!key) return;
+      try {
+        localStorage.removeItem(key);
+      } catch (_) {
+        // ignore storage issues per key
+      }
+    });
+  } catch (_) {
+    // ignore if localStorage is inaccessible entirely
+  }
+
+  const shouldClear = (key) => /^(depot[.-]|surveyBrain)/.test(key || "");
+
+  try {
+    const keys = [];
+    for (let i = 0; i < localStorage.length; i += 1) {
+      const key = localStorage.key(i);
+      if (key && shouldClear(key) && !knownKeys.includes(key)) {
+        keys.push(key);
+      }
+    }
+    keys.forEach((key) => {
+      try {
+        localStorage.removeItem(key);
+      } catch (_) {
+        // ignore
+      }
+    });
+  } catch (_) {
+    // ignore inability to enumerate localStorage
+  }
+
+  try {
+    const sessionKeys = [];
+    for (let i = 0; i < sessionStorage.length; i += 1) {
+      const key = sessionStorage.key(i);
+      if (key && shouldClear(key)) {
+        sessionKeys.push(key);
+      }
+    }
+    sessionKeys.forEach((key) => {
+      try {
+        sessionStorage.removeItem(key);
+      } catch (_) {
+        // ignore session storage issues
+      }
+    });
+  } catch (_) {
+    // ignore if sessionStorage unavailable
+  }
+}
+
+async function unregisterServiceWorkers() {
+  if (!("serviceWorker" in navigator)) return;
+  try {
+    const registrations = await navigator.serviceWorker.getRegistrations();
+    await Promise.all(
+      registrations.map((registration) =>
+        registration.unregister().catch(() => false)
+      )
+    );
+  } catch (err) {
+    console.warn("Failed to unregister service workers", err);
+  }
+}
+
+async function clearAppCaches() {
+  if (typeof window === "undefined" || !("caches" in window)) return;
+  try {
+    const cacheKeys = await caches.keys();
+    await Promise.all(cacheKeys.map((key) => caches.delete(key).catch(() => false)));
+  } catch (err) {
+    console.warn("Failed to clear caches", err);
+  }
+}
+
+async function forceReloadApp(button) {
+  const confirmation = window.confirm(
+    "This will clear all locally stored Depot data and reload the app from the network. Continue?"
+  );
+  if (!confirmation) return;
+
+  if (button) {
+    button.disabled = true;
+    button.textContent = "Clearing…";
+  }
+
+  clearLocalDepotStorage();
+  updateWorkerInputPresentation("");
+  if (workerStatusEl) {
+    workerStatusEl.textContent = "Local data cleared. Reloading…";
+  }
+
+  await unregisterServiceWorkers();
+  await clearAppCaches();
+
+  if (button) {
+    button.textContent = "Reloading…";
+  }
+
+  window.location.reload();
 }
 
 let editableSchema = [];
@@ -649,9 +786,11 @@ function renderChecklistEditor(config, sectionSchema) {
 async function initSettingsPage() {
   checklistArea = document.getElementById("settings-checklist-json");
   schemaArea = document.getElementById("settings-schema-json");
-  const workerInput = document.getElementById("settings-worker-url");
+  workerInputEl = document.getElementById("settings-worker-url");
+  workerStatusEl = document.getElementById("worker-url-status");
   sectionEditor = document.getElementById("settings-section-editor");
   checklistEditor = document.getElementById("checklist-editor");
+  const forceReloadBtn = document.getElementById("btn-force-reload");
 
   if (!checklistArea || !schemaArea || !sectionEditor || !checklistEditor) {
     console.warn("Settings elements missing");
@@ -671,8 +810,8 @@ async function initSettingsPage() {
   renderChecklistEditor(checklist, cachedSectionSchema);
   updateChecklistTextarea();
 
-  if (workerInput) {
-    workerInput.value = loadWorkerUrl();
+  if (workerInputEl) {
+    updateWorkerInputPresentation(loadWorkerUrl());
   }
 
   document.getElementById("btn-save-schema")?.addEventListener("click", () => {
@@ -753,12 +892,12 @@ async function initSettingsPage() {
     alert("Checklist reset to defaults.");
   });
 
-  if (workerInput) {
+  if (workerInputEl) {
     document.getElementById("btn-save-worker")?.addEventListener("click", () => {
-      const value = workerInput.value.trim();
+      const value = workerInputEl.value.trim();
       if (!value) {
         saveWorkerUrl("");
-        workerInput.value = DEFAULT_WORKER_URL;
+        updateWorkerInputPresentation(loadWorkerUrl());
         alert("Worker URL cleared – default will be used.");
         return;
       }
@@ -772,13 +911,20 @@ async function initSettingsPage() {
         return;
       }
       saveWorkerUrl(value);
+      updateWorkerInputPresentation(loadWorkerUrl());
       alert("Worker URL saved (local to this device).");
     });
 
     document.getElementById("btn-reset-worker")?.addEventListener("click", () => {
       saveWorkerUrl("");
-      workerInput.value = DEFAULT_WORKER_URL;
+      updateWorkerInputPresentation(loadWorkerUrl());
       alert("Worker URL reset to default.");
+    });
+  }
+
+  if (forceReloadBtn) {
+    forceReloadBtn.addEventListener("click", () => {
+      forceReloadApp(forceReloadBtn);
     });
   }
 }

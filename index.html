@@ -384,6 +384,46 @@
     // --- CONFIG: worker endpoint ---
     const WORKER_URL = "https://depot-voice-notes.martinbibb.workers.dev";
 
+    const REQUIRED_SECTIONS = [
+      "System characteristics",
+      "Working at heights",
+      "Restrictions to work",
+      "External hazards",
+      "Existing boiler and controls",
+      "New boiler and controls",
+      "Flue",
+      "Pipe work",
+      "Components that require assistance",
+      "Additional works",
+      "Permissions and notifications",
+      "Disruption",
+      "Customer actions",
+      "Future plans"
+    ];
+    const REQUIRED_SECTION_ORDER = {};
+    REQUIRED_SECTIONS.forEach((name, idx) => {
+      const order = idx + 1;
+      const key = normaliseSectionKey(name);
+      if (!key) return;
+      const variants = new Set([key]);
+      if (key.endsWith("s")) {
+        variants.add(key.replace(/s$/, ""));
+      }
+      if (key.endsWith("ies")) {
+        variants.add(key.replace(/ies$/, "y"));
+      } else if (key.endsWith("y")) {
+        variants.add(key.replace(/y$/, "ies"));
+      }
+      if (key.includes(" and ")) {
+        variants.add(key.replace(/\band\b/g, "").replace(/\s+/g, " ").trim());
+      }
+      variants.forEach((variant) => {
+        if (variant && !REQUIRED_SECTION_ORDER[variant]) {
+          REQUIRED_SECTION_ORDER[variant] = order;
+        }
+      });
+    });
+
     // --- ELEMENTS ---
     const sendTextBtn = document.getElementById("sendTextBtn");
     const transcriptInput = document.getElementById("transcriptInput");
@@ -453,6 +493,202 @@
     const LS_AUTOSAVE_KEY = "surveyBrainAutosave";
 
     // --- HELPERS ---
+    function normaliseSectionKey(name) {
+      return String(name || "")
+        .toLowerCase()
+        .replace(/&/g, "and")
+        .replace(/[^a-z0-9]+/g, " ")
+        .trim()
+        .replace(/\s+/g, " ");
+    }
+
+    function resolveRequiredSectionName(name) {
+      const key = normaliseSectionKey(name);
+      if (!key) return null;
+      const order = REQUIRED_SECTION_ORDER[key];
+      if (!order) return null;
+      return REQUIRED_SECTIONS[order - 1] || null;
+    }
+
+    function firstDefined(...values) {
+      for (let i = 0; i < values.length; i += 1) {
+        const value = values[i];
+        if (value !== undefined && value !== null) return value;
+      }
+      return undefined;
+    }
+
+    function coerceSectionField(value) {
+      if (typeof value === "string") return value;
+      if (Array.isArray(value)) {
+        return value
+          .map((part) => (typeof part === "string" ? part : ""))
+          .filter(Boolean)
+          .join(" ");
+      }
+      if (value && typeof value === "object") {
+        if (typeof value.text === "string") return value.text;
+        if (typeof value.content === "string") return value.content;
+        if (Array.isArray(value.parts)) {
+          return value.parts
+            .map((part) => (typeof part === "string" ? part : ""))
+            .filter(Boolean)
+            .join(" ");
+        }
+      }
+      if (value === undefined || value === null) return "";
+      return String(value);
+    }
+
+    function mergeTextFields(existing, incoming) {
+      const prev = typeof existing === "string" ? existing : "";
+      const next = typeof incoming === "string" ? incoming : "";
+      const prevTrim = prev.trim();
+      const nextTrim = next.trim();
+      if (!prevTrim && !nextTrim) return next || prev || "";
+      if (!prevTrim) return next;
+      if (!nextTrim) return prev;
+      if (prevTrim.toLowerCase() === nextTrim.toLowerCase()) return next || prev;
+      if (prevTrim.includes(nextTrim)) return prev;
+      if (nextTrim.includes(prevTrim)) return next;
+      return `${prevTrim}\n${nextTrim}`.trim();
+    }
+
+    function normaliseSectionCandidate(section, index = 0) {
+      if (!section) return null;
+      const rawName = firstDefined(section.section, section.name, section.heading, section.title);
+      const trimmedName = typeof rawName === "string" ? rawName.trim() : "";
+      if (!trimmedName) return null;
+      if (trimmedName.toLowerCase() === "arse_cover_notes") return null;
+      const canonical = resolveRequiredSectionName(trimmedName);
+      const plainSource = firstDefined(section.plainText, section.plain_text, section.text, section.content, section.body);
+      const naturalSource = firstDefined(
+        section.naturalLanguage,
+        section.natural_language,
+        section.summary,
+        section.description,
+        section.notes
+      );
+      return {
+        section: canonical || trimmedName,
+        originalName: trimmedName,
+        plainText: coerceSectionField(plainSource || ""),
+        naturalLanguage: coerceSectionField(naturalSource || ""),
+        isRequired: Boolean(canonical),
+        index
+      };
+    }
+
+    function mergeIncomingSection(existing, incoming) {
+      if (!incoming) return existing || null;
+      if (!existing) {
+        return {
+          section: incoming.section,
+          plainText: typeof incoming.plainText === "string" ? incoming.plainText : "",
+          naturalLanguage: typeof incoming.naturalLanguage === "string" ? incoming.naturalLanguage : ""
+        };
+      }
+      return {
+        section: incoming.section || existing.section,
+        plainText: mergeTextFields(existing.plainText, incoming.plainText),
+        naturalLanguage: mergeTextFields(existing.naturalLanguage, incoming.naturalLanguage)
+      };
+    }
+
+    function partitionSectionsByRequirement(sections) {
+      const required = new Map();
+      const extras = new Map();
+      (Array.isArray(sections) ? sections : []).forEach((section, idx) => {
+        const normalised = normaliseSectionCandidate(section, idx);
+        if (!normalised) return;
+        if (normalised.isRequired) {
+          const existing = required.get(normalised.section);
+          required.set(normalised.section, mergeIncomingSection(existing, normalised));
+        } else {
+          const key = normaliseSectionKey(normalised.originalName || normalised.section) || `${idx}-${normalised.section}`;
+          const existingExtra = extras.get(key);
+          const merged = mergeIncomingSection(existingExtra && existingExtra.entry, normalised);
+          extras.set(key, {
+            entry: merged,
+            order: existingExtra ? existingExtra.order : idx
+          });
+        }
+      });
+      return { required, extras };
+    }
+
+    function combineSectionEntries(prev, next, sectionName) {
+      const plainText = mergeTextFields(prev && prev.plainText, next && next.plainText);
+      const naturalLanguage = mergeTextFields(prev && prev.naturalLanguage, next && next.naturalLanguage);
+      if (!plainText.trim() && !naturalLanguage.trim()) {
+        return null;
+      }
+      return {
+        section: sectionName,
+        plainText,
+        naturalLanguage
+      };
+    }
+
+    function countPartitionEntries(partition) {
+      if (!partition) return 0;
+      let count = 0;
+      partition.required.forEach((entry) => {
+        if (entry) count += 1;
+      });
+      partition.extras.forEach((wrapper) => {
+        if (wrapper && wrapper.entry) count += 1;
+      });
+      return count;
+    }
+
+    function mergeSectionsPreservingRequired(previousSections, incomingSections) {
+      const prevPartition = partitionSectionsByRequirement(previousSections);
+      const incomingPartition = partitionSectionsByRequirement(incomingSections);
+      const merged = [];
+
+      REQUIRED_SECTIONS.forEach((name) => {
+        const mergedEntry = combineSectionEntries(
+          prevPartition.required.get(name),
+          incomingPartition.required.get(name),
+          name
+        );
+        if (mergedEntry) merged.push(mergedEntry);
+      });
+
+      const extraKeys = new Set([
+        ...Array.from(prevPartition.extras.keys()),
+        ...Array.from(incomingPartition.extras.keys())
+      ]);
+      const extraEntries = [];
+      extraKeys.forEach((key) => {
+        const prevWrapper = prevPartition.extras.get(key);
+        const nextWrapper = incomingPartition.extras.get(key);
+        const sectionName = (nextWrapper && nextWrapper.entry && nextWrapper.entry.section)
+          || (prevWrapper && prevWrapper.entry && prevWrapper.entry.section)
+          || "";
+        if (!sectionName) return;
+        const mergedEntry = combineSectionEntries(
+          prevWrapper && prevWrapper.entry,
+          nextWrapper && nextWrapper.entry,
+          sectionName
+        );
+        if (!mergedEntry) return;
+        const order = nextWrapper ? nextWrapper.order : prevWrapper ? prevWrapper.order : REQUIRED_SECTIONS.length;
+        extraEntries.push({ entry: mergedEntry, order });
+      });
+      extraEntries
+        .sort((a, b) => a.order - b.order)
+        .forEach((item) => {
+          merged.push(item.entry);
+        });
+
+      return {
+        merged,
+        incomingCount: countPartitionEntries(incomingPartition)
+      };
+    }
+
     function showVoiceError(message) {
       if (!voiceErrorEl) {
         console.error("Voice error:", message);
@@ -560,39 +796,26 @@
     }
 
     // --- SECTION / SCHEMA LOADING & NORMALISATION ---
-    const CANONICAL_SECTION_ORDER = [
-      "Needs",
-      "Working at heights",
-      "Components that require assistance",
-      "Restrictions to work",
-      "External hazards",
-      "Delivery notes",
-      "Office notes",
-      "New boiler and controls",
-      "Flue",
-      "Pipe work",
-      "Disruption",
-      "Customer actions",
-      "Future plans"
-    ];
+    const CANONICAL_SECTION_ORDER = [...REQUIRED_SECTIONS];
     const CANONICAL_ORDER_MAP = CANONICAL_SECTION_ORDER.reduce((acc, name, idx) => {
       acc[name.toLowerCase()] = idx + 1;
       return acc;
     }, {});
     const SECTION_FALLBACK = [
-      { name: "Needs", order: 1, description: "Key needs or must-haves called out by the customer." },
+      { name: "System characteristics", order: 1, description: "Heating system type, property layout and any key characteristics." },
       { name: "Working at heights", order: 2, description: "Ladders, loft access, towers, scaffolds or special access kit." },
-      { name: "Components that require assistance", order: 3, description: "Items needing two-person lifts or specialist handling." },
-      { name: "Restrictions to work", order: 4, description: "Parking limits, permits or building restrictions." },
-      { name: "External hazards", order: 5, description: "Asbestos, hazards, aggressive pets or notable site risks." },
-      { name: "Delivery notes", order: 6, description: "Delivery constraints, storage space and timings." },
-      { name: "Office notes", order: 7, description: "For the office team: planning, conservation, notifications." },
-      { name: "New boiler and controls", order: 8, description: "What is being fitted: boiler, controls, flushing, filters." },
-      { name: "Flue", order: 9, description: "Flue position, routing, plume kits and terminals." },
-      { name: "Pipe work", order: 10, description: "Gas, condensate and system pipe alterations." },
-      { name: "Disruption", order: 11, description: "Power flush, draining, floor lifting or decorations impacted." },
-      { name: "Customer actions", order: 12, description: "Things the customer has to sort before install." },
-      { name: "Future plans", order: 13, description: "Customer’s future plans or potential upgrades." }
+      { name: "Restrictions to work", order: 3, description: "Parking limits, permits or building restrictions." },
+      { name: "External hazards", order: 4, description: "Asbestos, hazards, aggressive pets or notable site risks." },
+      { name: "Existing boiler and controls", order: 5, description: "Current boiler, controls, condition and configuration." },
+      { name: "New boiler and controls", order: 6, description: "What is being fitted: boiler, controls, flushing, filters." },
+      { name: "Flue", order: 7, description: "Flue position, routing, plume kits and terminals." },
+      { name: "Pipe work", order: 8, description: "Gas, condensate and system pipe alterations." },
+      { name: "Components that require assistance", order: 9, description: "Items needing two-person lifts or specialist handling." },
+      { name: "Additional works", order: 10, description: "Extra works requested beyond the standard install." },
+      { name: "Permissions and notifications", order: 11, description: "Planning, landlord, building control or other notifications." },
+      { name: "Disruption", order: 12, description: "Power flush, draining, floor lifting or decorations impacted." },
+      { name: "Customer actions", order: 13, description: "Things the customer has to sort before install." },
+      { name: "Future plans", order: 14, description: "Customer’s future plans or potential upgrades." }
     ];
 
     function normaliseSectionSchema(entries) {
@@ -958,20 +1181,16 @@
         : (result.depotNotes && Array.isArray(result.depotNotes.sections))
           ? result.depotNotes.sections
           : [];
-      const sectionsCandidate = Array.isArray(sectionsCandidateRaw)
-        ? sectionsCandidateRaw.filter(sec => {
-            const name = sec && typeof sec.section === "string" ? sec.section.trim() : String(sec && sec.section || "").trim();
-            if (!name) return false;
-            return name.toLowerCase() !== "arse_cover_notes";
-          })
-        : [];
-
-      if (sectionsCandidate.length) {
-        lastRawSections = cloneDeep(sectionsCandidate);
+      const { merged: mergedSections, incomingCount: incomingSectionsCount } = mergeSectionsPreservingRequired(
+        prevSections,
+        sectionsCandidateRaw
+      );
+      const prevSectionsJson = JSON.stringify(prevSections);
+      const mergedSectionsJson = JSON.stringify(mergedSections);
+      if (mergedSectionsJson !== prevSectionsJson) {
         updated = true;
-      } else {
-        lastRawSections = prevSections;
       }
+      lastRawSections = cloneDeep(mergedSections);
 
       if (Array.isArray(result.materials) && result.materials.length) {
         lastMaterials = result.materials.slice();
@@ -1013,7 +1232,7 @@
         const hasMaterials = Array.isArray(result.materials)
           ? result.materials.length > 0
           : !!result.materials;
-        if (!sectionsCandidate.length && !hasMaterials) {
+        if (!incomingSectionsCount && !hasMaterials) {
           showVoiceError("AI didn’t return any depot notes. Existing notes kept.");
         }
       }

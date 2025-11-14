@@ -1,7 +1,7 @@
-import defaultChecklistConfig from "../../data/checklist.config.json" assert { type: "json" };
+import defaultChecklistConfig from "../../checklist.config.json" assert { type: "json" };
 import defaultDepotSchema from "../../data/depot.output.schema.json" assert { type: "json" };
 
-const LS_CHECKLIST_CONFIG_KEY = "depot-checklist-config";
+const LS_CHECKLIST_CONFIG_KEY = "depot.checklistConfig";
 const LS_SCHEMA_KEY = "depot-output-schema";
 const LS_CHECKLIST_STATE_KEY = "depot-checklist-state";
 const LS_WORKER_URL_KEY = "depot-worker-url";
@@ -42,7 +42,25 @@ function saveJson(key, value) {
 }
 
 export function loadChecklistConfig() {
-  return loadJsonOrDefault(LS_CHECKLIST_CONFIG_KEY, defaultChecklistConfig);
+  const fallback = deepClone(defaultChecklistConfig);
+  const stored = loadJsonOrDefault(LS_CHECKLIST_CONFIG_KEY, fallback);
+
+  if (Array.isArray(stored)) {
+    return { ...fallback, items: stored }; // legacy array-only overrides
+  }
+
+  if (stored && typeof stored === "object") {
+    const result = { ...fallback };
+    if (Array.isArray(stored.sectionsOrder)) {
+      result.sectionsOrder = stored.sectionsOrder.slice();
+    }
+    if (Array.isArray(stored.items)) {
+      result.items = stored.items.slice();
+    }
+    return result;
+  }
+
+  return fallback;
 }
 
 export function loadDepotSchema() {

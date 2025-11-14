@@ -296,7 +296,7 @@
     const WORKER_URL_STORAGE_KEY = "depot.workerUrl";
     const SECTION_STORAGE_KEY = "depot.sectionSchema";
     const LEGACY_SECTION_STORAGE_KEY = "surveybrain-schema";
-    const CHECKLIST_STORAGE_KEY = "surveybrain-checklist";
+    const CHECKLIST_STORAGE_KEY = "depot.checklistConfig";
     const LS_AUTOSAVE_KEY = "surveyBrainAutosave";
     const FUTURE_PLANS_NAME = "Future plans";
     const FUTURE_PLANS_DESCRIPTION = "Notes about any future work or follow-on visits.";
@@ -341,6 +341,81 @@
     let schemaLoaded = false;
     let CHECKLIST_SOURCE = [];
     let CHECKLIST_ITEMS = [];
+
+    function sanitiseChecklistArray(value) {
+      const asArray = (input) => {
+        if (!input) return [];
+        if (Array.isArray(input)) return input;
+        if (input && typeof input === "object" && Array.isArray(input.items)) {
+          return input.items;
+        }
+        return [];
+      };
+
+      const entries = asArray(value);
+      const seen = new Set();
+      const cleaned = [];
+
+      entries.forEach((item) => {
+        if (!item) return;
+        const copy = { ...item };
+        const id = copy.id != null ? String(copy.id).trim() : "";
+        const label = copy.label != null ? String(copy.label).trim() : "";
+        if (!id || !label || seen.has(id)) return;
+        seen.add(id);
+        copy.id = id;
+        copy.label = label;
+        copy.group = copy.group != null ? String(copy.group).trim() : "";
+        copy.hint = copy.hint != null ? String(copy.hint).trim() : "";
+        const section = copy.section != null && String(copy.section).trim()
+          ? String(copy.section).trim()
+          : copy.depotSection != null && String(copy.depotSection).trim()
+            ? String(copy.depotSection).trim()
+            : "";
+        copy.section = section;
+        if (section) {
+          copy.depotSection = section;
+        }
+        cleaned.push(copy);
+      });
+
+      return cleaned;
+    }
+
+    async function loadChecklistConfig() {
+      let defaultConfig = [];
+      try {
+        const res = await fetch("checklist.config.json", { cache: "no-store" });
+        if (res.ok) {
+          const data = await res.json();
+          defaultConfig = sanitiseChecklistArray(data);
+        }
+      } catch (err) {
+        console.warn("Failed to fetch default checklist", err);
+      }
+
+      let local = null;
+      try {
+        local = JSON.parse(localStorage.getItem(CHECKLIST_STORAGE_KEY) || "null");
+      } catch (_) {
+        local = null;
+      }
+
+      const localConfig = sanitiseChecklistArray(local);
+      const finalConfig = localConfig.length ? localConfig : defaultConfig;
+
+      return sanitiseChecklistArray(finalConfig);
+    }
+
+    function saveLocalChecklistConfig(cfg) {
+      const cleaned = sanitiseChecklistArray(cfg);
+      try {
+        localStorage.setItem(CHECKLIST_STORAGE_KEY, JSON.stringify(cleaned));
+      } catch (err) {
+        console.warn("Failed to persist checklist override", err);
+      }
+      return cleaned;
+    }
 
     let mediaRecorder = null;
     let mediaStream = null;
@@ -1840,14 +1915,6 @@
     }
 
     // --- SETTINGS ---
-    function loadLocalOrDefault(key, fallback) {
-      try {
-        const raw = localStorage.getItem(key);
-        if (!raw) return fallback;
-        return JSON.parse(raw);
-      } catch (_) { return fallback; }
-    }
-
     async function ensureSchemaIntoState() {
       try {
         await ensureSectionSchema();
@@ -1860,18 +1927,7 @@
 
     async function loadChecklistConfigIntoState() {
       try {
-        const local = loadLocalOrDefault(CHECKLIST_STORAGE_KEY, null);
-        if (local) {
-          CHECKLIST_SOURCE = Array.isArray(local) ? local : (local.items || []);
-        } else {
-          const res = await fetch("checklist.config.json", { cache: "no-store" });
-          if (res.ok) {
-            const data = await res.json();
-            CHECKLIST_SOURCE = Array.isArray(data) ? data : (data.items || []);
-          } else {
-            CHECKLIST_SOURCE = [];
-          }
-        }
+        CHECKLIST_SOURCE = await loadChecklistConfig();
       } catch (err) {
         console.warn("Failed to load checklist config", err);
         CHECKLIST_SOURCE = [];

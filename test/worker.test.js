@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import worker from '../src/worker.js';
 import depotSchema from '../depot.output.schema.json' assert { type: 'json' };
+import checklistConfig from '../checklist.config.json' assert { type: 'json' };
 
 function extractDefaultSections(schema) {
   if (schema && typeof schema === 'object' && Array.isArray(schema.sections)) {
@@ -113,6 +114,14 @@ test('POST /text forwards structured payload and normalises model output', async
   assert.deepEqual(parsedUser.expectedSections, expectedSectionOrder);
   assert.equal(parsedUser.sectionHints.hive, 'New boiler and controls');
   assert.equal(parsedUser.forceStructured, true);
+  const expectedChecklistIds = (checklistConfig.items || [])
+    .map((item) => item && item.id)
+    .filter(Boolean);
+  assert.deepEqual(
+    parsedUser.checklistItems.map((item) => item.id),
+    expectedChecklistIds,
+    'expected default checklist items to be forwarded'
+  );
 });
 
 test('POST /text surfaces OpenAI errors as model_error 5xx', async (t) => {

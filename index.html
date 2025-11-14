@@ -205,59 +205,6 @@
       border-radius: 8px;
       font-weight: 500;
     }
-    /* Settings overlay */
-    .settings-overlay {
-      position: fixed;
-      inset: 0;
-      background: rgba(15,23,42,.7);
-      display: none;
-      align-items: center;
-      justify-content: center;
-      z-index: 999;
-    }
-    .settings-panel {
-      background: #0b1120;
-      color: #e5e7eb;
-      border-radius: 18px;
-      padding: 16px 16px 12px;
-      max-width: 960px;
-      width: calc(100% - 24px);
-      max-height: calc(100% - 24px);
-      overflow: auto;
-      box-shadow: 0 20px 40px rgba(15,23,42,.65);
-      font-size: .75rem;
-    }
-    .settings-panel h2 {
-      margin: 0 0 6px;
-      font-size: .9rem;
-    }
-    .settings-panel textarea {
-      width: 100%;
-      min-height: 140px;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-      font-size: .7rem;
-      background: #020617;
-      color: #e5e7eb;
-      border-radius: 10px;
-      border: 1px solid #1e293b;
-    }
-    .settings-panel .row {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 10px;
-    }
-    @media (max-width: 900px) {
-      .settings-panel .row {
-        grid-template-columns: 1fr;
-      }
-    }
-    .pill-muted {
-      background: rgba(148,163,184,.16);
-      border-radius: 999px;
-      padding: 3px 9px;
-      font-size: .65rem;
-      color: #94a3b8;
-    }
   </style>
 </head>
 <body>
@@ -343,43 +290,6 @@
   <input id="loadSessionInput" type="file" accept=".depotvoice.json,application/json" style="display:none;">
   <input id="importAudioInput" type="file" accept="audio/*" style="display:none;">
 
-  <!-- Settings overlay -->
-  <div id="settingsOverlay" class="settings-overlay">
-    <div class="settings-panel">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-        <div>
-          <h2>Survey Brain Settings</h2>
-          <div class="small">Edit how sections and checklist items behave on this device.</div>
-        </div>
-        <button id="closeSettingsBtn" class="pill-secondary">Close</button>
-      </div>
-      <div class="row">
-        <section>
-          <h3>Depot section schema</h3>
-          <p class="small">Controls section names and ordering. Each entry needs <code>name</code> and optional <code>description</code>.</p>
-          <textarea id="schemaEditor"></textarea>
-          <div style="margin-top:6px;display:flex;gap:6px;">
-            <button id="schemaSaveBtn">Save schema (local)</button>
-            <button id="schemaResetBtn" class="pill-secondary">Reset to defaults</button>
-          </div>
-        </section>
-        <section>
-          <h3>Checklist items</h3>
-          <p class="small">List of survey checklist items the AI can tick (id, group, section, label, hint).</p>
-          <textarea id="checklistEditor"></textarea>
-          <div style="margin-top:6px;display:flex;gap:6px;">
-            <button id="checklistSaveBtn">Save checklist (local)</button>
-            <button id="checklistResetBtn" class="pill-secondary">Reset to defaults</button>
-          </div>
-        </section>
-      </div>
-      <p class="small" style="margin-top:8px;">
-        <span class="pill-muted">Note</span> Changes are stored in this browser only (localStorage).  
-        To ship new defaults for everyone, update <code>depot.output.schema.json</code> and <code>checklist.config.json</code> in the repo.
-      </p>
-    </div>
-  </div>
-
   <script>
     // --- CONFIG / STORAGE KEYS ---
     const DEFAULT_WORKER_URL = "https://depot-voice-notes.martinbibb.workers.dev";
@@ -414,14 +324,6 @@
     const voiceErrorEl = document.getElementById("voice-error");
     const sleepWarningEl = document.getElementById("sleep-warning");
     const settingsBtn = document.getElementById("settingsBtn");
-    const settingsOverlay = document.getElementById("settingsOverlay");
-    const closeSettingsBtn = document.getElementById("closeSettingsBtn");
-    const schemaEditor = document.getElementById("schemaEditor");
-    const checklistEditor = document.getElementById("checklistEditor");
-    const schemaSaveBtn = document.getElementById("schemaSaveBtn");
-    const schemaResetBtn = document.getElementById("schemaResetBtn");
-    const checklistSaveBtn = document.getElementById("checklistSaveBtn");
-    const checklistResetBtn = document.getElementById("checklistResetBtn");
 
     // --- STATE ---
     let lastMaterials = [];
@@ -581,17 +483,6 @@
         return candidate;
       }
       return sanitiseSectionSchema([]);
-    }
-
-    function saveLocalSectionSchema(schema) {
-      const final = sanitiseSectionSchema(schema);
-      try {
-        localStorage.setItem(SECTION_STORAGE_KEY, JSON.stringify(final));
-        localStorage.removeItem(LEGACY_SECTION_STORAGE_KEY);
-      } catch (err) {
-        console.warn("Failed to save section schema", err);
-      }
-      return final;
     }
 
     function rebuildSectionState(schema) {
@@ -1957,103 +1848,50 @@
       } catch (_) { return fallback; }
     }
 
-    async function loadStaticConfig() {
-      WORKER_URL = loadStoredWorkerUrl();
-
+    async function ensureSchemaIntoState() {
       try {
-        const schema = await ensureSectionSchema();
-        if (schemaEditor) {
-          schemaEditor.value = JSON.stringify(schema, null, 2);
-        }
+        await ensureSectionSchema();
       } catch (err) {
         console.warn("Falling back to minimal schema", err);
         const fallback = sanitiseSectionSchema([]);
         rebuildSectionState(fallback);
-        if (schemaEditor) {
-          schemaEditor.value = JSON.stringify(fallback, null, 2);
-        }
       }
+    }
 
+    async function loadChecklistConfigIntoState() {
       try {
         const local = loadLocalOrDefault(CHECKLIST_STORAGE_KEY, null);
         if (local) {
           CHECKLIST_SOURCE = Array.isArray(local) ? local : (local.items || []);
-          CHECKLIST_ITEMS = normaliseChecklistConfig(CHECKLIST_SOURCE);
-          checklistEditor.value = JSON.stringify(CHECKLIST_SOURCE, null, 2);
         } else {
           const res = await fetch("checklist.config.json", { cache: "no-store" });
           if (res.ok) {
             const data = await res.json();
             CHECKLIST_SOURCE = Array.isArray(data) ? data : (data.items || []);
-            CHECKLIST_ITEMS = normaliseChecklistConfig(CHECKLIST_SOURCE);
-            checklistEditor.value = JSON.stringify(CHECKLIST_SOURCE, null, 2);
           } else {
             CHECKLIST_SOURCE = [];
-            CHECKLIST_ITEMS = [];
-            checklistEditor.value = "[]";
           }
         }
       } catch (err) {
         console.warn("Failed to load checklist config", err);
         CHECKLIST_SOURCE = [];
-        CHECKLIST_ITEMS = [];
-        checklistEditor.value = "[]";
       }
 
+      CHECKLIST_ITEMS = normaliseChecklistConfig(CHECKLIST_SOURCE);
+    }
+
+    async function loadStaticConfig() {
+      WORKER_URL = loadStoredWorkerUrl();
+      await ensureSchemaIntoState();
+      await loadChecklistConfigIntoState();
       refreshUiFromState();
     }
 
-    settingsBtn.onclick = () => {
-      settingsOverlay.style.display = "flex";
-    };
-    closeSettingsBtn.onclick = () => {
-      settingsOverlay.style.display = "none";
-    };
-    settingsOverlay.addEventListener("click", (e) => {
-      if (e.target === settingsOverlay) settingsOverlay.style.display = "none";
-    });
-
-    schemaSaveBtn.onclick = async () => {
-      try {
-        const data = JSON.parse(schemaEditor.value);
-        const saved = saveLocalSectionSchema(data);
-        rebuildSectionState(saved);
-        schemaEditor.value = JSON.stringify(saved, null, 2);
-        refreshUiFromState();
-        alert("Schema saved for this device.");
-      } catch (err) {
-        alert("Schema JSON invalid: " + err.message);
-      }
-    };
-    schemaResetBtn.onclick = async () => {
-      localStorage.removeItem(SECTION_STORAGE_KEY);
-      localStorage.removeItem(LEGACY_SECTION_STORAGE_KEY);
-      clearCachedSchema();
-      const schema = await ensureSectionSchema();
-      schemaEditor.value = JSON.stringify(schema, null, 2);
-      refreshUiFromState();
-    };
-
-    checklistSaveBtn.onclick = () => {
-      try {
-        const data = JSON.parse(checklistEditor.value);
-        CHECKLIST_SOURCE = Array.isArray(data) ? data : (data.items || []);
-        CHECKLIST_ITEMS = normaliseChecklistConfig(CHECKLIST_SOURCE);
-        localStorage.setItem(CHECKLIST_STORAGE_KEY, JSON.stringify(CHECKLIST_SOURCE));
-        renderChecklist(clarificationsEl, lastCheckedItems, lastMissingInfo);
-        alert("Checklist saved for this device.");
-      } catch (err) {
-        alert("Checklist JSON invalid: " + err.message);
-      }
-    };
-    checklistResetBtn.onclick = () => {
-      localStorage.removeItem(CHECKLIST_STORAGE_KEY);
-      CHECKLIST_SOURCE = [];
-      CHECKLIST_ITEMS = [];
-      checklistEditor.value = "[]";
-      renderChecklist(clarificationsEl, lastCheckedItems, lastMissingInfo);
-      loadStaticConfig();
-    };
+    if (settingsBtn) {
+      settingsBtn.addEventListener("click", () => {
+        window.location.href = "settings.html";
+      });
+    }
 
     window.addEventListener("storage", (event) => {
       if (event.key === WORKER_URL_STORAGE_KEY) {
@@ -2061,15 +1899,15 @@
       }
       if (event.key === SECTION_STORAGE_KEY || event.key === LEGACY_SECTION_STORAGE_KEY) {
         clearCachedSchema();
-        ensureSectionSchema().then((schema) => {
-          if (schemaEditor) {
-            schemaEditor.value = JSON.stringify(schema, null, 2);
-          }
+        ensureSchemaIntoState().then(() => {
           refreshUiFromState();
         }).catch((err) => console.warn("Failed to refresh schema after storage event", err));
       }
       if (event.key === CHECKLIST_STORAGE_KEY) {
-        loadStaticConfig();
+        loadChecklistConfigIntoState().then(() => {
+          renderChecklist(clarificationsEl, lastCheckedItems, lastMissingInfo);
+          refreshUiFromState();
+        }).catch((err) => console.warn("Failed to refresh checklist after storage event", err));
       }
     });
 
@@ -2178,7 +2016,9 @@
       }
       renderChecklist(clarificationsEl, lastCheckedItems, lastMissingInfo);
     });
-    loadStaticConfig();
+    loadStaticConfig().catch((err) => {
+      console.warn("Failed initial config load", err);
+    });
     renderChecklist(clarificationsEl, [], []);
     committedTranscript = transcriptInput.value.trim();
     lastSentTranscript = committedTranscript;

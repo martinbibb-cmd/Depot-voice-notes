@@ -174,12 +174,17 @@ async function callNotesModel(env, payload) {
 
   const {
     transcript,
-    checklistItems = [],
+    checklistItems: rawChecklistItems = [],
     depotSections: depotSectionsRaw = [],
     alreadyCaptured = [],
     sectionHints = {},
     forceStructured = false
   } = payload || {};
+
+  const checklistFromPayload = sanitiseChecklistConfig(rawChecklistItems);
+  const checklistItems = checklistFromPayload.items.length
+    ? checklistFromPayload.items
+    : cloneChecklistItems(DEFAULT_CHECKLIST_CONFIG.items);
 
   const activeSchemaInfo = getSchemaInfoFromPayload(depotSectionsRaw);
   const sectionListText = activeSchemaInfo.names
@@ -402,6 +407,7 @@ function normaliseSectionsFromModel(rawSections, schemaInfo) {
   return normalised;
 }
 import schemaConfig from "./depot.output.schema.json" assert { type: "json" };
+import checklistConfig from "./checklist.config.json" assert { type: "json" };
 
 const FUTURE_PLANS_NAME = "Future plans";
 const FUTURE_PLANS_DESCRIPTION = "Notes about any future work or follow-on visits.";
@@ -510,7 +516,88 @@ function buildSchemaInfo(raw) {
   return { schema, names, keyLookup };
 }
 
+function sanitiseChecklistConfig(raw) {
+  const asArray = (value) => {
+    if (!value) return [];
+    if (Array.isArray(value)) return value;
+    if (value && typeof value === "object" && Array.isArray(value.items)) {
+      return value.items;
+    }
+    return [];
+  };
+
+  const items = [];
+  const seen = new Set();
+
+  asArray(raw).forEach((item) => {
+    if (!item || typeof item !== "object") return;
+    const id = item.id != null ? String(item.id).trim() : "";
+    const label = item.label != null ? String(item.label).trim() : "";
+    if (!id || !label || seen.has(id)) return;
+    seen.add(id);
+
+    const section = item.section != null
+      ? String(item.section).trim()
+      : item.depotSection != null
+        ? String(item.depotSection).trim()
+        : "";
+
+    const cloneMaterials = () => {
+      if (!Array.isArray(item.materials)) return [];
+      return item.materials
+        .map((mat) => {
+          if (!mat || typeof mat !== "object") return null;
+          const itemName = mat.item != null ? String(mat.item).trim() : "";
+          if (!itemName) return null;
+          const qtyNum = Number(mat.qty);
+          const qty = Number.isFinite(qtyNum) && qtyNum > 0 ? qtyNum : 1;
+          return {
+            category: mat.category != null ? String(mat.category).trim() : "Misc",
+            item: itemName,
+            qty,
+            notes: mat.notes != null ? String(mat.notes).trim() : ""
+          };
+        })
+        .filter(Boolean);
+    };
+
+    items.push({
+      id,
+      group: item.group != null ? String(item.group).trim() : "",
+      section,
+      depotSection: section || undefined,
+      label,
+      hint: item.hint != null ? String(item.hint).trim() : "",
+      plainText: item.plainText != null ? String(item.plainText).trim() : "",
+      naturalLanguage: item.naturalLanguage != null ? String(item.naturalLanguage).trim() : "",
+      materials: cloneMaterials()
+    });
+  });
+
+  let sectionsOrder = [];
+  if (raw && typeof raw === "object" && !Array.isArray(raw) && Array.isArray(raw.sectionsOrder)) {
+    sectionsOrder = raw.sectionsOrder
+      .map((name) => String(name || "").trim())
+      .filter(Boolean);
+  }
+
+  return {
+    items,
+    sectionsOrder
+  };
+}
+
+function cloneChecklistItems(items) {
+  return (Array.isArray(items) ? items : []).map((item) => ({
+    ...item,
+    materials: Array.isArray(item.materials)
+      ? item.materials.map((mat) => ({ ...mat }))
+      : []
+  }));
+}
+
 const DEFAULT_SCHEMA_INFO = buildSchemaInfo(schemaConfig);
+const DEFAULT_CHECKLIST_CONFIG = sanitiseChecklistConfig(checklistConfig);
 
 function getSchemaInfoFromPayload(raw) {
   const rawArrayLength = Array.isArray(raw)

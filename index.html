@@ -292,7 +292,7 @@
 
   <script>
     // --- CONFIG / STORAGE KEYS ---
-    const DEFAULT_WORKER_URL = "https://depot-voice-notes.martinbibb.workers.dev";
+    const DEFAULT_WORKER_URL = "";
     const WORKER_URL_STORAGE_KEY = "depot.workerUrl";
     const SECTION_STORAGE_KEY = "depot.sectionSchema";
     const LEGACY_SECTION_STORAGE_KEY = "surveybrain-schema";
@@ -847,8 +847,23 @@
       try { return JSON.parse(JSON.stringify(val)); } catch (_) { return val; }
     }
 
+    function requireWorkerBaseUrl() {
+      const trimmed = (WORKER_URL || "").trim();
+      if (!trimmed) {
+        const err = new Error("Worker URL not configured");
+        err.voiceMessage = "Voice AI worker URL not configured. Update it in Settings.";
+        throw err;
+      }
+      if (!/^https?:\/\//i.test(trimmed)) {
+        const err = new Error("Worker URL must start with http:// or https://");
+        err.voiceMessage = "Voice AI worker URL looks invalid. Update it in Settings.";
+        throw err;
+      }
+      return trimmed.replace(/\/$/, "");
+    }
+
     async function postJSON(path, body) {
-      const base = WORKER_URL.replace(/\/$/, "");
+      const base = requireWorkerBaseUrl();
       const url = base + path;
       const res = await fetch(url, {
         method: "POST",
@@ -1388,7 +1403,8 @@
       clearVoiceError();
       try {
         const schemaSnapshot = await ensureSectionSchema();
-        const res = await fetch(WORKER_URL.replace(/\/$/, "") + "/audio", {
+        const baseUrl = requireWorkerBaseUrl();
+        const res = await fetch(baseUrl + "/audio", {
           method: "POST",
           headers: { "Content-Type": blob.type || "audio/webm" },
           body: blob

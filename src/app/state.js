@@ -6,7 +6,7 @@ const LS_SCHEMA_KEY = "depot-output-schema";
 const LS_CHECKLIST_STATE_KEY = "depot-checklist-state";
 const LS_WORKER_URL_KEY = "depot-worker-url";
 
-export const DEFAULT_WORKER_URL = "https://survey-brain-api.martinbibb.workers.dev";
+export const DEFAULT_WORKER_URL = "";
 
 function deepClone(value) {
   if (value === undefined || value === null) {

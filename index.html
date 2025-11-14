@@ -541,6 +541,76 @@
       }).filter(Boolean);
     }
 
+    function deriveSectionHints() {
+      const hints = {};
+      const addHint = (rawKey, sectionName) => {
+        const key = typeof rawKey === "string" ? rawKey.trim().toLowerCase() : String(rawKey || "").trim().toLowerCase();
+        const section = typeof sectionName === "string" ? sectionName.trim() : String(sectionName || "").trim();
+        if (!key || !section || hints[key]) return;
+        hints[key] = section;
+      };
+
+      SECTION_SCHEMA.forEach(sec => {
+        if (!sec || !sec.name) return;
+        addHint(sec.name, sec.name);
+        const tokens = String(sec.name)
+          .toLowerCase()
+          .split(/[^a-z0-9]+/)
+          .map(t => t.trim())
+          .filter(t => t.length >= 3);
+        tokens.forEach(token => addHint(token, sec.name));
+      });
+
+      CHECKLIST_ITEMS.forEach(item => {
+        if (!item) return;
+        const sectionName = (item.section || "").trim();
+        if (!sectionName) return;
+        addHint(item.id, sectionName);
+        const textBits = [item.label || "", item.hint || ""]
+          .join(" ")
+          .toLowerCase()
+          .split(/[^a-z0-9]+/)
+          .map(t => t.trim())
+          .filter(t => t.length >= 3);
+        textBits.forEach(token => addHint(token, sectionName));
+      });
+
+      return hints;
+    }
+
+    function buildVoiceRequestPayload(transcript) {
+      const existingSections = Array.isArray(lastRawSections)
+        ? lastRawSections
+            .map(sec => {
+              if (!sec || typeof sec !== "object") return null;
+              const section = typeof sec.section === "string" ? sec.section.trim() : String(sec.section || "").trim();
+              if (!section) return null;
+              return {
+                section,
+                plainText: typeof sec.plainText === "string" ? sec.plainText : String(sec.plainText || ""),
+                naturalLanguage: typeof sec.naturalLanguage === "string" ? sec.naturalLanguage : String(sec.naturalLanguage || "")
+              };
+            })
+            .filter(Boolean)
+        : [];
+
+      const expectedSections = Array.isArray(SECTION_SCHEMA)
+        ? SECTION_SCHEMA
+            .map(sec => (sec && sec.name ? String(sec.name).trim() : ""))
+            .filter(Boolean)
+        : [];
+
+      return {
+        transcript,
+        alreadyCaptured: existingSections,
+        expectedSections,
+        sectionHints: deriveSectionHints(),
+        forceStructured: true,
+        checklistItems: CHECKLIST_SOURCE,
+        depotSections: SECTION_SCHEMA
+      };
+    }
+
     // Plaintext shaping helpers
     function ensureSemi(s){ s=String(s||"").trim(); return s ? (s.endsWith(";")?s:s+";") : s; }
     function splitClauses(text){
@@ -806,11 +876,7 @@
       setStatus("Sending text…");
       clearVoiceError();
       try {
-        const res = await postJSON("/text", {
-          transcript,
-          checklistItems: CHECKLIST_SOURCE,
-          depotSections: SECTION_SCHEMA
-        });
+        const res = await postJSON("/text", buildVoiceRequestPayload(transcript));
         const raw = await res.text();
         if (!res.ok) {
           const snippet = raw ? `: ${raw.slice(0, 200)}` : "";
@@ -1052,11 +1118,7 @@
       try {
         setStatus("Updating notes…");
         clearVoiceError();
-        const res = await postJSON("/text", {
-          transcript: fullTranscript,
-          checklistItems: CHECKLIST_SOURCE,
-          depotSections: SECTION_SCHEMA
-        });
+        const res = await postJSON("/text", buildVoiceRequestPayload(fullTranscript));
         const raw = await res.text();
         if (!res.ok) {
           const snippet = raw ? `: ${raw.slice(0, 200)}` : "";

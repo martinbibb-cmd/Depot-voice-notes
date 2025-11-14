@@ -23,7 +23,7 @@ export default {
       return jsonResponse({ error: "not_found" }, 404);
     } catch (err) {
       console.error("Worker fatal error:", err);
-      return jsonResponse({ error: "server_error", message: String(err) }, 500);
+      return jsonResponse({ error: "model_error", message: String(err) }, 500);
     }
   }
 };
@@ -87,8 +87,21 @@ async function handleText(request, env) {
       ? depotSectionsRaw.sections
       : [];
 
+  const alreadyCaptured = normaliseCapturedSections(payload.alreadyCaptured);
+  const expectedSections = normaliseExpectedSections(payload.expectedSections);
+  const sectionHints = normaliseSectionHints(payload.sectionHints);
+  const forceStructured = Boolean(payload.forceStructured);
+
   try {
-    const result = await callNotesModel(env, transcript, checklistItems, depotSections);
+    const result = await callNotesModel(env, {
+      transcript,
+      checklistItems,
+      depotSections,
+      alreadyCaptured,
+      expectedSections,
+      sectionHints,
+      forceStructured
+    });
     return jsonResponse(result, 200);
   } catch (err) {
     console.error("handleText model error:", err);
@@ -115,12 +128,20 @@ async function handleAudio(request, env) {
 
   try {
     const transcript = await transcribeAudio(env, audioData, contentType);
-    const result = await callNotesModel(env, transcript, [], []);
+    const result = await callNotesModel(env, {
+      transcript,
+      checklistItems: [],
+      depotSections: [],
+      alreadyCaptured: [],
+      expectedSections: [],
+      sectionHints: {},
+      forceStructured: true
+    });
     return jsonResponse(result, 200);
   } catch (err) {
     console.error("handleAudio error:", err);
     return jsonResponse(
-      { error: "audio_error", message: String(err) },
+      { error: "model_error", message: String(err) },
       500
     );
   }
@@ -154,9 +175,19 @@ async function transcribeAudio(env, audioBuffer, mime) {
   return data.text || "";
 }
 
-async function callNotesModel(env, transcript, checklistItems, depotSections) {
+async function callNotesModel(env, payload) {
   const apiKey = env.OPENAI_API_KEY;
   if (!apiKey) throw new Error("OPENAI_API_KEY not configured");
+
+  const {
+    transcript,
+    checklistItems = [],
+    depotSections = [],
+    alreadyCaptured = [],
+    expectedSections = [],
+    sectionHints = {},
+    forceStructured = false
+  } = payload || {};
 
   // IMPORTANT: we do NOT use response_format here.
   // Instead we *ask* for JSON and parse it ourselves.
@@ -167,6 +198,10 @@ You receive:
 - A transcript of what was discussed.
 - A list of known checklist items (with ids).
 - A list of depot section names.
+- Optionally, a list of sections already captured so you can avoid duplicates.
+- Optionally, a list of expected section names to prioritise.
+- Optional hints that map keywords to section names.
+- A forceStructured flag indicating you MUST return structured depot notes even if the transcript is sparse.
 
 Your job is to:
 1. Decide which checklist ids are clearly satisfied by the transcript.
@@ -208,7 +243,11 @@ Always preserve boiler/cylinder make & model exactly as spoken.
   const userPayload = {
     transcript,
     checklistItems,
-    depotSections
+    depotSections,
+    alreadyCaptured,
+    expectedSections,
+    sectionHints,
+    forceStructured
   };
 
   const body = {
@@ -268,4 +307,43 @@ Always preserve boiler/cylinder make & model exactly as spoken.
   if (typeof jsonOut.customerSummary !== "string") jsonOut.customerSummary = "";
 
   return jsonOut;
+}
+
+function normaliseCapturedSections(value) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map(entry => {
+      if (typeof entry === "string") {
+        const section = entry.trim();
+        if (!section) return null;
+        return { section, plainText: "", naturalLanguage: "" };
+      }
+      if (!entry || typeof entry !== "object") return null;
+      const section = entry.section != null ? String(entry.section).trim() : "";
+      if (!section) return null;
+      const plainText = entry.plainText != null ? String(entry.plainText) : "";
+      const naturalLanguage = entry.naturalLanguage != null ? String(entry.naturalLanguage) : "";
+      return { section, plainText, naturalLanguage };
+    })
+    .filter(Boolean);
+}
+
+function normaliseExpectedSections(value) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map(section => section != null ? String(section).trim() : "")
+    .filter(Boolean);
+}
+
+function normaliseSectionHints(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const out = {};
+  for (const [rawKey, rawVal] of Object.entries(value)) {
+    const key = rawKey != null ? String(rawKey).trim() : "";
+    if (!key) continue;
+    const val = rawVal != null ? String(rawVal).trim() : "";
+    if (!val) continue;
+    out[key] = val;
+  }
+  return out;
 }

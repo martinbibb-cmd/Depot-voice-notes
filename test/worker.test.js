@@ -12,85 +12,107 @@ async function parseJson(response) {
   }
 }
 
-test('POST /api/recommend returns structured checklist items and materials', async () => {
-  const transcript = [
-    'Existing regular boiler will be replaced with a Worcester 15Ri regular boiler using a turret rear flue.',
-    'We will convert to fully pumped with a 98 litre open vented cylinder in the airing cupboard.',
-    'Condensate to washing machine waste.',
-    'Need ladder to loft and ladder for flue access at the rear elevation.',
-    'Customer will clear areas beforehand and parking on the road is fine for the team.',
-    'No hazards reported by the customer.',
-    'Installer to fit Hive controls, full system power flush and a 22mm magnetic filter.'
-  ].join(' ');
+const originalFetch = globalThis.fetch;
 
-  const request = new Request('https://example.com/api/recommend', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ transcript })
-  });
+test('POST /text forwards structured payload and normalises model output', async (t) => {
+  const transcript = 'Replace existing boiler and mention Hive smart control.';
+  let receivedRequestBody;
 
-  const response = await worker.fetch(request, {}, {});
-  assert.equal(response.status, 200);
-  const body = await parseJson(response);
-
-  assert.ok(Array.isArray(body.checkedItems), 'checkedItems should be an array');
-  const expectedIds = [
-    'boiler_wb_15ri_reg',
-    'convert_fully_pumped',
-    'cyl_ov_98l',
-    'condensate_to_wm',
-    'ladder_flue_access',
-    'ladder_loft_access',
-    'customer_clear_areas',
-    'parking_on_road',
-    'no_hazards'
-  ];
-  for (const id of expectedIds) {
-    assert.ok(
-      body.checkedItems.includes(id),
-      `expected checklist item ${id} to be returned`
-    );
-  }
-
-  assert.ok(Array.isArray(body.materials), 'materials should be an array');
-  const boiler = body.materials.find(m => m.category === 'Boiler');
-  assert.ok(boiler, 'expected boiler material');
-  assert.match(boiler.item.toLowerCase(), /worcester/);
-  assert.match(boiler.item.toLowerCase(), /15ri/);
-
-  const controls = body.materials.find(m => m.category === 'Controls');
-  assert.ok(controls, 'expected controls material');
-  assert.match(controls.item.toLowerCase(), /hive/);
-
-  const filter = body.materials.find(m => m.category === 'Filter');
-  assert.ok(filter, 'expected filter material');
-  assert.match(filter.item.toLowerCase(), /22mm/);
-
-  const flush = body.materials.find(m => m.category === 'System clean');
-  assert.ok(flush, 'expected system clean material');
-  assert.match(flush.item.toLowerCase(), /power flush/);
-});
-
-test('Custom checklist overrides are honoured', async () => {
-  const transcript = 'The customer mentioned a bespoke acoustic screen requirement.';
-  const request = new Request('https://example.com/api/recommend', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({
-      transcript,
-      checklistItems: [
+  globalThis.fetch = async (url, options) => {
+    assert.equal(url, 'https://api.openai.com/v1/chat/completions');
+    receivedRequestBody = JSON.parse(options.body);
+    const content = JSON.stringify({
+      sections: [
         {
-          id: 'bespoke_screen',
-          label: 'Bespoke acoustic screen',
-          match: { any: ['acoustic screen requirement'] }
+          section: 'New boiler and controls',
+          plainText: 'Replace with Worcester 15Ri',
+          naturalLanguage: 'We will replace the boiler and fit Hive.'
         }
-      ]
-    })
+      ],
+      materials: null,
+      checkedItems: null,
+      missingInfo: null,
+      customerSummary: 0
+    });
+    return new Response(
+      JSON.stringify({ choices: [{ message: { content } }] }),
+      {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      }
+    );
+  };
+
+  t.after(() => {
+    globalThis.fetch = originalFetch;
   });
 
-  const response = await worker.fetch(request, {}, {});
+  const requestBody = {
+    transcript,
+    alreadyCaptured: [{ section: 'Needs', plainText: 'Existing note' }],
+    expectedSections: ['Needs', 'New boiler and controls'],
+    sectionHints: { hive: 'New boiler and controls' },
+    forceStructured: true,
+    checklistItems: [],
+    depotSections: []
+  };
+
+  const request = new Request('https://example.com/text', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(requestBody)
+  });
+
+  const response = await worker.fetch(request, { OPENAI_API_KEY: 'test-key' }, {});
   assert.equal(response.status, 200);
   const body = await parseJson(response);
 
-  assert.deepEqual(body.checkedItems, ['bespoke_screen']);
+  assert.deepEqual(body.sections, [
+    {
+      section: 'New boiler and controls',
+      plainText: 'Replace with Worcester 15Ri',
+      naturalLanguage: 'We will replace the boiler and fit Hive.'
+    }
+  ]);
+  assert.deepEqual(body.materials, []);
+  assert.deepEqual(body.checkedItems, []);
+  assert.deepEqual(body.missingInfo, []);
+  assert.equal(body.customerSummary, '');
+
+  assert(receivedRequestBody, 'expected OpenAI request body');
+  assert.equal(receivedRequestBody.model, 'gpt-4.1');
+  assert(Array.isArray(receivedRequestBody.messages));
+  const userMessage = receivedRequestBody.messages?.[1]?.content;
+  assert(userMessage, 'expected user payload to be sent');
+  const parsedUser = JSON.parse(userMessage);
+  assert.equal(parsedUser.transcript, transcript);
+  assert.deepEqual(parsedUser.alreadyCaptured, [{
+    section: 'Needs',
+    plainText: 'Existing note',
+    naturalLanguage: ''
+  }]);
+  assert.deepEqual(parsedUser.expectedSections, ['Needs', 'New boiler and controls']);
+  assert.equal(parsedUser.sectionHints.hive, 'New boiler and controls');
+  assert.equal(parsedUser.forceStructured, true);
 });
+
+test('POST /text surfaces OpenAI errors as model_error 5xx', async (t) => {
+  globalThis.fetch = async () => new Response('failure', { status: 500 });
+
+  t.after(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  const request = new Request('https://example.com/text', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ transcript: 'Something went wrong.' })
+  });
+
+  const response = await worker.fetch(request, { OPENAI_API_KEY: 'test-key' }, {});
+  assert.equal(response.status, 500);
+  const body = await parseJson(response);
+  assert.equal(body.error, 'model_error');
+  assert.match(body.message, /chat\.completions 500/);
+});
+

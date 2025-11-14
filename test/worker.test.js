@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import worker from '../src/worker.js';
+import depotSchema from '../depot.output.schema.json' assert { type: 'json' };
 
 async function parseJson(response) {
   const text = await response.text();
@@ -67,13 +68,23 @@ test('POST /text forwards structured payload and normalises model output', async
   assert.equal(response.status, 200);
   const body = await parseJson(response);
 
-  assert.deepEqual(body.sections, [
-    {
-      section: 'New boiler and controls',
-      plainText: 'Replace with Worcester 15Ri',
-      naturalLanguage: 'We will replace the boiler and fit Hive.'
+  const expectedSectionOrder = depotSchema.map((entry) => entry.name);
+  const expectedSections = expectedSectionOrder.map((name) => {
+    if (name === 'New boiler and controls') {
+      return {
+        section: name,
+        plainText: 'Replace with Worcester 15Ri',
+        naturalLanguage: 'We will replace the boiler and fit Hive.'
+      };
     }
-  ]);
+    return {
+      section: name,
+      plainText: '• No additional notes;',
+      naturalLanguage: 'No additional notes.'
+    };
+  });
+
+  assert.deepEqual(body.sections, expectedSections);
   assert.deepEqual(body.materials, []);
   assert.deepEqual(body.checkedItems, []);
   assert.deepEqual(body.missingInfo, []);
@@ -91,7 +102,7 @@ test('POST /text forwards structured payload and normalises model output', async
     plainText: 'Existing note',
     naturalLanguage: ''
   }]);
-  assert.deepEqual(parsedUser.expectedSections, ['Needs', 'New boiler and controls']);
+  assert.deepEqual(parsedUser.expectedSections, expectedSectionOrder);
   assert.equal(parsedUser.sectionHints.hive, 'New boiler and controls');
   assert.equal(parsedUser.forceStructured, true);
 });

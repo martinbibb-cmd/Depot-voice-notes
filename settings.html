@@ -103,6 +103,72 @@
       text-decoration: none;
       margin-bottom: -12px;
     }
+    .section-editor {
+      margin-top: 12px;
+      margin-bottom: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .section-row {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 12px;
+      background: #f8fafc;
+    }
+    .section-fields {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .section-fields input,
+    .section-fields textarea {
+      width: 100%;
+      border-radius: 8px;
+      border: 1px solid #cbd5e1;
+      padding: 8px 10px;
+      font-size: 0.8rem;
+      background: #fff;
+      color: #0f172a;
+    }
+    .section-fields textarea {
+      min-height: 60px;
+      resize: vertical;
+    }
+    .section-controls {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .section-controls button {
+      background: #e2e8f0;
+      color: #0f172a;
+      border-radius: 8px;
+      padding: 6px 10px;
+      font-size: 0.7rem;
+      border: none;
+    }
+    .section-controls button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .section-add-row {
+      display: flex;
+      justify-content: flex-start;
+    }
+    .section-add-row button {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 999px;
+      padding: 6px 14px;
+      font-size: 0.75rem;
+      cursor: pointer;
+    }
   </style>
 </head>
 <body>
@@ -121,6 +187,7 @@
     <section>
       <h2>Depot output schema</h2>
       <p>Control Depot section names and ordering. Overrides apply locally until cleared.</p>
+      <div id="settings-section-editor" class="section-editor"></div>
       <textarea id="settings-schema-json"></textarea>
       <div class="btn-row">
         <button id="btn-save-schema">Save (this device)</button>

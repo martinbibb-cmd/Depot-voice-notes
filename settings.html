@@ -10,6 +10,7 @@
       --card: #ffffff;
       --border: #d4dbe5;
       --accent: #0f766e;
+      --danger: #b91c1c;
       --muted: #64748b;
       --radius: 16px;
     }
@@ -169,6 +170,83 @@
       font-size: 0.75rem;
       cursor: pointer;
     }
+    .checklist-editor {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .checklist-card {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .checklist-card-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 8px;
+    }
+    .checklist-card label {
+      font-size: 0.7rem;
+      font-weight: 600;
+      color: var(--muted);
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .checklist-card input,
+    .checklist-card select,
+    .checklist-card textarea {
+      font-size: 0.75rem;
+      padding: 6px 8px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: #f8fafc;
+      color: #0f172a;
+    }
+    .checklist-card textarea {
+      min-height: 48px;
+      resize: vertical;
+    }
+    .checklist-card-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 6px;
+    }
+    .checklist-card-actions button {
+      background: #e2e8f0;
+      color: #0f172a;
+      border: none;
+      border-radius: 8px;
+      padding: 6px 10px;
+      font-size: 0.7rem;
+      cursor: pointer;
+    }
+    .checklist-card-actions button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .checklist-card-actions button.danger {
+      background: var(--danger);
+      color: #fff;
+    }
+    .checklist-add-row {
+      display: flex;
+      justify-content: flex-start;
+    }
+    .checklist-add-row button {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 999px;
+      padding: 6px 14px;
+      font-size: 0.75rem;
+      cursor: pointer;
+    }
   </style>
 </head>
 <body>
@@ -178,6 +256,7 @@
     <section>
       <h2>Checklist configuration</h2>
       <p>Edit the mapping from checklist ticks to Depot notes &amp; materials. Changes are stored locally on this device.</p>
+      <div id="checklist-editor" class="checklist-editor"></div>
       <textarea id="settings-checklist-json"></textarea>
       <div class="btn-row">
         <button id="btn-save-checklist">Save (this device)</button>

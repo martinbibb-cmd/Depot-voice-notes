@@ -1,13 +1,18 @@
 {
   "sectionsOrder": [
-    "System characteristics",
-    "New boiler and controls",
-    "Pipe work",
-    "Flue",
+    "Needs",
     "Working at heights",
-    "External hazards",
+    "Components that require assistance",
     "Restrictions to work",
-    "Customer actions"
+    "External hazards",
+    "Delivery notes",
+    "Office notes",
+    "New boiler and controls",
+    "Flue",
+    "Pipe work",
+    "Disruption",
+    "Customer actions",
+    "Future plans"
   ],
   "items": [
     {
@@ -15,7 +20,7 @@
       "group": "System",
       "label": "Existing & new system type recorded",
       "hint": "Combi / system / regular, location, any cylinder / store.",
-      "depotSection": "System characteristics",
+      "depotSection": "New boiler and controls",
       "plainText": "Existing and proposed heating system types, locations and any cylinders or stores have been documented.",
       "naturalLanguage": "We have confirmed the existing and proposed system types, their locations and whether any cylinder or store is involved.",
       "materials": []

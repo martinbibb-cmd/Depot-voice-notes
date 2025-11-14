@@ -110,6 +110,9 @@
     .pill-danger {
       background: var(--danger);
     }
+    .danger-btn {
+      background: var(--danger);
+    }
     .clarifications {
       display: flex;
       flex-direction: column;
@@ -269,6 +272,7 @@
       <button id="exportBtn" class="pill-secondary">Send notes</button>
       <button id="saveSessionBtn" class="pill-secondary">Save session</button>
       <button id="loadSessionBtn" class="pill-secondary">Load session</button>
+      <button id="newJobBtn" class="danger-btn">Start new job</button>
       <button id="settingsBtn" class="pill-secondary">Settings</button>
     </div>
   </header>
@@ -396,6 +400,7 @@
     const loadSessionInput = document.getElementById("loadSessionInput");
     const importAudioBtn = document.getElementById("importAudioBtn");
     const importAudioInput = document.getElementById("importAudioInput");
+    const newJobBtn = document.getElementById("newJobBtn");
     const partsListEl = document.getElementById("partsList");
     const voiceErrorEl = document.getElementById("voice-error");
     const sleepWarningEl = document.getElementById("sleep-warning");
@@ -555,21 +560,39 @@
     }
 
     // --- SECTION / SCHEMA LOADING & NORMALISATION ---
+    const CANONICAL_SECTION_ORDER = [
+      "Needs",
+      "Working at heights",
+      "Components that require assistance",
+      "Restrictions to work",
+      "External hazards",
+      "Delivery notes",
+      "Office notes",
+      "New boiler and controls",
+      "Flue",
+      "Pipe work",
+      "Disruption",
+      "Customer actions",
+      "Future plans"
+    ];
+    const CANONICAL_ORDER_MAP = CANONICAL_SECTION_ORDER.reduce((acc, name, idx) => {
+      acc[name.toLowerCase()] = idx + 1;
+      return acc;
+    }, {});
     const SECTION_FALLBACK = [
       { name: "Needs", order: 1, description: "Key needs or must-haves called out by the customer." },
       { name: "Working at heights", order: 2, description: "Ladders, loft access, towers, scaffolds or special access kit." },
-      { name: "System characteristics", order: 3, description: "Existing system, proposed boiler, cylinders and storage." },
-      { name: "Components that require assistance", order: 4, description: "Items needing two-person lifts or specialist handling." },
-      { name: "Restrictions to work", order: 5, description: "Parking limits, permits or building restrictions." },
-      { name: "External hazards", order: 6, description: "Asbestos, hazards, aggressive pets or notable site risks." },
-      { name: "Delivery notes", order: 7, description: "Delivery constraints, storage space and timings." },
-      { name: "Office notes", order: 8, description: "For the office team: planning, conservation, notifications." },
-      { name: "New boiler and controls", order: 9, description: "What is being fitted: boiler, controls, flushing, filters." },
-      { name: "Flue", order: 10, description: "Flue position, routing, plume kits and terminals." },
-      { name: "Pipe work", order: 11, description: "Gas, condensate and system pipe alterations." },
-      { name: "Disruption", order: 12, description: "Power flush, draining, floor lifting or decorations impacted." },
-      { name: "Customer actions", order: 13, description: "Things the customer has to sort before install." },
-      { name: "Future plans", order: 14, description: "Customer’s future plans or potential upgrades." }
+      { name: "Components that require assistance", order: 3, description: "Items needing two-person lifts or specialist handling." },
+      { name: "Restrictions to work", order: 4, description: "Parking limits, permits or building restrictions." },
+      { name: "External hazards", order: 5, description: "Asbestos, hazards, aggressive pets or notable site risks." },
+      { name: "Delivery notes", order: 6, description: "Delivery constraints, storage space and timings." },
+      { name: "Office notes", order: 7, description: "For the office team: planning, conservation, notifications." },
+      { name: "New boiler and controls", order: 8, description: "What is being fitted: boiler, controls, flushing, filters." },
+      { name: "Flue", order: 9, description: "Flue position, routing, plume kits and terminals." },
+      { name: "Pipe work", order: 10, description: "Gas, condensate and system pipe alterations." },
+      { name: "Disruption", order: 11, description: "Power flush, draining, floor lifting or decorations impacted." },
+      { name: "Customer actions", order: 12, description: "Things the customer has to sort before install." },
+      { name: "Future plans", order: 13, description: "Customer’s future plans or potential upgrades." }
     ];
 
     function normaliseSectionSchema(entries) {
@@ -597,10 +620,27 @@
       const fallback = normalised.length ? normalised : normaliseSectionSchema(SECTION_FALLBACK);
       SECTION_SCHEMA = fallback;
       SECTION_ORDER = {};
-      fallback.forEach((sec, idx) => {
-        const order = typeof sec.order === "number" ? sec.order : idx + 1;
-        SECTION_ORDER[sec.name] = order;
+      CANONICAL_SECTION_ORDER.forEach(name => {
+        const key = name.toLowerCase();
+        SECTION_ORDER[name] = CANONICAL_ORDER_MAP[key];
       });
+      const extras = [];
+      fallback.forEach((sec, idx) => {
+        if (!sec || !sec.name) return;
+        const name = String(sec.name).trim();
+        if (!name) return;
+        if (CANONICAL_ORDER_MAP[name.toLowerCase()]) {
+          SECTION_ORDER[name] = CANONICAL_ORDER_MAP[name.toLowerCase()];
+          return;
+        }
+        const order = typeof sec.order === "number" ? sec.order : idx + 1;
+        extras.push({ name, order });
+      });
+      extras
+        .sort((a, b) => (a.order || 0) - (b.order || 0))
+        .forEach((entry, extraIdx) => {
+          SECTION_ORDER[entry.name] = CANONICAL_SECTION_ORDER.length + extraIdx + 1;
+        });
     }
 
     function normaliseChecklistConfig(items) {
@@ -672,7 +712,7 @@
                 naturalLanguage: typeof sec.naturalLanguage === "string" ? sec.naturalLanguage : String(sec.naturalLanguage || "")
               };
             })
-            .filter(Boolean)
+            .filter(sec => sec && sec.section.toLowerCase() !== "arse_cover_notes")
         : [];
 
       const expectedSections = Array.isArray(SECTION_SCHEMA)
@@ -764,19 +804,29 @@
     }
 
     function postProcessSections(sections) {
+      const orderFor = (name) => {
+        const key = String(name || "").trim();
+        if (!key) return Number.MAX_SAFE_INTEGER;
+        const canonical = CANONICAL_ORDER_MAP[key.toLowerCase()];
+        if (canonical) return canonical;
+        if (SECTION_ORDER[key]) return SECTION_ORDER[key];
+        return Number.MAX_SAFE_INTEGER;
+      };
+
       const out = [];
       sections.forEach(sec => {
         if (!sec || !sec.section) return;
+        const name = String(sec.section).trim();
+        if (!name || name.toLowerCase() === "arse_cover_notes") return;
         out.push({
-          section: sec.section,
+          section: name,
           plainText: sec.plainText || "",
           naturalLanguage: sec.naturalLanguage || ""
         });
       });
-      out.sort((a,b) => {
-        const oa = SECTION_ORDER[a.section] || 999;
-        const ob = SECTION_ORDER[b.section] || 999;
-        return oa - ob;
+      out.sort((a, b) => {
+        const diff = orderFor(a.section) - orderFor(b.section);
+        return diff !== 0 ? diff : a.section.localeCompare(b.section);
       });
       out.forEach(sec => {
         if (sec.plainText) sec.plainText = formatPlainTextForSection(sec.section, sec.plainText);
@@ -908,7 +958,13 @@
         : (result.depotNotes && Array.isArray(result.depotNotes.sections))
           ? result.depotNotes.sections
           : [];
-      const sectionsCandidate = Array.isArray(sectionsCandidateRaw) ? sectionsCandidateRaw : [];
+      const sectionsCandidate = Array.isArray(sectionsCandidateRaw)
+        ? sectionsCandidateRaw.filter(sec => {
+            const name = sec && typeof sec.section === "string" ? sec.section.trim() : String(sec && sec.section || "").trim();
+            if (!name) return false;
+            return name.toLowerCase() !== "arse_cover_notes";
+          })
+        : [];
 
       if (sectionsCandidate.length) {
         lastRawSections = cloneDeep(sectionsCandidate);
@@ -1687,10 +1743,51 @@
     });
 
     // --- BOOT ---
+    function resetSessionState() {
+      clearChunkTimer();
+      stopAudioCapture();
+      if (SpeechRec && recognition) {
+        try { recognition.stop(); } catch (_) {}
+      }
+      liveState = "idle";
+      recognitionActive = false;
+      shouldRestartRecognition = false;
+      recognitionStopMode = null;
+      pauseReason = null;
+      wasBackgroundedDuringSession = false;
+      pendingFinishSend = false;
+      committedTranscript = "";
+      interimTranscript = "";
+      lastSentTranscript = "";
+      transcriptInput.value = "";
+      sessionAudioChunks = [];
+      lastAudioMime = null;
+      lastRawSections = [];
+      lastSections = [];
+      lastMaterials = [];
+      lastCheckedItems = [];
+      lastMissingInfo = [];
+      lastCustomerSummary = "";
+      localStorage.removeItem(LS_AUTOSAVE_KEY);
+      clearVoiceError();
+      clearSleepWarning();
+      refreshUiFromState();
+      updateLiveControls();
+      setStatus("Ready for new job.");
+      transcriptInput.focus?.();
+    }
+
     sendTextBtn.onclick = sendText;
     if (startLiveBtn) startLiveBtn.onclick = startLiveSession;
     if (pauseLiveBtn) pauseLiveBtn.onclick = () => togglePauseResumeLive();
     if (finishLiveBtn) finishLiveBtn.onclick = () => { finishLiveSession(); };
+    if (newJobBtn) {
+      newJobBtn.onclick = () => {
+        if (confirm("Start a new job? This will clear the current transcript and notes.")) {
+          resetSessionState();
+        }
+      };
+    }
     transcriptInput.addEventListener("input", () => {
       if (liveState !== "running") {
         committedTranscript = transcriptInput.value.trim();

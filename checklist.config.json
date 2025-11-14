@@ -2,7 +2,7 @@
   {
     "id": "system_type_recorded",
     "group": "System",
-    "section": "System characteristics",
+    "section": "New boiler and controls",
     "label": "Existing & new system type recorded",
     "hint": "Combi / system / regular, location, cylinder / store"
   },

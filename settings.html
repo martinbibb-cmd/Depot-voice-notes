@@ -62,7 +62,8 @@
       color: #0f172a;
       resize: vertical;
     }
-    input[type="url"] {
+    input[type="url"],
+    input[type="password"] {
       width: 100%;
       border-radius: 12px;
       border: 1px solid #cbd5e1;
@@ -97,6 +98,15 @@
       background: transparent;
       color: var(--accent);
       border: 1px solid var(--accent);
+    }
+    button.danger {
+      background: var(--danger);
+      color: #fff;
+    }
+    .hint {
+      margin-top: 6px;
+      font-size: 0.8rem;
+      color: var(--muted);
     }
     a.back-link {
       font-size: 0.8rem;
@@ -276,10 +286,26 @@
     <section>
       <h2>Worker endpoint</h2>
       <p>Set the Cloudflare Worker URL used for Pro transcription. Requests won't work until a valid URL is provided; leave blank to disable Pro features on this device.</p>
-      <input id="settings-worker-url" type="url" placeholder="https://example.workers.dev" spellcheck="false" />
+      <input
+        id="settings-worker-url"
+        type="password"
+        placeholder="https://example.workers.dev"
+        autocomplete="off"
+        spellcheck="false"
+        data-placeholder-default="https://example.workers.dev"
+        data-placeholder-saved="Worker URL saved locally"
+      />
+      <p id="worker-url-status" class="hint"></p>
       <div class="btn-row">
         <button id="btn-save-worker">Save (this device)</button>
         <button id="btn-reset-worker" class="secondary">Reset to default</button>
+      </div>
+    </section>
+    <section>
+      <h2>Advanced</h2>
+      <p>Clear all locally stored Depot data and reload the app from the network.</p>
+      <div class="btn-row">
+        <button id="btn-force-reload" class="danger">Force reload (clear local data)</button>
       </div>
     </section>
   </main>

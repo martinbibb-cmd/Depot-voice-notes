@@ -1,319 +1,158 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <title>Depot Settings</title>
+  <meta charset="UTF-8" />
+  <title>Survey Brain – Settings</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
     :root {
-      color-scheme: light;
-      --bg: #f6f8fb;
+      --bg: #eef2f7;
       --card: #ffffff;
-      --border: #d9e0eb;
-      --accent: #2563eb;
-      --accent-dark: #1d4ed8;
-      --primary: #0f766e;
-      --primary-dark: #0d5c55;
+      --border: #d4dbe5;
+      --accent: #0f766e;
+      --muted: #64748b;
       --danger: #b91c1c;
-      --text-muted: #64748b;
       --radius: 16px;
     }
-
-    * {
-      box-sizing: border-box;
-    }
-
+    * { box-sizing: border-box; }
     body {
       margin: 0;
-      font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       background: var(--bg);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       color: #0f172a;
       min-height: 100vh;
-    }
-
-    .page-shell {
-      width: min(960px, 100%);
-      margin: 0 auto;
-      padding: 32px 16px 48px;
       display: flex;
       flex-direction: column;
-      gap: 24px;
     }
-
-    .page-header {
+    header {
       background: #0f172a;
       color: #fff;
-      padding: 16px 20px;
-      border-radius: var(--radius);
+      padding: 14px 16px;
       display: flex;
-      align-items: center;
       justify-content: space-between;
+      align-items: center;
       gap: 12px;
-      box-shadow: 0 14px 28px rgba(15, 23, 42, 0.25);
     }
-
-    .page-header h1 {
+    header h1 {
       margin: 0;
       font-size: 1.05rem;
-      letter-spacing: -0.01em;
     }
-
-    .page-header button {
+    main {
+      padding: 14px;
+      max-width: 900px;
+      margin: 0 auto;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px 14px 10px;
+    }
+    .card h2 {
+      margin: 0 0 6px;
+      font-size: .9rem;
+    }
+    .card p {
+      margin: 0 0 6px;
+      font-size: .7rem;
+      color: var(--muted);
+    }
+    button {
       border: none;
-      background: var(--primary);
+      background: var(--accent);
       color: #fff;
       border-radius: 999px;
       padding: 6px 14px;
-      font-size: 0.72rem;
+      font-size: .7rem;
       font-weight: 600;
       cursor: pointer;
-      transition: background 0.2s ease;
-    }
-
-    .page-header button:hover {
-      background: var(--primary-dark);
-    }
-
-    main {
-      background: var(--card);
-      border-radius: var(--radius);
-      border: 1px solid var(--border);
-      box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
-      padding: 28px;
-      display: flex;
-      flex-direction: column;
-      gap: 32px;
-    }
-
-    section.card {
-      display: flex;
-      flex-direction: column;
-      gap: 18px;
-    }
-
-    section.card > header {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-
-    section.card > header h2 {
-      margin: 0;
-      font-size: 1.1rem;
-    }
-
-    section.card > header p {
-      margin: 0;
-      font-size: 0.86rem;
-      color: var(--text-muted);
-      line-height: 1.45;
-    }
-
-    .summary {
-      border: 1px solid #e2e8f0;
-      border-radius: 14px;
-      padding: 12px 14px;
-      background: #f8fafc;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      font-size: 0.82rem;
-      color: #334155;
-    }
-
-    .summary strong {
-      font-weight: 600;
-      color: #1e293b;
-    }
-
-    .summary-chips {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-    }
-
-    .summary-chip {
       display: inline-flex;
       align-items: center;
-      padding: 4px 10px;
+      gap: 6px;
+    }
+    button.secondary {
+      background: #e5e7eb;
+      color: #0f172a;
+    }
+    button.danger {
+      background: var(--danger);
+    }
+    .sections-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-top: 6px;
+    }
+    .section-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: nowrap;
+    }
+    .section-row input[type="text"] {
+      flex: 1;
       border-radius: 999px;
-      background: rgba(37, 99, 235, 0.1);
-      color: #1d4ed8;
-      font-size: 0.75rem;
-      font-weight: 500;
+      border: 1px solid #cbd5e1;
+      padding: 4px 10px;
+      font-size: .75rem;
     }
-
-    .summary-note {
-      font-size: 0.75rem;
-      color: var(--text-muted);
+    .section-row button {
+      padding-inline: 8px;
+      font-size: .65rem;
     }
-
+    .section-row span.badge {
+      font-size: .6rem;
+      background: #e0f2fe;
+      color: #0f172a;
+      border-radius: 999px;
+      padding: 3px 8px;
+      white-space: nowrap;
+    }
     .toolbar {
       display: flex;
       flex-wrap: wrap;
-      gap: 10px;
+      gap: 8px;
+      margin-top: 8px;
     }
-
-    .toolbar button {
-      border: none;
-      border-radius: 999px;
-      padding: 8px 16px;
-      font-size: 0.82rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: background 0.2s ease, color 0.2s ease, border 0.2s ease;
-      background: var(--primary);
-      color: #fff;
-    }
-
-    .toolbar button:hover {
-      background: var(--primary-dark);
-    }
-
-    .toolbar button.secondary {
-      background: #eef2ff;
-      color: var(--accent);
-      border: 1px solid rgba(37, 99, 235, 0.4);
-    }
-
-    .toolbar button.secondary:hover {
-      background: #dbeafe;
-      color: var(--accent-dark);
-    }
-
-    .toolbar button.danger {
-      background: var(--danger);
-      color: #fff;
-    }
-
-    .stack {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
-
-    .section-row {
-      display: flex;
-      gap: 12px;
-      align-items: center;
-      background: #f8fafc;
-      border: 1px solid #e2e8f0;
-      border-radius: 12px;
-      padding: 12px;
-    }
-
-    .section-row input[type="text"] {
-      flex: 1;
-      border-radius: 8px;
-      border: 1px solid #cbd5e1;
-      padding: 8px 10px;
-      font-size: 0.92rem;
-      background: #fff;
-    }
-
-    .section-row input[disabled] {
-      background: #e2e8f0;
-      color: #475569;
-    }
-
-    .section-controls {
-      display: flex;
-      gap: 6px;
-    }
-
-    .section-controls button {
-      border: none;
-      background: #e2e8f0;
-      color: #0f172a;
-      padding: 6px 10px;
-      border-radius: 8px;
-      font-size: 0.8rem;
-      cursor: pointer;
-    }
-
-    .section-controls button:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
-
-    .list-empty {
-      font-size: 0.85rem;
-      color: var(--text-muted);
-      font-style: italic;
-    }
-
-    .status {
-      min-height: 1.2em;
-      font-size: 0.85rem;
-      color: var(--text-muted);
-    }
-
-    .status--success {
-      color: #047857;
-    }
-
-    .status--error {
-      color: var(--danger);
-    }
-
-    @media (max-width: 720px) {
-      .page-shell {
-        padding: 20px 12px 32px;
-      }
-
-      .page-header {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 10px;
-      }
-
-      .toolbar {
-        flex-direction: column;
-        align-items: stretch;
-      }
-
-      .toolbar button {
-        width: 100%;
-        justify-content: center;
-      }
+    .summary {
+      font-size: .7rem;
+      color: var(--muted);
+      margin-top: 6px;
     }
   </style>
 </head>
 <body>
-  <div class="page-shell">
-    <header class="page-header">
-      <h1>Survey Brain – Settings</h1>
-      <button id="backBtn" type="button">Back to app</button>
-    </header>
+  <header>
+    <h1>Survey Brain – Settings</h1>
+    <button id="backBtn">Back to app</button>
+  </header>
 
-    <main>
-      <section class="card">
-        <header>
-          <h2>Depot section order</h2>
-          <p>
-            Arrange the sections used when exporting Depot notes. Changes are saved only on this
-            device, but you can export and import your personal schema as needed.
-          </p>
-        </header>
-
-        <div id="sectionSummary" class="summary"></div>
-
-        <div class="toolbar">
-          <button id="addSectionBtn">+ Add section</button>
-          <button id="saveSectionsBtn">Save to this device</button>
-          <button id="exportSchemaBtn" class="secondary">Export JSON</button>
-          <button id="importSchemaBtn" class="secondary">Import JSON</button>
-          <button id="resetSectionsBtn" class="secondary">Reset to defaults</button>
-          <button id="clearOverrideBtn" class="danger">Clear override on this device</button>
-          <input id="importSchemaInput" type="file" accept="application/json" style="display:none;" />
-        </div>
-
-        <div id="sectionsList" class="stack"></div>
-
-        <p id="sectionsStatus" class="status"></p>
-      </section>
-    </main>
-  </div>
+  <main>
+    <section class="card">
+      <h2>Depot section order</h2>
+      <p>
+        Edit the list of Depot note sections. This controls the order in the app and in exported notes.
+        <strong>"Future plans"</strong> is always kept at the bottom. Any "arse_cover_notes" entries are ignored.
+      </p>
+      <div id="sectionsList" class="sections-list">
+        <!-- rows injected by JS -->
+      </div>
+      <div class="toolbar">
+        <button id="addSectionBtn">+ Add section</button>
+        <button id="saveSectionsBtn">Save to this device</button>
+        <button id="exportSchemaBtn" class="secondary">Export JSON</button>
+        <button id="importSchemaBtn" class="secondary">Import JSON</button>
+        <button id="resetSectionsBtn" class="secondary">Reset to defaults</button>
+        <button id="clearOverrideBtn" class="danger">Clear override on this device</button>
+        <input id="importSchemaInput" type="file" accept="application/json" style="display:none;" />
+      </div>
+      <div id="sectionsSummary" class="summary"></div>
+    </section>
+  </main>
 
   <script type="module" src="./js/settingsSections.js"></script>
 </body>

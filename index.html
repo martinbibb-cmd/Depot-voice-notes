@@ -296,9 +296,305 @@
       isWorkerEndpointStorageKey
     } from "./src/app/worker-config.js";
     import {
-      loadDepotNotesSchema,
       DEPOT_NOTES_SCHEMA_STORAGE_KEY
     } from "./src/app/state.js";
+
+    const DEFAULT_DEPOT_SECTIONS = [
+      "Needs",
+      "Working at heights",
+      "System characteristics",
+      "Components that require assistance",
+      "Restrictions to work",
+      "External hazards",
+      "Delivery notes",
+      "Office notes",
+      "New boiler and controls",
+      "Flue",
+      "Pipe work",
+      "Disruption",
+      "Customer actions",
+      "Future plans"
+    ];
+
+    const DEFAULT_CHECKLIST_CONFIG = {
+      sectionsOrder: [
+        "Needs",
+        "Working at heights",
+        "System characteristics",
+        "Components that require assistance",
+        "Restrictions to work",
+        "External hazards",
+        "Delivery notes",
+        "Office notes",
+        "New boiler and controls",
+        "Flue",
+        "Pipe work",
+        "Disruption",
+        "Customer actions",
+        "Future plans"
+      ],
+      items: [
+        {
+          id: "system_type_recorded",
+          group: "System",
+          section: "New boiler and controls",
+          depotSection: "New boiler and controls",
+          label: "Existing & new system type recorded",
+          hint: "Combi / system / regular, location, cylinder / store.",
+          plainText: "Existing and proposed heating system types, locations and any cylinders or stores have been documented.",
+          naturalLanguage: "We have confirmed the existing and proposed system types, their locations and whether any cylinder or store is involved.",
+          materials: []
+        },
+        {
+          id: "smart_control_offered",
+          group: "Boiler & controls",
+          section: "New boiler and controls",
+          depotSection: "New boiler and controls",
+          label: "Smart control offered / status noted",
+          hint: "Hive / Nest / other smart, or keeping existing controls.",
+          plainText: "Smart heating controls discussed and outcome recorded.",
+          naturalLanguage: "Smart heating controls such as Hive or Nest have been discussed with the customer and the chosen option recorded.",
+          materials: [
+            {
+              category: "Controls",
+              item: "Smart heating control kit",
+              qty: 1,
+              notes: "Final model to suit customer preference"
+            }
+          ]
+        },
+        {
+          id: "mag_filter_discussed",
+          group: "Boiler & controls",
+          section: "New boiler and controls",
+          depotSection: "New boiler and controls",
+          label: "Magnetic / dirt filter discussed",
+          hint: "Either being fitted or explicitly not required.",
+          plainText: "Magnetic system filter provision recorded.",
+          naturalLanguage: "Provision of a magnetic system filter has been recorded.",
+          materials: [
+            {
+              category: "Filter",
+              item: "Magnetic system filter",
+              qty: 1,
+              notes: "Pipe size to suit installation"
+            }
+          ]
+        },
+        {
+          id: "system_clean_flush_considered",
+          group: "Boiler & controls",
+          section: "New boiler and controls",
+          depotSection: "New boiler and controls",
+          label: "System clean / flush considered",
+          hint: "Power flush, mains flush, or decision that no flush is needed.",
+          plainText: "System clean or flush requirement captured.",
+          naturalLanguage: "A system clean or flush requirement has been captured for the installation.",
+          materials: [
+            {
+              category: "System clean",
+              item: "System power flush",
+              qty: 1,
+              notes: "Scope to suit radiator count"
+            }
+          ]
+        },
+        {
+          id: "gas_pipe_size_run_checked",
+          group: "Pipework & condensate",
+          section: "Pipe work",
+          depotSection: "Pipe work",
+          label: "Gas pipe size / run checked",
+          hint: "Confirmed adequate or noted for upgrade.",
+          plainText: "Gas supply route and sizing confirmed for boiler demand.",
+          naturalLanguage: "The gas supply route and sizing have been checked to ensure suitability for the new boiler demand.",
+          materials: []
+        },
+        {
+          id: "condensate_route_checked",
+          group: "Pipework & condensate",
+          section: "Pipe work",
+          depotSection: "Pipe work",
+          label: "Condensate route + freeze risk checked",
+          hint: "Internal vs external, pump, upsizing, or freeze protection.",
+          plainText: "Condensate discharge route assessed and freeze protection noted.",
+          naturalLanguage: "The condensate route has been assessed and any freeze protection or pumping requirements recorded.",
+          materials: [
+            {
+              category: "Condensate",
+              item: "Condensate upgrade materials",
+              qty: 1,
+              notes: "Upsize to 32mm or add pump/lagging as required"
+            }
+          ]
+        },
+        {
+          id: "flue_route_terminal_discussed",
+          group: "Flue",
+          section: "Flue",
+          depotSection: "Flue",
+          label: "Flue route / terminal discussed",
+          hint: "Direction, vertical/horizontal, turret, plume kit, clearances.",
+          plainText: "Flue route, termination and any plume management recorded.",
+          naturalLanguage: "The flue route, termination and any plume management requirements have been recorded.",
+          materials: [
+            {
+              category: "Flue",
+              item: "Boiler flue kit",
+              qty: 1,
+              notes: "Orientation and length to suit installation"
+            }
+          ]
+        },
+        {
+          id: "access_working_at_height_checked",
+          group: "Access / working at height",
+          section: "Working at heights",
+          depotSection: "Working at heights",
+          label: "Access / working at height checked",
+          hint: "Ladders, loft access, tower, boards, headroom.",
+          plainText: "Working at height requirements captured for access equipment.",
+          naturalLanguage: "Working at height access requirements such as ladders, loft boarding or towers have been captured.",
+          materials: []
+        },
+        {
+          id: "hazards_asbestos_site_risks_noted",
+          group: "Hazards / site conditions",
+          section: "External hazards",
+          depotSection: "External hazards",
+          label: "Hazards / asbestos / site risks noted",
+          hint: "Asbestos presence/absence, confined space, pets, trip risks.",
+          plainText: "Site hazards including asbestos, pets or restricted spaces noted.",
+          naturalLanguage: "Site hazards including asbestos, pets or restricted spaces have been noted for the installation team.",
+          materials: []
+        },
+        {
+          id: "parking_permit_access_checked",
+          group: "Parking / access",
+          section: "Restrictions to work",
+          depotSection: "Restrictions to work",
+          label: "Parking / permit / access for van checked",
+          hint: "Driveway, street parking, permits, restrictions.",
+          plainText: "Parking arrangements and any permit requirements recorded.",
+          naturalLanguage: "Parking arrangements and any permit requirements have been recorded.",
+          materials: []
+        },
+        {
+          id: "customer_actions_preworks_recorded",
+          group: "Customer actions",
+          section: "Customer actions",
+          depotSection: "Customer actions",
+          label: "Customer actions / pre-works recorded",
+          hint: "Cupboards, furniture, decorating, pets, clearing space.",
+          plainText: "Customer actions agreed ahead of installation have been recorded.",
+          naturalLanguage: "Customer actions agreed ahead of installation have been recorded for follow-up.",
+          materials: []
+        }
+      ]
+    };
+
+    function cloneDefaultChecklistConfig() {
+      return JSON.parse(JSON.stringify(DEFAULT_CHECKLIST_CONFIG));
+    }
+
+    function cloneChecklistConfig(source) {
+      if (!source || typeof source !== "object") {
+        return cloneDefaultChecklistConfig();
+      }
+
+      const fallback = cloneDefaultChecklistConfig();
+      const sectionsOrder = Array.isArray(source.sectionsOrder)
+        ? source.sectionsOrder
+            .map((name) => (typeof name === "string" ? name.trim() : String(name || "").trim()))
+            .filter(Boolean)
+        : [];
+      const items = Array.isArray(source.items)
+        ? source.items
+            .map((item) => {
+              if (!item || typeof item !== "object") return null;
+              const copy = { ...item };
+              if (Array.isArray(item.materials)) {
+                copy.materials = item.materials
+                  .map((mat) => (mat && typeof mat === "object" ? { ...mat } : null))
+                  .filter(Boolean);
+              } else {
+                copy.materials = [];
+              }
+              return copy;
+            })
+            .filter(Boolean)
+        : [];
+
+      return {
+        sectionsOrder: sectionsOrder.length ? sectionsOrder : fallback.sectionsOrder,
+        items: items.length ? items : fallback.items
+      };
+    }
+
+    function safeLoadSettings() {
+      try {
+        const raw = window.localStorage.getItem("settings");
+        if (!raw) return {};
+        const parsed = JSON.parse(raw);
+        return parsed && typeof parsed === "object" ? parsed : {};
+      } catch (err) {
+        console.error("Failed to load settings; using empty object", err);
+        return {};
+      }
+    }
+
+    function getDepotSchema(settings) {
+      let sections = DEFAULT_DEPOT_SECTIONS.slice();
+      let checklist = cloneDefaultChecklistConfig();
+
+      try {
+        if (settings && typeof settings === "object" && settings.depotNotesSchema) {
+          const schema = settings.depotNotesSchema;
+
+          if (Array.isArray(schema.sections) && schema.sections.length > 0) {
+            sections = schema.sections
+              .map((name) => (typeof name === "string" ? name.trim() : String(name || "").trim()))
+              .filter(Boolean);
+          }
+
+          if (schema.checklist) {
+            const candidate = cloneChecklistConfig(schema.checklist);
+            if (candidate && (candidate.sectionsOrder.length || candidate.items.length)) {
+              checklist = candidate;
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Failed to read depotNotesSchema, falling back to defaults", err);
+        sections = DEFAULT_DEPOT_SECTIONS.slice();
+        checklist = cloneDefaultChecklistConfig();
+      }
+
+      if (!sections.length) {
+        sections = DEFAULT_DEPOT_SECTIONS.slice();
+      }
+
+      const fallbackChecklist = cloneDefaultChecklistConfig();
+      const sectionsOrder = Array.isArray(checklist.sectionsOrder) && checklist.sectionsOrder.length
+        ? checklist.sectionsOrder.slice()
+        : fallbackChecklist.sectionsOrder;
+      const items = Array.isArray(checklist.items) && checklist.items.length
+        ? checklist.items.map((item) => ({
+            ...item,
+            materials: Array.isArray(item.materials)
+              ? item.materials.map((mat) => ({ ...mat }))
+              : []
+          }))
+        : fallbackChecklist.items;
+
+      return {
+        sections,
+        checklist: {
+          sectionsOrder,
+          items
+        }
+      };
+    }
 
     // --- CONFIG / STORAGE KEYS ---
     const LEGACY_SCHEMA_KEYS = ["depot.sectionSchema", "surveybrain-schema", "depot-output-schema", "depot.checklistConfig"];
@@ -345,6 +641,8 @@
     let schemaLoaded = false;
     let CHECKLIST_SOURCE = { sectionsOrder: [], items: [] };
     let CHECKLIST_ITEMS = [];
+
+    clearCachedSchema();
 
     function sanitiseChecklistArray(value) {
       const asArray = (input) => {
@@ -449,8 +747,6 @@
           }
         });
       });
-
-      schemaLoaded = SECTION_SCHEMA.length > 0;
     }
 
     function applyDepotNotesSchema(rawSchema) {
@@ -487,17 +783,22 @@
       if (schemaLoaded && SECTION_SCHEMA.length) {
         return SECTION_SCHEMA;
       }
-      const schema = loadDepotNotesSchema();
-      applyDepotNotesSchema(schema);
+      try {
+        const settings = safeLoadSettings();
+        const schema = getDepotSchema(settings);
+        applyDepotNotesSchema(schema);
+        schemaLoaded = true;
+      } catch (err) {
+        console.error("Failed to ensure depot schema", err);
+        clearCachedSchema();
+      }
       return SECTION_SCHEMA;
     }
 
     function clearCachedSchema() {
       schemaLoaded = false;
-      SECTION_SCHEMA = [];
-      SECTION_NAMES = [];
-      SECTION_ORDER_MAP = new Map();
-      SECTION_KEY_LOOKUP = new Map();
+      applyDepotNotesSchema(getDepotSchema({}));
+      schemaLoaded = false;
     }
 
     function normaliseSectionKey(name) {
@@ -1939,7 +2240,7 @@
         await ensureSectionSchema();
       } catch (err) {
         console.warn("Failed to load depot notes schema", err);
-        applyDepotNotesSchema({ sections: [], checklist: { sectionsOrder: [], items: [] } });
+        clearCachedSchema();
       }
     }
 

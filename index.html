@@ -295,11 +295,13 @@
       loadWorkerEndpoint,
       isWorkerEndpointStorageKey
     } from "./src/app/worker-config.js";
+    import {
+      loadDepotNotesSchema,
+      DEPOT_NOTES_SCHEMA_STORAGE_KEY
+    } from "./src/app/state.js";
 
     // --- CONFIG / STORAGE KEYS ---
-    const SECTION_STORAGE_KEY = "depot.sectionSchema";
-    const LEGACY_SECTION_STORAGE_KEY = "surveybrain-schema";
-    const CHECKLIST_STORAGE_KEY = "depot.checklistConfig";
+    const LEGACY_SCHEMA_KEYS = ["depot.sectionSchema", "surveybrain-schema", "depot-output-schema", "depot.checklistConfig"];
     const LS_AUTOSAVE_KEY = "surveyBrainAutosave";
     const FUTURE_PLANS_NAME = "Future plans";
 
@@ -341,7 +343,7 @@
     let SECTION_ORDER_MAP = new Map();
     let SECTION_KEY_LOOKUP = new Map();
     let schemaLoaded = false;
-    let CHECKLIST_SOURCE = [];
+    let CHECKLIST_SOURCE = { sectionsOrder: [], items: [] };
     let CHECKLIST_ITEMS = [];
 
     function sanitiseChecklistArray(value) {
@@ -384,41 +386,6 @@
       return cleaned;
     }
 
-    async function loadChecklistConfig() {
-      let defaultConfig = [];
-      try {
-        const res = await fetch("checklist.config.json", { cache: "no-store" });
-        if (res.ok) {
-          const data = await res.json();
-          defaultConfig = sanitiseChecklistArray(data);
-        }
-      } catch (err) {
-        console.warn("Failed to fetch default checklist", err);
-      }
-
-      let local = null;
-      try {
-        local = JSON.parse(localStorage.getItem(CHECKLIST_STORAGE_KEY) || "null");
-      } catch (_) {
-        local = null;
-      }
-
-      const localConfig = sanitiseChecklistArray(local);
-      const finalConfig = localConfig.length ? localConfig : defaultConfig;
-
-      return sanitiseChecklistArray(finalConfig);
-    }
-
-    function saveLocalChecklistConfig(cfg) {
-      const cleaned = sanitiseChecklistArray(cfg);
-      try {
-        localStorage.setItem(CHECKLIST_STORAGE_KEY, JSON.stringify(cleaned));
-      } catch (err) {
-        console.warn("Failed to persist checklist override", err);
-      }
-      return cleaned;
-    }
-
     let mediaRecorder = null;
     let mediaStream = null;
     let sessionAudioChunks = [];
@@ -439,128 +406,24 @@
     let pendingFinishSend = false;
 
     // --- HELPERS ---
-    function readStoredSectionOverride() {
-      const keys = [SECTION_STORAGE_KEY, LEGACY_SECTION_STORAGE_KEY];
-      for (let i = 0; i < keys.length; i += 1) {
-        const key = keys[i];
-        try {
-          const raw = localStorage.getItem(key);
-          if (!raw) continue;
-          return JSON.parse(raw);
-        } catch (_) {
-          continue;
-        }
-      }
-      return null;
-    }
-
-    function sanitiseSectionSchema(input) {
-      const asArray = (value) => {
-        if (!value) return [];
-        if (Array.isArray(value)) return value;
-        if (value && typeof value === "object" && Array.isArray(value.sections)) {
-          return value.sections;
-        }
-        return [];
-      };
-
-      const rawEntries = asArray(input);
-      const prepared = [];
-      rawEntries.forEach((entry, idx) => {
-        if (!entry) return;
-        const rawName = entry.name ?? entry.section ?? entry.title ?? entry.heading;
-        const name = typeof rawName === "string" ? rawName.trim() : "";
-        if (!name || name === "Arse_cover_notes") return;
-        const rawDescription = entry.description ?? entry.hint ?? "";
-        const description = typeof rawDescription === "string"
-          ? rawDescription.trim()
-          : String(rawDescription || "").trim();
-        const order = typeof entry.order === "number" ? entry.order : idx + 1;
-        prepared.push({ name, description, order, idx });
-      });
-
-      prepared.sort((a, b) => {
-        const aHasOrder = typeof a.order === "number";
-        const bHasOrder = typeof b.order === "number";
-        if (aHasOrder && bHasOrder && a.order !== b.order) {
-          return a.order - b.order;
-        }
-        if (aHasOrder && !bHasOrder) return -1;
-        if (!aHasOrder && bHasOrder) return 1;
-        return a.idx - b.idx;
-      });
-
-      const unique = [];
-      const seen = new Set();
-      prepared.forEach((entry) => {
-        if (seen.has(entry.name)) return;
-        seen.add(entry.name);
-        unique.push({
-          name: entry.name,
-          description: entry.description || "",
-          order: entry.order
-        });
-      });
-
-      let withoutFuture = unique.filter((entry) => entry.name !== FUTURE_PLANS_NAME);
-      let future = unique.find((entry) => entry.name === FUTURE_PLANS_NAME);
-      if (!future) {
-        future = {
-          name: FUTURE_PLANS_NAME,
-          description: "",
-          order: withoutFuture.length + 1
-        };
-      } else {
-        future = {
-          ...future,
-          description: future.description || ""
-        };
-      }
-
-      const final = [...withoutFuture, future].map((entry, idx) => ({
-        name: entry.name,
-        description: entry.description || "",
-        order: idx + 1
-      }));
-
-      return final;
-    }
-
-    async function loadSectionSchema() {
-      let defaultSchema = [];
-      try {
-        const res = await fetch("depot.output.schema.json", { cache: "no-store" });
-        if (res.ok) {
-          const json = await res.json();
-          defaultSchema = sanitiseSectionSchema(json);
-        }
-      } catch (err) {
-        console.warn("Failed to load default section schema", err);
-      }
-
-      let localOverride = null;
-      try {
-        localOverride = readStoredSectionOverride();
-      } catch (_) {
-        localOverride = null;
-      }
-
-      const candidate = Array.isArray(localOverride) && localOverride.length > 0
-        ? sanitiseSectionSchema(localOverride)
-        : defaultSchema;
-
-      if (candidate.length) {
-        return candidate;
-      }
-      return sanitiseSectionSchema([]);
-    }
-
-    function rebuildSectionState(schema) {
-      SECTION_SCHEMA = Array.isArray(schema) ? schema.map((entry, idx) => ({
-        name: entry.name,
-        description: entry.description || "",
-        order: typeof entry.order === "number" ? entry.order : idx + 1
-      })) : [];
+    function rebuildSectionState(sectionNames = []) {
+      const names = Array.isArray(sectionNames) ? sectionNames : [];
+      SECTION_SCHEMA = names
+        .map((entry, idx) => {
+          if (!entry) return null;
+          const name = typeof entry === "string"
+            ? entry.trim()
+            : entry && typeof entry === "object" && entry.name
+              ? String(entry.name).trim()
+              : "";
+          if (!name) return null;
+          return {
+            name,
+            description: "",
+            order: idx + 1
+          };
+        })
+        .filter(Boolean);
       SECTION_NAMES = SECTION_SCHEMA.map((entry) => entry.name);
       SECTION_ORDER_MAP = new Map();
       SECTION_KEY_LOOKUP = new Map();
@@ -590,12 +453,42 @@
       schemaLoaded = SECTION_SCHEMA.length > 0;
     }
 
+    function applyDepotNotesSchema(rawSchema) {
+      const sections = Array.isArray(rawSchema?.sections) ? rawSchema.sections : [];
+      rebuildSectionState(sections);
+
+      const checklistSource = rawSchema && typeof rawSchema === "object" && rawSchema.checklist
+        ? rawSchema.checklist
+        : {};
+      const items = sanitiseChecklistArray(checklistSource);
+      const seen = new Set();
+      const order = [];
+      (Array.isArray(checklistSource.sectionsOrder) ? checklistSource.sectionsOrder : []).forEach((name) => {
+        const trimmed = typeof name === "string" ? name.trim() : String(name || "").trim();
+        if (!trimmed || seen.has(trimmed) || !SECTION_NAMES.includes(trimmed)) return;
+        seen.add(trimmed);
+        order.push(trimmed);
+      });
+      SECTION_NAMES.forEach((name) => {
+        if (!seen.has(name)) {
+          seen.add(name);
+          order.push(name);
+        }
+      });
+
+      CHECKLIST_SOURCE = {
+        sectionsOrder: order,
+        items
+      };
+      CHECKLIST_ITEMS = normaliseChecklistConfig(CHECKLIST_SOURCE);
+    }
+
     async function ensureSectionSchema() {
       if (schemaLoaded && SECTION_SCHEMA.length) {
         return SECTION_SCHEMA;
       }
-      const schema = await loadSectionSchema();
-      rebuildSectionState(schema);
+      const schema = loadDepotNotesSchema();
+      applyDepotNotesSchema(schema);
       return SECTION_SCHEMA;
     }
 
@@ -652,18 +545,89 @@
       return String(value);
     }
 
-    function mergeTextFields(existing, incoming) {
-      const prev = typeof existing === "string" ? existing : "";
-      const next = typeof incoming === "string" ? incoming : "";
-      const prevTrim = prev.trim();
-      const nextTrim = next.trim();
-      if (!prevTrim && !nextTrim) return next || prev || "";
-      if (!prevTrim) return next;
-      if (!nextTrim) return prev;
-      if (prevTrim.toLowerCase() === nextTrim.toLowerCase()) return next || prev;
-      if (prevTrim.includes(nextTrim)) return prev;
-      if (nextTrim.includes(prevTrim)) return next;
-      return `${prevTrim}\n${nextTrim}`.trim();
+    const SECTION_PLACEHOLDER_KEY = "no additional notes";
+
+    function normaliseClauseKey(text) {
+      return String(text || "")
+        .replace(/^•\s*/, "")
+        .replace(/[.;:\s]+$/g, "")
+        .replace(/\s+/g, " ")
+        .trim()
+        .toLowerCase();
+    }
+
+    function splitPlainClauses(raw) {
+      return String(raw || "")
+        .split(/[;\n]+/)
+        .map((part) => part.replace(/^•\s*/, "").trim())
+        .filter(Boolean);
+    }
+
+    function preparePlainText(raw) {
+      const clauses = splitPlainClauses(raw);
+      if (!clauses.length) {
+        return { text: "", hasMeaningful: false, hasAny: false };
+      }
+      const seen = new Set();
+      const deduped = [];
+      clauses.forEach((clause) => {
+        const key = normaliseClauseKey(clause);
+        if (!key || seen.has(key)) return;
+        seen.add(key);
+        deduped.push(clause);
+      });
+      const hasMeaningful = deduped.some((clause) => normaliseClauseKey(clause) !== SECTION_PLACEHOLDER_KEY);
+      const filtered = hasMeaningful
+        ? deduped.filter((clause) => normaliseClauseKey(clause) !== SECTION_PLACEHOLDER_KEY)
+        : deduped;
+      const text = filtered
+        .map((clause) => {
+          const trimmed = clause.trim();
+          if (!trimmed) return "";
+          return trimmed.endsWith(";") ? trimmed : `${trimmed};`;
+        })
+        .filter(Boolean)
+        .join(" ");
+      return {
+        text,
+        hasMeaningful,
+        hasAny: filtered.length > 0
+      };
+    }
+
+    function normaliseNaturalKey(text) {
+      return String(text || "")
+        .replace(/[.]+$/g, "")
+        .replace(/\s+/g, " ")
+        .trim()
+        .toLowerCase();
+    }
+
+    function prepareNaturalLanguage(raw) {
+      const parts = String(raw || "")
+        .split(/\n+/)
+        .map((part) => part.trim())
+        .filter(Boolean);
+      if (!parts.length) {
+        return { text: "", hasMeaningful: false, hasAny: false };
+      }
+      const seen = new Set();
+      const deduped = [];
+      parts.forEach((part) => {
+        const key = normaliseNaturalKey(part);
+        if (!key || seen.has(key)) return;
+        seen.add(key);
+        deduped.push(part);
+      });
+      const hasMeaningful = deduped.some((part) => normaliseNaturalKey(part) !== SECTION_PLACEHOLDER_KEY);
+      const filtered = hasMeaningful
+        ? deduped.filter((part) => normaliseNaturalKey(part) !== SECTION_PLACEHOLDER_KEY)
+        : deduped;
+      return {
+        text: filtered.join("\n"),
+        hasMeaningful,
+        hasAny: filtered.length > 0
+      };
     }
 
     function normaliseSectionCandidate(section, index = 0) {
@@ -691,22 +655,6 @@
       };
     }
 
-    function mergeIncomingSection(existing, incoming) {
-      if (!incoming) return existing || null;
-      if (!existing) {
-        return {
-          section: incoming.section,
-          plainText: typeof incoming.plainText === "string" ? incoming.plainText : "",
-          naturalLanguage: typeof incoming.naturalLanguage === "string" ? incoming.naturalLanguage : ""
-        };
-      }
-      return {
-        section: incoming.section || existing.section,
-        plainText: mergeTextFields(existing.plainText, incoming.plainText),
-        naturalLanguage: mergeTextFields(existing.naturalLanguage, incoming.naturalLanguage)
-      };
-    }
-
     function partitionSectionsByRequirement(sections) {
       const required = new Map();
       const extras = new Map();
@@ -714,15 +662,12 @@
         const normalised = normaliseSectionCandidate(section, idx);
         if (!normalised) return;
         if (normalised.isRequired) {
-          const existing = required.get(normalised.section);
-          required.set(normalised.section, mergeIncomingSection(existing, normalised));
+          required.set(normalised.section, normalised);
         } else {
           const key = normaliseSectionKey(normalised.originalName || normalised.section) || `${idx}-${normalised.section}`;
-          const existingExtra = extras.get(key);
-          const merged = mergeIncomingSection(existingExtra && existingExtra.entry, normalised);
           extras.set(key, {
-            entry: merged,
-            order: existingExtra ? existingExtra.order : idx
+            entry: normalised,
+            order: idx
           });
         }
       });
@@ -730,15 +675,45 @@
     }
 
     function combineSectionEntries(prev, next, sectionName) {
-      const plainText = mergeTextFields(prev && prev.plainText, next && next.plainText);
-      const naturalLanguage = mergeTextFields(prev && prev.naturalLanguage, next && next.naturalLanguage);
-      if (!plainText.trim() && !naturalLanguage.trim()) {
+      const prevPlain = preparePlainText(prev && prev.plainText);
+      const prevNatural = prepareNaturalLanguage(prev && prev.naturalLanguage);
+      const nextPlain = preparePlainText(next && next.plainText);
+      const nextNatural = prepareNaturalLanguage(next && next.naturalLanguage);
+
+      const nextHasMeaningful = nextPlain.hasMeaningful || nextNatural.hasMeaningful;
+      const prevHasMeaningful = prevPlain.hasMeaningful || prevNatural.hasMeaningful;
+
+      if (nextHasMeaningful) {
+        if (!nextPlain.text && !nextNatural.text && !nextPlain.hasAny && !nextNatural.hasAny) {
+          return null;
+        }
+        return {
+          section: sectionName,
+          plainText: nextPlain.text,
+          naturalLanguage: nextNatural.text
+        };
+      }
+
+      if (prevHasMeaningful) {
+        if (!prevPlain.text && !prevNatural.text && !prevPlain.hasAny && !prevNatural.hasAny) {
+          return null;
+        }
+        return {
+          section: sectionName,
+          plainText: prevPlain.text,
+          naturalLanguage: prevNatural.text
+        };
+      }
+
+      const fallbackPlain = nextPlain.text || prevPlain.text;
+      const fallbackNatural = nextNatural.text || prevNatural.text;
+      if (!fallbackPlain && !fallbackNatural) {
         return null;
       }
       return {
         section: sectionName,
-        plainText,
-        naturalLanguage
+        plainText: fallbackPlain,
+        naturalLanguage: fallbackNatural
       };
     }
 
@@ -1084,13 +1059,25 @@
       return s.trim();
     }
     function bulletify(lines){
-      const out=[];
+      const deduped=[];
+      const seen=new Set();
+      const placeholders=[];
       for (let raw of lines){
-        const t = stripPreamble(raw);
+        const t=stripPreamble(raw);
         if (!t) continue;
-        out.push("• " + ensureSemi(t));
+        const key=normaliseClauseKey(t);
+        if (!key || seen.has(key)) continue;
+        seen.add(key);
+        if (key===SECTION_PLACEHOLDER_KEY){
+          placeholders.push(t);
+        } else {
+          deduped.push(t);
+        }
       }
-      return out.join("\n");
+      if (!deduped.length && placeholders.length){
+        deduped.push(...placeholders);
+      }
+      return deduped.map((t)=>"• "+ensureSemi(t)).join("\n");
     }
     function formatPlainTextForSection(section, plain){
       if (!plain) return "";
@@ -1278,6 +1265,27 @@
       renderChecklist(clarificationsEl, lastCheckedItems, lastMissingInfo);
     }
 
+    function buildExportSections() {
+      const names = SECTION_NAMES.length ? SECTION_NAMES : SECTION_SCHEMA.map((entry) => entry.name);
+      const lookup = new Map();
+      (lastSections || []).forEach((sec) => {
+        if (!sec || !sec.section) return;
+        lookup.set(sec.section, {
+          section: sec.section,
+          plainText: sec.plainText || "",
+          naturalLanguage: sec.naturalLanguage || ""
+        });
+      });
+      return names.map((name) => {
+        const entry = lookup.get(name);
+        return {
+          section: name,
+          plainText: entry ? entry.plainText : "",
+          naturalLanguage: entry ? entry.naturalLanguage : ""
+        };
+      });
+    }
+
     function applyVoiceResult(result) {
       if (!result || typeof result !== "object") {
         showVoiceError("AI gave an empty result.");
@@ -1437,7 +1445,7 @@
       setStatus("Preparing notes…");
       const payload = {
         exportedAt: new Date().toISOString(),
-        sections: lastSections || []
+        sections: buildExportSections()
       };
       const pretty = JSON.stringify(payload, null, 2);
       const blob = new Blob([pretty], { type: "application/json" });
@@ -1930,27 +1938,14 @@
       try {
         await ensureSectionSchema();
       } catch (err) {
-        console.warn("Falling back to minimal schema", err);
-        const fallback = sanitiseSectionSchema([]);
-        rebuildSectionState(fallback);
+        console.warn("Failed to load depot notes schema", err);
+        applyDepotNotesSchema({ sections: [], checklist: { sectionsOrder: [], items: [] } });
       }
-    }
-
-    async function loadChecklistConfigIntoState() {
-      try {
-        CHECKLIST_SOURCE = await loadChecklistConfig();
-      } catch (err) {
-        console.warn("Failed to load checklist config", err);
-        CHECKLIST_SOURCE = [];
-      }
-
-      CHECKLIST_ITEMS = normaliseChecklistConfig(CHECKLIST_SOURCE);
     }
 
     async function loadStaticConfig() {
       WORKER_URL = loadWorkerEndpoint();
       await ensureSchemaIntoState();
-      await loadChecklistConfigIntoState();
       refreshUiFromState();
     }
 
@@ -1964,17 +1959,11 @@
       if (isWorkerEndpointStorageKey(event.key)) {
         WORKER_URL = loadWorkerEndpoint();
       }
-      if (event.key === SECTION_STORAGE_KEY || event.key === LEGACY_SECTION_STORAGE_KEY) {
+      if (event.key === DEPOT_NOTES_SCHEMA_STORAGE_KEY || LEGACY_SCHEMA_KEYS.includes(event.key)) {
         clearCachedSchema();
         ensureSchemaIntoState().then(() => {
           refreshUiFromState();
         }).catch((err) => console.warn("Failed to refresh schema after storage event", err));
-      }
-      if (event.key === CHECKLIST_STORAGE_KEY) {
-        loadChecklistConfigIntoState().then(() => {
-          renderChecklist(clarificationsEl, lastCheckedItems, lastMissingInfo);
-          refreshUiFromState();
-        }).catch((err) => console.warn("Failed to refresh checklist after storage event", err));
       }
     });
 

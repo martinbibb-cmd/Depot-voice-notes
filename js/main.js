@@ -1,5 +1,1825 @@
-import { loadSchema } from "./schema.js";
-import { setupUI } from "./ui.js";
+import {
+  loadWorkerEndpoint,
+  isWorkerEndpointStorageKey
+} from "../src/app/worker-config.js";
 
-const schema = loadSchema();
-setupUI(schema, () => {});
+// --- CONFIG / STORAGE KEYS ---
+const SECTION_STORAGE_KEY = "depot.sectionSchema";
+const LEGACY_SECTION_STORAGE_KEY = "surveybrain-schema";
+const CHECKLIST_STORAGE_KEY = "depot.checklistConfig";
+const LS_AUTOSAVE_KEY = "surveyBrainAutosave";
+const FUTURE_PLANS_NAME = "Future plans";
+const FUTURE_PLANS_DESCRIPTION = "Notes about any future work or follow-on visits.";
+
+let WORKER_URL = loadWorkerEndpoint();
+
+// --- ELEMENTS ---
+const sendTextBtn = document.getElementById("sendTextBtn");
+const transcriptInput = document.getElementById("transcriptInput");
+const customerSummaryEl = document.getElementById("customerSummary");
+const clarificationsEl = document.getElementById("clarifications");
+const sectionsListEl = document.getElementById("sectionsList");
+const statusBar = document.getElementById("statusBar");
+const startLiveBtn = document.getElementById("startLiveBtn");
+const pauseLiveBtn = document.getElementById("pauseLiveBtn");
+const finishLiveBtn = document.getElementById("finishLiveBtn");
+const exportBtn = document.getElementById("exportBtn");
+const saveSessionBtn = document.getElementById("saveSessionBtn");
+const loadSessionBtn = document.getElementById("loadSessionBtn");
+const loadSessionInput = document.getElementById("loadSessionInput");
+const importAudioBtn = document.getElementById("importAudioBtn");
+const importAudioInput = document.getElementById("importAudioInput");
+const newJobBtn = document.getElementById("newJobBtn");
+const partsListEl = document.getElementById("partsList");
+const voiceErrorEl = document.getElementById("voice-error");
+const sleepWarningEl = document.getElementById("sleep-warning");
+const settingsBtn = document.getElementById("settingsBtn");
+
+// --- STATE ---
+let lastMaterials = [];
+let lastRawSections = [];
+let lastSections = [];
+let lastCheckedItems = [];
+let lastMissingInfo = [];
+let lastCustomerSummary = "";
+let wasBackgroundedDuringSession = false;
+let pauseReason = null;
+let SECTION_SCHEMA = [];
+let SECTION_NAMES = [];
+let SECTION_ORDER_MAP = new Map();
+let SECTION_KEY_LOOKUP = new Map();
+let schemaLoaded = false;
+let CHECKLIST_SOURCE = [];
+let CHECKLIST_ITEMS = [];
+
+function sanitiseChecklistArray(value) {
+  const asArray = (input) => {
+    if (!input) return [];
+    if (Array.isArray(input)) return input;
+    if (input && typeof input === "object" && Array.isArray(input.items)) {
+      return input.items;
+    }
+    return [];
+  };
+
+  const entries = asArray(value);
+  const seen = new Set();
+  const cleaned = [];
+
+  entries.forEach((item) => {
+    if (!item) return;
+    const copy = { ...item };
+    const id = copy.id != null ? String(copy.id).trim() : "";
+    const label = copy.label != null ? String(copy.label).trim() : "";
+    if (!id || !label || seen.has(id)) return;
+    seen.add(id);
+    copy.id = id;
+    copy.label = label;
+    copy.group = copy.group != null ? String(copy.group).trim() : "";
+    copy.hint = copy.hint != null ? String(copy.hint).trim() : "";
+    const section = copy.section != null && String(copy.section).trim()
+      ? String(copy.section).trim()
+      : copy.depotSection != null && String(copy.depotSection).trim()
+        ? String(copy.depotSection).trim()
+        : "";
+    copy.section = section;
+    if (section) {
+      copy.depotSection = section;
+    }
+    cleaned.push(copy);
+  });
+
+  return cleaned;
+}
+
+async function loadChecklistConfig() {
+  let defaultConfig = [];
+  try {
+    const res = await fetch("checklist.config.json", { cache: "no-store" });
+    if (res.ok) {
+      const data = await res.json();
+      defaultConfig = sanitiseChecklistArray(data);
+    }
+  } catch (err) {
+    console.warn("Failed to fetch default checklist", err);
+  }
+
+  let local = null;
+  try {
+    local = JSON.parse(localStorage.getItem(CHECKLIST_STORAGE_KEY) || "null");
+  } catch (_) {
+    local = null;
+  }
+
+  const localConfig = sanitiseChecklistArray(local);
+  const finalConfig = localConfig.length ? localConfig : defaultConfig;
+
+  return sanitiseChecklistArray(finalConfig);
+}
+
+function saveLocalChecklistConfig(cfg) {
+  const cleaned = sanitiseChecklistArray(cfg);
+  try {
+    localStorage.setItem(CHECKLIST_STORAGE_KEY, JSON.stringify(cleaned));
+  } catch (err) {
+    console.warn("Failed to persist checklist override", err);
+  }
+  return cleaned;
+}
+
+let mediaRecorder = null;
+let mediaStream = null;
+let sessionAudioChunks = [];
+let lastAudioMime = null;
+
+// Live session speech state
+const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition || null;
+let recognition = null;
+let liveState = "idle"; // idle | running | paused
+let recognitionActive = false;
+let shouldRestartRecognition = false;
+let recognitionStopMode = null; // null | "pause" | "finish"
+let committedTranscript = "";
+let interimTranscript = "";
+let lastSentTranscript = "";
+let chunkTimerId = null;
+const LIVE_CHUNK_INTERVAL_MS = 20000;
+let pendingFinishSend = false;
+
+// --- HELPERS ---
+function readStoredSectionOverride() {
+  const keys = [SECTION_STORAGE_KEY, LEGACY_SECTION_STORAGE_KEY];
+  for (let i = 0; i < keys.length; i += 1) {
+    const key = keys[i];
+    try {
+      const raw = localStorage.getItem(key);
+      if (!raw) continue;
+      return JSON.parse(raw);
+    } catch (_) {
+      continue;
+    }
+  }
+  return null;
+}
+
+function sanitiseSectionSchema(input) {
+  const asArray = (value) => {
+    if (!value) return [];
+    if (Array.isArray(value)) return value;
+    if (value && typeof value === "object" && Array.isArray(value.sections)) {
+      return value.sections;
+    }
+    return [];
+  };
+
+  const rawEntries = asArray(input);
+  const prepared = [];
+  rawEntries.forEach((entry, idx) => {
+    if (!entry) return;
+    const rawName = entry.name ?? entry.section ?? entry.title ?? entry.heading;
+    const name = typeof rawName === "string" ? rawName.trim() : "";
+    if (!name || name === "Arse_cover_notes") return;
+    const rawDescription = entry.description ?? entry.hint ?? "";
+    const description = typeof rawDescription === "string"
+      ? rawDescription.trim()
+      : String(rawDescription || "").trim();
+    const order = typeof entry.order === "number" ? entry.order : idx + 1;
+    prepared.push({ name, description, order, idx });
+  });
+
+  prepared.sort((a, b) => {
+    const aHasOrder = typeof a.order === "number";
+    const bHasOrder = typeof b.order === "number";
+    if (aHasOrder && bHasOrder && a.order !== b.order) {
+      return a.order - b.order;
+    }
+    if (aHasOrder && !bHasOrder) return -1;
+    if (!aHasOrder && bHasOrder) return 1;
+    return a.idx - b.idx;
+  });
+
+  const unique = [];
+  const seen = new Set();
+  prepared.forEach((entry) => {
+    if (seen.has(entry.name)) return;
+    seen.add(entry.name);
+    unique.push({
+      name: entry.name,
+      description: entry.description || "",
+      order: entry.order
+    });
+  });
+
+  let withoutFuture = unique.filter((entry) => entry.name !== FUTURE_PLANS_NAME);
+  let future = unique.find((entry) => entry.name === FUTURE_PLANS_NAME);
+  if (!future) {
+    future = {
+      name: FUTURE_PLANS_NAME,
+      description: FUTURE_PLANS_DESCRIPTION,
+      order: withoutFuture.length + 1
+    };
+  } else if (!future.description) {
+    future = { ...future, description: FUTURE_PLANS_DESCRIPTION };
+  }
+
+  const final = [...withoutFuture, future].map((entry, idx) => ({
+    name: entry.name,
+    description: entry.description || "",
+    order: idx + 1
+  }));
+
+  return final;
+}
+
+async function loadSectionSchema() {
+  let defaultSchema = [];
+  try {
+    const res = await fetch("depot.output.schema.json", { cache: "no-store" });
+    if (res.ok) {
+      const json = await res.json();
+      defaultSchema = sanitiseSectionSchema(json);
+    }
+  } catch (err) {
+    console.warn("Failed to load default section schema", err);
+  }
+
+  let localOverride = null;
+  try {
+    localOverride = readStoredSectionOverride();
+  } catch (_) {
+    localOverride = null;
+  }
+
+  const candidate = Array.isArray(localOverride) && localOverride.length > 0
+    ? sanitiseSectionSchema(localOverride)
+    : defaultSchema;
+
+  if (candidate.length) {
+    return candidate;
+  }
+  return sanitiseSectionSchema([]);
+}
+
+function rebuildSectionState(schema) {
+  SECTION_SCHEMA = Array.isArray(schema) ? schema.map((entry, idx) => ({
+    name: entry.name,
+    description: entry.description || "",
+    order: typeof entry.order === "number" ? entry.order : idx + 1
+  })) : [];
+  SECTION_NAMES = SECTION_SCHEMA.map((entry) => entry.name);
+  SECTION_ORDER_MAP = new Map();
+  SECTION_KEY_LOOKUP = new Map();
+
+  SECTION_SCHEMA.forEach((entry, idx) => {
+    const order = idx + 1;
+    SECTION_ORDER_MAP.set(entry.name, order);
+    const key = normaliseSectionKey(entry.name);
+    if (!key) return;
+    const variants = new Set([key]);
+    if (key.endsWith("s")) variants.add(key.replace(/s$/, ""));
+    if (key.endsWith("ies")) {
+      variants.add(key.replace(/ies$/, "y"));
+    } else if (key.endsWith("y")) {
+      variants.add(key.replace(/y$/, "ies"));
+    }
+    if (key.includes(" and ")) {
+      variants.add(key.replace(/\band\b/g, "").replace(/\s+/g, " ").trim());
+    }
+    variants.forEach((variant) => {
+      if (variant && !SECTION_KEY_LOOKUP.has(variant)) {
+        SECTION_KEY_LOOKUP.set(variant, entry.name);
+      }
+    });
+  });
+
+  schemaLoaded = SECTION_SCHEMA.length > 0;
+}
+
+async function ensureSectionSchema() {
+  if (schemaLoaded && SECTION_SCHEMA.length) {
+    return SECTION_SCHEMA;
+  }
+  const schema = await loadSectionSchema();
+  rebuildSectionState(schema);
+  return SECTION_SCHEMA;
+}
+
+function clearCachedSchema() {
+  schemaLoaded = false;
+  SECTION_SCHEMA = [];
+  SECTION_NAMES = [];
+  SECTION_ORDER_MAP = new Map();
+  SECTION_KEY_LOOKUP = new Map();
+}
+
+function normaliseSectionKey(name) {
+  return String(name || "")
+    .toLowerCase()
+    .replace(/&/g, "and")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+function resolveRequiredSectionName(name) {
+  const key = normaliseSectionKey(name);
+  if (!key) return null;
+  return SECTION_KEY_LOOKUP.get(key) || null;
+}
+
+function firstDefined(...values) {
+  for (let i = 0; i < values.length; i += 1) {
+    const value = values[i];
+    if (value !== undefined && value !== null) return value;
+  }
+  return undefined;
+}
+
+function coerceSectionField(value) {
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) {
+    return value
+      .map((part) => (typeof part === "string" ? part : ""))
+      .filter(Boolean)
+      .join(" ");
+  }
+  if (value && typeof value === "object") {
+    if (typeof value.text === "string") return value.text;
+    if (typeof value.content === "string") return value.content;
+    if (Array.isArray(value.parts)) {
+      return value.parts
+        .map((part) => (typeof part === "string" ? part : ""))
+        .filter(Boolean)
+        .join(" ");
+    }
+  }
+  if (value === undefined || value === null) return "";
+  return String(value);
+}
+
+function mergeTextFields(existing, incoming) {
+  const prev = typeof existing === "string" ? existing : "";
+  const next = typeof incoming === "string" ? incoming : "";
+  const prevTrim = prev.trim();
+  const nextTrim = next.trim();
+  if (!prevTrim && !nextTrim) return next || prev || "";
+  if (!prevTrim) return next;
+  if (!nextTrim) return prev;
+  if (prevTrim.toLowerCase() === nextTrim.toLowerCase()) return next || prev;
+  if (prevTrim.includes(nextTrim)) return prev;
+  if (nextTrim.includes(prevTrim)) return next;
+  return `${prevTrim}\n${nextTrim}`.trim();
+}
+
+function normaliseSectionCandidate(section, index = 0) {
+  if (!section) return null;
+  const rawName = firstDefined(section.section, section.name, section.heading, section.title);
+  const trimmedName = typeof rawName === "string" ? rawName.trim() : "";
+  if (!trimmedName) return null;
+  if (trimmedName.toLowerCase() === "arse_cover_notes") return null;
+  const canonical = resolveRequiredSectionName(trimmedName);
+  const plainSource = firstDefined(section.plainText, section.plain_text, section.text, section.content, section.body);
+  const naturalSource = firstDefined(
+    section.naturalLanguage,
+    section.natural_language,
+    section.summary,
+    section.description,
+    section.notes
+  );
+  return {
+    section: canonical || trimmedName,
+    originalName: trimmedName,
+    plainText: coerceSectionField(plainSource || ""),
+    naturalLanguage: coerceSectionField(naturalSource || ""),
+    isRequired: Boolean(canonical),
+    index
+  };
+}
+
+function mergeIncomingSection(existing, incoming) {
+  if (!incoming) return existing || null;
+  if (!existing) {
+    return {
+      section: incoming.section,
+      plainText: typeof incoming.plainText === "string" ? incoming.plainText : "",
+      naturalLanguage: typeof incoming.naturalLanguage === "string" ? incoming.naturalLanguage : ""
+    };
+  }
+  return {
+    section: incoming.section || existing.section,
+    plainText: mergeTextFields(existing.plainText, incoming.plainText),
+    naturalLanguage: mergeTextFields(existing.naturalLanguage, incoming.naturalLanguage)
+  };
+}
+
+function partitionSectionsByRequirement(sections) {
+  const required = new Map();
+  const extras = new Map();
+  (Array.isArray(sections) ? sections : []).forEach((section, idx) => {
+    const normalised = normaliseSectionCandidate(section, idx);
+    if (!normalised) return;
+    if (normalised.isRequired) {
+      const existing = required.get(normalised.section);
+      required.set(normalised.section, mergeIncomingSection(existing, normalised));
+    } else {
+      const key = normaliseSectionKey(normalised.originalName || normalised.section) || `${idx}-${normalised.section}`;
+      const existingExtra = extras.get(key);
+      const merged = mergeIncomingSection(existingExtra && existingExtra.entry, normalised);
+      extras.set(key, {
+        entry: merged,
+        order: existingExtra ? existingExtra.order : idx
+      });
+    }
+  });
+  return { required, extras };
+}
+
+function combineSectionEntries(prev, next, sectionName) {
+  const plainText = mergeTextFields(prev && prev.plainText, next && next.plainText);
+  const naturalLanguage = mergeTextFields(prev && prev.naturalLanguage, next && next.naturalLanguage);
+  if (!plainText.trim() && !naturalLanguage.trim()) {
+    return null;
+  }
+  return {
+    section: sectionName,
+    plainText,
+    naturalLanguage
+  };
+}
+
+function countPartitionEntries(partition) {
+  if (!partition) return 0;
+  let count = 0;
+  partition.required.forEach((entry) => {
+    if (entry) count += 1;
+  });
+  partition.extras.forEach((wrapper) => {
+    if (wrapper && wrapper.entry) count += 1;
+  });
+  return count;
+}
+
+function mergeSectionsPreservingRequired(previousSections, incomingSections) {
+  const prevPartition = partitionSectionsByRequirement(previousSections);
+  const incomingPartition = partitionSectionsByRequirement(incomingSections);
+  const merged = [];
+
+  const canonicalNames = SECTION_NAMES.length ? SECTION_NAMES : SECTION_SCHEMA.map((entry) => entry.name);
+  canonicalNames.forEach((name) => {
+    const mergedEntry = combineSectionEntries(
+      prevPartition.required.get(name),
+      incomingPartition.required.get(name),
+      name
+    );
+    if (mergedEntry) merged.push(mergedEntry);
+  });
+
+  const extraKeys = new Set([
+    ...Array.from(prevPartition.extras.keys()),
+    ...Array.from(incomingPartition.extras.keys())
+  ]);
+  const extraEntries = [];
+  extraKeys.forEach((key) => {
+    const prevWrapper = prevPartition.extras.get(key);
+    const nextWrapper = incomingPartition.extras.get(key);
+    const sectionName = (nextWrapper && nextWrapper.entry && nextWrapper.entry.section)
+      || (prevWrapper && prevWrapper.entry && prevWrapper.entry.section)
+      || "";
+    if (!sectionName) return;
+    const mergedEntry = combineSectionEntries(
+      prevWrapper && prevWrapper.entry,
+      nextWrapper && nextWrapper.entry,
+      sectionName
+    );
+    if (!mergedEntry) return;
+    const fallbackOrder = canonicalNames.length || SECTION_SCHEMA.length || 0;
+    const order = nextWrapper
+      ? nextWrapper.order
+      : prevWrapper
+        ? prevWrapper.order
+        : fallbackOrder;
+    extraEntries.push({ entry: mergedEntry, order });
+  });
+  extraEntries
+    .sort((a, b) => a.order - b.order)
+    .forEach((item) => {
+      merged.push(item.entry);
+    });
+
+  return {
+    merged,
+    incomingCount: countPartitionEntries(incomingPartition)
+  };
+}
+
+function showVoiceError(message) {
+  if (!voiceErrorEl) {
+    console.error("Voice error:", message);
+    alert(message);
+    return;
+  }
+  voiceErrorEl.textContent = message;
+  voiceErrorEl.style.display = "block";
+}
+function clearVoiceError() {
+  if (!voiceErrorEl) return;
+  voiceErrorEl.textContent = "";
+  voiceErrorEl.style.display = "none";
+}
+function showSleepWarning(message) {
+  if (!sleepWarningEl) return;
+  sleepWarningEl.textContent = message;
+  sleepWarningEl.style.display = "block";
+}
+function clearSleepWarning() {
+  if (!sleepWarningEl) return;
+  sleepWarningEl.textContent = "";
+  sleepWarningEl.style.display = "none";
+}
+function currentModeLabel() {
+  return liveState === "running" || liveState === "paused" ? "Live" : "Manual";
+}
+function setStatus(msg) {
+  const onlinePart = navigator.onLine ? "Online" : "Offline";
+  statusBar.textContent = `${msg || "Idle"} (${onlinePart} • ${currentModeLabel()})`;
+}
+function cloneDeep(val) {
+  try { return JSON.parse(JSON.stringify(val)); } catch (_) { return val; }
+}
+
+function requireWorkerBaseUrl() {
+  const trimmed = (WORKER_URL || "").trim();
+  if (!trimmed) {
+    const err = new Error("Worker URL not configured");
+    err.voiceMessage = "Voice AI worker URL not configured. Contact your admin.";
+    throw err;
+  }
+  if (!/^https?:\/\//i.test(trimmed)) {
+    const err = new Error("Worker URL must start with http:// or https://");
+    err.voiceMessage = "Voice AI worker URL looks invalid. Contact your admin.";
+    throw err;
+  }
+  return trimmed.replace(/\/$/, "");
+}
+
+async function postJSON(path, body) {
+  const base = requireWorkerBaseUrl();
+  const url = base + path;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body)
+  });
+  return res;
+}
+
+async function startAudioCapture(resetChunks = false) {
+  if (!navigator.mediaDevices || typeof window.MediaRecorder === "undefined") {
+    console.warn("MediaRecorder not supported; audio backup disabled.");
+    return;
+  }
+  if (mediaRecorder && mediaRecorder.state === "recording") {
+    return;
+  }
+  try {
+    if (resetChunks) {
+      sessionAudioChunks = [];
+    } else if (!Array.isArray(sessionAudioChunks)) {
+      sessionAudioChunks = [];
+    }
+    mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const options = window.MediaRecorder.isTypeSupported && window.MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+      ? { mimeType: "audio/webm;codecs=opus" }
+      : undefined;
+    mediaRecorder = new MediaRecorder(mediaStream, options);
+    lastAudioMime = mediaRecorder.mimeType || (options && options.mimeType) || lastAudioMime || "audio/webm";
+    mediaRecorder.ondataavailable = (event) => {
+      if (event.data && event.data.size > 0) {
+        sessionAudioChunks.push(event.data);
+      }
+    };
+    mediaRecorder.onstop = () => {
+      if (mediaStream) {
+        mediaStream.getTracks().forEach((track) => track.stop());
+        mediaStream = null;
+      }
+      mediaRecorder = null;
+    };
+    mediaRecorder.start();
+  } catch (err) {
+    console.error("Audio capture error", err);
+    showSleepWarning("Audio backup could not start; text capture still running.");
+  }
+}
+
+function stopAudioCapture() {
+  try {
+    if (mediaRecorder && mediaRecorder.state === "recording") {
+      mediaRecorder.stop();
+    }
+  } catch (err) {
+    console.warn("Error stopping audio capture", err);
+  }
+  if (mediaRecorder && mediaRecorder.state !== "recording") {
+    mediaRecorder = null;
+  }
+  if (mediaStream) {
+    try {
+      mediaStream.getTracks().forEach((track) => track.stop());
+    } catch (trackErr) {
+      console.warn("Failed to stop media tracks", trackErr);
+    }
+    mediaStream = null;
+  }
+}
+
+function normaliseChecklistConfig(items) {
+  if (items && typeof items === "object" && !Array.isArray(items) && Array.isArray(items.items)) {
+    return normaliseChecklistConfig(items.items);
+  }
+  if (!Array.isArray(items)) return [];
+  return items.map(item => {
+    if (!item) return null;
+    const id = item.id != null ? String(item.id).trim() : "";
+    if (!id) return null;
+    return {
+      id,
+      group: item.group || item.category || "Checklist",
+      section: item.section || item.sectionName || "",
+      label: item.label || item.name || id,
+      hint: item.hint || item.description || ""
+    };
+  }).filter(Boolean);
+}
+
+function deriveSectionHints() {
+  const hints = {};
+  const addHint = (rawKey, sectionName) => {
+    const key = typeof rawKey === "string" ? rawKey.trim().toLowerCase() : String(rawKey || "").trim().toLowerCase();
+    const section = typeof sectionName === "string" ? sectionName.trim() : String(sectionName || "").trim();
+    if (!key || !section || hints[key]) return;
+    hints[key] = section;
+  };
+
+  SECTION_SCHEMA.forEach(sec => {
+    if (!sec || !sec.name) return;
+    addHint(sec.name, sec.name);
+    const tokens = String(sec.name)
+      .toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .map(t => t.trim())
+      .filter(t => t.length >= 3);
+    tokens.forEach(token => addHint(token, sec.name));
+  });
+
+  CHECKLIST_ITEMS.forEach(item => {
+    if (!item) return;
+    const sectionName = (item.section || "").trim();
+    if (!sectionName) return;
+    addHint(item.id, sectionName);
+    const textBits = [item.label || "", item.hint || ""]
+      .join(" ")
+      .toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .map(t => t.trim())
+      .filter(t => t.length >= 3);
+    textBits.forEach(token => addHint(token, sectionName));
+  });
+
+  return hints;
+}
+
+function buildVoiceRequestPayload(transcript, schema = SECTION_SCHEMA) {
+  const existingSections = Array.isArray(lastRawSections)
+    ? lastRawSections
+        .map(sec => {
+          if (!sec || typeof sec !== "object") return null;
+          const section = typeof sec.section === "string" ? sec.section.trim() : String(sec.section || "").trim();
+          if (!section) return null;
+          return {
+            section,
+            plainText: typeof sec.plainText === "string" ? sec.plainText : String(sec.plainText || ""),
+            naturalLanguage: typeof sec.naturalLanguage === "string" ? sec.naturalLanguage : String(sec.naturalLanguage || "")
+          };
+        })
+        .filter(sec => sec && sec.section.toLowerCase() !== "arse_cover_notes")
+    : [];
+
+  const canonicalSchema = Array.isArray(schema) ? schema : [];
+  const expectedSections = canonicalSchema
+    .map(sec => (sec && sec.name ? String(sec.name).trim() : ""))
+    .filter(Boolean);
+
+  return {
+    transcript,
+    alreadyCaptured: existingSections,
+    expectedSections,
+    sectionHints: deriveSectionHints(),
+    forceStructured: true,
+    checklistItems: CHECKLIST_SOURCE,
+    depotSections: canonicalSchema
+  };
+}
+
+function normaliseSectionsFromResponse(data, schema = SECTION_SCHEMA) {
+  if (!data || typeof data !== "object") return [];
+  const canonicalSchema = Array.isArray(schema) ? schema : [];
+  const orderedNames = canonicalSchema.map((entry) => entry.name).filter(Boolean);
+  if (!orderedNames.length) return [];
+
+  const rawSections = Array.isArray(data.sections) ? data.sections : [];
+  const sectionMap = new Map();
+  rawSections.forEach((entry) => {
+    if (!entry || typeof entry !== "object") return;
+    const rawName = typeof entry.section === "string"
+      ? entry.section.trim()
+      : typeof entry.name === "string"
+        ? entry.name.trim()
+        : "";
+    if (!rawName) return;
+    const resolved = resolveRequiredSectionName(rawName) || rawName;
+    if (!orderedNames.includes(resolved)) return;
+    if (sectionMap.has(resolved)) return;
+    const plainText = typeof entry.plainText === "string" ? entry.plainText : String(entry.plainText || "");
+    const naturalLanguage = typeof entry.naturalLanguage === "string"
+      ? entry.naturalLanguage
+      : String(entry.naturalLanguage || entry.summary || "");
+    sectionMap.set(resolved, {
+      section: resolved,
+      plainText,
+      naturalLanguage
+    });
+  });
+
+  const missing = [];
+  const normalised = orderedNames.map((name) => {
+    const existing = sectionMap.get(name);
+    if (existing) return existing;
+    missing.push(name);
+    return {
+      section: name,
+      plainText: "• No additional notes;",
+      naturalLanguage: "No additional notes."
+    };
+  });
+
+  if (missing.length) {
+    console.warn("Depot notes: worker response missing sections:", missing);
+  }
+
+  data.sections = normalised;
+  return normalised;
+}
+
+// Plaintext shaping helpers
+function ensureSemi(s){ s=String(s||"").trim(); return s ? (s.endsWith(";")?s:s+";") : s; }
+function splitClauses(text){
+  return String(text||"")
+    .split(/[\n;]+/)
+    .map(s => s.trim())
+    .filter(Boolean);
+}
+function stripPreamble(line){
+  let s = String(line||"").trim();
+  s = s
+    .replace(/^(then|next|first|second|after|before|finally|so)\b[:,\s-]*/i, "")
+    .replace(/^(we(?:'|’)ll|we will|i(?:'|’)ll|engineer will|installer will|we need to|need to|we can|we should)\b[:,\s-]*/i, "")
+    .replace(/^(please|note|recommended to)\b[:,\s-]*/i, "");
+  s = s.replace(/\bwill need to\b/gi, "required to");
+  return s.trim();
+}
+function bulletify(lines){
+  const out=[];
+  for (let raw of lines){
+    const t = stripPreamble(raw);
+    if (!t) continue;
+    out.push("• " + ensureSemi(t));
+  }
+  return out.join("\n");
+}
+function formatPlainTextForSection(section, plain){
+  if (!plain) return "";
+  return bulletify(splitClauses(plain));
+}
+
+function renderPartsList(materials) {
+  lastMaterials = Array.isArray(materials) ? materials.slice() : [];
+  if (!partsListEl) return;
+  partsListEl.innerHTML = "";
+  if (!lastMaterials.length) {
+    partsListEl.innerHTML = `<span class="small">No suggestions yet.</span>`;
+    return;
+  }
+  const byCategory = new Map();
+  lastMaterials.forEach(item => {
+    const cat = item.category || "Misc";
+    const arr = byCategory.get(cat) || [];
+    arr.push(item);
+    byCategory.set(cat, arr);
+  });
+  byCategory.forEach((items, cat) => {
+    const h = document.createElement("div");
+    h.className = "small";
+    h.style.fontWeight = "600";
+    h.style.margin = "4px 0 2px";
+    h.textContent = cat;
+    partsListEl.appendChild(h);
+    const ul = document.createElement("ul");
+    ul.style.margin = "0 0 4px 14px";
+    ul.style.padding = "0";
+    ul.style.listStyle = "disc";
+    items.forEach(p => {
+      const li = document.createElement("li");
+      li.style.fontSize = ".68rem";
+      const detail = [];
+      if (p.item) detail.push(p.item);
+      if (p.qty && Number(p.qty) !== 1) detail.push(`× ${p.qty}`);
+      if (p.notes) detail.push(p.notes);
+      li.textContent = detail.length ? detail.join(" — ") : (p.item || "Item");
+      ul.appendChild(li);
+    });
+    partsListEl.appendChild(ul);
+  });
+}
+
+function postProcessSections(sections) {
+  const orderFor = (name) => {
+    if (!name) return Number.MAX_SAFE_INTEGER;
+    const resolved = resolveRequiredSectionName(name) || name;
+    if (SECTION_ORDER_MAP.has(resolved)) {
+      return SECTION_ORDER_MAP.get(resolved);
+    }
+    return Number.MAX_SAFE_INTEGER;
+  };
+
+  const out = [];
+  const seen = new Set();
+  (Array.isArray(sections) ? sections : []).forEach(sec => {
+    if (!sec || !sec.section) return;
+    const name = String(sec.section).trim();
+    if (!name || name.toLowerCase() === "arse_cover_notes") return;
+    const resolved = resolveRequiredSectionName(name) || name;
+    if (!resolved || (SECTION_ORDER_MAP.size && !SECTION_ORDER_MAP.has(resolved))) return;
+    if (seen.has(resolved)) return;
+    seen.add(resolved);
+    out.push({
+      section: resolved,
+      plainText: sec.plainText || "",
+      naturalLanguage: sec.naturalLanguage || ""
+    });
+  });
+  out.sort((a, b) => {
+    const diff = orderFor(a.section) - orderFor(b.section);
+    return diff !== 0 ? diff : a.section.localeCompare(b.section);
+  });
+  out.forEach(sec => {
+    if (sec.plainText) sec.plainText = formatPlainTextForSection(sec.section, sec.plainText);
+  });
+  return out;
+}
+
+function renderChecklist(container, checkedIds, missingInfoFromServer) {
+  const checkedSet = new Set((checkedIds || []).map(String));
+  const questions = Array.isArray(missingInfoFromServer) ? missingInfoFromServer : [];
+  container.innerHTML = "";
+
+  if (!CHECKLIST_ITEMS.length && !checkedSet.size && !questions.length) {
+    container.innerHTML = `<span class="small">No checklist items.</span>`;
+    return;
+  }
+
+  const byGroup = new Map();
+  const knownIds = new Set();
+  CHECKLIST_ITEMS.forEach(item => {
+    const group = item.group || "Checklist";
+    const arr = byGroup.get(group) || [];
+    knownIds.add(String(item.id));
+    arr.push({
+      id: item.id,
+      section: item.section || "",
+      label: item.label || item.id,
+      hint: item.hint || "",
+      done: checkedSet.has(String(item.id))
+    });
+    byGroup.set(group, arr);
+  });
+
+  const unknownFromAi = Array.from(checkedSet).filter(id => id && !knownIds.has(id));
+  if (unknownFromAi.length) {
+    const arr = unknownFromAi.map(id => ({
+      id,
+      section: "",
+      label: String(id),
+      hint: "",
+      done: true
+    }));
+    byGroup.set("Other (from AI)", arr);
+  }
+
+  if (!byGroup.size && !questions.length) {
+    container.innerHTML = `<span class="small">No checklist items.</span>`;
+    return;
+  }
+
+  [...byGroup.entries()].forEach(([groupName, items]) => {
+    const header = document.createElement("div");
+    header.className = "check-group-title";
+    header.innerHTML = `<span>${groupName}</span><span>${items[0].section || ""}</span>`;
+    container.appendChild(header);
+
+    items.forEach(item => {
+      const div = document.createElement("div");
+      div.className = "clar-chip checklist-item" + (item.done ? " done" : "");
+      div.innerHTML = `
+        <span class="icon">${item.done ? "✅" : "⭕"}</span>
+        <span class="label">
+          ${item.label}
+          <span class="hint">
+            ${item.hint || ""}
+            ${item.section ? ` • <strong>${item.section}</strong>` : ""}
+          </span>
+        </span>
+      `;
+      container.appendChild(div);
+    });
+  });
+
+  if (questions.length) {
+    const sep = document.createElement("div");
+    sep.className = "small";
+    sep.style.marginTop = "6px";
+    sep.textContent = "Additional questions:";
+    container.appendChild(sep);
+    questions.forEach(q => {
+      const div = document.createElement("div");
+      div.className = "clar-chip";
+      div.dataset.target = q.target || "engineer";
+      div.innerHTML = `<strong>${q.target || "engineer"}:</strong> ${q.question}`;
+      container.appendChild(div);
+    });
+  }
+}
+
+function refreshUiFromState() {
+  customerSummaryEl.textContent = lastCustomerSummary || "(none)";
+  const processed = postProcessSections(cloneDeep(lastRawSections || []));
+  lastSections = processed;
+  sectionsListEl.innerHTML = "";
+  if (processed.length) {
+    processed.forEach(sec => {
+      const div = document.createElement("div");
+      div.className = "section-item";
+      div.innerHTML = `
+        <h4>${sec.section}</h4>
+        <pre>${sec.plainText || ""}</pre>
+        <p class="small" style="margin-top:3px;">${sec.naturalLanguage || ""}</p>
+      `;
+      sectionsListEl.appendChild(div);
+    });
+  } else {
+    sectionsListEl.innerHTML = `<span class="small">No sections yet.</span>`;
+  }
+  renderPartsList(lastMaterials);
+  renderChecklist(clarificationsEl, lastCheckedItems, lastMissingInfo);
+}
+
+function applyVoiceResult(result) {
+  if (!result || typeof result !== "object") {
+    showVoiceError("AI gave an empty result.");
+    return;
+  }
+
+  const prevSections = cloneDeep(lastRawSections || []);
+  const prevMaterials = Array.isArray(lastMaterials) ? lastMaterials.slice() : [];
+  const prevSummary = lastCustomerSummary;
+  const prevChecked = Array.isArray(lastCheckedItems) ? lastCheckedItems.slice() : [];
+  const prevMissing = Array.isArray(lastMissingInfo) ? lastMissingInfo.slice() : [];
+
+  let updated = false;
+
+  const sectionsCandidateRaw = Array.isArray(result.sections)
+    ? result.sections
+    : (result.depotNotes && Array.isArray(result.depotNotes.sections))
+      ? result.depotNotes.sections
+      : [];
+  const { merged: mergedSections, incomingCount: incomingSectionsCount } = mergeSectionsPreservingRequired(
+    prevSections,
+    sectionsCandidateRaw
+  );
+  const prevSectionsJson = JSON.stringify(prevSections);
+  const mergedSectionsJson = JSON.stringify(mergedSections);
+  if (mergedSectionsJson !== prevSectionsJson) {
+    updated = true;
+  }
+  lastRawSections = cloneDeep(mergedSections);
+
+  if (Array.isArray(result.materials) && result.materials.length) {
+    lastMaterials = result.materials.slice();
+    updated = true;
+  } else if (result.materials === undefined) {
+    lastMaterials = prevMaterials;
+  } else {
+    lastMaterials = prevMaterials;
+  }
+
+  if (Array.isArray(result.checkedItems)) {
+    lastCheckedItems = result.checkedItems.slice();
+  } else if (result.checkedItems === undefined) {
+    lastCheckedItems = prevChecked;
+  }
+
+  if (Array.isArray(result.missingInfo)) {
+    lastMissingInfo = result.missingInfo.slice();
+  } else if (result.missingInfo === undefined) {
+    lastMissingInfo = prevMissing;
+  }
+
+  const summaryCandidate =
+    typeof result.customerSummary === "string"
+      ? result.customerSummary
+      : typeof result.summary === "string"
+        ? result.summary
+        : null;
+  if (summaryCandidate !== null) {
+    lastCustomerSummary = summaryCandidate;
+    updated = true;
+  } else {
+    lastCustomerSummary = prevSummary;
+  }
+
+  if (updated) {
+    clearVoiceError();
+  } else {
+    const hasMaterials = Array.isArray(result.materials)
+      ? result.materials.length > 0
+      : !!result.materials;
+    if (!incomingSectionsCount && !hasMaterials) {
+      showVoiceError("AI didn’t return any depot notes. Existing notes kept.");
+    }
+  }
+
+  refreshUiFromState();
+}
+
+async function sendText() {
+  const transcript = transcriptInput.value.trim();
+  if (!transcript) return;
+  setStatus("Sending text…");
+  clearVoiceError();
+  try {
+    const schemaSnapshot = await ensureSectionSchema();
+    const res = await postJSON("/text", buildVoiceRequestPayload(transcript, schemaSnapshot));
+    const raw = await res.text();
+    if (!res.ok) {
+      const snippet = raw ? `: ${raw.slice(0, 200)}` : "";
+      throw new Error(`Worker error ${res.status} ${res.statusText}${snippet}`);
+    }
+    let data;
+    try {
+      data = JSON.parse(raw);
+    } catch (e) {
+      console.error("Voice worker returned non-JSON:", raw);
+      const parseError = new Error("AI response wasn't in the expected format. Please try again.");
+      parseError.voiceMessage = parseError.message;
+      throw parseError;
+    }
+    normaliseSectionsFromResponse(data, schemaSnapshot);
+    applyVoiceResult(data);
+    setStatus("Done.");
+    committedTranscript = transcript;
+    lastSentTranscript = transcript;
+  } catch (err) {
+    console.error(err);
+    const message = err && err.voiceMessage
+      ? err.voiceMessage
+      : "Voice AI failed: " + (err && err.message ? err.message : "Unknown error");
+    showVoiceError(message);
+    setStatus("Text send failed.");
+  }
+}
+
+async function sendAudio(blob) {
+  setStatus("Uploading audio…");
+  clearVoiceError();
+  try {
+    const schemaSnapshot = await ensureSectionSchema();
+    const baseUrl = requireWorkerBaseUrl();
+    const res = await fetch(baseUrl + "/audio", {
+      method: "POST",
+      headers: { "Content-Type": blob.type || "audio/webm" },
+      body: blob
+    });
+    const raw = await res.text();
+    if (!res.ok) {
+      const snippet = raw ? `: ${raw.slice(0, 200)}` : "";
+      throw new Error(`Worker error ${res.status} ${res.statusText}${snippet}`);
+    }
+    let data;
+    try {
+      data = JSON.parse(raw);
+    } catch (e) {
+      console.error("Voice worker returned non-JSON:", raw);
+      const parseError = new Error("AI response wasn't in the expected format. Please try again.");
+      parseError.voiceMessage = parseError.message;
+      throw parseError;
+    }
+    normaliseSectionsFromResponse(data, schemaSnapshot);
+    applyVoiceResult(data);
+    setStatus("Audio processed.");
+  } catch (err) {
+    console.error(err);
+    const message = err && err.voiceMessage
+      ? err.voiceMessage
+      : "Voice AI failed: " + (err && err.message ? err.message : "Unknown error");
+    showVoiceError(message);
+    setStatus("Audio failed.");
+    throw err;
+  }
+}
+
+// --- EXPORT / SESSION / AUDIO IMPORT ---
+exportBtn.onclick = async () => {
+  setStatus("Preparing notes…");
+  const payload = {
+    exportedAt: new Date().toISOString(),
+    sections: lastSections || []
+  };
+  const pretty = JSON.stringify(payload, null, 2);
+  const blob = new Blob([pretty], { type: "application/json" });
+  const defaultName = "depot-notes";
+  const userName = prompt("File name (without extension):", defaultName);
+  if (userName === null) {
+    setStatus("Export cancelled.");
+    return;
+  }
+  const safeName = (userName || defaultName).replace(/[^a-z0-9_\-]+/gi, "-");
+  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const filename = `${safeName}-${timestamp}.json`;
+  const fileForShare = new File([blob], filename, { type: "application/json" });
+  if (navigator.canShare && navigator.canShare({ files: [fileForShare] })) {
+    try {
+      await navigator.share({ files: [fileForShare] });
+      setStatus("Notes shared.");
+      return;
+    } catch (err) {
+      console.error("Share failed", err);
+    }
+  }
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+  setStatus("Notes downloaded.");
+};
+
+function blobToBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result.split(",")[1] || "");
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+function base64ToBlob(b64, mime) {
+  const byteChars = atob(b64);
+  const byteNums = new Array(byteChars.length);
+  for (let i = 0; i < byteChars.length; i++) {
+    byteNums[i] = byteChars.charCodeAt(i);
+  }
+  const byteArray = new Uint8Array(byteNums);
+  return new Blob([byteArray], { type: mime || "application/octet-stream" });
+}
+
+async function saveSessionToFile() {
+  const fullTranscript = transcriptInput.value.trim() || committedTranscript || "";
+  const session = {
+    version: 1,
+    createdAt: new Date().toISOString(),
+    fullTranscript,
+    sections: lastRawSections,
+    materials: lastMaterials,
+    checkedItems: lastCheckedItems,
+    missingInfo: lastMissingInfo,
+    customerSummary: lastCustomerSummary
+  };
+
+  if (sessionAudioChunks && sessionAudioChunks.length > 0) {
+    try {
+      const mime = lastAudioMime || (mediaRecorder && mediaRecorder.mimeType) || "audio/webm";
+      const audioBlob = new Blob(sessionAudioChunks, { type: mime });
+      const base64 = await blobToBase64(audioBlob);
+      session.audioMime = mime;
+      session.audioBase64 = base64;
+    } catch (err) {
+      console.warn("Failed to attach audio to session", err);
+    }
+  }
+  const jsonStr = JSON.stringify(session, null, 2);
+  const fileBlob = new Blob([jsonStr], { type: "application/json" });
+  const defaultName = "depot-voice-session";
+  const userName = prompt("Session file name (without extension):", defaultName);
+  if (userName === null) return;
+  const safeName = (userName || defaultName).replace(/[^a-z0-9_\-]+/gi, "-");
+  const ts = new Date().toISOString().replace(/[:.]/g, "-");
+  const filename = `${safeName}-${ts}.depotvoice.json`;
+  const url = URL.createObjectURL(fileBlob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+saveSessionBtn.onclick = saveSessionToFile;
+
+function autoSaveSessionToLocal() {
+  try {
+    const fullTranscript = (transcriptInput.value || "").trim();
+    const hasContent =
+      fullTranscript ||
+      (Array.isArray(lastRawSections) && lastRawSections.length) ||
+      (Array.isArray(lastMaterials) && lastMaterials.length) ||
+      (Array.isArray(lastCheckedItems) && lastCheckedItems.length) ||
+      (Array.isArray(lastMissingInfo) && lastMissingInfo.length) ||
+      (lastCustomerSummary && lastCustomerSummary.trim());
+
+    if (!hasContent) {
+      localStorage.removeItem(LS_AUTOSAVE_KEY);
+      return;
+    }
+
+    const snapshot = {
+      version: 1,
+      savedAt: new Date().toISOString(),
+      fullTranscript,
+      sections: lastRawSections,
+      materials: lastMaterials,
+      checkedItems: lastCheckedItems,
+      missingInfo: lastMissingInfo,
+      customerSummary: lastCustomerSummary
+    };
+
+    localStorage.setItem(LS_AUTOSAVE_KEY, JSON.stringify(snapshot));
+  } catch (err) {
+    console.warn("Auto-save failed", err);
+  }
+}
+
+importAudioBtn.onclick = () => importAudioInput.click();
+importAudioInput.onchange = async (e) => {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+  try {
+    await sendAudio(file);
+  } catch (_) {}
+  importAudioInput.value = "";
+};
+
+loadSessionBtn.onclick = () => loadSessionInput.click();
+loadSessionInput.onchange = async (e) => {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+  try {
+    stopAudioCapture();
+    const text = await file.text();
+    const session = JSON.parse(text);
+    transcriptInput.value = session.fullTranscript || "";
+    committedTranscript = transcriptInput.value.trim();
+    lastSentTranscript = committedTranscript;
+    lastRawSections = Array.isArray(session.sections) ? session.sections : [];
+    lastMaterials = Array.isArray(session.materials) ? session.materials : [];
+    lastCheckedItems = Array.isArray(session.checkedItems) ? session.checkedItems : [];
+    lastMissingInfo = Array.isArray(session.missingInfo) ? session.missingInfo : [];
+    lastCustomerSummary = session.customerSummary || "";
+    if (session.audioBase64) {
+      try {
+        const mime = session.audioMime || "audio/webm";
+        const audioBlob = base64ToBlob(session.audioBase64, mime);
+        sessionAudioChunks = [audioBlob];
+        lastAudioMime = mime || audioBlob.type || "audio/webm";
+      } catch (audioErr) {
+        console.warn("Failed to restore audio from session", audioErr);
+        sessionAudioChunks = [];
+      }
+    } else {
+      sessionAudioChunks = [];
+      lastAudioMime = null;
+    }
+    mediaStream = null;
+    mediaRecorder = null;
+    await ensureSectionSchema();
+    const normalisedFromSession = normaliseSectionsFromResponse({ sections: lastRawSections }, SECTION_SCHEMA);
+    lastRawSections = Array.isArray(normalisedFromSession) ? normalisedFromSession : [];
+    refreshUiFromState();
+    setStatus("Session loaded.");
+    clearSleepWarning();
+  } catch (err) {
+    console.error(err);
+    showVoiceError("Could not load session file: " + (err.message || "Unknown error"));
+  } finally {
+    loadSessionInput.value = "";
+  }
+};
+
+// --- LIVE SPEECH (on-device) ---
+function updateTextareaFromBuffers() {
+  const committed = committedTranscript.trim();
+  const interim = interimTranscript.trim();
+  const parts = [];
+  if (committed) parts.push(committed);
+  if (interim) parts.push(interim);
+  const combined = parts.join(parts.length > 1 ? " " : "");
+  transcriptInput.value = combined.trim();
+}
+
+function updateLiveControls() {
+  if (!startLiveBtn || !pauseLiveBtn || !finishLiveBtn) return;
+  if (!SpeechRec || !recognition) {
+    startLiveBtn.disabled = true;
+    pauseLiveBtn.disabled = true;
+    finishLiveBtn.disabled = true;
+    pauseLiveBtn.textContent = "Pause";
+    return;
+  }
+  const running = liveState === "running";
+  const paused = liveState === "paused";
+  startLiveBtn.disabled = running || paused;
+  pauseLiveBtn.disabled = liveState === "idle";
+  finishLiveBtn.disabled = liveState === "idle";
+  pauseLiveBtn.textContent = paused ? "Resume" : "Pause";
+}
+
+async function completeLiveSessionIfNeeded(message = "Live session finished.") {
+  if (!pendingFinishSend) return;
+  pendingFinishSend = false;
+  committedTranscript = transcriptInput.value.trim();
+  const ok = await sendTranscriptChunkToWorker(true);
+  if (ok) {
+    setStatus(message);
+  }
+}
+
+if (SpeechRec) {
+  recognition = new SpeechRec();
+  recognition.continuous = true;
+  recognition.interimResults = true;
+  recognition.lang = "en-GB";
+
+  recognition.onstart = () => {
+    recognitionActive = true;
+  };
+
+  recognition.onresult = (event) => {
+    let sawFinal = false;
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      const r = event.results[i];
+      if (!r || !r[0]) continue;
+      const text = r[0].transcript ? r[0].transcript.trim() : "";
+      if (!text) continue;
+      if (r.isFinal) {
+        committedTranscript = committedTranscript
+          ? `${committedTranscript} ${text}`.replace(/\s+/g, " ").trim()
+          : text;
+        interimTranscript = "";
+        sawFinal = true;
+      } else {
+        interimTranscript = text;
+      }
+    }
+    updateTextareaFromBuffers();
+    if (sawFinal && liveState === "running") {
+      scheduleNextChunk();
+    }
+  };
+
+  recognition.onerror = (event) => {
+    console.error("Speech recognition error", event);
+    recognitionActive = false;
+    shouldRestartRecognition = false;
+    clearChunkTimer();
+    if (liveState !== "idle") {
+      const reason = event && event.error ? `: ${event.error}` : "";
+      showVoiceError(`Speech recognition error${reason}`);
+      liveState = "idle";
+      updateLiveControls();
+      setStatus("Speech error.");
+      stopAudioCapture();
+    }
+  };
+
+  recognition.onend = async () => {
+    recognitionActive = false;
+    const stopMode = recognitionStopMode;
+    recognitionStopMode = null;
+    if (stopMode === "pause") {
+      updateTextareaFromBuffers();
+      const pauseMsg = pauseReason === "background"
+        ? "Paused (app in background)."
+        : "Paused (live)";
+      setStatus(pauseMsg);
+      return;
+    }
+    if (stopMode === "finish") {
+      updateTextareaFromBuffers();
+      await completeLiveSessionIfNeeded();
+      return;
+    }
+    if (liveState === "running" && shouldRestartRecognition) {
+      try {
+        recognition.start();
+      } catch (err) {
+        console.error("Speech recognition restart failed", err);
+        liveState = "idle";
+        shouldRestartRecognition = false;
+        updateLiveControls();
+        showVoiceError("Could not restart speech recognition.");
+        setStatus("Speech stopped.");
+        stopAudioCapture();
+      }
+      return;
+    }
+    if (pendingFinishSend) {
+      updateTextareaFromBuffers();
+      await completeLiveSessionIfNeeded();
+    }
+  };
+} else {
+  if (startLiveBtn && pauseLiveBtn && finishLiveBtn) {
+    const msg = "This browser does not support on-device speech recognition.";
+    startLiveBtn.disabled = true;
+    pauseLiveBtn.disabled = true;
+    finishLiveBtn.disabled = true;
+    startLiveBtn.title = msg;
+    pauseLiveBtn.title = msg;
+    finishLiveBtn.title = msg;
+  }
+}
+
+async function startLiveSession() {
+  if (!SpeechRec || !recognition) {
+    showVoiceError("On-device speech recognition not supported in this browser.");
+    return;
+  }
+  if (liveState === "running") return;
+  clearSleepWarning();
+  wasBackgroundedDuringSession = false;
+  pauseReason = null;
+  committedTranscript = transcriptInput.value.trim();
+  interimTranscript = "";
+  updateTextareaFromBuffers();
+  lastSentTranscript = committedTranscript;
+  shouldRestartRecognition = true;
+  recognitionStopMode = null;
+  pendingFinishSend = false;
+  clearVoiceError();
+  liveState = "running";
+  updateLiveControls();
+  try {
+    recognition.start();
+    await startAudioCapture(true);
+    setStatus("Listening…");
+    scheduleNextChunk();
+  } catch (err) {
+    console.error("Speech recognition start failed", err);
+    liveState = "idle";
+    shouldRestartRecognition = false;
+    updateLiveControls();
+    showVoiceError("Couldn't start speech recognition: " + (err.message || "Unknown error"));
+    setStatus("Live session unavailable.");
+    stopAudioCapture();
+  }
+}
+
+function togglePauseResumeLive(reason = null) {
+  if (!SpeechRec || !recognition) return;
+  if (liveState === "running") {
+    liveState = "paused";
+    shouldRestartRecognition = false;
+    recognitionStopMode = "pause";
+    pauseReason = reason || "manual";
+    clearChunkTimer();
+    stopAudioCapture();
+    updateLiveControls();
+    try {
+      recognition.stop();
+      setStatus("Pausing…");
+    } catch (err) {
+      console.error("Speech recognition pause failed", err);
+      recognitionStopMode = null;
+      setStatus("Paused (live)");
+    }
+  } else if (liveState === "paused") {
+    shouldRestartRecognition = true;
+    recognitionStopMode = null;
+    liveState = "running";
+    clearVoiceError();
+    clearSleepWarning();
+    pauseReason = null;
+    updateLiveControls();
+    try {
+      recognition.start();
+      startAudioCapture();
+      setStatus("Listening…");
+      scheduleNextChunk();
+    } catch (err) {
+      console.error("Speech recognition resume failed", err);
+      liveState = "idle";
+      shouldRestartRecognition = false;
+      updateLiveControls();
+      showVoiceError("Couldn't resume speech recognition: " + (err.message || "Unknown error"));
+      setStatus("Live session unavailable.");
+      stopAudioCapture();
+    }
+  }
+}
+
+async function finishLiveSession() {
+  clearChunkTimer();
+  shouldRestartRecognition = false;
+  pauseReason = null;
+  wasBackgroundedDuringSession = false;
+  clearSleepWarning();
+  liveState = "idle";
+  interimTranscript = "";
+  updateTextareaFromBuffers();
+  committedTranscript = transcriptInput.value.trim();
+  pendingFinishSend = true;
+  stopAudioCapture();
+  updateLiveControls();
+  setStatus("Finishing live session…");
+  if (SpeechRec && recognition && recognitionActive) {
+    recognitionStopMode = "finish";
+    try {
+      recognition.stop();
+      return;
+    } catch (err) {
+      console.error("Speech recognition stop failed", err);
+    }
+  }
+  recognitionStopMode = null;
+  await completeLiveSessionIfNeeded();
+}
+
+async function sendTranscriptChunkToWorker(force = false) {
+  const fullTranscript = transcriptInput.value.trim();
+  if (!force && (!fullTranscript || fullTranscript === lastSentTranscript)) return false;
+  if (!navigator.onLine) {
+    setStatus("Offline – storing notes locally.");
+    return false;
+  }
+  try {
+    setStatus("Updating notes…");
+    clearVoiceError();
+    const schemaSnapshot = await ensureSectionSchema();
+    const res = await postJSON("/text", buildVoiceRequestPayload(fullTranscript, schemaSnapshot));
+    const raw = await res.text();
+    if (!res.ok) {
+      const snippet = raw ? `: ${raw.slice(0, 200)}` : "";
+      throw new Error(`Worker error ${res.status} ${res.statusText}${snippet}`);
+    }
+    let data;
+    try {
+      data = JSON.parse(raw);
+    } catch (e) {
+      console.error("Voice worker returned non-JSON:", raw);
+      showVoiceError("AI response wasn't in the expected format. Please try again.");
+      return false;
+    }
+    normaliseSectionsFromResponse(data, schemaSnapshot);
+    applyVoiceResult(data);
+    lastSentTranscript = fullTranscript;
+    if (liveState === "running") {
+      setStatus("Listening (live)…");
+    } else if (liveState === "paused") {
+      setStatus("Paused (live)");
+    } else {
+      setStatus("Notes updated.");
+    }
+    return true;
+  } catch (err) {
+    console.error(err);
+    showVoiceError("Voice AI failed: " + (err.message || "Unknown error"));
+    if (liveState === "running") {
+      setStatus("Update failed – will retry later.");
+    } else {
+      setStatus("Update failed.");
+    }
+    return false;
+  }
+}
+
+function clearChunkTimer() {
+  if (chunkTimerId) {
+    clearTimeout(chunkTimerId);
+    chunkTimerId = null;
+  }
+}
+
+function scheduleNextChunk() {
+  clearChunkTimer();
+  if (liveState !== "running") return;
+  chunkTimerId = setTimeout(async () => {
+    await sendTranscriptChunkToWorker();
+    scheduleNextChunk();
+  }, LIVE_CHUNK_INTERVAL_MS);
+}
+
+// --- SETTINGS ---
+async function ensureSchemaIntoState() {
+  try {
+    await ensureSectionSchema();
+  } catch (err) {
+    console.warn("Falling back to minimal schema", err);
+    const fallback = sanitiseSectionSchema([]);
+    rebuildSectionState(fallback);
+  }
+}
+
+async function loadChecklistConfigIntoState() {
+  try {
+    CHECKLIST_SOURCE = await loadChecklistConfig();
+  } catch (err) {
+    console.warn("Failed to load checklist config", err);
+    CHECKLIST_SOURCE = [];
+  }
+
+  CHECKLIST_ITEMS = normaliseChecklistConfig(CHECKLIST_SOURCE);
+}
+
+async function loadStaticConfig() {
+  WORKER_URL = loadWorkerEndpoint();
+  await ensureSchemaIntoState();
+  await loadChecklistConfigIntoState();
+  refreshUiFromState();
+}
+
+if (settingsBtn) {
+  settingsBtn.addEventListener("click", () => {
+    window.location.href = "settings.html";
+  });
+}
+
+window.addEventListener("storage", (event) => {
+  if (isWorkerEndpointStorageKey(event.key)) {
+    WORKER_URL = loadWorkerEndpoint();
+  }
+  if (event.key === SECTION_STORAGE_KEY || event.key === LEGACY_SECTION_STORAGE_KEY) {
+    clearCachedSchema();
+    ensureSchemaIntoState().then(() => {
+      refreshUiFromState();
+    }).catch((err) => console.warn("Failed to refresh schema after storage event", err));
+  }
+  if (event.key === CHECKLIST_STORAGE_KEY) {
+    loadChecklistConfigIntoState().then(() => {
+      renderChecklist(clarificationsEl, lastCheckedItems, lastMissingInfo);
+      refreshUiFromState();
+    }).catch((err) => console.warn("Failed to refresh checklist after storage event", err));
+  }
+});
+
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) {
+    autoSaveSessionToLocal();
+    if (liveState === "running") {
+      wasBackgroundedDuringSession = true;
+      togglePauseResumeLive("background");
+    }
+  } else {
+    let warningShown = false;
+    const autosaved = localStorage.getItem(LS_AUTOSAVE_KEY);
+    if (autosaved) {
+      try {
+        const snap = JSON.parse(autosaved);
+        if (snap && snap.fullTranscript) {
+          const hasExistingContent =
+            (transcriptInput.value && transcriptInput.value.trim()) ||
+            (Array.isArray(lastRawSections) && lastRawSections.length) ||
+            (Array.isArray(lastMaterials) && lastMaterials.length) ||
+            (Array.isArray(lastCheckedItems) && lastCheckedItems.length) ||
+            (Array.isArray(lastMissingInfo) && lastMissingInfo.length) ||
+            (lastCustomerSummary && lastCustomerSummary.trim());
+          if (!hasExistingContent) {
+            transcriptInput.value = snap.fullTranscript || "";
+            committedTranscript = transcriptInput.value.trim();
+            lastSentTranscript = committedTranscript;
+            lastRawSections = Array.isArray(snap.sections) ? snap.sections : [];
+            lastMaterials = Array.isArray(snap.materials) ? snap.materials : [];
+            lastCheckedItems = Array.isArray(snap.checkedItems) ? snap.checkedItems : [];
+            lastMissingInfo = Array.isArray(snap.missingInfo) ? snap.missingInfo : [];
+            lastCustomerSummary = snap.customerSummary || "";
+            refreshUiFromState();
+          }
+          showSleepWarning(
+            "Phone slept or app went into the background. Live capture was paused. Check the recovered notes and tap Start for a new session or Resume to continue."
+          );
+          warningShown = true;
+        }
+      } catch (err) {
+        console.warn("Failed to parse autosave", err);
+      }
+    }
+
+    if (wasBackgroundedDuringSession && !warningShown) {
+      showSleepWarning(
+        "Phone slept or app went into the background. Live capture was paused. Check the recovered notes and tap Start for a new session or Resume to continue."
+      );
+      wasBackgroundedDuringSession = false;
+    } else if (wasBackgroundedDuringSession) {
+      wasBackgroundedDuringSession = false;
+    }
+  }
+});
+
+// --- BOOT ---
+function resetSessionState() {
+  clearChunkTimer();
+  stopAudioCapture();
+  if (SpeechRec && recognition) {
+    try { recognition.stop(); } catch (_) {}
+  }
+  liveState = "idle";
+  recognitionActive = false;
+  shouldRestartRecognition = false;
+  recognitionStopMode = null;
+  pauseReason = null;
+  wasBackgroundedDuringSession = false;
+  pendingFinishSend = false;
+  committedTranscript = "";
+  interimTranscript = "";
+  lastSentTranscript = "";
+  transcriptInput.value = "";
+  sessionAudioChunks = [];
+  lastAudioMime = null;
+  lastRawSections = [];
+  lastSections = [];
+  lastMaterials = [];
+  lastCheckedItems = [];
+  lastMissingInfo = [];
+  lastCustomerSummary = "";
+  localStorage.removeItem(LS_AUTOSAVE_KEY);
+  clearVoiceError();
+  clearSleepWarning();
+  refreshUiFromState();
+  updateLiveControls();
+  setStatus("Ready for new job.");
+  transcriptInput.focus?.();
+}
+
+sendTextBtn.onclick = sendText;
+if (startLiveBtn) startLiveBtn.onclick = startLiveSession;
+if (pauseLiveBtn) pauseLiveBtn.onclick = () => togglePauseResumeLive();
+if (finishLiveBtn) finishLiveBtn.onclick = () => { finishLiveSession(); };
+if (newJobBtn) {
+  newJobBtn.onclick = () => {
+    if (confirm("Start a new job? This will clear the current transcript and notes.")) {
+      resetSessionState();
+    }
+  };
+}
+transcriptInput.addEventListener("input", () => {
+  if (liveState !== "running") {
+    committedTranscript = transcriptInput.value.trim();
+  }
+  renderChecklist(clarificationsEl, lastCheckedItems, lastMissingInfo);
+});
+loadStaticConfig().catch((err) => {
+  console.warn("Failed initial config load", err);
+});
+renderChecklist(clarificationsEl, [], []);
+committedTranscript = transcriptInput.value.trim();
+lastSentTranscript = committedTranscript;
+updateLiveControls();
+setStatus("Idle");
+
+(async function restoreAutosaveOnLoad() {
+  try {
+    const autosaved = localStorage.getItem(LS_AUTOSAVE_KEY);
+    if (!autosaved) return;
+    const snap = JSON.parse(autosaved);
+    if (!snap || !snap.fullTranscript) return;
+
+    transcriptInput.value = snap.fullTranscript || "";
+    committedTranscript = transcriptInput.value.trim();
+    lastSentTranscript = committedTranscript;
+    lastRawSections = Array.isArray(snap.sections) ? snap.sections : [];
+    lastMaterials = Array.isArray(snap.materials) ? snap.materials : [];
+    lastCheckedItems = Array.isArray(snap.checkedItems) ? snap.checkedItems : [];
+    lastMissingInfo = Array.isArray(snap.missingInfo) ? snap.missingInfo : [];
+    lastCustomerSummary = snap.customerSummary || "";
+    await ensureSectionSchema();
+    const normalisedFromAutosave = normaliseSectionsFromResponse({ sections: lastRawSections }, SECTION_SCHEMA);
+    lastRawSections = Array.isArray(normalisedFromAutosave) ? normalisedFromAutosave : [];
+    refreshUiFromState();
+    showSleepWarning(
+      "Recovered an auto-saved session. Check details, then tap Start for a new visit or Resume to continue."
+    );
+  } catch (err) {
+    console.warn("No valid autosave on load", err);
+  }
+})();

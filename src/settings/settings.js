@@ -8,7 +8,6 @@ const LEGACY_SECTION_STORAGE_KEY = "surveybrain-schema";
 const CHECKLIST_STORAGE_KEY = "depot.checklistConfig";
 const CHECKLIST_CONFIG_URL = "../checklist.config.json";
 const FUTURE_PLANS_NAME = "Future plans";
-const FUTURE_PLANS_DESCRIPTION = "Notes about any future work or follow-on visits.";
 const AUTOSAVE_STORAGE_KEY = "surveyBrainAutosave";
 const LEGACY_SCHEMA_STORAGE_KEY = "depot-output-schema";
 const CHECKLIST_STATE_STORAGE_KEY = "depot-checklist-state";
@@ -66,11 +65,14 @@ function sanitiseSectionSchema(input) {
   if (!future) {
     future = {
       name: FUTURE_PLANS_NAME,
-      description: FUTURE_PLANS_DESCRIPTION,
+      description: "",
       order: withoutFuture.length + 1
     };
-  } else if (!future.description) {
-    future = { ...future, description: FUTURE_PLANS_DESCRIPTION };
+  } else {
+    future = {
+      ...future,
+      description: future.description || ""
+    };
   }
 
   const final = [...withoutFuture, future].map((entry, idx) => ({
@@ -366,8 +368,10 @@ let cachedChecklistOrder = [];
 function ensureFuturePresence() {
   let idx = editableSchema.findIndex((entry) => entry.name === FUTURE_PLANS_NAME);
   if (idx === -1) {
-    editableSchema.push({ name: FUTURE_PLANS_NAME, description: FUTURE_PLANS_DESCRIPTION });
+    editableSchema.push({ name: FUTURE_PLANS_NAME, description: "" });
     idx = editableSchema.length - 1;
+  } else if (!editableSchema[idx].description) {
+    editableSchema[idx].description = "";
   }
   if (idx !== editableSchema.length - 1) {
     const [future] = editableSchema.splice(idx, 1);

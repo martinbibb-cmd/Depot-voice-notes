@@ -291,44 +291,61 @@
   </style>
 </head>
 <body>
-  <main>
-    <header>
-      <a href="index.html" class="back-link">← Back to notes</a>
-      <h1>Depot settings</h1>
-      <p>Configure Depot section names and checklist items. Changes are stored in this browser only.</p>
-    </header>
+  <header style="background:#0f172a;color:#fff;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
+    <h1 style="margin:0;font-size:1.05rem;">Survey Brain – Settings</h1>
+    <button id="backBtn" style="border:none;background:#0f766e;color:#fff;border-radius:999px;padding:6px 14px;font-size:.7rem;font-weight:600;cursor:pointer;">
+      Back to app
+    </button>
+  </header>
 
-    <div class="status" data-status aria-live="polite"></div>
-
-    <section>
-      <header>
-        <h2>Depot sections</h2>
-        <p>Edit the section names and order. “Future plans” is kept automatically at the end.</p>
-      </header>
-      <div data-sections-list class="stack"></div>
-      <div class="section-actions">
-        <button type="button" data-add-section>Add section</button>
-      </div>
+  <main style="padding:14px;display:flex;flex-direction:column;gap:14px;max-width:1100px;margin:0 auto;">
+    <section style="background:#ffffff;border:1px solid #d4dbe5;border-radius:16px;padding:12px 14px 10px;">
+      <h2 style="margin:0 0 6px;font-size:.85rem;">Depot schema summary</h2>
+      <div id="schemaSummary" style="font-size:.72rem;color:#475569;"></div>
     </section>
 
-    <section>
-      <header>
-        <h2>Checklist items</h2>
-        <p>Set the ID, label, and optional metadata for checklist items. Items with empty ID or label are ignored when saved.</p>
-      </header>
-      <div data-checklist-list class="stack"></div>
-      <div class="section-actions">
-        <button type="button" data-add-item>Add checklist item</button>
+    <section style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+      <div style="background:#ffffff;border:1px solid #d4dbe5;border-radius:16px;padding:12px 14px 10px;display:flex;flex-direction:column;gap:6px;">
+        <h2 style="margin:0 0 4px;font-size:.8rem;">Sections</h2>
+        <p style="margin:0 0 6px;font-size:.7rem;color:#64748b;">
+          Edit the list of depot note sections as JSON. Normally this is an array of section names:
+          <code>["Needs", "Working at heights", ...]</code>.
+          "Future plans" will always be added as the last section automatically.
+        </p>
+        <textarea id="sectionsJson" style="width:100%;min-height:180px;border-radius:10px;border:1px solid #cbd5e1;padding:8px 9px;font-size:.72rem;"></textarea>
+        <div style="display:flex;gap:8px;margin-top:6px;">
+          <button id="saveSectionsBtn" style="border:none;background:#0f766e;color:#fff;border-radius:999px;padding:6px 14px;font-size:.7rem;font-weight:600;cursor:pointer;">
+            Save sections
+          </button>
+          <button id="resetSectionsBtn" style="border:none;background:#e5e7eb;color:#0f172a;border-radius:999px;padding:6px 14px;font-size:.7rem;font-weight:600;cursor:pointer;">
+            Reset sections to defaults
+          </button>
+        </div>
+      </div>
+
+      <div style="background:#ffffff;border:1px solid #d4dbe5;border-radius:16px;padding:12px 14px 10px;display:flex;flex-direction:column;gap:6px;">
+        <h2 style="margin:0 0 4px;font-size:.8rem;">Checklist</h2>
+        <p style="margin:0 0 6px;font-size:.7rem;color:#64748b;">
+          Edit the checklist configuration as JSON. This should be an object like:
+          <code>{ "sectionsOrder": [...], "items": [...] }</code>.
+          Items are the same shape used by the app (id, label, section, group, hint, etc).
+        </p>
+        <textarea id="checklistJson" style="width:100%;min-height:180px;border-radius:10px;border:1px solid #cbd5e1;padding:8px 9px;font-size:.72rem;"></textarea>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;">
+          <button id="saveChecklistBtn" style="border:none;background:#0f766e;color:#fff;border-radius:999px;padding:6px 14px;font-size:.7rem;font-weight:600;cursor:pointer;">
+            Save checklist
+          </button>
+          <button id="resetChecklistBtn" style="border:none;background:#e5e7eb;color:#0f172a;border-radius:999px;padding:6px 14px;font-size:.7rem;font-weight:600;cursor:pointer;">
+            Reset checklist to defaults
+          </button>
+          <button id="resetAllBtn" style="border:none;background:#b91c1c;color:#fff;border-radius:999px;padding:6px 14px;font-size:.7rem;font-weight:600;cursor:pointer;">
+            Reset ALL to defaults
+          </button>
+        </div>
       </div>
     </section>
-
-    <div class="actions">
-      <button type="button" data-save>Save changes</button>
-      <button type="button" class="secondary" data-reload>Reload saved</button>
-      <button type="button" class="secondary" data-reset>Reset to defaults</button>
-      <button type="button" class="danger" data-clear>Clear local overrides</button>
-    </div>
   </main>
+
   <script type="module" src="./js/settingsPage.js"></script>
 </body>
 </html>

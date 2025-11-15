@@ -1,252 +1,85 @@
 const SECTION_STORAGE_KEY = "depot.sectionSchema";
-const LEGACY_SECTION_STORAGE_KEY = "surveybrain-schema";
 const FUTURE_PLANS_NAME = "Future plans";
 const FUTURE_PLANS_DESCRIPTION = "Notes about any future work or follow-on visits.";
-const DEFAULT_SCHEMA_URL = "./depot.output.schema.json";
-
-let editableNames = [];
-let defaultNames = [];
 
 function $(id) {
   return document.getElementById(id);
 }
 
-function escapeHtml(value) {
-  return String(value || "").replace(/[&<>"']/g, (char) => {
-    switch (char) {
-      case "&":
-        return "&amp;";
-      case "<":
-        return "&lt;";
-      case ">":
-        return "&gt;";
-      case '"':
-        return "&quot;";
-      case "'":
-        return "&#39;";
-      default:
-        return char;
-    }
-  });
-}
-
 function safeParse(json, fallback) {
   try {
-    if (!json || typeof json !== "string") return fallback;
+    if (!json) return fallback;
     return JSON.parse(json);
   } catch (err) {
-    console.warn("Failed to parse JSON", err);
+    console.warn("Failed to parse JSON:", err);
     return fallback;
   }
 }
 
-function normaliseSectionNames(input) {
-  if (!input) return [];
-
-  const asArray = (value) => {
-    if (!value) return [];
-    if (Array.isArray(value)) return value;
-    if (value && typeof value === "object" && Array.isArray(value.sections)) {
-      return value.sections;
-    }
+function normaliseSectionNames(raw) {
+  if (!raw) return [];
+  let items = [];
+  if (Array.isArray(raw)) {
+    items = raw;
+  } else if (raw && typeof raw === "object" && Array.isArray(raw.sections)) {
+    items = raw.sections;
+  } else {
     return [];
-  };
-
-  const entries = asArray(input);
-  const names = [];
-  const seen = new Set();
-
-  entries.forEach((entry) => {
-    if (!entry) return;
-    let name = "";
-    if (typeof entry === "string") {
-      name = entry;
-    } else if (typeof entry === "object") {
-      const candidate = entry.name ?? entry.section ?? entry.title ?? entry.heading;
-      if (typeof candidate === "string") {
-        name = candidate;
-      }
-    }
-    const trimmed = String(name || "").trim();
-    if (!trimmed || seen.has(trimmed) || trimmed.toLowerCase() === "arse_cover_notes") {
-      return;
-    }
-    seen.add(trimmed);
-    names.push(trimmed);
-  });
-
-  return names;
-}
-
-function dedupeAndClean(names) {
-  const seen = new Set();
-  const cleaned = [];
-  names.forEach((raw) => {
-    const trimmed = String(raw || "").trim();
-    if (!trimmed || trimmed === FUTURE_PLANS_NAME) return;
-    if (trimmed.toLowerCase() === "arse_cover_notes") return;
-    if (seen.has(trimmed)) return;
-    seen.add(trimmed);
-    cleaned.push(trimmed);
-  });
-  return cleaned;
-}
-
-function getSanitisedNamesFromState(includeFuture = true) {
-  const cleaned = dedupeAndClean(editableNames);
-  if (includeFuture) {
-    cleaned.push(FUTURE_PLANS_NAME);
   }
-  return cleaned;
-}
 
-function setStatus(message, type = "") {
-  const statusEl = $("sectionsStatus");
-  if (!statusEl) return;
-  statusEl.textContent = message || "";
-  statusEl.classList.remove("status--success", "status--error");
-  if (type === "success") {
-    statusEl.classList.add("status--success");
-  } else if (type === "error") {
-    statusEl.classList.add("status--error");
+  const names = items
+    .map((entry) => {
+      if (!entry) return "";
+      if (typeof entry === "string") return entry.trim();
+      const n = entry.name ?? entry.section ?? entry.title ?? entry.heading;
+      return typeof n === "string" ? n.trim() : "";
+    })
+    .filter((n) => n && n.toLowerCase() !== "arse_cover_notes");
+
+  // Ensure unique, preserve order
+  const seen = new Set();
+  const unique = [];
+  for (const name of names) {
+    if (seen.has(name)) continue;
+    seen.add(name);
+    unique.push(name);
   }
-}
 
-function renderSummary() {
-  const summaryEl = $("sectionSummary");
-  if (!summaryEl) return;
-  const names = getSanitisedNamesFromState(true);
-  const total = names.length;
-  const preview = names.slice(0, 8);
-  const remaining = total - preview.length;
-
-  const chips = preview
-    .map((name) => `<span class="summary-chip">${escapeHtml(name)}</span>`)
-    .join("");
-
-  summaryEl.innerHTML = `
-    <div><strong>Total sections:</strong> ${total}</div>
-    <div class="summary-chips">${chips || '<span class="summary-chip">(none)</span>'}</div>
-    ${remaining > 0 ? `<div class="summary-note">+${remaining} more</div>` : ""}
-  `;
-}
-
-function moveItem(arr, from, to) {
-  if (from === to) return;
-  if (from < 0 || from >= arr.length) return;
-  if (to < 0 || to >= arr.length) return;
-  const [item] = arr.splice(from, 1);
-  arr.splice(to, 0, item);
-}
-
-function renderSectionRows(focusIndex = null) {
-  const listEl = $("sectionsList");
-  if (!listEl) return;
-
-  listEl.innerHTML = "";
-  const namesForUi = [...editableNames, FUTURE_PLANS_NAME];
-
-  namesForUi.forEach((name, idx) => {
-    const isFuture = idx === namesForUi.length - 1;
-
-    const row = document.createElement("div");
-    row.className = "section-row";
-
-    const input = document.createElement("input");
-    input.type = "text";
-    input.value = name;
-    input.placeholder = "Section name";
-    input.disabled = isFuture;
-    input.dataset.future = isFuture ? "1" : "0";
-
-    if (!isFuture) {
-      input.addEventListener("input", (event) => {
-        editableNames[idx] = event.target.value;
-        renderSummary();
-      });
-    }
-
-    const controls = document.createElement("div");
-    controls.className = "section-controls";
-
-    const upBtn = document.createElement("button");
-    upBtn.type = "button";
-    upBtn.textContent = "↑";
-    upBtn.disabled = idx === 0;
-    upBtn.addEventListener("click", () => {
-      if (idx === 0) return;
-      moveItem(editableNames, idx, idx - 1);
-      renderSectionRows(idx - 1);
-    });
-
-    const downBtn = document.createElement("button");
-    downBtn.type = "button";
-    downBtn.textContent = "↓";
-    downBtn.disabled = isFuture || idx === namesForUi.length - 2;
-    downBtn.addEventListener("click", () => {
-      if (isFuture || idx === namesForUi.length - 2) return;
-      moveItem(editableNames, idx, idx + 1);
-      renderSectionRows(idx + 1);
-    });
-
-    const deleteBtn = document.createElement("button");
-    deleteBtn.type = "button";
-    deleteBtn.textContent = "Delete";
-    deleteBtn.disabled = isFuture;
-    deleteBtn.addEventListener("click", () => {
-      editableNames.splice(idx, 1);
-      renderSectionRows(idx >= editableNames.length ? editableNames.length - 1 : idx);
-    });
-
-    controls.append(upBtn, downBtn, deleteBtn);
-    row.append(input, controls);
-    listEl.appendChild(row);
-
-    if (!isFuture && focusIndex != null && idx === focusIndex) {
-      requestAnimationFrame(() => {
-        input.focus();
-        input.select();
-      });
-    }
-  });
-
-  renderSummary();
-}
-
-function prepareState(names) {
-  editableNames = dedupeAndClean(Array.isArray(names) ? names : []);
+  return unique;
 }
 
 async function loadDefaultNames() {
   try {
-    const res = await fetch(DEFAULT_SCHEMA_URL, { cache: "no-store" });
-    if (!res.ok) throw new Error(`Failed to load defaults (${res.status})`);
+    const res = await fetch("depot.output.schema.json", { cache: "no-store" });
+    if (!res.ok) return [];
     const json = await res.json();
-    const names = normaliseSectionNames(json);
-    return dedupeAndClean(names);
+    return normaliseSectionNames(json);
   } catch (err) {
-    console.warn("Failed to fetch default section schema", err);
+    console.warn("Failed to load depot.output.schema.json", err);
     return [];
   }
 }
 
-function loadStoredNames() {
-  const keys = [SECTION_STORAGE_KEY, LEGACY_SECTION_STORAGE_KEY];
-  for (const key of keys) {
-    try {
-      const raw = localStorage.getItem(key);
-      if (!raw) continue;
-      const parsed = safeParse(raw, null);
-      if (!parsed) continue;
-      const names = normaliseSectionNames(parsed);
-      if (names.length) {
-        return dedupeAndClean(names);
-      }
-    } catch (err) {
-      console.warn("Failed to read stored section schema override", err);
-    }
+async function loadSectionNamesForSettings() {
+  // 1) Local override first
+  const rawOverride = safeParse(localStorage.getItem(SECTION_STORAGE_KEY), null);
+  let names = normaliseSectionNames(rawOverride);
+
+  // 2) Fallback to defaults from file
+  if (!names.length) {
+    names = await loadDefaultNames();
   }
-  return [];
+
+  // 3) Last-resort bare minimum if everything else failed
+  if (!names.length) {
+    names = ["Needs", FUTURE_PLANS_NAME];
+  }
+
+  // Always ensure Future plans is present and at the bottom
+  names = names.filter((n) => n !== FUTURE_PLANS_NAME);
+  names.push(FUTURE_PLANS_NAME);
+
+  return names;
 }
 
 function saveNamesToLocalStorage(names) {
@@ -268,16 +101,101 @@ function saveNamesToLocalStorage(names) {
       SECTION_STORAGE_KEY,
       JSON.stringify({ sections: final })
     );
-    localStorage.removeItem(LEGACY_SECTION_STORAGE_KEY);
   } catch (err) {
     console.warn("Failed to save section schema override", err);
     alert("Could not save sections – storage error.");
-    return null;
+    return;
   }
 
   return final;
 }
 
+function renderSummary(names) {
+  const el = $("sectionsSummary");
+  if (!el) return;
+  const count = names.length;
+  const first = names.slice(0, 6).join(", ");
+  el.textContent = `${count} sections configured. First: ${first || "none"}.`;
+}
+
+function renderSectionRows(names) {
+  const listEl = $("sectionsList");
+  if (!listEl) return;
+
+  listEl.innerHTML = "";
+
+  names.forEach((name, index) => {
+    const row = document.createElement("div");
+    row.className = "section-row";
+
+    const input = document.createElement("input");
+    input.type = "text";
+    input.value = name;
+    input.dataset.index = String(index);
+
+    const upBtn = document.createElement("button");
+    upBtn.type = "button";
+    upBtn.textContent = "↑";
+
+    const downBtn = document.createElement("button");
+    downBtn.type = "button";
+    downBtn.textContent = "↓";
+
+    const deleteBtn = document.createElement("button");
+    deleteBtn.type = "button";
+    deleteBtn.textContent = "✕";
+    deleteBtn.classList.add("secondary");
+
+    upBtn.addEventListener("click", () => {
+      if (index === 0) return;
+      const tmp = names[index - 1];
+      names[index - 1] = names[index];
+      names[index] = tmp;
+      renderSectionRows(names);
+      renderSummary(names);
+    });
+
+    downBtn.addEventListener("click", () => {
+      if (index === names.length - 1) return;
+      const tmp = names[index + 1];
+      names[index + 1] = names[index];
+      names[index] = tmp;
+      renderSectionRows(names);
+      renderSummary(names);
+    });
+
+    deleteBtn.addEventListener("click", () => {
+      if (name === FUTURE_PLANS_NAME) {
+        alert('"Future plans" cannot be removed. It will always be kept at the bottom.');
+        return;
+      }
+      names.splice(index, 1);
+      renderSectionRows(names);
+      renderSummary(names);
+    });
+
+    input.addEventListener("input", () => {
+      names[index] = input.value;
+    });
+
+    row.appendChild(input);
+    if (name === FUTURE_PLANS_NAME) {
+      const badge = document.createElement("span");
+      badge.className = "badge";
+      badge.textContent = "Always last";
+      row.appendChild(badge);
+    }
+    row.appendChild(upBtn);
+    row.appendChild(downBtn);
+    row.appendChild(deleteBtn);
+
+    listEl.appendChild(row);
+  });
+
+  renderSummary(names);
+}
+
+// Build a schema object from the current names and localStorage-saving logic
 function buildSchemaFromNames(names) {
   const final = saveNamesToLocalStorage(names);
   if (!final) return null;
@@ -327,8 +245,10 @@ async function importSchemaFromFile(file) {
       alert("No valid sections found in this file.");
       return null;
     }
+    // Ensure Future plans is present and last
     const cleaned = names.filter((n) => n !== FUTURE_PLANS_NAME);
     cleaned.push(FUTURE_PLANS_NAME);
+    // Persist to localStorage using the same structure
     saveNamesToLocalStorage(cleaned);
     return cleaned;
   } catch (err) {
@@ -339,6 +259,7 @@ async function importSchemaFromFile(file) {
 }
 
 async function initSettingsPage() {
+  const backBtn = $("backBtn");
   const addSectionBtn = $("addSectionBtn");
   const saveSectionsBtn = $("saveSectionsBtn");
   const resetSectionsBtn = $("resetSectionsBtn");
@@ -346,15 +267,6 @@ async function initSettingsPage() {
   const exportSchemaBtn = $("exportSchemaBtn");
   const importSchemaBtn = $("importSchemaBtn");
   const importSchemaInput = $("importSchemaInput");
-  const backBtn = $("backBtn");
-
-  defaultNames = await loadDefaultNames();
-  const storedNames = loadStoredNames();
-  const initial = storedNames.length ? storedNames : defaultNames;
-  prepareState(initial);
-
-  renderSectionRows();
-  setStatus("", "");
 
   if (backBtn) {
     backBtn.addEventListener("click", () => {
@@ -362,70 +274,52 @@ async function initSettingsPage() {
     });
   }
 
+  let names = await loadSectionNamesForSettings();
+  renderSectionRows(names);
+
   if (addSectionBtn) {
     addSectionBtn.addEventListener("click", () => {
-      editableNames.push("");
-      renderSectionRows(editableNames.length - 1);
-      setStatus("Added a new section. Don't forget to save.");
+      names.splice(Math.max(0, names.length - 1), 0, "New section");
+      renderSectionRows(names);
     });
   }
 
   if (saveSectionsBtn) {
     saveSectionsBtn.addEventListener("click", () => {
-      const namesForSave = getSanitisedNamesFromState(true);
-      if (!namesForSave.length) {
-        alert("Add at least one section before saving.");
-        setStatus("No sections to save.", "error");
-        return;
-      }
-      const saved = saveNamesToLocalStorage(namesForSave);
-      if (!saved) return;
-      editableNames = saved
-        .map((entry) => entry.name)
-        .filter((name) => name !== FUTURE_PLANS_NAME);
-      renderSectionRows();
-      setStatus("Sections saved to this device.", "success");
-    });
-  }
+      const inputs = Array.from(
+        document.querySelectorAll(".section-row input[type='text']")
+      );
+      names = inputs
+        .map((input) => input.value || "")
+        .map((n) => String(n || "").trim())
+        .filter((n) => n && n.toLowerCase() !== "arse_cover_notes");
 
-  if (resetSectionsBtn) {
-    resetSectionsBtn.addEventListener("click", () => {
-      const baseline = defaultNames.length ? defaultNames : [];
-      prepareState(baseline);
-      const namesForSave = getSanitisedNamesFromState(true);
-      saveNamesToLocalStorage(namesForSave);
-      renderSectionRows();
-      setStatus("Sections reset to defaults.", "success");
-    });
-  }
+      names = names.filter((n) => n !== FUTURE_PLANS_NAME);
+      names.push(FUTURE_PLANS_NAME);
 
-  if (clearOverrideBtn) {
-    clearOverrideBtn.addEventListener("click", () => {
-      try {
-        localStorage.removeItem(SECTION_STORAGE_KEY);
-        localStorage.removeItem(LEGACY_SECTION_STORAGE_KEY);
-      } catch (err) {
-        console.warn("Failed to clear section override", err);
-      }
-      prepareState(defaultNames);
-      renderSectionRows();
-      setStatus("Override cleared for this device.", "success");
+      saveNamesToLocalStorage(names);
+      renderSectionRows(names);
+      alert("Sections saved for this device.");
     });
   }
 
   if (exportSchemaBtn) {
     exportSchemaBtn.addEventListener("click", () => {
-      const namesForExport = getSanitisedNamesFromState(false);
+      const inputs = Array.from(
+        document.querySelectorAll(".section-row input[type='text']")
+      );
+      const currentNames = inputs
+        .map((input) => input.value || "")
+        .map((n) => String(n || "").trim())
+        .filter((n) => n && n.toLowerCase() !== "arse_cover_notes");
+
+      const namesForExport = currentNames.filter((n) => n !== FUTURE_PLANS_NAME);
       namesForExport.push(FUTURE_PLANS_NAME);
-      exportSchemaAsFile(namesForExport)
-        .then(() => {
-          setStatus("Schema exported.", "success");
-        })
-        .catch((err) => {
-          console.error("Export failed", err);
-          alert("Failed to export schema.");
-          setStatus("Failed to export schema.", "error");
-        });
+
+      exportSchemaAsFile(namesForExport).catch((err) => {
+        console.error("Export failed", err);
+        alert("Failed to export schema.");
+      });
     });
   }
 
@@ -440,10 +334,31 @@ async function initSettingsPage() {
       const importedNames = await importSchemaFromFile(file);
       importSchemaInput.value = "";
       if (!importedNames || !importedNames.length) return;
-      editableNames = importedNames.filter((n) => n !== FUTURE_PLANS_NAME);
-      renderSectionRows();
+      names = importedNames;
+      renderSectionRows(names);
       alert("Schema imported and saved to this device.");
-      setStatus("Schema imported and saved to this device.", "success");
+    });
+  }
+
+  if (resetSectionsBtn) {
+    resetSectionsBtn.addEventListener("click", async () => {
+      if (!confirm("Reset section list back to defaults from depot.output.schema.json?")) {
+        return;
+      }
+      localStorage.removeItem(SECTION_STORAGE_KEY);
+      names = await loadSectionNamesForSettings();
+      renderSectionRows(names);
+      alert("Sections reset to defaults.");
+    });
+  }
+
+  if (clearOverrideBtn) {
+    clearOverrideBtn.addEventListener("click", () => {
+      if (!confirm("Clear the local override and fall back to defaults on next load?")) {
+        return;
+      }
+      localStorage.removeItem(SECTION_STORAGE_KEY);
+      alert("Local override cleared. Reload the main app to use defaults from the repo.");
     });
   }
 }
@@ -451,6 +366,6 @@ async function initSettingsPage() {
 document.addEventListener("DOMContentLoaded", () => {
   initSettingsPage().catch((err) => {
     console.error("Failed to initialise settings page", err);
-    alert("Failed to load section editor. See console for details.");
+    alert("Failed to load settings. See console for details.");
   });
 });

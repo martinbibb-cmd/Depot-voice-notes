@@ -12,9 +12,11 @@
       --border: #d9e0eb;
       --accent: #2563eb;
       --accent-dark: #1d4ed8;
+      --primary: #0f766e;
+      --primary-dark: #0d5c55;
       --danger: #b91c1c;
       --text-muted: #64748b;
-      --radius: 14px;
+      --radius: 16px;
     }
 
     * {
@@ -27,13 +29,52 @@
       background: var(--bg);
       color: #0f172a;
       min-height: 100vh;
+    }
+
+    .page-shell {
+      width: min(960px, 100%);
+      margin: 0 auto;
+      padding: 32px 16px 48px;
       display: flex;
-      justify-content: center;
-      padding: 32px 16px;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .page-header {
+      background: #0f172a;
+      color: #fff;
+      padding: 16px 20px;
+      border-radius: var(--radius);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      box-shadow: 0 14px 28px rgba(15, 23, 42, 0.25);
+    }
+
+    .page-header h1 {
+      margin: 0;
+      font-size: 1.05rem;
+      letter-spacing: -0.01em;
+    }
+
+    .page-header button {
+      border: none;
+      background: var(--primary);
+      color: #fff;
+      border-radius: 999px;
+      padding: 6px 14px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s ease;
+    }
+
+    .page-header button:hover {
+      background: var(--primary-dark);
     }
 
     main {
-      width: min(960px, 100%);
       background: var(--card);
       border-radius: var(--radius);
       border: 1px solid var(--border);
@@ -44,64 +85,105 @@
       gap: 32px;
     }
 
-    header {
+    section.card {
       display: flex;
       flex-direction: column;
-      gap: 12px;
+      gap: 18px;
     }
 
-    header h1 {
-      margin: 0;
-      font-size: 1.45rem;
-      letter-spacing: -0.01em;
-    }
-
-    header p {
-      margin: 0;
-      color: var(--text-muted);
-      font-size: 0.9rem;
-    }
-
-    a.back-link {
-      color: var(--accent);
-      text-decoration: none;
-      font-size: 0.85rem;
-    }
-
-    .status {
-      min-height: 1.2em;
-      font-size: 0.85rem;
-      color: var(--text-muted);
-    }
-
-    .status--success {
-      color: #047857;
-    }
-
-    .status--error {
-      color: var(--danger);
-    }
-
-    section {
+    section.card > header {
       display: flex;
       flex-direction: column;
-      gap: 16px;
-    }
-
-    section > header {
       gap: 6px;
     }
 
-    section > header h2 {
+    section.card > header h2 {
       margin: 0;
-      font-size: 1.05rem;
+      font-size: 1.1rem;
     }
 
-    section > header p {
+    section.card > header p {
       margin: 0;
-      font-size: 0.85rem;
+      font-size: 0.86rem;
       color: var(--text-muted);
-      line-height: 1.4;
+      line-height: 1.45;
+    }
+
+    .summary {
+      border: 1px solid #e2e8f0;
+      border-radius: 14px;
+      padding: 12px 14px;
+      background: #f8fafc;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      font-size: 0.82rem;
+      color: #334155;
+    }
+
+    .summary strong {
+      font-weight: 600;
+      color: #1e293b;
+    }
+
+    .summary-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .summary-chip {
+      display: inline-flex;
+      align-items: center;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: rgba(37, 99, 235, 0.1);
+      color: #1d4ed8;
+      font-size: 0.75rem;
+      font-weight: 500;
+    }
+
+    .summary-note {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .toolbar button {
+      border: none;
+      border-radius: 999px;
+      padding: 8px 16px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s ease, color 0.2s ease, border 0.2s ease;
+      background: var(--primary);
+      color: #fff;
+    }
+
+    .toolbar button:hover {
+      background: var(--primary-dark);
+    }
+
+    .toolbar button.secondary {
+      background: #eef2ff;
+      color: var(--accent);
+      border: 1px solid rgba(37, 99, 235, 0.4);
+    }
+
+    .toolbar button.secondary:hover {
+      background: #dbeafe;
+      color: var(--accent-dark);
+    }
+
+    .toolbar button.danger {
+      background: var(--danger);
+      color: #fff;
     }
 
     .stack {
@@ -116,7 +198,7 @@
       align-items: center;
       background: #f8fafc;
       border: 1px solid #e2e8f0;
-      border-radius: 10px;
+      border-radius: 12px;
       padding: 12px;
     }
 
@@ -125,7 +207,7 @@
       border-radius: 8px;
       border: 1px solid #cbd5e1;
       padding: 8px 10px;
-      font-size: 0.9rem;
+      font-size: 0.92rem;
       background: #fff;
     }
 
@@ -154,198 +236,85 @@
       cursor: not-allowed;
     }
 
-    .section-actions {
-      display: flex;
-      justify-content: flex-start;
-    }
-
-    .section-actions button {
-      background: var(--accent);
-      border: none;
-      color: #fff;
-      padding: 8px 14px;
-      border-radius: 999px;
-      font-size: 0.82rem;
-      cursor: pointer;
-    }
-
-    .checklist-card {
-      border: 1px solid #e2e8f0;
-      border-radius: 12px;
-      padding: 16px;
-      background: #f8fafc;
-      display: grid;
-      gap: 12px;
-    }
-
-    .checklist-fields {
-      display: grid;
-      gap: 12px;
-      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    }
-
-    .checklist-fields label {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      font-size: 0.75rem;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-      color: var(--text-muted);
-    }
-
-    .checklist-fields input,
-    .checklist-fields select,
-    .checklist-fields textarea {
-      font-size: 0.85rem;
-      padding: 8px 10px;
-      border-radius: 8px;
-      border: 1px solid #cbd5e1;
-      background: #fff;
-      color: #0f172a;
-    }
-
-    .checklist-fields textarea {
-      resize: vertical;
-      min-height: 56px;
-    }
-
-    .checklist-actions {
-      display: flex;
-      gap: 8px;
-      justify-content: flex-end;
-    }
-
-    .checklist-actions button {
-      border: none;
-      background: #e2e8f0;
-      color: #0f172a;
-      padding: 6px 10px;
-      border-radius: 8px;
-      font-size: 0.8rem;
-      cursor: pointer;
-    }
-
-    .checklist-actions button:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
-
-    .checklist-actions button:last-child {
-      background: var(--danger);
-      color: #fff;
-    }
-
     .list-empty {
       font-size: 0.85rem;
       color: var(--text-muted);
       font-style: italic;
     }
 
-    .actions {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 12px;
+    .status {
+      min-height: 1.2em;
+      font-size: 0.85rem;
+      color: var(--text-muted);
     }
 
-    .actions button {
-      border: none;
-      border-radius: 999px;
-      padding: 10px 18px;
-      font-size: 0.9rem;
-      font-weight: 600;
-      cursor: pointer;
-      background: var(--accent);
-      color: #fff;
-      transition: background 0.2s ease;
+    .status--success {
+      color: #047857;
     }
 
-    .actions button:hover {
-      background: var(--accent-dark);
-    }
-
-    .actions button.secondary {
-      background: transparent;
-      border: 1px solid var(--accent);
-      color: var(--accent);
-    }
-
-    .actions button.danger {
-      background: var(--danger);
-      color: #fff;
+    .status--error {
+      color: var(--danger);
     }
 
     @media (max-width: 720px) {
-      body {
-        padding: 16px;
+      .page-shell {
+        padding: 20px 12px 32px;
       }
 
-      main {
-        padding: 20px;
+      .page-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
       }
 
-      .checklist-fields {
-        grid-template-columns: 1fr;
+      .toolbar {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .toolbar button {
+        width: 100%;
+        justify-content: center;
       }
     }
   </style>
 </head>
 <body>
-  <header style="background:#0f172a;color:#fff;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
-    <h1 style="margin:0;font-size:1.05rem;">Survey Brain – Settings</h1>
-    <button id="backBtn" style="border:none;background:#0f766e;color:#fff;border-radius:999px;padding:6px 14px;font-size:.7rem;font-weight:600;cursor:pointer;">
-      Back to app
-    </button>
-  </header>
+  <div class="page-shell">
+    <header class="page-header">
+      <h1>Survey Brain – Settings</h1>
+      <button id="backBtn" type="button">Back to app</button>
+    </header>
 
-  <main style="padding:14px;display:flex;flex-direction:column;gap:14px;max-width:1100px;margin:0 auto;">
-    <section style="background:#ffffff;border:1px solid #d4dbe5;border-radius:16px;padding:12px 14px 10px;">
-      <h2 style="margin:0 0 6px;font-size:.85rem;">Depot schema summary</h2>
-      <div id="schemaSummary" style="font-size:.72rem;color:#475569;"></div>
-    </section>
+    <main>
+      <section class="card">
+        <header>
+          <h2>Depot section order</h2>
+          <p>
+            Arrange the sections used when exporting Depot notes. Changes are saved only on this
+            device, but you can export and import your personal schema as needed.
+          </p>
+        </header>
 
-    <section style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
-      <div style="background:#ffffff;border:1px solid #d4dbe5;border-radius:16px;padding:12px 14px 10px;display:flex;flex-direction:column;gap:6px;">
-        <h2 style="margin:0 0 4px;font-size:.8rem;">Sections</h2>
-        <p style="margin:0 0 6px;font-size:.7rem;color:#64748b;">
-          Edit the list of depot note sections as JSON. Normally this is an array of section names:
-          <code>["Needs", "Working at heights", ...]</code>.
-          "Future plans" will always be added as the last section automatically.
-        </p>
-        <textarea id="sectionsJson" style="width:100%;min-height:180px;border-radius:10px;border:1px solid #cbd5e1;padding:8px 9px;font-size:.72rem;"></textarea>
-        <div style="display:flex;gap:8px;margin-top:6px;">
-          <button id="saveSectionsBtn" style="border:none;background:#0f766e;color:#fff;border-radius:999px;padding:6px 14px;font-size:.7rem;font-weight:600;cursor:pointer;">
-            Save sections
-          </button>
-          <button id="resetSectionsBtn" style="border:none;background:#e5e7eb;color:#0f172a;border-radius:999px;padding:6px 14px;font-size:.7rem;font-weight:600;cursor:pointer;">
-            Reset sections to defaults
-          </button>
+        <div id="sectionSummary" class="summary"></div>
+
+        <div class="toolbar">
+          <button id="addSectionBtn">+ Add section</button>
+          <button id="saveSectionsBtn">Save to this device</button>
+          <button id="exportSchemaBtn" class="secondary">Export JSON</button>
+          <button id="importSchemaBtn" class="secondary">Import JSON</button>
+          <button id="resetSectionsBtn" class="secondary">Reset to defaults</button>
+          <button id="clearOverrideBtn" class="danger">Clear override on this device</button>
+          <input id="importSchemaInput" type="file" accept="application/json" style="display:none;" />
         </div>
-      </div>
 
-      <div style="background:#ffffff;border:1px solid #d4dbe5;border-radius:16px;padding:12px 14px 10px;display:flex;flex-direction:column;gap:6px;">
-        <h2 style="margin:0 0 4px;font-size:.8rem;">Checklist</h2>
-        <p style="margin:0 0 6px;font-size:.7rem;color:#64748b;">
-          Edit the checklist configuration as JSON. This should be an object like:
-          <code>{ "sectionsOrder": [...], "items": [...] }</code>.
-          Items are the same shape used by the app (id, label, section, group, hint, etc).
-        </p>
-        <textarea id="checklistJson" style="width:100%;min-height:180px;border-radius:10px;border:1px solid #cbd5e1;padding:8px 9px;font-size:.72rem;"></textarea>
-        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;">
-          <button id="saveChecklistBtn" style="border:none;background:#0f766e;color:#fff;border-radius:999px;padding:6px 14px;font-size:.7rem;font-weight:600;cursor:pointer;">
-            Save checklist
-          </button>
-          <button id="resetChecklistBtn" style="border:none;background:#e5e7eb;color:#0f172a;border-radius:999px;padding:6px 14px;font-size:.7rem;font-weight:600;cursor:pointer;">
-            Reset checklist to defaults
-          </button>
-          <button id="resetAllBtn" style="border:none;background:#b91c1c;color:#fff;border-radius:999px;padding:6px 14px;font-size:.7rem;font-weight:600;cursor:pointer;">
-            Reset ALL to defaults
-          </button>
-        </div>
-      </div>
-    </section>
-  </main>
+        <div id="sectionsList" class="stack"></div>
 
-  <script type="module" src="./js/settingsPage.js"></script>
+        <p id="sectionsStatus" class="status"></p>
+      </section>
+    </main>
+  </div>
+
+  <script type="module" src="./js/settingsSections.js"></script>
 </body>
 </html>

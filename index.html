@@ -537,9 +537,14 @@
           const schema = settings.depotNotesSchema;
 
           if (Array.isArray(schema.sections) && schema.sections.length > 0) {
+            const seenSections = new Set();
             sections = schema.sections
               .map((name) => (typeof name === "string" ? name.trim() : String(name || "").trim()))
-              .filter(Boolean);
+              .filter((name) => {
+                if (!name || seenSections.has(name)) return false;
+                seenSections.add(name);
+                return true;
+              });
           }
 
           if (schema.checklist) {
@@ -559,24 +564,67 @@
         sections = DEFAULT_DEPOT_SECTIONS.slice();
       }
 
+      const canonicalSections = sections.slice();
       const fallbackChecklist = cloneDefaultChecklistConfig();
-      const sectionsOrder = Array.isArray(checklist.sectionsOrder) && checklist.sectionsOrder.length
-        ? checklist.sectionsOrder.slice()
-        : fallbackChecklist.sectionsOrder;
-      const items = Array.isArray(checklist.items) && checklist.items.length
-        ? checklist.items.map((item) => ({
-            ...item,
-            materials: Array.isArray(item.materials)
-              ? item.materials.map((mat) => ({ ...mat }))
-              : []
-          }))
-        : fallbackChecklist.items;
+
+      const orderSource = Array.isArray(checklist.sectionsOrder) ? checklist.sectionsOrder : [];
+      const seenOrder = new Set();
+      const cleanedOrder = [];
+      const pushSectionOrder = (value) => {
+        const name = typeof value === "string" ? value.trim() : String(value || "").trim();
+        if (!name || seenOrder.has(name)) return;
+        if (canonicalSections.length && !canonicalSections.includes(name)) return;
+        seenOrder.add(name);
+        cleanedOrder.push(name);
+      };
+
+      orderSource.forEach(pushSectionOrder);
+
+      if (!cleanedOrder.length && Array.isArray(fallbackChecklist.sectionsOrder)) {
+        fallbackChecklist.sectionsOrder.forEach(pushSectionOrder);
+      }
+
+      canonicalSections.forEach((name) => {
+        const trimmed = typeof name === "string" ? name.trim() : String(name || "").trim();
+        if (!trimmed || seenOrder.has(trimmed)) return;
+        seenOrder.add(trimmed);
+        cleanedOrder.push(trimmed);
+      });
+
+      const finalSectionsOrder = cleanedOrder.length
+        ? cleanedOrder
+        : (Array.isArray(fallbackChecklist.sectionsOrder) ? fallbackChecklist.sectionsOrder.slice() : DEFAULT_DEPOT_SECTIONS.slice());
+
+      const cleanedItems = Array.isArray(checklist.items) && checklist.items.length
+        ? checklist.items
+            .map((item) => {
+              if (!item || typeof item !== "object") return null;
+              const copy = { ...item };
+              copy.id = copy.id != null ? String(copy.id) : copy.id;
+              copy.label = copy.label != null ? String(copy.label) : copy.label;
+              copy.section = copy.section != null ? String(copy.section) : copy.section;
+              copy.depotSection = copy.depotSection != null ? String(copy.depotSection) : copy.depotSection;
+              copy.group = copy.group != null ? copy.group : copy.category;
+              copy.hint = copy.hint != null ? copy.hint : copy.description;
+              if (Array.isArray(copy.materials)) {
+                copy.materials = copy.materials
+                  .map((mat) => (mat && typeof mat === "object" ? { ...mat } : null))
+                  .filter(Boolean);
+              } else {
+                copy.materials = [];
+              }
+              return copy;
+            })
+            .filter(Boolean)
+        : [];
+
+      const finalItems = cleanedItems.length ? cleanedItems : fallbackChecklist.items;
 
       return {
-        sections,
+        sections: canonicalSections,
         checklist: {
-          sectionsOrder,
-          items
+          sectionsOrder: finalSectionsOrder,
+          items: finalItems
         }
       };
     }

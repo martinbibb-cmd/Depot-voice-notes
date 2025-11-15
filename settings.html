@@ -6,309 +6,328 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
     :root {
-      --bg: #eef2f7;
+      color-scheme: light;
+      --bg: #f6f8fb;
       --card: #ffffff;
-      --border: #d4dbe5;
-      --accent: #0f766e;
+      --border: #d9e0eb;
+      --accent: #2563eb;
+      --accent-dark: #1d4ed8;
       --danger: #b91c1c;
-      --muted: #64748b;
-      --radius: 16px;
+      --text-muted: #64748b;
+      --radius: 14px;
     }
-    * { box-sizing: border-box; }
+
+    * {
+      box-sizing: border-box;
+    }
+
     body {
       margin: 0;
-      min-height: 100vh;
+      font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       background: var(--bg);
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       color: #0f172a;
+      min-height: 100vh;
       display: flex;
       justify-content: center;
-      align-items: flex-start;
-      padding: 40px 16px;
+      padding: 32px 16px;
     }
+
     main {
       width: min(960px, 100%);
       background: var(--card);
-      border: 1px solid var(--border);
       border-radius: var(--radius);
-      padding: 24px;
-      box-shadow: 0 10px 20px rgba(15, 23, 42, 0.05);
+      border: 1px solid var(--border);
+      box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
+      padding: 28px;
       display: flex;
       flex-direction: column;
-      gap: 24px;
+      gap: 32px;
     }
-    h1 {
-      margin: 0;
-      font-size: 1.4rem;
-    }
-    section h2 {
-      margin: 0 0 8px;
-      font-size: 1rem;
-    }
-    p {
-      margin: 0 0 12px;
-      color: var(--muted);
-      font-size: 0.85rem;
-    }
-    textarea {
-      width: 100%;
-      min-height: 240px;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-      border-radius: 12px;
-      border: 1px solid #cbd5e1;
-      padding: 12px;
-      font-size: 0.8rem;
-      background: #f8fafc;
-      color: #0f172a;
-      resize: vertical;
-    }
-    input[type="url"],
-    input[type="password"] {
-      width: 100%;
-      border-radius: 12px;
-      border: 1px solid #cbd5e1;
-      padding: 10px 12px;
-      font-size: 0.8rem;
-      background: #f8fafc;
-      color: #0f172a;
-    }
-    textarea#settings-schema-json {
-      min-height: 180px;
-    }
-    .btn-row {
-      margin-top: 10px;
+
+    header {
       display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
+      flex-direction: column;
+      gap: 12px;
     }
-    button {
-      border: none;
-      background: var(--accent);
-      color: #fff;
-      border-radius: 999px;
-      padding: 8px 16px;
-      font-size: 0.78rem;
-      font-weight: 600;
-      cursor: pointer;
-      display: inline-flex;
-      gap: 6px;
-      align-items: center;
+
+    header h1 {
+      margin: 0;
+      font-size: 1.45rem;
+      letter-spacing: -0.01em;
     }
-    button.secondary {
-      background: transparent;
+
+    header p {
+      margin: 0;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+    }
+
+    a.back-link {
       color: var(--accent);
-      border: 1px solid var(--accent);
-    }
-    button.danger {
-      background: var(--danger);
-      color: #fff;
-    }
-    .hint {
-      margin-top: 6px;
-      font-size: 0.8rem;
-      color: var(--muted);
-    }
-    .status {
-      margin-top: -8px;
+      text-decoration: none;
       font-size: 0.85rem;
-      color: var(--muted);
+    }
+
+    .status {
       min-height: 1.2em;
+      font-size: 0.85rem;
+      color: var(--text-muted);
     }
+
     .status--success {
-      color: var(--accent);
+      color: #047857;
     }
+
     .status--error {
       color: var(--danger);
     }
-    .status--muted {
-      color: var(--muted);
+
+    section {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
     }
-    textarea[readonly] {
-      background: #f1f5f9;
+
+    section > header {
+      gap: 6px;
     }
-    a.back-link {
-      font-size: 0.8rem;
-      color: var(--accent);
-      text-decoration: none;
-      margin-bottom: -12px;
+
+    section > header h2 {
+      margin: 0;
+      font-size: 1.05rem;
     }
-    .section-editor {
-      margin-top: 12px;
-      margin-bottom: 12px;
+
+    section > header p {
+      margin: 0;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      line-height: 1.4;
+    }
+
+    .stack {
       display: flex;
       flex-direction: column;
       gap: 12px;
     }
+
     .section-row {
       display: flex;
       gap: 12px;
-      align-items: flex-start;
-      border: 1px solid #e2e8f0;
-      border-radius: 12px;
-      padding: 12px;
+      align-items: center;
       background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 12px;
     }
-    .section-fields {
+
+    .section-row input[type="text"] {
       flex: 1;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-    .section-fields input,
-    .section-fields textarea {
-      width: 100%;
       border-radius: 8px;
       border: 1px solid #cbd5e1;
       padding: 8px 10px;
-      font-size: 0.8rem;
+      font-size: 0.9rem;
       background: #fff;
-      color: #0f172a;
     }
-    .section-fields textarea {
-      min-height: 60px;
-      resize: vertical;
+
+    .section-row input[disabled] {
+      background: #e2e8f0;
+      color: #475569;
     }
+
     .section-controls {
       display: flex;
-      flex-direction: column;
       gap: 6px;
     }
+
     .section-controls button {
+      border: none;
       background: #e2e8f0;
       color: #0f172a;
-      border-radius: 8px;
       padding: 6px 10px;
-      font-size: 0.7rem;
-      border: none;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      cursor: pointer;
     }
+
     .section-controls button:disabled {
       opacity: 0.5;
       cursor: not-allowed;
     }
-    .section-add-row {
+
+    .section-actions {
       display: flex;
       justify-content: flex-start;
     }
-    .section-add-row button {
+
+    .section-actions button {
       background: var(--accent);
-      color: #fff;
       border: none;
+      color: #fff;
+      padding: 8px 14px;
       border-radius: 999px;
-      padding: 6px 14px;
-      font-size: 0.75rem;
+      font-size: 0.82rem;
       cursor: pointer;
     }
-    .checklist-editor {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      margin-bottom: 12px;
-    }
+
     .checklist-card {
-      background: #fff;
-      border: 1px solid var(--border);
+      border: 1px solid #e2e8f0;
       border-radius: 12px;
-      padding: 12px;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-    .checklist-card-row {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-      gap: 8px;
-    }
-    .checklist-card label {
-      font-size: 0.7rem;
-      font-weight: 600;
-      color: var(--muted);
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }
-    .checklist-card input,
-    .checklist-card select,
-    .checklist-card textarea {
-      font-size: 0.75rem;
-      padding: 6px 8px;
-      border-radius: 8px;
-      border: 1px solid var(--border);
+      padding: 16px;
       background: #f8fafc;
+      display: grid;
+      gap: 12px;
+    }
+
+    .checklist-fields {
+      display: grid;
+      gap: 12px;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    }
+
+    .checklist-fields label {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--text-muted);
+    }
+
+    .checklist-fields input,
+    .checklist-fields select,
+    .checklist-fields textarea {
+      font-size: 0.85rem;
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: 1px solid #cbd5e1;
+      background: #fff;
       color: #0f172a;
     }
-    .checklist-card textarea {
-      min-height: 48px;
+
+    .checklist-fields textarea {
       resize: vertical;
+      min-height: 56px;
     }
-    .checklist-card-actions {
+
+    .checklist-actions {
       display: flex;
+      gap: 8px;
       justify-content: flex-end;
-      gap: 6px;
     }
-    .checklist-card-actions button {
+
+    .checklist-actions button {
+      border: none;
       background: #e2e8f0;
       color: #0f172a;
-      border: none;
-      border-radius: 8px;
       padding: 6px 10px;
-      font-size: 0.7rem;
+      border-radius: 8px;
+      font-size: 0.8rem;
       cursor: pointer;
     }
-    .checklist-card-actions button:disabled {
+
+    .checklist-actions button:disabled {
       opacity: 0.5;
       cursor: not-allowed;
     }
-    .checklist-card-actions button.danger {
+
+    .checklist-actions button:last-child {
       background: var(--danger);
       color: #fff;
     }
-    .checklist-add-row {
-      display: flex;
-      justify-content: flex-start;
+
+    .list-empty {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      font-style: italic;
     }
-    .checklist-add-row button {
-      background: var(--accent);
-      color: #fff;
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .actions button {
       border: none;
       border-radius: 999px;
-      padding: 6px 14px;
-      font-size: 0.75rem;
+      padding: 10px 18px;
+      font-size: 0.9rem;
+      font-weight: 600;
       cursor: pointer;
+      background: var(--accent);
+      color: #fff;
+      transition: background 0.2s ease;
+    }
+
+    .actions button:hover {
+      background: var(--accent-dark);
+    }
+
+    .actions button.secondary {
+      background: transparent;
+      border: 1px solid var(--accent);
+      color: var(--accent);
+    }
+
+    .actions button.danger {
+      background: var(--danger);
+      color: #fff;
+    }
+
+    @media (max-width: 720px) {
+      body {
+        padding: 16px;
+      }
+
+      main {
+        padding: 20px;
+      }
+
+      .checklist-fields {
+        grid-template-columns: 1fr;
+      }
     }
   </style>
 </head>
 <body>
   <main>
-    <a class="back-link" href="index.html">← Back to notes</a>
-    <h1>Depot Settings</h1>
-    <div id="settings-status" class="status" aria-live="polite"></div>
+    <header>
+      <a href="index.html" class="back-link">← Back to notes</a>
+      <h1>Depot settings</h1>
+      <p>Configure Depot section names and checklist items. Changes are stored in this browser only.</p>
+    </header>
+
+    <div class="status" data-status aria-live="polite"></div>
+
     <section>
-      <h2>Checklist configuration</h2>
-      <p>Edit the mapping from checklist ticks to Depot notes &amp; materials. Changes are stored locally on this device.</p>
-      <div id="checklist-editor" class="checklist-editor"></div>
-      <textarea id="settings-checklist-json" readonly></textarea>
-      <div class="btn-row">
-        <button id="btn-save-checklist">Save (this device)</button>
-        <button id="btn-reset-checklist" class="secondary">Reset to defaults</button>
+      <header>
+        <h2>Depot sections</h2>
+        <p>Edit the section names and order. “Future plans” is kept automatically at the end.</p>
+      </header>
+      <div data-sections-list class="stack"></div>
+      <div class="section-actions">
+        <button type="button" data-add-section>Add section</button>
       </div>
     </section>
+
     <section>
-      <h2>Depot output schema</h2>
-      <p>Control Depot section names and ordering. Overrides apply locally until cleared.</p>
-      <div id="settings-section-editor" class="section-editor"></div>
-      <textarea id="settings-schema-json" readonly></textarea>
-      <div class="btn-row">
-        <button id="btn-save-schema">Save (this device)</button>
-        <button id="btn-reset-schema" class="secondary">Reset to defaults</button>
+      <header>
+        <h2>Checklist items</h2>
+        <p>Set the ID, label, and optional metadata for checklist items. Items with empty ID or label are ignored when saved.</p>
+      </header>
+      <div data-checklist-list class="stack"></div>
+      <div class="section-actions">
+        <button type="button" data-add-item>Add checklist item</button>
       </div>
     </section>
-    <section>
-      <h2>Advanced</h2>
-      <p>Clear all locally stored Depot data and reload the app from the network.</p>
-      <div class="btn-row">
-        <button id="btn-force-reload" class="danger">Force reload (clear local data)</button>
-      </div>
-    </section>
+
+    <div class="actions">
+      <button type="button" data-save>Save changes</button>
+      <button type="button" class="secondary" data-reload>Reload saved</button>
+      <button type="button" class="secondary" data-reset>Reset to defaults</button>
+      <button type="button" class="danger" data-clear>Clear local overrides</button>
+    </div>
   </main>
   <script type="module" src="./js/settingsPage.js"></script>
 </body>

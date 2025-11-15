@@ -1731,7 +1731,7 @@ renderChecklist(clarificationsEl, [], []);
 committedTranscript = transcriptInput.value.trim();
 lastSentTranscript = committedTranscript;
 updateLiveControls();
-setStatus("Idle");
+setStatus("Boot OK – ready to test.");
 
 (async function restoreAutosaveOnLoad() {
   try {

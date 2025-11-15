@@ -884,12 +884,32 @@ function renderChecklist(container, checkedIds, missingInfoFromServer) {
 }
 
 function refreshUiFromState() {
+  // 1. Customer summary
   customerSummaryEl.textContent = lastCustomerSummary || "(none)";
-  const processed = postProcessSections(cloneDeep(lastRawSections || []));
+
+  // 2. Ensure we have at least placeholder sections based on the schema
+  let baseSections = cloneDeep(lastRawSections || []);
+
+  // If we don't yet have any sections from the worker BUT we DO have a schema,
+  // create empty sections for each schema entry so the headings always show.
+  if ((!baseSections || baseSections.length === 0) && Array.isArray(SECTION_SCHEMA) && SECTION_SCHEMA.length) {
+    baseSections = SECTION_SCHEMA.map((entry) => ({
+      section: entry.name,
+      plainText: "",
+      naturalLanguage: ""
+    }));
+    // Keep raw + processed in sync so later AI merges act on these placeholders
+    lastRawSections = cloneDeep(baseSections);
+  }
+
+  // 3. Run them through the post-processing / ordering / bulletification
+  const processed = postProcessSections(cloneDeep(baseSections || []));
   lastSections = processed;
+
+  // 4. Render depot sections in the bottom card
   sectionsListEl.innerHTML = "";
   if (processed.length) {
-    processed.forEach(sec => {
+    processed.forEach((sec) => {
       const div = document.createElement("div");
       div.className = "section-item";
       div.innerHTML = `
@@ -900,8 +920,11 @@ function refreshUiFromState() {
       sectionsListEl.appendChild(div);
     });
   } else {
+    // No schema and no notes – nothing we can meaningfully show
     sectionsListEl.innerHTML = `<span class="small">No sections yet.</span>`;
   }
+
+  // 5. Parts list + checklist
   renderPartsList(lastMaterials);
   renderChecklist(clarificationsEl, lastCheckedItems, lastMissingInfo);
 }

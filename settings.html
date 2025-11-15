@@ -6,10 +6,11 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
     :root {
-      --bg: #eef2f7;
+      --bg: #0f172a;
       --card: #ffffff;
       --border: #d4dbe5;
       --accent: #0f766e;
+      --accent-soft: #14b8a6;
       --muted: #64748b;
       --danger: #b91c1c;
       --radius: 16px;
@@ -17,143 +18,789 @@
     * { box-sizing: border-box; }
     body {
       margin: 0;
-      background: var(--bg);
       font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      color: #0f172a;
+      background: radial-gradient(circle at top, #1e293b 0, #020617 55%);
+      color: #e2e8f0;
       min-height: 100vh;
-      display: flex;
-      flex-direction: column;
+      padding: 16px;
     }
     header {
-      background: #0f172a;
-      color: #fff;
-      padding: 14px 16px;
       display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 12px;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: 8px;
+      margin-bottom: 16px;
     }
     header h1 {
       margin: 0;
-      font-size: 1.05rem;
+      font-size: 1.1rem;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+    }
+    header span {
+      font-size: .75rem;
+      color: #94a3b8;
+    }
+    a.back-link {
+      margin-left: auto;
+      font-size: .8rem;
+      color: #7dd3fc;
+      text-decoration: none;
+    }
+    a.back-link:hover {
+      text-decoration: underline;
     }
     main {
-      padding: 14px;
-      max-width: 900px;
-      margin: 0 auto;
-      width: 100%;
-      display: flex;
-      flex-direction: column;
+      display: grid;
+      grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
       gap: 14px;
+    }
+    @media (max-width: 900px) {
+      main {
+        grid-template-columns: minmax(0, 1fr);
+      }
     }
     .card {
       background: var(--card);
-      border: 1px solid var(--border);
       border-radius: var(--radius);
-      padding: 12px 14px 10px;
+      border: 1px solid var(--border);
+      padding: 12px 14px 14px;
+      color: #0f172a;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
     }
-    .card h2 {
-      margin: 0 0 6px;
+    .card-header {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+    }
+    .card-header h2 {
+      margin: 0;
       font-size: .9rem;
+      text-transform: uppercase;
+      letter-spacing: .05em;
     }
-    .card p {
-      margin: 0 0 6px;
+    .card-header span {
       font-size: .7rem;
       color: var(--muted);
     }
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 4px;
+    }
     button {
       border: none;
-      background: var(--accent);
-      color: #fff;
       border-radius: 999px;
-      padding: 6px 14px;
+      padding: 5px 12px 5px;
       font-size: .7rem;
       font-weight: 600;
       cursor: pointer;
       display: inline-flex;
       align-items: center;
       gap: 6px;
+      background: #0f766e;
+      color: white;
+      white-space: nowrap;
     }
     button.secondary {
-      background: #e5e7eb;
+      background: rgba(148,163,184,.16);
       color: #0f172a;
     }
     button.danger {
       background: var(--danger);
+      color: white;
     }
-    .sections-list {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      margin-top: 6px;
-    }
-    .section-row {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      flex-wrap: nowrap;
-    }
-    .section-row input[type="text"] {
-      flex: 1;
-      border-radius: 999px;
-      border: 1px solid #cbd5e1;
-      padding: 4px 10px;
-      font-size: .75rem;
-    }
-    .section-row button {
-      padding-inline: 8px;
+    button.small {
+      padding: 3px 8px;
       font-size: .65rem;
+      font-weight: 500;
     }
-    .section-row span.badge {
-      font-size: .6rem;
-      background: #e0f2fe;
-      color: #0f172a;
+    button:disabled {
+      opacity: .55;
+      cursor: default;
+    }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: .65rem;
       border-radius: 999px;
       padding: 3px 8px;
-      white-space: nowrap;
+      background: #e2e8f0;
+      color: #0f172a;
     }
-    .toolbar {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      margin-top: 8px;
+    .pill.small {
+      font-size: .6rem;
     }
-    .summary {
-      font-size: .7rem;
+    .pill-tag {
+      background: #ecfeff;
+      border: 1px solid #e0f2fe;
+      border-radius: 999px;
+      padding: 2px 7px;
+      font-size: .6rem;
+      color: #0f172a;
+    }
+    .rows {
+      border-radius: 12px;
+      border: 1px solid #e2e8f0;
+      max-height: 60vh;
+      overflow: auto;
+    }
+    .row {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) minmax(0, 2fr) auto;
+      gap: 6px;
+      padding: 6px 8px;
+      align-items: flex-start;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .row:last-child {
+      border-bottom: none;
+    }
+    .row span.order {
+      font-size: .65rem;
       color: var(--muted);
-      margin-top: 6px;
+      min-width: 2rem;
+    }
+    .row input[type="text"] {
+      width: 100%;
+      font-size: .7rem;
+      padding: 3px 5px;
+      border-radius: 6px;
+      border: 1px solid #cbd5e1;
+    }
+    .row textarea {
+      width: 100%;
+      font-size: .7rem;
+      padding: 3px 5px;
+      border-radius: 6px;
+      border: 1px solid #cbd5e1;
+      resize: vertical;
+      min-height: 38px;
+    }
+    .row-controls {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .checklist-rows {
+      border-radius: 12px;
+      border: 1px solid #e2e8f0;
+      max-height: 60vh;
+      overflow: auto;
+    }
+    .checklist-row {
+      display: grid;
+      grid-template-columns: auto minmax(0, 0.9fr) minmax(0, 1fr) minmax(0, 1.4fr) minmax(0, 2fr) auto;
+      gap: 4px;
+      padding: 6px 8px;
+      align-items: flex-start;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .checklist-row:last-child {
+      border-bottom: none;
+    }
+    .checklist-row span.order {
+      font-size: .65rem;
+      color: var(--muted);
+      min-width: 1.5rem;
+    }
+    .checklist-row input[type="text"] {
+      width: 100%;
+      font-size: .65rem;
+      padding: 3px 4px;
+      border-radius: 6px;
+      border: 1px solid #cbd5e1;
+    }
+    .status {
+      font-size: .65rem;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+    .status strong {
+      color: #0f766e;
+    }
+    .status.error strong {
+      color: var(--danger);
+    }
+    .hint {
+      font-size: .65rem;
+      color: var(--muted);
     }
   </style>
 </head>
 <body>
   <header>
-    <h1>Survey Brain – Settings</h1>
-    <button id="backBtn">Back to app</button>
+    <h1>Survey Brain Settings</h1>
+    <span>Section schema & checklist config</span>
+    <a href="index.html" class="back-link">← Back to app</a>
   </header>
 
   <main>
+    <!-- LEFT: section schema editor -->
     <section class="card">
-      <h2>Depot section order</h2>
-      <p>
-        Edit the list of Depot note sections. This controls the order in the app and in exported notes.
-        <strong>"Future plans"</strong> is always kept at the bottom. Any "arse_cover_notes" entries are ignored.
-      </p>
-      <div id="sectionsList" class="sections-list">
-        <!-- rows injected by JS -->
+      <div class="card-header">
+        <h2>Depot sections</h2>
+        <span>Edit the section list & order</span>
+        <span class="pill small" id="sections-count-pill">0 sections</span>
       </div>
+
       <div class="toolbar">
-        <button id="addSectionBtn">+ Add section</button>
-        <button id="saveSectionsBtn">Save to this device</button>
-        <button id="exportSchemaBtn" class="secondary">Export JSON</button>
-        <button id="importSchemaBtn" class="secondary">Import JSON</button>
-        <button id="resetSectionsBtn" class="secondary">Reset to defaults</button>
-        <button id="clearOverrideBtn" class="danger">Clear override on this device</button>
-        <input id="importSchemaInput" type="file" accept="application/json" style="display:none;" />
+        <button id="sections-add-btn">+ Add section</button>
+        <button id="sections-save-btn" class="secondary">Save to browser</button>
+        <button id="sections-export-btn" class="secondary">Export JSON</button>
+        <button id="sections-import-btn" class="secondary">Import JSON</button>
       </div>
-      <div id="sectionsSummary" class="summary"></div>
+      <p class="hint">
+        These control the section headings in the main app. The worker fills them with text, but the
+        <strong>names & order are defined here</strong>. “Future plans” will always be kept last by the app.
+      </p>
+
+      <div class="rows" id="sections-rows"></div>
+
+      <p class="status" id="sections-status">Loading sections…</p>
+      <input type="file" id="sections-import-input" accept="application/json" style="display:none;">
+    </section>
+
+    <!-- RIGHT: checklist editor -->
+    <section class="card">
+      <div class="card-header">
+        <h2>Survey checklist</h2>
+        <span>Groups, IDs & hints</span>
+        <span class="pill small" id="checklist-count-pill">0 items</span>
+      </div>
+
+      <div class="toolbar">
+        <button id="checklist-add-btn">+ Add item</button>
+        <button id="checklist-save-btn" class="secondary">Save to browser</button>
+        <button id="checklist-export-btn" class="secondary">Export JSON</button>
+        <button id="checklist-import-btn" class="secondary">Import JSON</button>
+      </div>
+      <p class="hint">
+        Each item has a stable <strong>ID</strong>, a <strong>group</strong> label, an optional
+        <strong>Depot section</strong> link, plus a visible label and hint. The worker uses the IDs; the app uses
+        group/section to display them.
+      </p>
+
+      <div class="checklist-rows" id="checklist-rows"></div>
+
+      <p class="status" id="checklist-status">Loading checklist…</p>
+      <input type="file" id="checklist-import-input" accept="application/json" style="display:none;">
     </section>
   </main>
 
-  <script type="module" src="./js/settingsSections.js"></script>
+  <script>
+    // Storage keys (match index.html)
+    const SECTION_STORAGE_KEY = "depot.sectionSchema";
+    const LEGACY_SECTION_STORAGE_KEY = "surveybrain-schema";
+    const CHECKLIST_STORAGE_KEY = "depot.checklistConfig";
+    const FUTURE_PLANS_NAME = "Future plans";
+
+    // --- Helpers ---
+    function readJSONSafe(key) {
+      try {
+        const raw = localStorage.getItem(key);
+        if (!raw) return null;
+        return JSON.parse(raw);
+      } catch (_) {
+        return null;
+      }
+    }
+
+    function sanitiseSectionSchema(input) {
+      const asArray = (value) => {
+        if (!value) return [];
+        if (Array.isArray(value)) return value;
+        if (value && typeof value === "object" && Array.isArray(value.sections)) {
+          return value.sections;
+        }
+        return [];
+      };
+
+      const rawEntries = asArray(input);
+      const prepared = [];
+      rawEntries.forEach((entry, idx) => {
+        if (!entry) return;
+        const rawName = entry.name ?? entry.section ?? entry.title ?? entry.heading;
+        const name = typeof rawName === "string" ? rawName.trim() : "";
+        if (!name || name === "Arse_cover_notes") return;
+        const rawDescription = entry.description ?? entry.hint ?? "";
+        const description = typeof rawDescription === "string"
+          ? rawDescription.trim()
+          : String(rawDescription || "").trim();
+        const order = typeof entry.order === "number" ? entry.order : idx + 1;
+        prepared.push({ name, description, order, idx });
+      });
+
+      prepared.sort((a, b) => {
+        const aHasOrder = typeof a.order === "number";
+        const bHasOrder = typeof b.order === "number";
+        if (aHasOrder && bHasOrder && a.order !== b.order) {
+          return a.order - b.order;
+        }
+        if (aHasOrder && !bHasOrder) return -1;
+        if (!aHasOrder && bHasOrder) return 1;
+        return a.idx - b.idx;
+      });
+
+      const unique = [];
+      const seen = new Set();
+      prepared.forEach((entry) => {
+        if (seen.has(entry.name)) return;
+        seen.add(entry.name);
+        unique.push({
+          name: entry.name,
+          description: entry.description || "",
+          order: entry.order
+        });
+      });
+
+      // Keep Future plans last, ensure it exists
+      let withoutFuture = unique.filter((entry) => entry.name !== FUTURE_PLANS_NAME);
+      let future = unique.find((entry) => entry.name === FUTURE_PLANS_NAME);
+      if (!future) {
+        future = {
+          name: FUTURE_PLANS_NAME,
+          description: "Notes about any future work or follow-on visits.",
+          order: withoutFuture.length + 1
+        };
+      } else if (!future.description) {
+        future = {
+          ...future,
+          description: "Notes about any future work or follow-on visits."
+        };
+      }
+
+      const final = [...withoutFuture, future].map((entry, idx) => ({
+        name: entry.name,
+        description: entry.description || "",
+        order: idx + 1
+      }));
+
+      return final;
+    }
+
+    function sanitiseChecklistConfig(value) {
+      const asArray = (input) => {
+        if (!input) return [];
+        if (Array.isArray(input)) return input;
+        if (input && typeof input === "object" && Array.isArray(input.items)) {
+          return input.items;
+        }
+        return [];
+      };
+
+      const entries = asArray(value);
+      const seen = new Set();
+      const cleaned = [];
+
+      entries.forEach((item) => {
+        if (!item) return;
+        const id = item.id != null ? String(item.id).trim() : "";
+        const label = item.label != null ? String(item.label).trim() : "";
+        if (!id || !label || seen.has(id)) return;
+        seen.add(id);
+        cleaned.push({
+          id,
+          group: (item.group || item.category || "Checklist").trim(),
+          section: (item.section || item.sectionName || item.depotSection || "").trim(),
+          label,
+          hint: (item.hint || item.description || "").trim()
+        });
+      });
+
+      return cleaned;
+    }
+
+    async function fetchJSON(path) {
+      try {
+        const res = await fetch(path, { cache: "no-store" });
+        if (!res.ok) return null;
+        return await res.json();
+      } catch (_) {
+        return null;
+      }
+    }
+
+    // --- Section editor state / rendering ---
+    const sectionsRowsEl = document.getElementById("sections-rows");
+    const sectionsStatusEl = document.getElementById("sections-status");
+    const sectionsCountPill = document.getElementById("sections-count-pill");
+
+    let sections = [];
+
+    function renderSections() {
+      sectionsRowsEl.innerHTML = "";
+      if (!sections.length) {
+        sectionsRowsEl.innerHTML = '<div class="row"><span class="order">–</span><div class="hint" style="grid-column: span 3;">No sections defined yet. Add your first section above.</div></div>';
+        sectionsCountPill.textContent = "0 sections";
+        return;
+      }
+      sectionsCountPill.textContent = sections.length + (sections.length === 1 ? " section" : " sections");
+
+      sections.forEach((sec, idx) => {
+        const row = document.createElement("div");
+        row.className = "row";
+
+        const orderSpan = document.createElement("span");
+        orderSpan.className = "order";
+        orderSpan.textContent = idx + 1;
+
+        const nameInput = document.createElement("input");
+        nameInput.type = "text";
+        nameInput.value = sec.name || "";
+        nameInput.placeholder = "Section name";
+        nameInput.oninput = () => {
+          sections[idx].name = nameInput.value.trim();
+        };
+
+        const descInput = document.createElement("textarea");
+        descInput.value = sec.description || "";
+        descInput.placeholder = "Installer hint / description (optional)";
+        descInput.oninput = () => {
+          sections[idx].description = descInput.value.trim();
+        };
+
+        const controls = document.createElement("div");
+        controls.className = "row-controls";
+
+        const upBtn = document.createElement("button");
+        upBtn.className = "small secondary";
+        upBtn.textContent = "▲";
+        upBtn.disabled = idx === 0;
+        upBtn.onclick = () => {
+          if (idx === 0) return;
+          const tmp = sections[idx - 1];
+          sections[idx - 1] = sections[idx];
+          sections[idx] = tmp;
+          renderSections();
+        };
+
+        const downBtn = document.createElement("button");
+        downBtn.className = "small secondary";
+        downBtn.textContent = "▼";
+        downBtn.disabled = idx === sections.length - 1;
+        downBtn.onclick = () => {
+          if (idx === sections.length - 1) return;
+          const tmp = sections[idx + 1];
+          sections[idx + 1] = sections[idx];
+          sections[idx] = tmp;
+          renderSections();
+        };
+
+        const delBtn = document.createElement("button");
+        delBtn.className = "small danger";
+        delBtn.textContent = "✕";
+        delBtn.onclick = () => {
+          if (!confirm(`Remove section "${sec.name || "Untitled"}"?`)) return;
+          sections.splice(idx, 1);
+          renderSections();
+        };
+
+        controls.appendChild(upBtn);
+        controls.appendChild(downBtn);
+        controls.appendChild(delBtn);
+
+        row.appendChild(orderSpan);
+        row.appendChild(nameInput);
+        row.appendChild(descInput);
+        row.appendChild(controls);
+        sectionsRowsEl.appendChild(row);
+      });
+    }
+
+    async function loadSections() {
+      sectionsStatusEl.textContent = "Loading sections…";
+      let used = "defaults";
+
+      // 1) Read overrides from localStorage (new key then legacy)
+      const overrideNew = readJSONSafe(SECTION_STORAGE_KEY);
+      const overrideLegacy = !overrideNew ? readJSONSafe(LEGACY_SECTION_STORAGE_KEY) : null;
+
+      let local = overrideNew || overrideLegacy;
+      let defaults = null;
+
+      // 2) Fetch defaults from depot.output.schema.json
+      defaults = await fetchJSON("depot.output.schema.json");
+
+      const candidate = sanitiseSectionSchema(
+        Array.isArray(local) && local.length ? local : defaults
+      );
+
+      sections = candidate;
+      sectionsStatusEl.innerHTML = `Loaded <strong>${sections.length}</strong> sections (${overrideNew || overrideLegacy ? "from browser storage" : "from depot.output.schema.json"}).`;
+      renderSections();
+    }
+
+    function saveSectionsToLocal() {
+      const cleaned = sanitiseSectionSchema(sections);
+      // Store as { sections: [...] } for clarity
+      const payload = { sections: cleaned };
+      localStorage.setItem(SECTION_STORAGE_KEY, JSON.stringify(payload));
+      sectionsStatusEl.innerHTML = `Saved <strong>${cleaned.length}</strong> sections to browser. Main app will pick these up on next load.`;
+    }
+
+    function exportSectionsJSON() {
+      const cleaned = sanitiseSectionSchema(sections);
+      const payload = { sections: cleaned };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+      const ts = new Date().toISOString().replace(/[:.]/g, "-");
+      const filename = `depot.sections.schema-${ts}.json`;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      sectionsStatusEl.innerHTML = `Exported <strong>${cleaned.length}</strong> sections as JSON file.`;
+    }
+
+    function importSectionsJSON(file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const data = JSON.parse(e.target.result);
+          const cleaned = sanitiseSectionSchema(data);
+          sections = cleaned;
+          localStorage.setItem(SECTION_STORAGE_KEY, JSON.stringify({ sections: cleaned }));
+          renderSections();
+          sectionsStatusEl.innerHTML = `Imported <strong>${cleaned.length}</strong> sections and saved to browser.`;
+        } catch (err) {
+          console.error(err);
+          sectionsStatusEl.classList.add("error");
+          sectionsStatusEl.innerHTML = `<strong>Error:</strong> Could not parse JSON file.`;
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    // --- Checklist editor state / rendering ---
+    const checklistRowsEl = document.getElementById("checklist-rows");
+    const checklistStatusEl = document.getElementById("checklist-status");
+    const checklistCountPill = document.getElementById("checklist-count-pill");
+
+    let checklist = [];
+
+    function renderChecklistEditor() {
+      checklistRowsEl.innerHTML = "";
+      if (!checklist.length) {
+        checklistRowsEl.innerHTML = '<div class="checklist-row"><span class="order">–</span><div class="hint" style="grid-column: span 5;">No checklist items yet. Add your first item above.</div></div>';
+        checklistCountPill.textContent = "0 items";
+        return;
+      }
+      checklistCountPill.textContent = checklist.length + (checklist.length === 1 ? " item" : " items");
+
+      checklist.forEach((item, idx) => {
+        const row = document.createElement("div");
+        row.className = "checklist-row";
+
+        const orderSpan = document.createElement("span");
+        orderSpan.className = "order";
+        orderSpan.textContent = idx + 1;
+
+        const idInput = document.createElement("input");
+        idInput.type = "text";
+        idInput.value = item.id || "";
+        idInput.placeholder = "ID (stable)";
+        idInput.oninput = () => {
+          checklist[idx].id = idInput.value.trim();
+        };
+
+        const groupInput = document.createElement("input");
+        groupInput.type = "text";
+        groupInput.value = item.group || "";
+        groupInput.placeholder = "Group (e.g. Boiler & controls)";
+        groupInput.oninput = () => {
+          checklist[idx].group = groupInput.value.trim();
+        };
+
+        const sectionInput = document.createElement("input");
+        sectionInput.type = "text";
+        sectionInput.value = item.section || "";
+        sectionInput.placeholder = "Depot section (optional)";
+        sectionInput.oninput = () => {
+          checklist[idx].section = sectionInput.value.trim();
+        };
+
+        const labelInput = document.createElement("input");
+        labelInput.type = "text";
+        labelInput.value = item.label || "";
+        labelInput.placeholder = "Question / label";
+        labelInput.oninput = () => {
+          checklist[idx].label = labelInput.value.trim();
+        };
+
+        const hintInput = document.createElement("input");
+        hintInput.type = "text";
+        hintInput.value = item.hint || "";
+        hintInput.placeholder = "Hint (optional)";
+        hintInput.oninput = () => {
+          checklist[idx].hint = hintInput.value.trim();
+        };
+
+        const controls = document.createElement("div");
+        controls.className = "row-controls";
+
+        const upBtn = document.createElement("button");
+        upBtn.className = "small secondary";
+        upBtn.textContent = "▲";
+        upBtn.disabled = idx === 0;
+        upBtn.onclick = () => {
+          if (idx === 0) return;
+          const tmp = checklist[idx - 1];
+          checklist[idx - 1] = checklist[idx];
+          checklist[idx] = tmp;
+          renderChecklistEditor();
+        };
+
+        const downBtn = document.createElement("button");
+        downBtn.className = "small secondary";
+        downBtn.textContent = "▼";
+        downBtn.disabled = idx === checklist.length - 1;
+        downBtn.onclick = () => {
+          if (idx === checklist.length - 1) return;
+          const tmp = checklist[idx + 1];
+          checklist[idx + 1] = checklist[idx];
+          checklist[idx] = tmp;
+          renderChecklistEditor();
+        };
+
+        const delBtn = document.createElement("button");
+        delBtn.className = "small danger";
+        delBtn.textContent = "✕";
+        delBtn.onclick = () => {
+          if (!confirm(`Remove checklist item "${item.label || item.id || "Untitled"}"?`)) return;
+          checklist.splice(idx, 1);
+          renderChecklistEditor();
+        };
+
+        controls.appendChild(upBtn);
+        controls.appendChild(downBtn);
+        controls.appendChild(delBtn);
+
+        row.appendChild(orderSpan);
+        row.appendChild(idInput);
+        row.appendChild(groupInput);
+        row.appendChild(sectionInput);
+        row.appendChild(labelInput);
+        row.appendChild(hintInput);
+        row.appendChild(controls);
+
+        checklistRowsEl.appendChild(row);
+      });
+    }
+
+    async function loadChecklist() {
+      checklistStatusEl.textContent = "Loading checklist…";
+
+      const override = sanitiseChecklistConfig(readJSONSafe(CHECKLIST_STORAGE_KEY));
+      const defaultsRaw = await fetchJSON("checklist.config.json");
+      const defaults = sanitiseChecklistConfig(defaultsRaw);
+
+      const candidate = override.length ? override : defaults;
+      checklist = candidate;
+
+      const source = override.length ? "browser storage" : "checklist.config.json";
+      checklistStatusEl.innerHTML = `Loaded <strong>${checklist.length}</strong> items (${source}).`;
+      renderChecklistEditor();
+    }
+
+    function saveChecklistToLocal() {
+      const cleaned = sanitiseChecklistConfig(checklist);
+      const payload = { items: cleaned };
+      localStorage.setItem(CHECKLIST_STORAGE_KEY, JSON.stringify(payload));
+      checklistStatusEl.innerHTML = `Saved <strong>${cleaned.length}</strong> checklist items to browser.`;
+    }
+
+    function exportChecklistJSON() {
+      const cleaned = sanitiseChecklistConfig(checklist);
+      const payload = { items: cleaned };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+      const ts = new Date().toISOString().replace(/[:.]/g, "-");
+      const filename = `depot.checklist-${ts}.json`;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      checklistStatusEl.innerHTML = `Exported <strong>${cleaned.length}</strong> checklist items as JSON file.`;
+    }
+
+    function importChecklistJSON(file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const data = JSON.parse(e.target.result);
+          const cleaned = sanitiseChecklistConfig(data);
+          checklist = cleaned;
+          localStorage.setItem(CHECKLIST_STORAGE_KEY, JSON.stringify({ items: cleaned }));
+          renderChecklistEditor();
+          checklistStatusEl.innerHTML = `Imported <strong>${cleaned.length}</strong> checklist items and saved to browser.`;
+        } catch (err) {
+          console.error(err);
+          checklistStatusEl.classList.add("error");
+          checklistStatusEl.innerHTML = `<strong>Error:</strong> Could not parse JSON file.`;
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    // --- Wire up buttons ---
+    document.getElementById("sections-add-btn").onclick = () => {
+      sections.push({
+        name: "",
+        description: "",
+        order: sections.length + 1
+      });
+      renderSections();
+    };
+    document.getElementById("sections-save-btn").onclick = saveSectionsToLocal;
+    document.getElementById("sections-export-btn").onclick = exportSectionsJSON;
+    document.getElementById("sections-import-btn").onclick = () => {
+      document.getElementById("sections-import-input").click();
+    };
+    document.getElementById("sections-import-input").onchange = (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      importSectionsJSON(file);
+      e.target.value = "";
+    };
+
+    document.getElementById("checklist-add-btn").onclick = () => {
+      checklist.push({
+        id: "",
+        group: "Checklist",
+        section: "",
+        label: "",
+        hint: ""
+      });
+      renderChecklistEditor();
+    };
+    document.getElementById("checklist-save-btn").onclick = saveChecklistToLocal;
+    document.getElementById("checklist-export-btn").onclick = exportChecklistJSON;
+    document.getElementById("checklist-import-btn").onclick = () => {
+      document.getElementById("checklist-import-input").click();
+    };
+    document.getElementById("checklist-import-input").onchange = (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      importChecklistJSON(file);
+      e.target.value = "";
+    };
+
+    // --- Boot ---
+    (async function boot() {
+      await loadSections();
+      await loadChecklist();
+    })();
+  </script>
 </body>
 </html>

@@ -410,6 +410,7 @@ import schemaConfig from "./depot.output.schema.json" assert { type: "json" };
 import checklistConfig from "./checklist.config.json" assert { type: "json" };
 
 const FUTURE_PLANS_NAME = "Future plans";
+const FUTURE_PLANS_DESCRIPTION = "Notes about any future work or follow-on visits.";
 
 function sanitiseSectionSchema(input) {
   const asArray = (value) => {
@@ -464,14 +465,11 @@ function sanitiseSectionSchema(input) {
   if (!future) {
     future = {
       name: FUTURE_PLANS_NAME,
-      description: "",
+      description: FUTURE_PLANS_DESCRIPTION,
       order: withoutFuture.length + 1
     };
-  } else {
-    future = {
-      ...future,
-      description: future.description || ""
-    };
+  } else if (!future.description) {
+    future = { ...future, description: FUTURE_PLANS_DESCRIPTION };
   }
 
   const final = [...withoutFuture, future].map((entry, idx) => ({

@@ -884,29 +884,35 @@ function renderChecklist(container, checkedIds, missingInfoFromServer) {
 }
 
 function refreshUiFromState() {
-  // 1. Customer summary
+  // 1) Customer summary
   customerSummaryEl.textContent = lastCustomerSummary || "(none)";
 
-  // 2. Ensure we have at least placeholder sections based on the schema
-  let baseSections = cloneDeep(lastRawSections || []);
+  // 2) Decide what sections to render
+  let sectionsToRender = [];
 
-  // If we don't yet have any sections from the worker BUT we DO have a schema,
-  // create empty sections for each schema entry so the headings always show.
-  if ((!baseSections || baseSections.length === 0) && Array.isArray(SECTION_SCHEMA) && SECTION_SCHEMA.length) {
-    baseSections = SECTION_SCHEMA.map((entry) => ({
+  // If we already have raw sections (from worker or autosave), use them
+  if (Array.isArray(lastRawSections) && lastRawSections.length) {
+    sectionsToRender = cloneDeep(lastRawSections);
+  } else if (Array.isArray(SECTION_SCHEMA) && SECTION_SCHEMA.length) {
+    // Otherwise, build placeholder sections directly from the schema
+    sectionsToRender = SECTION_SCHEMA.map((entry) => ({
       section: entry.name,
       plainText: "",
       naturalLanguage: ""
     }));
-    // Keep raw + processed in sync so later AI merges act on these placeholders
-    lastRawSections = cloneDeep(baseSections);
+
+    // Keep raw state in sync so later worker merges work as expected
+    lastRawSections = cloneDeep(sectionsToRender);
+  } else {
+    // No schema and no notes – nothing meaningful we can show
+    sectionsToRender = [];
   }
 
-  // 3. Run them through the post-processing / ordering / bulletification
-  const processed = postProcessSections(cloneDeep(baseSections || []));
+  // 3) Run through post-processing (ordering, Future plans last, bulletify etc.)
+  const processed = postProcessSections(cloneDeep(sectionsToRender));
   lastSections = processed;
 
-  // 4. Render depot sections in the bottom card
+  // 4) Render depot sections in the bottom card
   sectionsListEl.innerHTML = "";
   if (processed.length) {
     processed.forEach((sec) => {
@@ -920,11 +926,10 @@ function refreshUiFromState() {
       sectionsListEl.appendChild(div);
     });
   } else {
-    // No schema and no notes – nothing we can meaningfully show
     sectionsListEl.innerHTML = `<span class="small">No sections yet.</span>`;
   }
 
-  // 5. Parts list + checklist
+  // 5) Parts list + checklist
   renderPartsList(lastMaterials);
   renderChecklist(clarificationsEl, lastCheckedItems, lastMissingInfo);
 }

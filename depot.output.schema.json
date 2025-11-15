@@ -1,72 +1,72 @@
 [
   {
     "name": "Needs",
-    "description": "Key needs or must-haves called out by the customer.",
+    "description": "",
     "order": 1
   },
   {
     "name": "Working at heights",
-    "description": "Ladders, loft access, towers, scaffolds or special access kit.",
+    "description": "",
     "order": 2
   },
   {
     "name": "System characteristics",
-    "description": "What is coming out and what is going in; key system details that affect experience.",
+    "description": "",
     "order": 3
   },
   {
     "name": "Components that require assistance",
-    "description": "Items needing two-person lifts or specialist handling.",
+    "description": "",
     "order": 4
   },
   {
     "name": "Restrictions to work",
-    "description": "Parking limits, permits or building restrictions (including permissions).",
+    "description": "",
     "order": 5
   },
   {
     "name": "External hazards",
-    "description": "Asbestos, hazards, aggressive pets or notable site risks.",
+    "description": "",
     "order": 6
   },
   {
     "name": "Delivery notes",
-    "description": "Delivery constraints, storage space and timings.",
+    "description": "",
     "order": 7
   },
   {
     "name": "Office notes",
-    "description": "For the office team: planning, conservation, notifications.",
+    "description": "",
     "order": 8
   },
   {
     "name": "New boiler and controls",
-    "description": "What is being fitted: boiler, controls, flushing, filters.",
+    "description": "",
     "order": 9
   },
   {
     "name": "Flue",
-    "description": "Flue position, routing, plume kits and terminals.",
+    "description": "",
     "order": 10
   },
   {
     "name": "Pipe work",
-    "description": "Gas, condensate and system pipe alterations.",
+    "description": "",
     "order": 11
   },
   {
     "name": "Disruption",
-    "description": "Where work happens, making good, expected mess/disruption.",
+    "description": "",
     "order": 12
   },
   {
     "name": "Customer actions",
-    "description": "What the customer has agreed to do before/after the job.",
+    "description": "",
     "order": 13
   },
   {
     "name": "Future plans",
-    "description": "Notes about any future work or follow-on visits.",
+    "description": "",
     "order": 14
   }
 ]

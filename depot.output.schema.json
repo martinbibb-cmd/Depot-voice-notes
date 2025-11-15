@@ -1,72 +1,18 @@
-[
-  {
-    "name": "Needs",
-    "description": "Key needs or must-haves called out by the customer.",
-    "order": 1
-  },
-  {
-    "name": "Working at heights",
-    "description": "Ladders, loft access, towers, scaffolds or special access kit.",
-    "order": 2
-  },
-  {
-    "name": "System characteristics",
-    "description": "What is coming out and what is going in; key system details that affect experience.",
-    "order": 3
-  },
-  {
-    "name": "Components that require assistance",
-    "description": "Items needing two-person lifts or specialist handling.",
-    "order": 4
-  },
-  {
-    "name": "Restrictions to work",
-    "description": "Parking limits, permits or building restrictions (including permissions).",
-    "order": 5
-  },
-  {
-    "name": "External hazards",
-    "description": "Asbestos, hazards, aggressive pets or notable site risks.",
-    "order": 6
-  },
-  {
-    "name": "Delivery notes",
-    "description": "Delivery constraints, storage space and timings.",
-    "order": 7
-  },
-  {
-    "name": "Office notes",
-    "description": "For the office team: planning, conservation, notifications.",
-    "order": 8
-  },
-  {
-    "name": "New boiler and controls",
-    "description": "What is being fitted: boiler, controls, flushing, filters.",
-    "order": 9
-  },
-  {
-    "name": "Flue",
-    "description": "Flue position, routing, plume kits and terminals.",
-    "order": 10
-  },
-  {
-    "name": "Pipe work",
-    "description": "Gas, condensate and system pipe alterations.",
-    "order": 11
-  },
-  {
-    "name": "Disruption",
-    "description": "Where work happens, making good, expected mess/disruption.",
-    "order": 12
-  },
-  {
-    "name": "Customer actions",
-    "description": "What the customer has agreed to do before/after the job.",
-    "order": 13
-  },
-  {
-    "name": "Future plans",
-    "description": "Notes about any future work or follow-on visits.",
-    "order": 14
-  }
-]
+{
+  "sections": [
+    { "name": "Needs", "description": "" },
+    { "name": "Working at heights", "description": "" },
+    { "name": "System characteristics", "description": "" },
+    { "name": "Components that require assistance", "description": "" },
+    { "name": "Restrictions to work", "description": "" },
+    { "name": "External hazards", "description": "" },
+    { "name": "Delivery notes", "description": "" },
+    { "name": "Office notes", "description": "" },
+    { "name": "New boiler and controls", "description": "" },
+    { "name": "Flue", "description": "" },
+    { "name": "Pipe work", "description": "" },
+    { "name": "Disruption", "description": "" },
+    { "name": "Customer actions", "description": "" },
+    { "name": "Future plans", "description": "Notes about any future work or follow-on visits." }
+  ]
+}

@@ -2,6 +2,7 @@ import {
   loadWorkerEndpoint,
   isWorkerEndpointStorageKey
 } from "../src/app/worker-config.js";
+import { loadSchema } from "./schema.js";
 
 // --- CONFIG / STORAGE KEYS ---
 const SECTION_STORAGE_KEY = "depot.sectionSchema";
@@ -92,41 +93,6 @@ function sanitiseChecklistArray(value) {
   return cleaned;
 }
 
-async function loadChecklistConfig() {
-  let defaultConfig = [];
-  try {
-    const res = await fetch("checklist.config.json", { cache: "no-store" });
-    if (res.ok) {
-      const data = await res.json();
-      defaultConfig = sanitiseChecklistArray(data);
-    }
-  } catch (err) {
-    console.warn("Failed to fetch default checklist", err);
-  }
-
-  let local = null;
-  try {
-    local = JSON.parse(localStorage.getItem(CHECKLIST_STORAGE_KEY) || "null");
-  } catch (_) {
-    local = null;
-  }
-
-  const localConfig = sanitiseChecklistArray(local);
-  const finalConfig = localConfig.length ? localConfig : defaultConfig;
-
-  return sanitiseChecklistArray(finalConfig);
-}
-
-function saveLocalChecklistConfig(cfg) {
-  const cleaned = sanitiseChecklistArray(cfg);
-  try {
-    localStorage.setItem(CHECKLIST_STORAGE_KEY, JSON.stringify(cleaned));
-  } catch (err) {
-    console.warn("Failed to persist checklist override", err);
-  }
-  return cleaned;
-}
-
 let mediaRecorder = null;
 let mediaStream = null;
 let sessionAudioChunks = [];
@@ -147,21 +113,6 @@ const LIVE_CHUNK_INTERVAL_MS = 20000;
 let pendingFinishSend = false;
 
 // --- HELPERS ---
-function readStoredSectionOverride() {
-  const keys = [SECTION_STORAGE_KEY, LEGACY_SECTION_STORAGE_KEY];
-  for (let i = 0; i < keys.length; i += 1) {
-    const key = keys[i];
-    try {
-      const raw = localStorage.getItem(key);
-      if (!raw) continue;
-      return JSON.parse(raw);
-    } catch (_) {
-      continue;
-    }
-  }
-  return null;
-}
-
 function sanitiseSectionSchema(input) {
   const asArray = (value) => {
     if (!value) return [];
@@ -231,35 +182,6 @@ function sanitiseSectionSchema(input) {
   return final;
 }
 
-async function loadSectionSchema() {
-  let defaultSchema = [];
-  try {
-    const res = await fetch("depot.output.schema.json", { cache: "no-store" });
-    if (res.ok) {
-      const json = await res.json();
-      defaultSchema = sanitiseSectionSchema(json);
-    }
-  } catch (err) {
-    console.warn("Failed to load default section schema", err);
-  }
-
-  let localOverride = null;
-  try {
-    localOverride = readStoredSectionOverride();
-  } catch (_) {
-    localOverride = null;
-  }
-
-  const candidate = Array.isArray(localOverride) && localOverride.length > 0
-    ? sanitiseSectionSchema(localOverride)
-    : defaultSchema;
-
-  if (candidate.length) {
-    return candidate;
-  }
-  return sanitiseSectionSchema([]);
-}
-
 function rebuildSectionState(schema) {
   SECTION_SCHEMA = Array.isArray(schema) ? schema.map((entry, idx) => ({
     name: entry.name,
@@ -299,8 +221,7 @@ async function ensureSectionSchema() {
   if (schemaLoaded && SECTION_SCHEMA.length) {
     return SECTION_SCHEMA;
   }
-  const schema = await loadSectionSchema();
-  rebuildSectionState(schema);
+  await ensureSchemaIntoState();
   return SECTION_SCHEMA;
 }
 
@@ -310,6 +231,8 @@ function clearCachedSchema() {
   SECTION_NAMES = [];
   SECTION_ORDER_MAP = new Map();
   SECTION_KEY_LOOKUP = new Map();
+  CHECKLIST_SOURCE = [];
+  CHECKLIST_ITEMS = [];
 }
 
 function normaliseSectionKey(name) {
@@ -1633,29 +1556,42 @@ function scheduleNextChunk() {
 // --- SETTINGS ---
 async function ensureSchemaIntoState() {
   try {
-    await ensureSectionSchema();
+    // Load unified schema from js/schema.js
+    const unified = await loadSchema();
+    const sections = Array.isArray(unified.sections) ? unified.sections : [];
+    const checklist = unified.checklist || {};
+    const items = Array.isArray(checklist.items)
+      ? checklist.items
+      : sanitiseChecklistArray(checklist);
+
+    // Build SECTION_SCHEMA using the section names, ensuring Future plans is last
+    const sectionEntries = sections.map((name, idx) => ({
+      name,
+      description: name === FUTURE_PLANS_NAME ? FUTURE_PLANS_DESCRIPTION : "",
+      order: idx + 1
+    }));
+
+    const sanitised = sanitiseSectionSchema(sectionEntries);
+    rebuildSectionState(sanitised);
+
+    // Build checklist state from unified schema
+    CHECKLIST_SOURCE = items;
+    CHECKLIST_ITEMS = normaliseChecklistConfig(CHECKLIST_SOURCE);
+
+    schemaLoaded = true;
   } catch (err) {
     console.warn("Falling back to minimal schema", err);
     const fallback = sanitiseSectionSchema([]);
     rebuildSectionState(fallback);
-  }
-}
-
-async function loadChecklistConfigIntoState() {
-  try {
-    CHECKLIST_SOURCE = await loadChecklistConfig();
-  } catch (err) {
-    console.warn("Failed to load checklist config", err);
     CHECKLIST_SOURCE = [];
+    CHECKLIST_ITEMS = [];
+    schemaLoaded = true;
   }
-
-  CHECKLIST_ITEMS = normaliseChecklistConfig(CHECKLIST_SOURCE);
 }
 
 async function loadStaticConfig() {
   WORKER_URL = loadWorkerEndpoint();
   await ensureSchemaIntoState();
-  await loadChecklistConfigIntoState();
   refreshUiFromState();
 }
 
@@ -1669,17 +1605,17 @@ window.addEventListener("storage", (event) => {
   if (isWorkerEndpointStorageKey(event.key)) {
     WORKER_URL = loadWorkerEndpoint();
   }
-  if (event.key === SECTION_STORAGE_KEY || event.key === LEGACY_SECTION_STORAGE_KEY) {
+  if (
+    event.key === SECTION_STORAGE_KEY ||
+    event.key === LEGACY_SECTION_STORAGE_KEY ||
+    event.key === CHECKLIST_STORAGE_KEY
+  ) {
     clearCachedSchema();
-    ensureSchemaIntoState().then(() => {
-      refreshUiFromState();
-    }).catch((err) => console.warn("Failed to refresh schema after storage event", err));
-  }
-  if (event.key === CHECKLIST_STORAGE_KEY) {
-    loadChecklistConfigIntoState().then(() => {
-      renderChecklist(clarificationsEl, lastCheckedItems, lastMissingInfo);
-      refreshUiFromState();
-    }).catch((err) => console.warn("Failed to refresh checklist after storage event", err));
+    ensureSchemaIntoState()
+      .then(() => {
+        refreshUiFromState();
+      })
+      .catch((err) => console.warn("Failed to refresh schema after storage event", err));
   }
 });
 

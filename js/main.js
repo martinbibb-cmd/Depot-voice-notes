@@ -883,6 +883,8 @@ function renderChecklist(container, checkedIds, missingInfoFromServer) {
   }
 }
 
+// NOTE: Assumes SECTION_SCHEMA has been populated via loadStaticConfig()/ensureSectionSchema().
+// This allows placeholder sections (schema headings) to appear before any worker output arrives.
 function refreshUiFromState() {
   // 1) Customer summary
   customerSummaryEl.textContent = lastCustomerSummary || "(none)";

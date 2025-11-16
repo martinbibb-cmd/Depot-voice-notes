@@ -146,6 +146,10 @@
       white-space: pre-wrap;
       font-size: .64rem;
     }
+    .section-item pre.placeholder {
+      color: var(--muted);
+      font-style: italic;
+    }
     .statusbar {
       font-size: .6rem;
       color: var(--muted);
@@ -204,6 +208,23 @@
       padding: 6px 8px;
       border-radius: 8px;
       font-weight: 500;
+    }
+    .debug-output {
+      background: #0f172a;
+      color: #e2e8f0;
+      border-radius: 10px;
+      padding: 8px;
+      font-size: .62rem;
+      max-height: 220px;
+      overflow: auto;
+      margin: 0;
+      white-space: pre-wrap;
+      font-family: ui-monospace, SFMono-Regular, SFMono, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    }
+    .debug-output.empty {
+      background: #f8fafc;
+      color: var(--muted);
+      font-style: italic;
     }
   </style>
 </head>
@@ -279,6 +300,13 @@
       <div id="sectionsList" class="sections-list">
         <span class="small">No sections yet.</span>
       </div>
+    </div>
+    <div class="card">
+      <div class="card-title">
+        Worker debug
+        <span class="small">Raw payload</span>
+      </div>
+      <pre id="workerDebug" class="debug-output empty">No worker response yet.</pre>
     </div>
   </section>
 

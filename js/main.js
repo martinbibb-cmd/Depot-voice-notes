@@ -12,6 +12,26 @@ const LS_AUTOSAVE_KEY = "surveyBrainAutosave";
 const FUTURE_PLANS_NAME = "Future plans";
 const FUTURE_PLANS_DESCRIPTION = "Notes about any future work or follow-on visits.";
 
+// --- Small helpers shared by config loaders ---
+function safeParseJSON(raw, fallback = null) {
+  try {
+    if (!raw) return fallback;
+    return JSON.parse(raw);
+  } catch (_) {
+    return fallback;
+  }
+}
+
+async function fetchJSONNoStore(path) {
+  try {
+    const res = await fetch(path, { cache: "no-store" });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (_) {
+    return null;
+  }
+}
+
 let WORKER_URL = loadWorkerEndpoint();
 
 // --- ELEMENTS ---
@@ -90,6 +110,39 @@ function sanitiseChecklistArray(value) {
     cleaned.push(copy);
   });
 
+  return cleaned;
+}
+
+async function loadChecklistConfig() {
+  // 1) Try local override from browser storage
+  const localRaw = safeParseJSON(localStorage.getItem(CHECKLIST_STORAGE_KEY), null);
+
+  // 2) Try defaults from checklist.config.json
+  const defaultsRaw = await fetchJSONNoStore("checklist.config.json");
+
+  const localClean = sanitiseChecklistArray(localRaw);
+  const defaultsClean = sanitiseChecklistArray(defaultsRaw);
+
+  // 3) Prefer local override if it has content
+  const candidate = localClean.length ? localClean : defaultsClean;
+
+  if (!candidate.length) {
+    console.warn("Checklist config: no items from localStorage or checklist.config.json");
+  } else {
+    const sourceLabel = localClean.length ? "browser override" : "checklist.config.json";
+    console.log(`Checklist config: loaded ${candidate.length} items (${sourceLabel})`);
+  }
+
+  return candidate;
+}
+
+function saveLocalChecklistConfig(cfg) {
+  const cleaned = sanitiseChecklistArray(cfg);
+  try {
+    localStorage.setItem(CHECKLIST_STORAGE_KEY, JSON.stringify(cleaned));
+  } catch (err) {
+    console.warn("Failed to persist checklist override", err);
+  }
   return cleaned;
 }
 
@@ -883,41 +936,91 @@ function renderChecklist(container, checkedIds, missingInfoFromServer) {
   }
 }
 
+async function loadChecklistConfigIntoState() {
+  try {
+    CHECKLIST_SOURCE = await loadChecklistConfig();
+  } catch (err) {
+    console.warn("Failed to load checklist config; falling back to empty list.", err);
+    CHECKLIST_SOURCE = [];
+  }
+
+  CHECKLIST_ITEMS = normaliseChecklistConfig(CHECKLIST_SOURCE);
+
+  console.log("Checklist items in main app:", CHECKLIST_ITEMS.length);
+
+  // Re-render checklist immediately so you see items even before the AI ticks anything
+  renderChecklist(clarificationsEl, lastCheckedItems, lastMissingInfo);
+}
+
 // NOTE: Assumes SECTION_SCHEMA has been populated via loadStaticConfig()/ensureSectionSchema().
 // This allows placeholder sections (schema headings) to appear before any worker output arrives.
 function refreshUiFromState() {
   // 1) Customer summary
   customerSummaryEl.textContent = lastCustomerSummary || "(none)";
 
-  // 2) Decide what sections to render
-  let sectionsToRender = [];
+  // 2) Build a lookup of any section content we already have (from worker/autosave)
+  const raw = Array.isArray(lastRawSections) ? lastRawSections : [];
+  const sectionByName = new Map();
+  raw.forEach((entry) => {
+    if (!entry || !entry.section) return;
+    const name = String(entry.section).trim();
+    if (!name) return;
+    const canonical = resolveRequiredSectionName(name) || name;
+    if (!canonical || canonical.toLowerCase() === "arse_cover_notes") return;
+    sectionByName.set(canonical, {
+      section: canonical,
+      plainText: entry.plainText || "",
+      naturalLanguage: entry.naturalLanguage || ""
+    });
+  });
 
-  // If we already have raw sections (from worker or autosave), use them
-  if (Array.isArray(lastRawSections) && lastRawSections.length) {
-    sectionsToRender = cloneDeep(lastRawSections);
-  } else if (Array.isArray(SECTION_SCHEMA) && SECTION_SCHEMA.length) {
-    // Otherwise, build placeholder sections directly from the schema
-    sectionsToRender = SECTION_SCHEMA.map((entry) => ({
-      section: entry.name,
-      plainText: "",
-      naturalLanguage: ""
+  // 3) Decide which list of names to drive the UI from:
+  //    Prefer SECTION_SCHEMA (schema / settings override). If that’s empty, fall back to whatever
+  //    the worker / autosave has given us.
+  let sectionModels = [];
+  if (Array.isArray(SECTION_SCHEMA) && SECTION_SCHEMA.length) {
+    sectionModels = SECTION_SCHEMA.map((entry) => ({
+      name: entry.name,
+      description: entry.description || ""
     }));
-
-    // Keep raw state in sync so later worker merges work as expected
-    lastRawSections = cloneDeep(sectionsToRender);
   } else {
-    // No schema and no notes – nothing meaningful we can show
-    sectionsToRender = [];
+    sectionModels = raw.map((entry) => ({
+      name: entry && entry.section ? String(entry.section).trim() : "",
+      description: ""
+    }));
   }
 
-  // 3) Run through post-processing (ordering, Future plans last, bulletify etc.)
-  const processed = postProcessSections(cloneDeep(sectionsToRender));
-  lastSections = processed;
+  const resolved = [];
 
-  // 4) Render depot sections in the bottom card
+  sectionModels.forEach((model) => {
+    const name = (model && model.name) ? String(model.name).trim() : "";
+    if (!name || name.toLowerCase() === "arse_cover_notes") return;
+
+    const existing = sectionByName.get(name) || {
+      section: name,
+      plainText: "",
+      naturalLanguage: ""
+    };
+
+    // Make sure plainText is in depot-semi-bullet form
+    const formattedPlain = existing.plainText
+      ? formatPlainTextForSection(name, existing.plainText)
+      : "";
+
+    resolved.push({
+      section: name,
+      plainText: formattedPlain,
+      naturalLanguage: existing.naturalLanguage || ""
+    });
+  });
+
+  // Cache for export button etc.
+  lastSections = resolved;
+
+  // 4) Render into the bottom card
   sectionsListEl.innerHTML = "";
-  if (processed.length) {
-    processed.forEach((sec) => {
+  if (resolved.length) {
+    resolved.forEach((sec) => {
       const div = document.createElement("div");
       div.className = "section-item";
       div.innerHTML = `
@@ -931,7 +1034,7 @@ function refreshUiFromState() {
     sectionsListEl.innerHTML = `<span class="small">No sections yet.</span>`;
   }
 
-  // 5) Parts list + checklist
+  // 5) Parts + checklist
   renderPartsList(lastMaterials);
   renderChecklist(clarificationsEl, lastCheckedItems, lastMissingInfo);
 }
@@ -1589,10 +1692,6 @@ async function ensureSchemaIntoState() {
     // Load unified schema from js/schema.js
     const unified = await loadSchema();
     const sections = Array.isArray(unified.sections) ? unified.sections : [];
-    const checklist = unified.checklist || {};
-    const items = Array.isArray(checklist.items)
-      ? checklist.items
-      : sanitiseChecklistArray(checklist);
 
     // Build SECTION_SCHEMA using the section names, ensuring Future plans is last
     const sectionEntries = sections.map((name, idx) => ({
@@ -1604,19 +1703,15 @@ async function ensureSchemaIntoState() {
     const sanitised = sanitiseSectionSchema(sectionEntries);
     rebuildSectionState(sanitised);
 
-    // Build checklist state from unified schema
-    CHECKLIST_SOURCE = items;
-    CHECKLIST_ITEMS = normaliseChecklistConfig(CHECKLIST_SOURCE);
-
     schemaLoaded = true;
   } catch (err) {
     console.warn("Falling back to minimal schema", err);
     const fallback = sanitiseSectionSchema([]);
     rebuildSectionState(fallback);
-    CHECKLIST_SOURCE = [];
-    CHECKLIST_ITEMS = [];
     schemaLoaded = true;
   }
+
+  await loadChecklistConfigIntoState();
 }
 
 async function loadStaticConfig() {

@@ -3,8 +3,6 @@
 const SECTION_STORAGE_KEY = "depot.sectionSchema";
 const LEGACY_SECTION_STORAGE_KEY = "surveybrain-schema";
 const CHECKLIST_STORAGE_KEY = "depot.checklistConfig";
-const FUTURE_PLANS_NAME = "Future plans";
-const FUTURE_PLANS_DESCRIPTION = "Notes about any future work or follow-on visits.";
 
 // Optional unified key for future versions (not required by the app yet)
 const LS_SCHEMA_KEY = "depot.notesSchema.v1";
@@ -69,20 +67,7 @@ function sanitiseSectionSchema(input) {
     });
   });
 
-  // Ensure Future plans exists and is last
-  let withoutFuture = unique.filter((entry) => entry.name !== FUTURE_PLANS_NAME);
-  let future = unique.find((entry) => entry.name === FUTURE_PLANS_NAME);
-  if (!future) {
-    future = {
-      name: FUTURE_PLANS_NAME,
-      description: FUTURE_PLANS_DESCRIPTION,
-      order: withoutFuture.length + 1
-    };
-  } else if (!future.description) {
-    future = { ...future, description: FUTURE_PLANS_DESCRIPTION };
-  }
-
-  const final = [...withoutFuture, future].map((entry, idx) => ({
+  const final = unique.map((entry, idx) => ({
     name: entry.name,
     description: entry.description || "",
     order: idx + 1
@@ -226,10 +211,6 @@ export function normaliseSchema(raw, fallback) {
       .filter((s) => s && s.toLowerCase() !== "arse_cover_notes");
   }
 
-  // Ensure Future plans exists and is last
-  sections = sections.filter((s) => s !== FUTURE_PLANS_NAME);
-  sections.push(FUTURE_PLANS_NAME);
-
   // Normalise checklist
   let checklist = raw.checklist;
   if (!checklist || typeof checklist !== "object") {
@@ -308,7 +289,7 @@ export function saveSchema(schema) {
   // Sections format: an array of { name, description, order }
   const legacySections = normalised.sections.map((name, idx) => ({
     name,
-    description: name === FUTURE_PLANS_NAME ? FUTURE_PLANS_DESCRIPTION : "",
+    description: "",
     order: idx + 1
   }));
   try {

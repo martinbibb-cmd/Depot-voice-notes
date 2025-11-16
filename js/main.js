@@ -9,8 +9,6 @@ const SECTION_STORAGE_KEY = "depot.sectionSchema";
 const LEGACY_SECTION_STORAGE_KEY = "surveybrain-schema";
 const CHECKLIST_STORAGE_KEY = "depot.checklistConfig";
 const LS_AUTOSAVE_KEY = "surveyBrainAutosave";
-const FUTURE_PLANS_NAME = "Future plans";
-const FUTURE_PLANS_DESCRIPTION = "Notes about any future work or follow-on visits.";
 
 // --- Small helpers shared by config loaders ---
 function safeParseJSON(raw, fallback = null) {
@@ -55,6 +53,7 @@ const partsListEl = document.getElementById("partsList");
 const voiceErrorEl = document.getElementById("voice-error");
 const sleepWarningEl = document.getElementById("sleep-warning");
 const settingsBtn = document.getElementById("settingsBtn");
+const workerDebugEl = document.getElementById("workerDebug");
 
 // --- STATE ---
 let lastMaterials = [];
@@ -65,8 +64,9 @@ let lastMissingInfo = [];
 let lastCustomerSummary = "";
 let wasBackgroundedDuringSession = false;
 let pauseReason = null;
+let lastWorkerPayload = null;
 let SECTION_SCHEMA = [];
-let SECTION_NAMES = [];
+let SECTION_ORDER = [];
 let SECTION_ORDER_MAP = new Map();
 let SECTION_KEY_LOOKUP = new Map();
 let schemaLoaded = false;
@@ -214,19 +214,7 @@ function sanitiseSectionSchema(input) {
     });
   });
 
-  let withoutFuture = unique.filter((entry) => entry.name !== FUTURE_PLANS_NAME);
-  let future = unique.find((entry) => entry.name === FUTURE_PLANS_NAME);
-  if (!future) {
-    future = {
-      name: FUTURE_PLANS_NAME,
-      description: FUTURE_PLANS_DESCRIPTION,
-      order: withoutFuture.length + 1
-    };
-  } else if (!future.description) {
-    future = { ...future, description: FUTURE_PLANS_DESCRIPTION };
-  }
-
-  const final = [...withoutFuture, future].map((entry, idx) => ({
+  const final = unique.map((entry, idx) => ({
     name: entry.name,
     description: entry.description || "",
     order: idx + 1
@@ -241,7 +229,7 @@ function rebuildSectionState(schema) {
     description: entry.description || "",
     order: typeof entry.order === "number" ? entry.order : idx + 1
   })) : [];
-  SECTION_NAMES = SECTION_SCHEMA.map((entry) => entry.name);
+  SECTION_ORDER = SECTION_SCHEMA.map((entry) => entry.name);
   SECTION_ORDER_MAP = new Map();
   SECTION_KEY_LOOKUP = new Map();
 
@@ -281,7 +269,7 @@ async function ensureSectionSchema() {
 function clearCachedSchema() {
   schemaLoaded = false;
   SECTION_SCHEMA = [];
-  SECTION_NAMES = [];
+  SECTION_ORDER = [];
   SECTION_ORDER_MAP = new Map();
   SECTION_KEY_LOOKUP = new Map();
   CHECKLIST_SOURCE = [];
@@ -440,7 +428,7 @@ function mergeSectionsPreservingRequired(previousSections, incomingSections) {
   const incomingPartition = partitionSectionsByRequirement(incomingSections);
   const merged = [];
 
-  const canonicalNames = SECTION_NAMES.length ? SECTION_NAMES : SECTION_SCHEMA.map((entry) => entry.name);
+  const canonicalNames = SECTION_ORDER.length ? SECTION_ORDER : SECTION_SCHEMA.map((entry) => entry.name);
   canonicalNames.forEach((name) => {
     const mergedEntry = combineSectionEntries(
       prevPartition.required.get(name),
@@ -521,6 +509,30 @@ function setStatus(msg) {
 }
 function cloneDeep(val) {
   try { return JSON.parse(JSON.stringify(val)); } catch (_) { return val; }
+}
+
+function renderWorkerDebug() {
+  if (!workerDebugEl) return;
+  if (!lastWorkerPayload) {
+    workerDebugEl.textContent = "No worker response yet.";
+    workerDebugEl.classList.add("empty");
+    return;
+  }
+  try {
+    workerDebugEl.textContent = JSON.stringify(lastWorkerPayload, null, 2);
+  } catch (_) {
+    workerDebugEl.textContent = String(lastWorkerPayload);
+  }
+  workerDebugEl.classList.remove("empty");
+}
+
+function setWorkerDebugPayload(payload) {
+  if (payload) {
+    lastWorkerPayload = cloneDeep(payload);
+  } else {
+    lastWorkerPayload = null;
+  }
+  renderWorkerDebug();
 }
 
 function requireWorkerBaseUrl() {
@@ -700,8 +712,14 @@ function buildVoiceRequestPayload(transcript, schema = SECTION_SCHEMA) {
 function normaliseSectionsFromResponse(data, schema = SECTION_SCHEMA) {
   if (!data || typeof data !== "object") return [];
   const canonicalSchema = Array.isArray(schema) ? schema : [];
-  const orderedNames = canonicalSchema.map((entry) => entry.name).filter(Boolean);
-  if (!orderedNames.length) return [];
+  let orderedNames = canonicalSchema.map((entry) => (entry && entry.name ? entry.name : "")).filter(Boolean);
+  if (!orderedNames.length && SECTION_ORDER.length) {
+    orderedNames = SECTION_ORDER.slice();
+  }
+  if (!orderedNames.length) {
+    data.sections = [];
+    return [];
+  }
 
   const rawSections = Array.isArray(data.sections) ? data.sections : [];
   const sectionMap = new Map();
@@ -734,8 +752,8 @@ function normaliseSectionsFromResponse(data, schema = SECTION_SCHEMA) {
     missing.push(name);
     return {
       section: name,
-      plainText: "• No additional notes;",
-      naturalLanguage: "No additional notes."
+      plainText: "",
+      naturalLanguage: ""
     };
   });
 
@@ -1023,10 +1041,16 @@ function refreshUiFromState() {
     resolved.forEach((sec) => {
       const div = document.createElement("div");
       div.className = "section-item";
+      const plainText = typeof sec.plainText === "string" ? sec.plainText.trim() : "";
+      const naturalLanguage = typeof sec.naturalLanguage === "string" ? sec.naturalLanguage.trim() : "";
+      const preClassAttr = plainText ? "" : " class=\"placeholder\"";
+      const naturalMarkup = naturalLanguage
+        ? `<p class="small" style="margin-top:3px;">${naturalLanguage}</p>`
+        : "";
       div.innerHTML = `
         <h4>${sec.section}</h4>
-        <pre>${sec.plainText || ""}</pre>
-        <p class="small" style="margin-top:3px;">${sec.naturalLanguage || ""}</p>
+        <pre${preClassAttr}>${plainText || "No bullets yet."}</pre>
+        ${naturalMarkup}
       `;
       sectionsListEl.appendChild(div);
     });
@@ -1139,6 +1163,7 @@ async function sendText() {
       parseError.voiceMessage = parseError.message;
       throw parseError;
     }
+    setWorkerDebugPayload(data);
     normaliseSectionsFromResponse(data, schemaSnapshot);
     applyVoiceResult(data);
     setStatus("Done.");
@@ -1179,6 +1204,7 @@ async function sendAudio(blob) {
       parseError.voiceMessage = parseError.message;
       throw parseError;
     }
+    setWorkerDebugPayload(data);
     normaliseSectionsFromResponse(data, schemaSnapshot);
     applyVoiceResult(data);
     setStatus("Audio processed.");
@@ -1373,6 +1399,7 @@ loadSessionInput.onchange = async (e) => {
     const normalisedFromSession = normaliseSectionsFromResponse({ sections: lastRawSections }, SECTION_SCHEMA);
     lastRawSections = Array.isArray(normalisedFromSession) ? normalisedFromSession : [];
     refreshUiFromState();
+    setWorkerDebugPayload(null);
     setStatus("Session loaded.");
     clearSleepWarning();
   } catch (err) {
@@ -1647,6 +1674,7 @@ async function sendTranscriptChunkToWorker(force = false) {
       showVoiceError("AI response wasn't in the expected format. Please try again.");
       return false;
     }
+    setWorkerDebugPayload(data);
     normaliseSectionsFromResponse(data, schemaSnapshot);
     applyVoiceResult(data);
     lastSentTranscript = fullTranscript;
@@ -1693,10 +1721,10 @@ async function ensureSchemaIntoState() {
     const unified = await loadSchema();
     const sections = Array.isArray(unified.sections) ? unified.sections : [];
 
-    // Build SECTION_SCHEMA using the section names, ensuring Future plans is last
+    // Build SECTION_SCHEMA using the section names, preserving their configured order
     const sectionEntries = sections.map((name, idx) => ({
       name,
-      description: name === FUTURE_PLANS_NAME ? FUTURE_PLANS_DESCRIPTION : "",
+      description: "",
       order: idx + 1
     }));
 
@@ -1826,6 +1854,7 @@ function resetSessionState() {
   localStorage.removeItem(LS_AUTOSAVE_KEY);
   clearVoiceError();
   clearSleepWarning();
+  setWorkerDebugPayload(null);
   refreshUiFromState();
   updateLiveControls();
   setStatus("Ready for new job.");
@@ -1853,6 +1882,7 @@ loadStaticConfig().catch((err) => {
   console.warn("Failed initial config load", err);
 });
 renderChecklist(clarificationsEl, [], []);
+renderWorkerDebug();
 committedTranscript = transcriptInput.value.trim();
 lastSentTranscript = committedTranscript;
 updateLiveControls();
@@ -1877,6 +1907,7 @@ setStatus("Boot OK – ready to test.");
     const normalisedFromAutosave = normaliseSectionsFromResponse({ sections: lastRawSections }, SECTION_SCHEMA);
     lastRawSections = Array.isArray(normalisedFromAutosave) ? normalisedFromAutosave : [];
     refreshUiFromState();
+    setWorkerDebugPayload(null);
     showSleepWarning(
       "Recovered an auto-saved session. Check details, then tap Start for a new visit or Resume to continue."
     );

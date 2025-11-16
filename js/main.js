@@ -393,6 +393,56 @@ function normaliseDepotSections(rawSections) {
   return ordered;
 }
 
+function cleanSectionContent(section) {
+  if (!section || typeof section !== "object") return section;
+
+  const cleaned = { ...section };
+
+  if (typeof cleaned.plainText === "string") {
+    const rawLines = cleaned.plainText
+      .split(/;\s*\n|\n+|;/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+
+    const seen = new Set();
+    let uniqueLines = [];
+    rawLines.forEach((line) => {
+      const key = line.toLowerCase();
+      if (seen.has(key)) return;
+      seen.add(key);
+      uniqueLines.push(line);
+    });
+
+    const hasDetail = uniqueLines.some((line) => !/^no\b/i.test(line));
+    if (hasDetail) {
+      uniqueLines = uniqueLines.filter((line) => !/^no\b/i.test(line));
+    }
+
+    cleaned.plainText = uniqueLines.length ? `${uniqueLines.join("; ")};` : "";
+  }
+
+  if (typeof cleaned.naturalLanguage === "string") {
+    const paras = cleaned.naturalLanguage
+      .split(/\n+/)
+      .map((p) => p.trim())
+      .filter(Boolean);
+    if (paras.length > 1) {
+      cleaned.naturalLanguage = paras[paras.length - 1];
+    } else if (paras.length === 1) {
+      cleaned.naturalLanguage = paras[0];
+    } else {
+      cleaned.naturalLanguage = "";
+    }
+  }
+
+  return cleaned;
+}
+
+function cleanSectionsList(sections) {
+  if (!Array.isArray(sections)) return [];
+  return sections.map((section) => cleanSectionContent(section));
+}
+
 function getCanonicalSectionNames(schemaOverride) {
   if (Array.isArray(schemaOverride) && schemaOverride.length) {
     return schemaOverride
@@ -447,7 +497,8 @@ function resolveRequiredSectionName(name) {
 }
 
 function normaliseSectionsForState(rawSections) {
-  return normaliseDepotSections(rawSections);
+  const normalised = normaliseDepotSections(rawSections);
+  return cleanSectionsList(normalised);
 }
 
 function syncSectionsState(rawSections = lastRawSections) {

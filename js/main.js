@@ -10,6 +10,24 @@ const LEGACY_SECTION_STORAGE_KEY = "surveybrain-schema";
 const CHECKLIST_STORAGE_KEY = "depot.checklistConfig";
 const LS_AUTOSAVE_KEY = "surveyBrainAutosave";
 
+// Canonical Depot notes section order fallback
+const DEFAULT_DEPOT_SECTION_ORDER = [
+  "Needs",
+  "Working at heights",
+  "System characteristics",
+  "Components that require assistance",
+  "Restrictions to work",
+  "External hazards",
+  "Delivery notes",
+  "Office notes",
+  "New boiler and controls",
+  "Flue",
+  "Pipe work",
+  "Disruption",
+  "Customer actions",
+  "Future plans"
+];
+
 // --- Small helpers shared by config loaders ---
 function safeParseJSON(raw, fallback = null) {
   try {
@@ -62,9 +80,17 @@ if (typeof window !== "undefined") {
     lastWorkerResponse: null,
     lastNormalisedSections: []
   };
+  window.__depotDebug = window.__depotDebug || {
+    lastWorkerResponse: null,
+    sections: []
+  };
 }
 
 // --- STATE ---
+const APP_STATE = {
+  sections: [],
+  notes: []
+};
 let lastMaterials = [];
 let lastRawSections = [];
 let lastSections = [];
@@ -268,6 +294,105 @@ function rebuildSectionState(schema) {
   syncSectionsState(lastRawSections);
 }
 
+function getCanonicalDepotSectionOrder() {
+  if (SECTION_ORDER.length) {
+    return SECTION_ORDER.slice();
+  }
+  return DEFAULT_DEPOT_SECTION_ORDER.slice();
+}
+
+function normaliseDepotSections(rawSections) {
+  const entries = Array.isArray(rawSections) ? rawSections : [];
+  const sectionMap = new Map();
+  const hadRawSections = entries.length > 0;
+
+  entries.forEach((entry) => {
+    if (!entry || typeof entry !== "object") return;
+    const rawName = typeof entry.section === "string"
+      ? entry.section.trim()
+      : typeof entry.name === "string"
+        ? entry.name.trim()
+        : typeof entry.title === "string"
+          ? entry.title.trim()
+          : typeof entry.heading === "string"
+            ? entry.heading.trim()
+            : "";
+    if (!rawName) return;
+    const canonical = resolveRequiredSectionName(rawName) || rawName;
+    if (!canonical || canonical.toLowerCase() === "arse_cover_notes") return;
+    if (sectionMap.has(canonical)) return;
+    const plainText = typeof entry.plainText === "string"
+      ? entry.plainText
+      : typeof entry.plain_text === "string"
+        ? entry.plain_text
+        : typeof entry.text === "string"
+          ? entry.text
+          : typeof entry.body === "string"
+            ? entry.body
+            : typeof entry.content === "string"
+              ? entry.content
+              : String(entry.plainText || entry.plain_text || entry.text || entry.body || entry.content || "");
+    const naturalLanguage = typeof entry.naturalLanguage === "string"
+      ? entry.naturalLanguage
+      : typeof entry.natural_language === "string"
+        ? entry.natural_language
+        : typeof entry.summary === "string"
+          ? entry.summary
+          : typeof entry.notes === "string"
+            ? entry.notes
+            : "";
+    sectionMap.set(canonical, {
+      section: canonical,
+      plainText: plainText || "",
+      naturalLanguage: naturalLanguage || ""
+    });
+  });
+
+  const canonicalOrder = getCanonicalDepotSectionOrder();
+  const seenOrder = new Set(canonicalOrder);
+  const missing = [];
+
+  const ordered = canonicalOrder.map((name) => {
+    const existing = sectionMap.get(name);
+    if (existing) {
+      return {
+        section: existing.section,
+        plainText: existing.plainText || "",
+        naturalLanguage: existing.naturalLanguage || ""
+      };
+    }
+    missing.push(name);
+    return {
+      section: name,
+      plainText: "",
+      naturalLanguage: ""
+    };
+  });
+
+  sectionMap.forEach((value, key) => {
+    if (seenOrder.has(key)) return;
+    ordered.push({
+      section: value.section,
+      plainText: value.plainText || "",
+      naturalLanguage: value.naturalLanguage || ""
+    });
+  });
+
+  if (!ordered.length) {
+    return DEFAULT_DEPOT_SECTION_ORDER.map((name) => ({
+      section: name,
+      plainText: "",
+      naturalLanguage: ""
+    }));
+  }
+
+  if (missing.length && hadRawSections) {
+    console.warn("Depot notes: worker response missing sections:", missing);
+  }
+
+  return ordered;
+}
+
 function getCanonicalSectionNames(schemaOverride) {
   if (Array.isArray(schemaOverride) && schemaOverride.length) {
     return schemaOverride
@@ -322,51 +447,14 @@ function resolveRequiredSectionName(name) {
 }
 
 function normaliseSectionsForState(rawSections) {
-  const canonicalNames = getCanonicalSectionNames();
-  const entries = Array.isArray(rawSections) ? rawSections : [];
-  const sectionMap = new Map();
-  const fallbackOrder = [];
-
-  entries.forEach((entry) => {
-    if (!entry || typeof entry !== "object") return;
-    const rawName = typeof entry.section === "string"
-      ? entry.section.trim()
-      : typeof entry.name === "string"
-        ? entry.name.trim()
-        : "";
-    if (!rawName) return;
-    const canonical = resolveRequiredSectionName(rawName) || rawName;
-    if (!canonical || canonical.toLowerCase() === "arse_cover_notes") return;
-    if (!sectionMap.has(canonical)) {
-      fallbackOrder.push(canonical);
-    }
-    sectionMap.set(canonical, {
-      section: canonical,
-      plainText: typeof entry.plainText === "string" ? entry.plainText : String(entry.plainText || ""),
-      naturalLanguage: typeof entry.naturalLanguage === "string"
-        ? entry.naturalLanguage
-        : String(entry.naturalLanguage || entry.summary || "")
-    });
-  });
-
-  const driveOrder = canonicalNames.length ? canonicalNames : fallbackOrder;
-  if (!driveOrder.length) {
-    return [];
-  }
-
-  return driveOrder.map((name) => {
-    const existing = sectionMap.get(name);
-    return {
-      section: name,
-      plainText: existing ? existing.plainText : "",
-      naturalLanguage: existing ? existing.naturalLanguage : ""
-    };
-  });
+  return normaliseDepotSections(rawSections);
 }
 
 function syncSectionsState(rawSections = lastRawSections) {
   const normalised = normaliseSectionsForState(rawSections);
   lastSections = normalised;
+  APP_STATE.sections = normalised;
+  APP_STATE.notes = normalised;
   updateDebugSnapshot();
 }
 
@@ -631,6 +719,10 @@ function updateDebugSnapshot(sourcePayload = lastWorkerPayload) {
   };
   if (typeof window !== "undefined") {
     window.__depotVoiceNotesDebug = snapshot;
+    window.__depotDebug = {
+      lastWorkerResponse: snapshot.lastWorkerResponse,
+      sections: snapshot.lastNormalisedSections
+    };
   }
   updateDebugView();
 }
@@ -819,54 +911,18 @@ function buildVoiceRequestPayload(transcript, schema = SECTION_SCHEMA) {
   };
 }
 
-function normaliseSectionsFromResponse(data, schema = SECTION_SCHEMA) {
-  if (!data || typeof data !== "object") return [];
-  const orderedNames = getCanonicalSectionNames(schema);
-  if (!orderedNames.length) {
-    data.sections = [];
-    return [];
+function normaliseSectionsFromResponse(data, _schema = SECTION_SCHEMA) {
+  if (!data || typeof data !== "object") {
+    return normaliseDepotSections([]);
   }
-
-  const rawSections = Array.isArray(data.sections) ? data.sections : [];
-  const sectionMap = new Map();
-  rawSections.forEach((entry) => {
-    if (!entry || typeof entry !== "object") return;
-    const rawName = typeof entry.section === "string"
-      ? entry.section.trim()
-      : typeof entry.name === "string"
-        ? entry.name.trim()
-        : "";
-    if (!rawName) return;
-    const resolved = resolveRequiredSectionName(rawName) || rawName;
-    if (!orderedNames.includes(resolved)) return;
-    if (sectionMap.has(resolved)) return;
-    const plainText = typeof entry.plainText === "string" ? entry.plainText : String(entry.plainText || "");
-    const naturalLanguage = typeof entry.naturalLanguage === "string"
-      ? entry.naturalLanguage
-      : String(entry.naturalLanguage || entry.summary || "");
-    sectionMap.set(resolved, {
-      section: resolved,
-      plainText,
-      naturalLanguage
-    });
-  });
-
-  const missing = [];
-  const normalised = orderedNames.map((name) => {
-    const existing = sectionMap.get(name);
-    if (existing) return existing;
-    missing.push(name);
-    return {
-      section: name,
-      plainText: "",
-      naturalLanguage: ""
-    };
-  });
-
-  if (missing.length) {
-    console.warn("Depot notes: worker response missing sections:", missing);
-  }
-
+  const rawSections = Array.isArray(data.sections)
+    ? data.sections
+    : (data.depotNotes && Array.isArray(data.depotNotes.sections))
+      ? data.depotNotes.sections
+      : Array.isArray(data.notes)
+        ? data.notes
+        : [];
+  const normalised = normaliseDepotSections(rawSections);
   data.sections = normalised;
   return normalised;
 }
@@ -1089,30 +1145,27 @@ function refreshUiFromState() {
     resolved = Array.isArray(lastSections) ? lastSections : [];
   }
 
+  const sectionsToRender = resolved.length ? resolved : normaliseDepotSections([]);
   sectionsListEl.innerHTML = "";
-  if (resolved.length) {
-    resolved.forEach((sec) => {
-      const div = document.createElement("div");
-      div.className = "section-item";
-      const plainTextRaw = typeof sec.plainText === "string" ? sec.plainText : "";
-      const formattedPlain = plainTextRaw
-        ? formatPlainTextForSection(sec.section, plainTextRaw).trim()
-        : "";
-      const naturalLanguage = typeof sec.naturalLanguage === "string" ? sec.naturalLanguage.trim() : "";
-      const preClassAttr = formattedPlain ? "" : " class=\"placeholder\"";
-      const naturalMarkup = naturalLanguage
-        ? `<p class="small" style="margin-top:3px;">${naturalLanguage}</p>`
-        : "";
-      div.innerHTML = `
-        <h4>${sec.section}</h4>
-        <pre${preClassAttr}>${formattedPlain || "No bullets yet."}</pre>
-        ${naturalMarkup}
-      `;
-      sectionsListEl.appendChild(div);
-    });
-  } else {
-    sectionsListEl.innerHTML = `<span class="small">No sections yet.</span>`;
-  }
+  sectionsToRender.forEach((sec) => {
+    const div = document.createElement("div");
+    div.className = "section-item";
+    const plainTextRaw = typeof sec.plainText === "string" ? sec.plainText : "";
+    const formattedPlain = plainTextRaw
+      ? formatPlainTextForSection(sec.section, plainTextRaw).trim()
+      : "";
+    const naturalLanguage = typeof sec.naturalLanguage === "string" ? sec.naturalLanguage.trim() : "";
+    const preClassAttr = formattedPlain ? "" : " class=\"placeholder\"";
+    const naturalMarkup = naturalLanguage
+      ? `<p class="small" style="margin-top:3px;">${naturalLanguage}</p>`
+      : "";
+    div.innerHTML = `
+      <h4>${sec.section}</h4>
+      <pre${preClassAttr}>${formattedPlain || "No bullets yet."}</pre>
+      ${naturalMarkup}
+    `;
+    sectionsListEl.appendChild(div);
+  });
 
   // 3) Parts + checklist
   renderPartsList(lastMaterials);

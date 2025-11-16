@@ -236,6 +236,7 @@
   <header>
     <h1>Survey Brain Settings</h1>
     <span>Section schema & checklist config</span>
+    <button id="forceReloadBtn" class="danger">Force reload / reset app data</button>
     <a href="index.html" class="back-link">← Back to app</a>
   </header>
 
@@ -297,6 +298,13 @@
     const SECTION_STORAGE_KEY = "depot.sectionSchema";
     const LEGACY_SECTION_STORAGE_KEY = "surveybrain-schema";
     const CHECKLIST_STORAGE_KEY = "depot.checklistConfig";
+    const LS_AUTOSAVE_KEY = "surveyBrainAutosave";
+    const WORKER_URL_STORAGE_KEYS = ["depot.workerUrl", "depot-worker-url"];
+    const ADDITIONAL_STORAGE_KEYS = [
+      "depot-output-schema",
+      "depot.notesSchema.v1",
+      "depot-checklist-state"
+    ];
     const FUTURE_PLANS_NAME = "Future plans";
 
     // --- Helpers ---
@@ -307,6 +315,44 @@
         return JSON.parse(raw);
       } catch (_) {
         return null;
+      }
+    }
+
+    function clearStoredAppData() {
+      const keys = new Set([
+        SECTION_STORAGE_KEY,
+        LEGACY_SECTION_STORAGE_KEY,
+        CHECKLIST_STORAGE_KEY,
+        LS_AUTOSAVE_KEY,
+        ...WORKER_URL_STORAGE_KEYS,
+        ...ADDITIONAL_STORAGE_KEYS
+      ]);
+
+      try {
+        for (let i = 0; i < localStorage.length; i += 1) {
+          const key = localStorage.key(i);
+          if (!key) continue;
+          const lower = key.toLowerCase();
+          if (lower.includes("depot") || lower.includes("surveybrain")) {
+            keys.add(key);
+          }
+        }
+      } catch (err) {
+        console.warn("Could not enumerate localStorage keys during reset", err);
+      }
+
+      keys.forEach((key) => {
+        try {
+          localStorage.removeItem(key);
+        } catch (err) {
+          console.warn("Failed to remove localStorage key", key, err);
+        }
+      });
+
+      try {
+        sessionStorage.clear();
+      } catch (err) {
+        console.warn("Session storage could not be cleared", err);
       }
     }
 
@@ -754,6 +800,26 @@
     }
 
     // --- Wire up buttons ---
+    const forceReloadBtn = document.getElementById("forceReloadBtn");
+    if (forceReloadBtn) {
+      forceReloadBtn.addEventListener("click", () => {
+        const confirmReset = confirm("This will clear all stored Survey Brain data on this device. Continue?");
+        if (!confirmReset) return;
+        const originalLabel = forceReloadBtn.textContent;
+        forceReloadBtn.disabled = true;
+        forceReloadBtn.textContent = "Resetting…";
+        try {
+          clearStoredAppData();
+          window.location.replace("index.html");
+        } catch (err) {
+          console.error("Force reload/reset failed", err);
+          alert("Failed to reset stored data. Please hard refresh the page.");
+          forceReloadBtn.disabled = false;
+          forceReloadBtn.textContent = originalLabel;
+        }
+      });
+    }
+
     document.getElementById("sections-add-btn").onclick = () => {
       sections.push({
         name: "",

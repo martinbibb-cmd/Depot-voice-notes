@@ -54,6 +54,15 @@ const voiceErrorEl = document.getElementById("voice-error");
 const sleepWarningEl = document.getElementById("sleep-warning");
 const settingsBtn = document.getElementById("settingsBtn");
 const workerDebugEl = document.getElementById("workerDebug");
+const debugSectionsPre = document.getElementById("debugSectionsJson");
+const debugSectionsDetails = document.getElementById("debugSections");
+
+if (typeof window !== "undefined") {
+  window.__depotVoiceNotesDebug = window.__depotVoiceNotesDebug || {
+    lastWorkerResponse: null,
+    lastNormalisedSections: []
+  };
+}
 
 // --- STATE ---
 let lastMaterials = [];
@@ -256,6 +265,27 @@ function rebuildSectionState(schema) {
   });
 
   schemaLoaded = SECTION_SCHEMA.length > 0;
+  syncSectionsState(lastRawSections);
+}
+
+function getCanonicalSectionNames(schemaOverride) {
+  if (Array.isArray(schemaOverride) && schemaOverride.length) {
+    return schemaOverride
+      .map((entry) => {
+        if (typeof entry === "string") return entry.trim();
+        if (entry && entry.name) return String(entry.name).trim();
+        if (entry && entry.section) return String(entry.section).trim();
+        return "";
+      })
+      .filter(Boolean);
+  }
+  if (Array.isArray(SECTION_SCHEMA) && SECTION_SCHEMA.length) {
+    return SECTION_SCHEMA.map((entry) => entry.name).filter(Boolean);
+  }
+  if (SECTION_ORDER.length) {
+    return SECTION_ORDER.slice();
+  }
+  return [];
 }
 
 async function ensureSectionSchema() {
@@ -289,6 +319,55 @@ function resolveRequiredSectionName(name) {
   const key = normaliseSectionKey(name);
   if (!key) return null;
   return SECTION_KEY_LOOKUP.get(key) || null;
+}
+
+function normaliseSectionsForState(rawSections) {
+  const canonicalNames = getCanonicalSectionNames();
+  const entries = Array.isArray(rawSections) ? rawSections : [];
+  const sectionMap = new Map();
+  const fallbackOrder = [];
+
+  entries.forEach((entry) => {
+    if (!entry || typeof entry !== "object") return;
+    const rawName = typeof entry.section === "string"
+      ? entry.section.trim()
+      : typeof entry.name === "string"
+        ? entry.name.trim()
+        : "";
+    if (!rawName) return;
+    const canonical = resolveRequiredSectionName(rawName) || rawName;
+    if (!canonical || canonical.toLowerCase() === "arse_cover_notes") return;
+    if (!sectionMap.has(canonical)) {
+      fallbackOrder.push(canonical);
+    }
+    sectionMap.set(canonical, {
+      section: canonical,
+      plainText: typeof entry.plainText === "string" ? entry.plainText : String(entry.plainText || ""),
+      naturalLanguage: typeof entry.naturalLanguage === "string"
+        ? entry.naturalLanguage
+        : String(entry.naturalLanguage || entry.summary || "")
+    });
+  });
+
+  const driveOrder = canonicalNames.length ? canonicalNames : fallbackOrder;
+  if (!driveOrder.length) {
+    return [];
+  }
+
+  return driveOrder.map((name) => {
+    const existing = sectionMap.get(name);
+    return {
+      section: name,
+      plainText: existing ? existing.plainText : "",
+      naturalLanguage: existing ? existing.naturalLanguage : ""
+    };
+  });
+}
+
+function syncSectionsState(rawSections = lastRawSections) {
+  const normalised = normaliseSectionsForState(rawSections);
+  lastSections = normalised;
+  updateDebugSnapshot();
 }
 
 function firstDefined(...values) {
@@ -526,6 +605,36 @@ function renderWorkerDebug() {
   workerDebugEl.classList.remove("empty");
 }
 
+function updateDebugView() {
+  if (!debugSectionsPre) return;
+  const snapshot = typeof window !== "undefined" ? window.__depotVoiceNotesDebug : null;
+  if (!snapshot) {
+    debugSectionsPre.textContent = "No debug data yet.";
+    debugSectionsPre.classList.add("empty");
+    return;
+  }
+  try {
+    debugSectionsPre.textContent = JSON.stringify(snapshot, null, 2);
+  } catch (_) {
+    debugSectionsPre.textContent = String(snapshot);
+  }
+  debugSectionsPre.classList.remove("empty");
+  if (debugSectionsDetails) {
+    debugSectionsDetails.style.display = "block";
+  }
+}
+
+function updateDebugSnapshot(sourcePayload = lastWorkerPayload) {
+  const snapshot = {
+    lastWorkerResponse: sourcePayload ? cloneDeep(sourcePayload) : null,
+    lastNormalisedSections: Array.isArray(lastSections) ? cloneDeep(lastSections) : []
+  };
+  if (typeof window !== "undefined") {
+    window.__depotVoiceNotesDebug = snapshot;
+  }
+  updateDebugView();
+}
+
 function setWorkerDebugPayload(payload) {
   if (payload) {
     lastWorkerPayload = cloneDeep(payload);
@@ -533,6 +642,7 @@ function setWorkerDebugPayload(payload) {
     lastWorkerPayload = null;
   }
   renderWorkerDebug();
+  updateDebugSnapshot();
 }
 
 function requireWorkerBaseUrl() {
@@ -711,11 +821,7 @@ function buildVoiceRequestPayload(transcript, schema = SECTION_SCHEMA) {
 
 function normaliseSectionsFromResponse(data, schema = SECTION_SCHEMA) {
   if (!data || typeof data !== "object") return [];
-  const canonicalSchema = Array.isArray(schema) ? schema : [];
-  let orderedNames = canonicalSchema.map((entry) => (entry && entry.name ? entry.name : "")).filter(Boolean);
-  if (!orderedNames.length && SECTION_ORDER.length) {
-    orderedNames = SECTION_ORDER.slice();
-  }
+  const orderedNames = getCanonicalSectionNames(schema);
   if (!orderedNames.length) {
     data.sections = [];
     return [];
@@ -976,80 +1082,30 @@ function refreshUiFromState() {
   // 1) Customer summary
   customerSummaryEl.textContent = lastCustomerSummary || "(none)";
 
-  // 2) Build a lookup of any section content we already have (from worker/autosave)
-  const raw = Array.isArray(lastRawSections) ? lastRawSections : [];
-  const sectionByName = new Map();
-  raw.forEach((entry) => {
-    if (!entry || !entry.section) return;
-    const name = String(entry.section).trim();
-    if (!name) return;
-    const canonical = resolveRequiredSectionName(name) || name;
-    if (!canonical || canonical.toLowerCase() === "arse_cover_notes") return;
-    sectionByName.set(canonical, {
-      section: canonical,
-      plainText: entry.plainText || "",
-      naturalLanguage: entry.naturalLanguage || ""
-    });
-  });
-
-  // 3) Decide which list of names to drive the UI from:
-  //    Prefer SECTION_SCHEMA (schema / settings override). If that’s empty, fall back to whatever
-  //    the worker / autosave has given us.
-  let sectionModels = [];
-  if (Array.isArray(SECTION_SCHEMA) && SECTION_SCHEMA.length) {
-    sectionModels = SECTION_SCHEMA.map((entry) => ({
-      name: entry.name,
-      description: entry.description || ""
-    }));
-  } else {
-    sectionModels = raw.map((entry) => ({
-      name: entry && entry.section ? String(entry.section).trim() : "",
-      description: ""
-    }));
+  // 2) Render sections from the canonical state
+  let resolved = Array.isArray(lastSections) ? lastSections : [];
+  if (!resolved.length && getCanonicalSectionNames().length) {
+    syncSectionsState(lastRawSections);
+    resolved = Array.isArray(lastSections) ? lastSections : [];
   }
 
-  const resolved = [];
-
-  sectionModels.forEach((model) => {
-    const name = (model && model.name) ? String(model.name).trim() : "";
-    if (!name || name.toLowerCase() === "arse_cover_notes") return;
-
-    const existing = sectionByName.get(name) || {
-      section: name,
-      plainText: "",
-      naturalLanguage: ""
-    };
-
-    // Make sure plainText is in depot-semi-bullet form
-    const formattedPlain = existing.plainText
-      ? formatPlainTextForSection(name, existing.plainText)
-      : "";
-
-    resolved.push({
-      section: name,
-      plainText: formattedPlain,
-      naturalLanguage: existing.naturalLanguage || ""
-    });
-  });
-
-  // Cache for export button etc.
-  lastSections = resolved;
-
-  // 4) Render into the bottom card
   sectionsListEl.innerHTML = "";
   if (resolved.length) {
     resolved.forEach((sec) => {
       const div = document.createElement("div");
       div.className = "section-item";
-      const plainText = typeof sec.plainText === "string" ? sec.plainText.trim() : "";
+      const plainTextRaw = typeof sec.plainText === "string" ? sec.plainText : "";
+      const formattedPlain = plainTextRaw
+        ? formatPlainTextForSection(sec.section, plainTextRaw).trim()
+        : "";
       const naturalLanguage = typeof sec.naturalLanguage === "string" ? sec.naturalLanguage.trim() : "";
-      const preClassAttr = plainText ? "" : " class=\"placeholder\"";
+      const preClassAttr = formattedPlain ? "" : " class=\"placeholder\"";
       const naturalMarkup = naturalLanguage
         ? `<p class="small" style="margin-top:3px;">${naturalLanguage}</p>`
         : "";
       div.innerHTML = `
         <h4>${sec.section}</h4>
-        <pre${preClassAttr}>${plainText || "No bullets yet."}</pre>
+        <pre${preClassAttr}>${formattedPlain || "No bullets yet."}</pre>
         ${naturalMarkup}
       `;
       sectionsListEl.appendChild(div);
@@ -1058,7 +1114,7 @@ function refreshUiFromState() {
     sectionsListEl.innerHTML = `<span class="small">No sections yet.</span>`;
   }
 
-  // 5) Parts + checklist
+  // 3) Parts + checklist
   renderPartsList(lastMaterials);
   renderChecklist(clarificationsEl, lastCheckedItems, lastMissingInfo);
 }
@@ -1092,6 +1148,7 @@ function applyVoiceResult(result) {
     updated = true;
   }
   lastRawSections = cloneDeep(mergedSections);
+  syncSectionsState(lastRawSections);
 
   if (Array.isArray(result.materials) && result.materials.length) {
     lastMaterials = result.materials.slice();
@@ -1398,6 +1455,7 @@ loadSessionInput.onchange = async (e) => {
     await ensureSectionSchema();
     const normalisedFromSession = normaliseSectionsFromResponse({ sections: lastRawSections }, SECTION_SCHEMA);
     lastRawSections = Array.isArray(normalisedFromSession) ? normalisedFromSession : [];
+    syncSectionsState(lastRawSections);
     refreshUiFromState();
     setWorkerDebugPayload(null);
     setStatus("Session loaded.");
@@ -1802,6 +1860,7 @@ document.addEventListener("visibilitychange", () => {
             lastCheckedItems = Array.isArray(snap.checkedItems) ? snap.checkedItems : [];
             lastMissingInfo = Array.isArray(snap.missingInfo) ? snap.missingInfo : [];
             lastCustomerSummary = snap.customerSummary || "";
+            syncSectionsState(lastRawSections);
             refreshUiFromState();
           }
           showSleepWarning(
@@ -1855,6 +1914,7 @@ function resetSessionState() {
   clearVoiceError();
   clearSleepWarning();
   setWorkerDebugPayload(null);
+  syncSectionsState([]);
   refreshUiFromState();
   updateLiveControls();
   setStatus("Ready for new job.");
@@ -1906,6 +1966,7 @@ setStatus("Boot OK – ready to test.");
     await ensureSectionSchema();
     const normalisedFromAutosave = normaliseSectionsFromResponse({ sections: lastRawSections }, SECTION_SCHEMA);
     lastRawSections = Array.isArray(normalisedFromAutosave) ? normalisedFromAutosave : [];
+    syncSectionsState(lastRawSections);
     refreshUiFromState();
     setWorkerDebugPayload(null);
     showSleepWarning(

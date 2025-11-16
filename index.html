@@ -226,6 +226,18 @@
       color: var(--muted);
       font-style: italic;
     }
+    details.debug-block {
+      margin: 12px auto 24px;
+      max-width: 1200px;
+      padding: 0 14px;
+      font-size: .68rem;
+      color: var(--muted);
+    }
+    details.debug-block summary {
+      cursor: pointer;
+      font-weight: 600;
+      color: #0f172a;
+    }
   </style>
 </head>
 <body>
@@ -309,6 +321,11 @@
       <pre id="workerDebug" class="debug-output empty">No worker response yet.</pre>
     </div>
   </section>
+
+  <details id="debugSections" class="debug-block">
+    <summary>Debug: show raw worker payload &amp; normalised sections</summary>
+    <pre id="debugSectionsJson" class="debug-output empty">No debug data yet.</pre>
+  </details>
 
   <input id="loadSessionInput" type="file" accept=".depotvoice.json,application/json" style="display:none;">
   <input id="importAudioInput" type="file" accept="audio/*" style="display:none;">

@@ -1,0 +1,33 @@
+section,subsection,component_id,description,selling_price_gbp,lead_time_days
+BOILERS,Combi LPG,CBLR1370,Worcester Greenstar 32CDi Compact ErP LPG,1628.75,3
+BOILERS,Combi LPG,CBLR1371,Worcester Greenstar 36CDi Compact ErP LPG,1714.45,3
+BOILERS,Combi LPG,CBLR3514,Worcester Greenstar 8000 Style 30kW Combi LPG (White and Chrome),1900.55,0
+BOILERS,Combi LPG,CBLR3516,Worcester Greenstar 8000 Style 40kW Combi LPG (White and Chrome),2231.22,0
+BOILERS,Combi LPG,CBLR3517,Worcester Greenstar 8000 Style 45kW Combi LPG (White and Chrome),2521.56,0
+BOILERS,Combi LPG,CBLR3518,Worcester Greenstar 8000 Style 50kW Combi LPG (White and Chrome),2632.16,0
+BOILERS,Combi LPG,CBLR3521,Worcester Greenstar 8000 Style 40kW Combi LPG (Black and Chrome),2231.22,0
+BOILERS,Combi LPG,CBLR3522,Worcester Greenstar 8000 Style 45kW Combi LPG (Black and Chrome),2521.56,0
+BOILERS,Combi LPG,CBLR3523,Worcester Greenstar 8000 Style 50kW Combi LPG (Black and Chrome),2632.16,0
+BOILERS,Combi LPG,CBLR3533,Worcester Greenstar 8000 Life 30kW Combi LPG,1795.13,0
+BOILERS,Combi LPG,CBLR3534,Worcester Greenstar 8000 Life 35kW Combi LPG,1883.94,0
+BOILERS,Combi LPG,CBLR3535,Worcester Greenstar 8000 Life 40kW Combi LPG,2075.44,0
+BOILERS,Combi LPG,CBLR3536,Worcester Greenstar 8000 Life 45kW Combi LPG,2359.79,0
+BOILERS,Combi LPG,CBLR3537,Worcester Greenstar 8000 Life 50kW Combi LPG,2489.32,0
+BOILERS,Combi LPG,CBLR1367,Worcester Greenstar 25Si Compact ErP LPG,1387.1,0
+BOILERS,Combi LPG,CBLR1369,Worcester Greenstar 30Si Compact ErP LPG,1520.46,0
+BOILERS,Combi LPG,CBLR1391,Worcester Greenstar Highflow 440 CDi ErP LPG,2491.2,5
+BOILERS,Combi LPG,CBLR3445,Worcester Greenstar Highflow 550CDi LPG,3258.07,5
+BOILERS,Combi LPG,CBLR3601,Worcester Greenstar 4000 25kW Combi LPG,1292.09,1
+BOILERS,Combi LPG,CBLR3603,Worcester Greenstar 4000 30kW Combi LPG,1403.86,1
+BOILERS,Combi LPG,CBLR3519,Worcester Greenstar 8000 Style 30kW Combi LPG (Black and Chrome),1900.55,0
+BOILERS,Combi LPG,CBLR3520,Worcester Greenstar 8000 Style 35kW Combi LPG (Black and Chrome),2044.56,0
+BOILERS,Combi LPG,CBLR3515,Worcester Greenstar 8000 Style 35kW Combi LPG (White and Chrome),2044.56,0
+BOILERS,Combi LPG,CBLR3454,Worcester Greenstar Ri 12kW LPG - Regular,992.29,5
+BOILERS,Combi LPG,CBLR3586,Upgrade to Worcester Bosch 4000 30kW (from WB 2000),300.0,1
+BOILERS,Combi LPG,CBLR3587,Upgrade to Worcester Bosch 8000+ 36kW (from WB 4000 30kW),400.0,1
+BOILERS,Combi LPG,CBLR3588,Upgrade to Worcester Bosch 8000+ 36kW (from WB 2000 25kW),700.0,1
+BOILERS,Combi LPG,CBLR3567,Worcester Greenstar 8000+ 32kW Combi LPG,1772.8,3
+BOILERS,Combi LPG,CBLR3568,Worcester Greenstar 8000+ 36kW Combi LPG,1920.8,3
+BOILERS,Combi LPG,CBLR3569,Worcester Greenstar 8000+ 40kW Combi LPG,2119.2,7
+BOILERS,Combi LPG,CBLR3570,Worcester Greenstar 8000+ 45kW Combi LPG,2413.8,7
+BOILERS,Combi LPG,CBLR3571,Worcester Greenstar 8000+ 50kW Combi LPG,2548.0,7

@@ -1,0 +1,84 @@
+section,subsection,component_id,description,selling_price_gbp,lead_time_days
+Hive Active Heating,,PSLT3,Hive Thermostat,225.0,1
+Hive Active Heating,,PSLT4,Hive 2 Active Heating (Conventional boiler),225.0,1
+Hive Active Heating,,PSLT5,Hive 1 to Hive 2 Stat Upgrade (STAT ONLY),138.0,1
+Hive Active Heating,,PSLT6,RHC to Hive 2 Upgrade Combi Blr (STAT and RECEIVER ONLY),157.0,1
+Hive Active Heating,,PSLT7,RHC to Hive 2 Upgrade Conv Blr (STAT and RECEIVER ONLY),157.0,1
+Hive Active Heating,,PSLT8,Hive 2 Active Heating Multizone - Additional Zone,85.0,1
+Hive Active Heating,,PSLT87,Hive Premium Hubless - Conv - Upgrade only check compatability,156.0,1
+Hive Active Heating,,PSLT84,Hive Mini Multizone - Combi,47.0,1
+Hive Active Heating,,PSLT86,Hive Premium Hubless - Combi - Upgrade only check compatability,156.0,1
+Hive Active Heating,,PSLT83,Hive Mini Hubless -conv - Upgrade only check compatability,118.0,1
+Hive Active Heating,,PSLT85,Hive Mini Multizone - Conventional,47.0,1
+Hive Active Heating,,PSLT82,Hive Mini Hubless -combi - Upgrade only check compatability,49.0,1
+Hive Active Heating,,PSLT80,Hive Mini Active Heating - Combi,177.0,1
+Hive Active Heating,,PSLT81,Hive Mini Active Heating (Conventional boiler),156.23,1
+Hive Active Heating,,PSLT90,Heat Pump HIVE pack without Hub,130.0,0
+Hive Active Heating,,PSLT91,Heat Pump HIVE pack with Hub,155.0,0
+Hive Active Heating,Boiler IQ - (Must NOT be sold to Landlords or customers without internet),PCBH1,HomeCare Boiler IQ (installed without Hive),125.76,0
+Hive Active Heating,Boiler IQ - (Must NOT be sold to Landlords or customers without internet),PCBH2,HomeCare Boiler IQ (installed with Hive),117.46,0
+Hive Active Heating,Boiler IQ - (Must NOT be sold to Landlords or customers without internet),PCBH4,HomeCare Boiler IQ 2nd Gen (installed without Hive),123.36,0
+Hive Active Heating,Boiler IQ - (Must NOT be sold to Landlords or customers without internet),PCBH5,HomeCare Boiler IQ 2nd Gen (installed with Hive),117.46,0
+Hive additional Products,,PSLT13,Hive Active Light Dimmable,19.0,1
+Hive additional Products,,PSLT22,Hive Active Light Dimmable 3 Pack,49.0,3
+Hive additional Products,,PSLT23,Hive Active Light Dimmable 5 Pack,79.0,3
+Hive additional Products,,PSLT14,Hive Active Light Dimmable,19.0,1
+Hive additional Products,,PSLT24,Hive Active Light Dimmable 3 Pack,49.0,3
+Hive additional Products,,PSLT25,Hive Active Light Dimmable 5 Pack,79.0,3
+Hive additional Products,,PSLT26,Hive Active Light Cool to Warm White,29.0,3
+Hive additional Products,,PSLT27,Hive Active Light Cool to Warm White 3 Pack,79.0,3
+Hive additional Products,,PSLT28,Hive Active Light Cool to Warm White 5 Pack,119.0,3
+Hive additional Products,,PSLT29,Hive Active Light Cool to Warm White,29.0,3
+Hive additional Products,,PSLT30,Hive Active Light Cool to Warm White 3 Pack,79.0,3
+Hive additional Products,,PSLT31,Hive Active Light Cool to Warm White 5 Pack,119.0,3
+Hive additional Products,,PSLT32,Hive Active Light Colour Changing,44.0,3
+Hive additional Products,,PSLT33,Hive Active Light Colour Changing 3 Pack,119.0,3
+Hive additional Products,,PSLT34,Hive Active Light Colour Changing 5 Pack,179.0,3
+Hive additional Products,,PSLT35,Hive Active Light Colour Changing,44.0,3
+Hive additional Products,,PSLT36,Hive Active Light Colour Changing 3 Pack,119.0,3
+Hive additional Products,,PSLT37,Hive Active Light Colour Changing 5 Pack,179.0,3
+Hive additional Products,,PSLT38,Hive Light Dimmable smart GU10,15.0,3
+Hive additional Products,,PSLT39,Hive Light Dimmable smart GU10 6 Pack,79.0,3
+Hive additional Products,,PSLT40,Hive Light Dimmable smart GU10 10 Pack,129.0,3
+Hive additional Products,,PSLT41,Hive Light Cool to Warm smart GU10,19.0,3
+Hive additional Products,,PSLT42,Hive Light Cool to Warm smart GU10 6 Pack,99.0,3
+Hive additional Products,,PSLT43,Hive Light Cool to Warm smart GU10 10 Pack,149.0,3
+Hive additional Products,,PSLT57,Hive Light Dimmable smart E14 bulb,19.0,3
+Hive additional Products,,PSLT58,Hive Light Dimmable smart E14 bulb - 2 pack,35.0,3
+Hive additional Products,,PSLT59,Hive Light Cool to Warm White smart E14 bulb,29.0,3
+Hive additional Products,,PSLT60,Hive Light Cool to Warm White smart E14 bulb - 2 pack,49.0,3
+Hive additional Products,,PSLT9,Hive Window or Door Sensor,29.0,3
+Hive additional Products,,PSLT16,Hive Window or Door Sensor 3 Pack,79.0,3
+Hive additional Products,,PSLT17,Hive Window or Door Sensor 5 Pack,119.0,3
+Hive additional Products,,PSLT10,Hive Motion Sensor,29.0,3
+Hive additional Products,,PSLT18,Hive Motion Sensor 3 Pack,79.0,3
+Hive additional Products,,PSLT19,Hive Motion Sensor 5 Pack,119.0,3
+Hive additional Products,,PSLT11,Hive Active Plug,39.0,1
+Hive additional Products,,PSLT20,Hive Active Plug 3 Pack,109.0,3
+Hive additional Products,,PSLT21,Hive Active Plug 5 Pack,159.0,3
+Hive View,,PSLT44,Hive View White,179.0,0
+Hive View,,PSLT45,Hive View White 2 Pack,339.0,0
+Hive View,,PSLT46,Hive View Black,179.0,0
+Hive View,,PSLT47,Hive View Black 2 Pack,339.0,0
+Hive View,,PSLT64,Hive View Outdoor,179.0,0
+Hive View,,PSLT65,Hive View Outdoor 2 Pack,339.0,0
+Hive View,,PSLT66,Hive View Outdoor,179.0,0
+Hive View,,PSLT67,Hive View Outdoor 2 Pack,339.0,0
+Hive TRV,,PSLT68,Hive TRV & Standard MRV 15mm Angled,81.0,3
+Hive TRV,,PSLT110,Hive + TRV x 4 Pack (CONV),499.0,1
+Hive TRV,,PSLT120,Hive + TRV x 4 Pack (COMBI),499.0,1
+Hive TRV,,PSLT73,Hive TRV & Standard MRV 15mm Angled (3 Pack),220.0,3
+Hive TRV,,PSLT74,Hive TRV & Standard MRV 15mm Angled (5 Pack),360.0,3
+Hive TRV,,PSLT75,Hive TRV & Standard MRV 15mm Angled (8 Pack),550.0,3
+Hive Hubs,,PSLT69,Hive Nano 2 Hub,80.0,1
+Hive Hubs,,PSLT100,"Hive Product Bundle (Screwfit Bulb, Plug and Sensor)",87.0,3
+Hive Hubs,,PSLT101,"Hive Product Bundle (Bayonet Bulb, Plug and Sensor)",87.0,3
+Hive Hubs,,PSLT53,Hive Thermostat Stand (,29.0,3
+Hive Hubs,,P254,Reconfigure Controls Pipework 22mm (up to 18kW),176.78,1
+Hive Hubs,,P2541,Reconfigure Controls Pipework 28mm (over 18kW),251.6,1
+Hive Hubs,,P125,Convert to fully pumped 22mm 5mtr head (up to 18kW),384.98,1
+Hive Hubs,,P1251,Convert to fully pumped 28mm 6mtr head (over 18kW),399.62,1
+Hive Hubs,,P1252,Convert to fully pumped (large pump/35mm pipe),1853.08,3
+Hive Hubs,,P321,22mm Auto By Pass,42.71,1
+Hive Hubs,,P3212,Install 35mm boiler bypass,196.21,1
+Hive Hubs,,P2235,Install 35mm boiler by pass,301.51,1

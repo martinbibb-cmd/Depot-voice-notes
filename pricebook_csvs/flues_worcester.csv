@@ -1,0 +1,342 @@
+section,subsection,component_id,description,selling_price_gbp,lead_time_days
+BOILERS,Flue Components,P910,Worcester 100mm Horizontal Flue Kit 350mm-570mm,255.42,1
+BOILERS,Flue Components,P911,Worcester 100mm Vertical Flue Kit 1090mm,256.72,1
+BOILERS,Flue Components,P916,Worcester 125mm Horizontal Flue 405mm-600mm,294.36,3
+BOILERS,Flue Components,P917,Worcester 125mm Vertical Flue 1365mm,283.57,3
+BOILERS,Flue Components,P9218,Worcester Flat Roof Flashing,160.04,1
+BOILERS,Flue Components,P9219,Worcester Pitched Roof Flashing,164.58,1
+BOILERS,Flue Components,P9220,Worcester 100mm Long Telescopic Flue 570mm-790mm,255.42,1
+BOILERS,Flue Components,P912,Worcester 100mm 90' Elbow,61.33,1
+BOILERS,Flue Components,P913,Worcester 100mm 45' Elbow (Pair),104.75,1
+BOILERS,Flue Components,P914,Worcester 100mm Flue Extension 1000mm,71.56,1
+BOILERS,Flue Components,P915,Worcester 100mm Vertical Flue Adaptor,55.09,1
+BOILERS,Flue Components,P918,Worcester 125mm 90' Elbow,62.68,3
+BOILERS,Flue Components,P919,Worcester 125mm 45' Elbow (Pair),119.98,3
+BOILERS,Flue Components,P920,Worcester 125mm Extension 990mm,82.44,3
+BOILERS,Flue Components,P921,Worcester 125mm Vertical Adaptor,55.04,3
+BOILERS,Flue Components,P9221,Worcester 100mm Flue Extension 2000mm,140.17,1
+BOILERS,Flue Components,P9141,Worcester Fixing Bracket,16.24,1
+BOILERS,Flue Components,P9142,Worcester 100mm Short Flue Extension 220mm,42.07,1
+BOILERS,Flue Components,P9213,Worcester Plume Management Kit 500mm,103.76,1
+BOILERS,Flue Components,P9214,Worcester Plume Management Extension 1000mm,38.04,1
+BOILERS,Flue Components,P9215,Worcester Plume Management 90' Elbow,46.09,1
+BOILERS,Flue Components,P9216,Worcester Plume Management 45' Elbow (Pair),53.7,1
+BOILERS,Flue Components,P926,Worcester 440CDi 100mm Telescopic Horizontal Flue 350mm - 570mm,255.42,1
+BOILERS,Flue Components,P927,Worcester 440CDi 100mm Vertical Flue 1140mm,266.3,1
+BOILERS,Flue Components,P928,Worcester 440CDi 125mm Telescopic Horizontal Flue 1200mm,303.94,3
+BOILERS,Flue Components,P929,Worcester 440CDi 125mm Vertical Flue 1365mm,300.16,3
+BOILERS,Flue Components,P932,Worcester 100mm 440CDi Vertical Flue Adaptor,33.5,3
+BOILERS,Flue Components,P931,Worcester 125mm 440CDi Vertical Flue Adaptor,36.34,1
+BOILERS,Flue Components,P935,Worcester Silver telescopic flue (350 - 570mm),262.16,3
+BOILERS,Flue Components,P936,Worcester 100mm Silver flue extension 960mm,91.33,3
+BOILERS,Flue Components,P937,Worcester 100mm Silver short flue extension 220mm,46.54,3
+BOILERS,Flue Components,P938,Worcester 100mm Silver 90° flue bend,61.48,3
+BOILERS,Flue Components,P939,Worcester 100mm Silver 45° flue bend (Pair),95.34,3
+BOILERS,Flue Components,P3374,Main Water Heater Standard Flue,165.49,1
+BOILERS,Flue Components,P9143,Worcester Bosch 60/100mm Horizontal High Rise Flue Kit 890mm,287.62,3
+BOILERS,Flue Components,P922,Worc 440CDi 100mm Horizontal Flue 1200mm,241.16,1
+BOILERS,Flue Components,P9500,Worcester Greenstar 4000 SimpleSwitch flue adaptor,32.46,3
+BOILERS,Flue Components,P7820,Vaillant 100mm Rear Horizontal Flue 336mm - 578mm,330.1,1
+BOILERS,Flue Components,P7739,Vaillant 100mm Standard Horizontal Flue Kit 800mm,309.18,1
+BOILERS,Flue Components,P7749,Vaillant 100mm Vertical Flue Kit 1140mm,257.38,1
+BOILERS,Flue Components,P775,Vaillant Pitched Roof Weather Collar,157.13,1
+BOILERS,Flue Components,P776,Vaillant Flat Roof Weather Collar,157.13,1
+BOILERS,Flue Components,P7740,Vaillant 100mm Telescopic Flue Offset Section 290mm - 374mm,96.85,1
+BOILERS,Flue Components,P7741,Vaillant Black Termination Kit for Horizontal Flue,51.04,1
+BOILERS,Flue Components,P7742,Vaillant Variable Termination Kit 500mm (Black),98.54,1
+BOILERS,Flue Components,P7743,Vaillant 1000mm Extension VTK (Black),28.63,1
+BOILERS,Flue Components,P7744,Vaillant 90' Elbow VTK (Black),28.63,1
+BOILERS,Flue Components,P7745,Vaillant 45' Elbow VTK (Pair) (Black),42.71,1
+BOILERS,Flue Components,P7746,Vaillant Variable Termination Kit 500mm (White),85.49,1
+BOILERS,Flue Components,P7747,Vaillant 1000mm Extension VTK (White),28.63,1
+BOILERS,Flue Components,P7748,Vaillant 87' Elbow for VTK (White),31.99,1
+BOILERS,Flue Components,P7750,Vaillant 45' Elbow for VTK (Pair) (White),43.82,1
+BOILERS,Flue Components,P7751,Vaillant 100mm Flue Support Clips (5),36.06,1
+BOILERS,Flue Components,P7787,Vaillant 100mm Telescopic Flue Extension 440mm - 690mm,76.56,1
+BOILERS,Flue Components,P7788,Vaillant 100mm Flue Extension 1970mm,113.74,1
+BOILERS,Flue Components,P7789,Vaillant 100mm Flue Extension 970mm,65.58,1
+BOILERS,Flue Components,P7799,Vaillant 100mm Flue Extension 470mm,50.12,1
+BOILERS,Flue Components,P7809,Vaillant 100mm 87' Elbow,53.05,1
+BOILERS,Flue Components,P7819,Vaillant 100mm 45' Elbow (Pair),102.06,1
+BOILERS,Flue Components,P7984,Vaillant Plume Deflector Kit (Black),52.21,1
+BOILERS,Flue Components,P7985,Vaillant Plume Deflector Kit (White),52.21,1
+BOILERS,Flue Components,P7736,Vaillant 60/100mm Aluminium High Rise Terminal Kit,311.77,3
+BOILERS,Flue Components,P7737,Vaillant High Rise Stainless Steel 1m Extension,93.11,0
+BOILERS,Flue Components,P3375,Main Water Heater 15-24' Flue,194.05,1
+BOILERS,Flue Components,P7961,Glow-worm HE std horizontal flue (800mm no deflector),250.19,1
+BOILERS,Flue Components,P7965,Glow-worm HE Vertical flue Terminal,257.38,1
+BOILERS,Flue Components,P7966,Glow-worm HE Flat Roof Flashing,157.13,1
+BOILERS,Flue Components,P7967,Glow-worm HE Pitched Roof Flashing,157.13,1
+BOILERS,Flue Components,P1576,Install Baxi Flue Deflector Kit,54.89,1
+BOILERS,Flue Components,P7977,Flexicom 100mm Telescopic Rear Horizontal Flue 336mm - 578mm,239.42,1
+BOILERS,Flue Components,P7978,Glow-worm 100mm Standard Horizontal Flue 832mm,239.42,1
+BOILERS,Flue Components,P7989,Glowworm Black Plume Deflector Kit 0020219535,48.08,1
+BOILERS,Flue Components,P7990,Glowworm White Plume Deflector Kit 0020219536,48.08,1
+BOILERS,Flue Components,P7975,Glow-worm HE Telescopic Flue Extension 500mm - 800mm,74.26,1
+BOILERS,Flue Components,P7980,Flexicom Standard Horizontal Flue (black),224.4,1
+BOILERS,Flue Components,P7962,Glow-worm HE Flue Extension 2000mm,76.56,1
+BOILERS,Flue Components,P7963,Glow-worm HE Flue Extension 1000mm,50.12,1
+BOILERS,Flue Components,P7964,Glow-worm HE Flue Extension 500mm,39.38,1
+BOILERS,Flue Components,P7969,Glow-worm HE 45' Flue Bend (Pair),75.62,1
+BOILERS,Flue Components,P7970,Glow-worm HE 90' Flue Elbow,40.72,1
+BOILERS,Flue Components,P7974,Glow-worm HE Raised Horizontal Flue Adaptor,13.21,1
+BOILERS,Flue Components,P79701,Glow-worm Plume Management Kit 500mm (Black),85.06,1
+BOILERS,Flue Components,P79702,Glow-worm Plume Management Kit Extension 1000mm (Black),24.16,1
+BOILERS,Flue Components,P79703,Glow-worm Plume Management Kit 45' Elbows (Pair) (Black),45.38,1
+BOILERS,Flue Components,P79704,Glow-worm Plume Management Kit 90' Bend (Black),24.16,1
+BOILERS,Flue Components,P79705,Glow-worm Plume Management Kit 500mm (White),85.06,1
+BOILERS,Flue Components,P79706,Glow-worm Plume Management Kit Extension 1000mm (White),24.16,1
+BOILERS,Flue Components,P79707,Glow-worm Plume Management Kit 45' Elbows (White) (Pair),45.38,1
+BOILERS,Flue Components,P79708,Glow-worm Plume Management Kit 90' Bend (White),24.16,1
+BOILERS,Flue Components,P79709,Glowworm Flue Support Clips 100mm (Pack of 3),31.14,1
+BOILERS,Flue Components,P7991,Glowworm Black Termination Kit 0020219538,22.16,1
+BOILERS,Flue Components Continued,P7916,Ideal 0.5m Telescopic Horizontal Flue (286-484mm),179.88,1
+BOILERS,Flue Components Continued,P7919,Ideal 0.6m Horizontal Flue Terminal,135.48,1
+BOILERS,Flue Components Continued,P7920,Ideal 0.8m Horizontal Flue Terminal,208.78,1
+BOILERS,Flue Components Continued,P7921,Ideal Flue Extension 500mm,62.21,1
+BOILERS,Flue Components Continued,P7922,Ideal Flue Extension 1000mm,80.48,1
+BOILERS,Flue Components Continued,P7923,Ideal Flue Extension 2000mm,162.84,0
+BOILERS,Flue Components Continued,P7924,Ideal 0.6m High Rise Horizontal Flue,208.78,3
+BOILERS,Flue Components Continued,P7925,Ideal Flue Bracket - 100mm,23.75,1
+BOILERS,Flue Components Continued,P7926,Ideal 90° Flue Elbow,63.73,3
+BOILERS,Flue Components Continued,P7927,Ideal 45° Flue Elbow,115.06,3
+BOILERS,Flue Components Continued,P7928,Ideal Vertical Flue Terminal with adaptor,265.44,3
+BOILERS,Flue Components Continued,P7931,Ideal Plume Management Kit,137.48,3
+BOILERS,Flue Components Continued,P7932,Ideal Plume Management 1000mm Extension,56.99,3
+BOILERS,Flue Components Continued,P7933,Ideal Direct Rear Horizontal Flue Terminal,104.11,1
+BOILERS,Flue Components Continued,P7935,Ideal Vertical Flue Connector,68.98,3
+BOILERS,Flue Components Continued,P9211,Ideal Plume Management 90' Elbow,68.58,3
+BOILERS,Flue Components Continued,P9212,Ideal Plume Management 45' Elbow (Pair),88.3,3
+BOILERS,Flue Components Continued,P7929,Ideal Weather Collar (Pitched Roof),86.39,3
+BOILERS,Flue Components Continued,P7930,Ideal Weather Collar (Flat Roof),72.08,3
+BOILERS,Flue Components Continued,P7934,Ideal Direct Rear Flue with Plume Kit,204.04,1
+BOILERS,Flue Components Continued,P0020,Keston High Rise Flue Kit 600mm,545.75,7
+BOILERS,Flue Components Continued,P0021,Keston High Rise Flue Kit 900mm,689.65,7
+BOILERS,Flue Components Continued,P0022,Keston Air Terminal Finishing Kit,36.98,7
+BOILERS,Flue Components Continued,P0040,Keston Flue Exhaust Terminal,19.21,7
+BOILERS,Flue Components Continued,P0041,Keston Flue Sleeve Kit,41.02,7
+BOILERS,Flue Components Continued,P7952,Ariston Plume 45° Elbow (Ø60mm) - Pack of 2,49.34,5
+BOILERS,Flue Components Continued,P7993,Ariston 45° Elbow (Pack of 2),89.74,5
+BOILERS,Flue Components Continued,P7944,Ariston 90° Elbow,48.79,5
+BOILERS,Flue Components Continued,P7956,Ariston 45° Elbow (125mm Single),44.92,5
+BOILERS,Flue Components Continued,P7948,Ariston Extension - 500mm,44.47,0
+BOILERS,Flue Components Continued,P7957,Ariston Extension (Ø80/125mm - 500mm),56.63,5
+BOILERS,Flue Components Continued,P7936,Ariston Vertical Flue with Black Terminal,239.42,5
+BOILERS,Flue Components Continued,P7992,Ariston Standard Horizontal Flue Kit,239.42,5
+BOILERS,Flue Components Continued,P8004,Ariston Flat Roof Flashing Kit,55.01,5
+BOILERS,Flue Components Continued,P8002,Ariston Pitched Flashing Kit 18-44,57.78,5
+BOILERS,Flue Components Continued,P7947,Ariston Extension - 1000mm,60.47,5
+BOILERS,Flue Components Continued,P7958,Ariston Adaptor/Vertical Starter (Ø60/100 - Ø80/125mm),26.88,5
+BOILERS,Flue Components Continued,P7951,Ariston Plume Extension (Ø60mm) - 1000mm,36.85,5
+BOILERS,Flue Components Continued,P7946,Ariston Extension - 2000mm,107.7,0
+BOILERS,Flue Components Continued,P7937,Ariston Vertical Starter (Must be ordered with Vertical Flue),25.72,5
+BOILERS,Flue Components Continued,P7955,Ariston 90° Elbow (125mm),58.87,5
+BOILERS,Flue Components Continued,P7953,Ariston Horizontal Kit + Adaptor (Ø60/100 - Ø80/125mm),87.02,5
+BOILERS,Flue Components Continued,P7994,Ariston Plume Kit (inc. 1000mm Horizontal Terminal),275.47,5
+BOILERS,Flue Components Continued,P7900,Viessmann 100mm Horizontal Flue 1000mm,234.85,3
+BOILERS,Flue Components Continued,P7901,Viessmann 100mm Flue Extension 1950mm,85.86,3
+BOILERS,Flue Components Continued,P7902,Viessmann 100mm Flue Extension 1000mm,53.57,3
+BOILERS,Flue Components Continued,P7903,Viessmann 100mm Flue Extension 500mm,39.95,3
+BOILERS,Flue Components Continued,P7904,Viessmann 87' Flue Elbow,39.95,3
+BOILERS,Flue Components Continued,P7905,Viessmann 45' Flue Bend (Pair),62.1,3
+BOILERS,Flue Components Continued,P7906,Viessmann 100mm Vertical Flue Terminal (Black),234.85,3
+BOILERS,Flue Components Continued,P7907,Viessmann Pitched Roof Flashing Kit,158.5,1
+BOILERS,Flue Components Continued,P7908,Viessmann Flat Roof Flashing Kit,158.5,3
+BOILERS,Flue Components Continued,P7909,Viessmann Plume Management Kit Black,91.36,3
+BOILERS,Flue Components Continued,P7910,Viessmann Plume Management Kit 87' Elbows (Pair) (Black),20.7,3
+BOILERS,Flue Components Continued,P7911,Viessmann Plume Management Kit 45' Elbows (Pair) (Black),33.14,3
+BOILERS,Flue Components Continued,P7912,Viessmann Plume Management Kit Extension 1000mm (Black),22.37,3
+BOILERS,Flue Components Continued,P0011,Flue Snug 100mm Flue Black Collar and Seal,13.44,0
+BOILERS,Flue Components Continued,P0010,Flue Snug 100mm Flue White Collar and Seal,13.44,0
+BOILERS,Flue Components Continued,P357,Heat shield (for gutters/soffits),34.14,3
+BOILERS,Flue Components Continued,P7735,Horizontal Flue Flashing - For flat roofs and pitched roofs up to 45,150.42,3
+BOILERS,Flue Components Continued,P0025,Altecnic Dry Trap Tundish,31.86,3
+BOILERS,Flue Components Continued,P7752,Eco Tec Pro Spacer Frame,49.7,1
+BOILERS,Flue Components Continued,P7821,Vaillant ecoFIT Pure 600 and 800 stand off bracket,46.81,1
+BOILERS,Flue Components Continued,P7986,Glowworm Energy Stand-Off Bracket,41.44,1
+BOILERS,Flue Components Continued,P2100,Potterton Suprima Spacer Bracket,63.94,1
+BOILERS,Flue Components Continued,P2101,Gravity system connection kit,76.66,1
+BOILERS,Flue Components Continued,P2102,Worcester boiler spacer kit,22.06,1
+BOILERS,Flue Components Continued,P3211,Install boiler by-pass 8-30L/m,140.69,1
+BOILERS,Flue Components Continued,P7822,STAND OFF KIT LOGIC 211103,66.18,1
+BOILERS,Flue Components Continued,P3001,Ideal Logic2 Stand Off Kit (for Combi and System boilers),68.15,1
+BOILERS,Flue Components Continued,P0023,Worcester 2000 Stand Off Frame,73.16,1
+BOILERS,Flue Components Continued,P0025,Altecnic Dry Trap Tundish,31.86,3
+BOILERS,Flue Components Continued,P930,Worcester Greenstar Combi Vertical Pre-Piping Assembly,139.18,1
+BOILERS,Flue Components Continued,P207,Internal Condensate Connection 22mm,103.61,1
+BOILERS,Flue Components Continued,P2074,Install Condense Pump,183.13,1
+BOILERS,Flue Components Continued,P2085,Condensulate up to 3mtr with white plastic 40mm pipe,141.61,1
+BOILERS,Flue Components Continued,P2086,Condensulate 3 - 6mtr with white plastic 40mm pipe,168.6,1
+BOILERS,Flue Components Continued,P2087,Condensulate up to 3mtr with black plastic 40mm pipe,141.61,1
+BOILERS,Flue Components Continued,P2088,Condensulate 3 - 6mtr with black plastic 40mm pipe,168.6,1
+BOILERS,Flue Components Continued,P2089,Leaf cover for external drains,5.64,1
+BOILERS,Flue Components Continued,P338,Condensate waste to external soakaway drain,188.94,1
+BOILERS,Flue Components Continued,P3388,Condensate Waste to External Soil Pipe - 32mm,19.46,1
+BOILERS,Flue Components Continued,P2071,External Condense Connection 22mm to 32mm Adaptor,89.45,1
+BOILERS,Flue Components Continued,P2072,External Condense Connection - 22mm,92.2,1
+BOILERS,Flue Components Continued,P2075,Install Ideal Condense Pump,259.22,1
+BOILERS,Flue Components Continued,P2078,Condensate Trace Heater,252.36,0
+BOILERS,Flue Components Continued,P3384,Condensate Waste to Ext Rain Water Down Pipe-22mm,45.95,1
+BOILERS,Flue Components Continued,P3387,Ecomax2 External Condensate Connection(inc Syphon),79.28,1
+BOILERS,Flue Components Continued,P3390,Ecomax2 Ext 32mm Condensate Connection(inc Syphon),96.41,1
+BOILERS,Flue Components Continued,P3400,Worcester CondenseSure Siphon,65.33,1
+BOILERS,Flue Components Continued,P123,Fit new feed & expansion tank,351.72,3
+BOILERS,Flue Components Continued,P126,Replace feed & expansion tank,213.28,3
+BOILERS,Flue Components Continued,P138,Fit New CWS Cistern (25 gal 380h 860w 508d),239.41,3
+BOILERS,Flue Components Continued,P1381,Fit New CWS Cistern (50gal 1190L x 610W x 500mmH),271.82,3
+BOILERS,Flue Components Continued,P1382,Fit New CWS Cistern (50gal Circular 840mmDiax685H),260.63,3
+BOILERS,Flue Components Continued,P1383,Fit New CWS Cistern (50gal 1650L x 460W x 475mmH),391.32,3
+BOILERS,Flue Components Continued,P1384,Fit New CWS Cistern (15gal 515h 860w 508d),228.0,3
+BOILERS,Flue Components Continued,P134,Fit expansion vessel (SS up to 18kW) 8Ltrs,181.96,1
+BOILERS,Flue Components Continued,P133,Fit expansion vessel (SS up to 24kW) 12Ltrs,192.14,1
+BOILERS,Flue Components Continued,P1331,Fit expansion vessel (SS up to 37kW) 25Ltrs,203.36,1
+BOILERS,Flue Components Continued,P1283,Install 2mtr length of pipe (No mats Inc),47.14,0
+BOILERS,Flue Components Continued,P1132,Install pipe (8mm x 3mtrs),50.14,1
+BOILERS,Flue Components Continued,P1133,Install pipe (10mm x 3mtrs),50.14,1
+BOILERS,Flue Components Continued,P129,Install pipe (15mm x 2mtrs length),37.92,1
+BOILERS,Flue Components Continued,P130,Install pipe (22mm x 2mtr length),45.47,1
+BOILERS,Flue Components Continued,P131,Install pipe (28mm x 2mtrs length),52.33,1
+BOILERS,Flue Components Continued,P1311,Install pipe (35mm x 2mtrs length),119.26,1
+BOILERS,Flue Components Continued,P1314,Install Gas Pipe Work (15mm x 2mtr length),37.92,1
+BOILERS,Flue Components Continued,P1315,Install Gas Pipe Work (22mm x 2mtr length),45.47,1
+BOILERS,Flue Components Continued,P1316,Install Gas Pipe Work (28mm x 2mtr length),52.33,1
+BOILERS,Flue Components Continued,P1317,Install Gas Pipe Work (35mm x 2mtr length),76.19,1
+BOILERS,Flue Components Continued,P1312,Install Overflow Pipe (22mm x 3mtr Length),18.05,1
+BOILERS,Flue Components Continued,P1313,Install Overflow Pipe (32mm x 3mtr length),18.55,1
+BOILERS,Flue Components Continued,P1326,Install Black Plastic Pipe (32mm x 3mtrs),18.55,1
+BOILERS,Flue Components Continued,P178,Fit pipe insulation(15mm X 2mtr length),13.4,1
+BOILERS,Flue Components Continued,P179,Fit pipe insulation (22mm X 2mtr length),13.0,1
+BOILERS,Flue Components Continued,P180,Fit pipe insulation (28mm X 2mtr length),13.4,1
+BOILERS,Flue Components Continued,P1801,Fit pipe insulation (35mm X 2mtr length),17.2,1
+BOILERS,Flue Components Continued,P186,Install pipe duct (15mm X 2mtr length),10.97,1
+BOILERS,Flue Components Continued,P1861,Install pipe duct (22mm X 2mtr length),13.4,1
+BOILERS,Flue Components Continued,P1862,Install pipe duct (28mm X 2mtr length),20.3,1
+BOILERS,Flue Components Continued,P1863,Install pipe duct (10mm x 2 mtr length),9.55,1
+BOILERS,Flue Components Continued,P1340,Install Chrome Plated Pipe (15mm x 2mtr length),54.48,1
+BOILERS,Flue Components Continued,P181,Fit cylinder insulation jacket(36' x 18'),33.28,3
+BOILERS,Flue Components Continued,P1811,Fit cylinder insulation jacket (48' x 18'),39.9,3
+BOILERS,Flue Components Continued,P1812,Fit cylinder insulation jacket (42' x 16'),37.26,3
+BOILERS,Flue Components Continued,P1813,Fit cylinder insulation jacket (42' x 18'),39.9,3
+BOILERS,Flue Components Continued,P6200,ASHP External Trunking 140mm 2m Length (Black),77.6,7
+BOILERS,Flue Components Continued,P6201,ASHP External Trunking 140mm Wall Cover (Black),44.2,7
+BOILERS,Flue Components Continued,P6202,ASHP External Trunking 140mm Straight Connector (Black),21.0,7
+BOILERS,Flue Components Continued,P6203,ASHP External Trunking 140mm 90 Deg Internal Bend (Black),55.4,7
+BOILERS,Flue Components Continued,P6204,ASHP External Trunking 140mm 90 Deg Flat Bend (Black),32.2,7
+BOILERS,Flue Components Continued,P6205,ASHP External Trunking 140mm 90 Deg External Bend (Black),55.4,7
+BOILERS,Flue Components Continued,P6206,PumpHouse 2M PVC Coated Insulation 22mm,31.08,7
+BOILERS,Flue Components Continued,P6207,PumpHouse 2M PVC Coated Insulation 28mm,35.36,7
+BOILERS,Flue Components Continued,P6208,PumpHouse 2M PVC Coated Insulation 35mm,32.06,7
+BOILERS,Flue Components Continued,P6209,ASHP External Trunking 140mm 2m Length (Black),77.6,7
+BOILERS,Flue Components Continued,P6210,ASHP External Trunking 140mm Wall Cover (Black),44.2,7
+BOILERS,Flue Components Continued,P6211,ASHP External Trunking 140mm Straight Connector (Black),21.0,7
+BOILERS,Flue Components Continued,P6212,ASHP External Trunking 140mm 90 Deg Internal Bend (Black),55.4,7
+BOILERS,Flue Components Continued,P6213,ASHP External Trunking 140mm 90 Deg Flat Bend (Black),32.2,7
+BOILERS,Flue Components Continued,P6214,ASHP External Trunking 140mm 90 Deg External Bend (Black),55.4,7
+BOILERS,Flue Components Continued,P6215,PumpHouse 2M PVC Coated Insulation 22mm,32.2,7
+BOILERS,Flue Components Continued,P6216,PumpHouse 2M PVC Coated Insulation 28mm,32.2,7
+BOILERS,Flue Components Continued,P6217,PumpHouse 2M PVC Coated Insulation 35mm,32.2,7
+BOILERS,Flue Components Continued,P930,Worcester Greenstar Combi Vertical Pre-Piping Assembly,139.18,1
+BOILERS,Flue Components Continued,PCX1291,Install Pipe (15mm x 6mtr length),128.89,1
+BOILERS,Flue Components Continued,P2099,Mixergy Heat Exchanger Module,299.0,7
+BOILERS,Flue Components Continued,P6222,PH 140MM IVORY TRUNKING 90 DEG FLAT BEND,38.26,7
+BOILERS,Flue Components Continued,P6223,PH 140MM IVORY TRUNKING 90 DEG EXTERNAL BEND,55.58,7
+BOILERS,Flue Components Continued,P6220,PH 140MM IVORY TRUNKING STRAIGHT CONNECTOR,17.99,7
+BOILERS,Flue Components Continued,P6221,PH 140MM IVORY TRUNKING 90 DEG INTERNAL BEND,55.58,7
+BOILERS,Flue Components Continued,P6218,PH 140MM IVORY TRUNKING DUCT 2000M,83.58,7
+BOILERS,Flue Components Continued,P6219,PH 140MM IVORY TRUNKING WALL COVER,42.5,7
+Worcester Combi Conventional and System Boilers,Worcester 440CDi Highflow/Worcester Floor Standing Cdi,P926,Worcester 440CDi 100mm Telescopic Horizontal Flue 350mm - 570mm,255.42,1
+Worcester Combi Conventional and System Boilers,Worcester 440CDi Highflow/Worcester Floor Standing Cdi,P922,Worc 440CDi 100mm Horizontal Flue 1200mm,241.16,1
+Worcester Combi Conventional and System Boilers,Worcester 440CDi Highflow/Worcester Floor Standing Cdi,P928,Worcester 440CDi 125mm Telescopic Horizontal Flue 1200mm,303.94,3
+Worcester Combi Conventional and System Boilers,Worcester 440CDi Highflow/Worcester Floor Standing Cdi,P924,Worc 440Cdi 1200mm Horizontal Flue Kit 125mm,268.9,0
+Worcester Combi Conventional and System Boilers,Worcester 440CDi Highflow/Worcester Floor Standing Cdi,P927,Worcester 440CDi 100mm Vertical Flue 1140mm,266.3,1
+Worcester Combi Conventional and System Boilers,Worcester 440CDi Highflow/Worcester Floor Standing Cdi,P923,Worc 440Cdi 1365mm Vertical Flue Kit 100mm,234.85,0
+Worcester Combi Conventional and System Boilers,Worcester 440CDi Highflow/Worcester Floor Standing Cdi,P929,Worcester 440CDi 125mm Vertical Flue 1365mm,300.16,3
+Worcester Combi Conventional and System Boilers,Worcester 440CDi Highflow/Worcester Floor Standing Cdi,P925,Worc 440Cdi 1365mm Vertical Flue Kit 125mm,268.9,0
+Worcester Combi Conventional and System Boilers,Worcester 440CDi Highflow/Worcester Floor Standing Cdi,P932,Worcester 100mm 440CDi Vertical Flue Adaptor,33.5,3
+Worcester Combi Conventional and System Boilers,Worcester 440CDi Highflow/Worcester Floor Standing Cdi,P931,Worcester 125mm 440CDi Vertical Flue Adaptor,36.34,1
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,P7739,Vaillant 100mm Standard Horizontal Flue Kit 800mm,309.18,1
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,P7820,Vaillant 100mm Rear Horizontal Flue 336mm - 578mm,330.1,1
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,P7740,Vaillant 100mm Telescopic Flue Offset Section 290mm - 374mm,96.85,1
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,P7741,Vaillant Black Termination Kit for Horizontal Flue,51.04,1
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,P7749,Vaillant 100mm Vertical Flue Kit 1140mm,257.38,1
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,P775,Vaillant Pitched Roof Weather Collar,157.13,1
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,P7751,Vaillant 100mm Flue Support Clips (5),36.06,1
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,P7752,Eco Tec Pro Spacer Frame,49.7,1
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,P776,Vaillant Flat Roof Weather Collar,157.13,1
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,P7787,Vaillant 100mm Telescopic Flue Extension 440mm - 690mm,76.56,1
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,P7788,Vaillant 100mm Flue Extension 1970mm,113.74,1
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,P7789,Vaillant 100mm Flue Extension 970mm,65.58,1
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,P7799,Vaillant 100mm Flue Extension 470mm,50.12,1
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,P7809,Vaillant 100mm 87' Elbow,53.05,1
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,P7819,Vaillant 100mm 45' Elbow (Pair),102.06,1
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,P7831,Ecomax 2 adjust offset flue (100mm dia),174.17,0
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,P7839,Vaillant Internal Flue Fixing Kit (95mm Dia),34.61,0
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,P7742,Vaillant Variable Termination Kit 500mm (Black),98.54,1
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,P7743,Vaillant 1000mm Extension VTK (Black),28.63,1
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,P7744,Vaillant 90' Elbow VTK (Black),28.63,1
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,P7745,Vaillant 45' Elbow VTK (Pair) (Black),42.71,1
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,P7746,Vaillant Variable Termination Kit 500mm (White),85.49,1
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,P7747,Vaillant 1000mm Extension VTK (White),28.63,1
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,P7748,Vaillant 87' Elbow for VTK (White),31.99,1
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,P7750,Vaillant 45' Elbow for VTK (Pair) (White),43.82,1
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,P7978,Glow-worm 100mm Standard Horizontal Flue 832mm,239.42,1
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,P7977,Flexicom 100mm Telescopic Rear Horizontal Flue 336mm - 578mm,239.42,1
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,P7962,Glow-worm HE Flue Extension 2000mm,76.56,1
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,P7963,Glow-worm HE Flue Extension 1000mm,50.12,1
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,P7964,Glow-worm HE Flue Extension 500mm,39.38,1
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,P7965,Glow-worm HE Vertical flue Terminal,257.38,1
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,P7966,Glow-worm HE Flat Roof Flashing,157.13,1
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,P7967,Glow-worm HE Pitched Roof Flashing,157.13,1
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,P7968,Glow-worm HE Sliding Sleeve (0-100mm),39.16,1
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,P7969,Glow-worm HE 45' Flue Bend (Pair),75.62,1
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,P7970,Glow-worm HE 90' Flue Elbow,40.72,1
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,P79701,Glow-worm Plume Management Kit 500mm (Black),85.06,1
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,P79702,Glow-worm Plume Management Kit Extension 1000mm (Black),24.16,1
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,P79703,Glow-worm Plume Management Kit 45' Elbows (Pair) (Black),45.38,1
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,P79704,Glow-worm Plume Management Kit 90' Bend (Black),24.16,1
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,P79705,Glow-worm Plume Management Kit 500mm (White),85.06,1
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,P79706,Glow-worm Plume Management Kit Extension 1000mm (White),24.16,1
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,P79707,Glow-worm Plume Management Kit 45' Elbows (White) (Pair),45.38,1
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,P79708,Glow-worm Plume Management Kit 90' Bend (White),24.16,1
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,P79709,Glowworm Flue Support Clips 100mm (Pack of 3),31.14,1
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,P7974,Glow-worm HE Raised Horizontal Flue Adaptor,13.21,1
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,P7975,Glow-worm HE Telescopic Flue Extension 500mm - 800mm,74.26,1
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,P609,Suprima/Main Mltipnt Std Horizontal Flue,222.08,0
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,P610,Suprima/Main Mltipnt Extd Horizontal Flue,236.03,0
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,P611,Suprima/Main Mltipnt 1mtr Flue Ext,70.72,0
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,P612,Suprima/Main Mltipnt 90' Flue Elbow,58.38,0
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,P613,Suprima/Main Mltipnt 135' Flue Elbow,112.91,0
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,P615,Suprima/Main Mltipnt Vertical Flue,330.78,0
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,P6151,Suprima/Main Mltipnt Flat Roof Flashing,219.74,0
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,P6152,Suprima/Main Mltipnt Pitched Roof Flashing,242.15,0
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,P6154,Suprima/Main Mltipnt Vertical Adaptor,47.38,0
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,P6156,Suprima/Main Mltipnt Terminal Guard,69.53,0
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,P7900,Viessmann 100mm Horizontal Flue 1000mm,234.85,3
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,P7901,Viessmann 100mm Flue Extension 1950mm,85.86,3
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,P7902,Viessmann 100mm Flue Extension 1000mm,53.57,3
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,P7903,Viessmann 100mm Flue Extension 500mm,39.95,3
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,P7904,Viessmann 87' Flue Elbow,39.95,3
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,P7905,Viessmann 45' Flue Bend (Pair),62.1,3
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,P7906,Viessmann 100mm Vertical Flue Terminal (Black),234.85,3
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,P7907,Viessmann Pitched Roof Flashing Kit,158.5,1
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,P7908,Viessmann Flat Roof Flashing Kit,158.5,3
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,P7909,Viessmann Plume Management Kit Black,91.36,3
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,P7910,Viessmann Plume Management Kit 87' Elbows (Pair) (Black),20.7,3
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,P7911,Viessmann Plume Management Kit 45' Elbows (Pair) (Black),33.14,3
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,P7912,Viessmann Plume Management Kit Extension 1000mm (Black),22.37,3
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,P0012,Polypipe MUPVC 50mm Obtuse Bend,2.62,7
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,P0013,Polypipe MUPVC 50mm Swept Bend,2.75,7
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,P0014,Polypipe MUPVC 50mm Coupling,2.56,7
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,P0015,Polypipe MUPVC 50mm 90D Tee,2.74,7
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,P0016,Polypipe MUPVC 50mm 3m Black Pipe with Clips,89.47,7
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,CACU0001,Bosch Climate 3200 2.6kW Single Split AC Unit (<5 m Pipe Distance),2530.06,10
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,CACU0002,Bosch Climate 3200 2.6kW Single Split AC Unit (5-15m Pipe Distance),2641.96,10
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,CACU0003,Bosch Climate 3200 2.6kW Single Split AC Unit (15-25m Pipe Distance),2753.87,10
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,CACU0004,Bosch Climate 3200 3.5kW Single Split AC Unit (<5 m Pipe Distance),2577.27,10
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,CACU0005,Bosch Climate 3200 3.5kW Single Split AC Unit (5-15m Pipe Distance),2689.18,10
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,CACU0005,Bosch Climate 3200 3.5kW Single Split AC Unit (5-15m Pipe Distance),2689.18,10
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,CACU0005,Bosch Climate 3200 3.5kW Single Split AC Unit (5-15m Pipe Distance),2689.18,10
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,CACU0005,Bosch Climate 3200 3.5kW Single Split AC Unit (5-15m Pipe Distance),2689.18,10
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,CACU0007,Bosch Climate 3200 5.3kW Single Split AC Unit (<5 m Pipe Distance),3300.08,10
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,CACU0008,Bosch Climate 3200 5.3kW Single Split AC Unit (5-15m Pipe Distance),3411.99,10
+Worcester Combi Conventional and System Boilers,Vaillant EcoTec Pro and EcoTec Plus,CACU0009,Bosch Climate 3200 5.3kW Single Split AC Unit (15-25m Pipe Distance),3523.89,10

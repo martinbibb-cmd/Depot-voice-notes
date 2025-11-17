@@ -1,0 +1,101 @@
+section,subsection,component_id,description,selling_price_gbp,lead_time_days
+BOILERS,Conventional Natural Gas,CBLR3453,Worcester Greenstar Ri 12kW - Regular,935.16,1
+BOILERS,Conventional Natural Gas,CBLR3455,Worcester Greenstar Ri 15kW - Regular,1003.1,1
+BOILERS,Conventional Natural Gas,CBLR3457,Worcester Greenstar Ri 18kW - Regular,1035.14,1
+BOILERS,Conventional Natural Gas,CBLR3461,Worcester Greenstar Ri 24kW - Regular,1100.4,1
+BOILERS,Conventional Natural Gas,CBLR1380,Worcester Greenstar 30Ri ErP - Regular,1218.35,1
+BOILERS,Conventional Natural Gas,CBLR1388,Worcester Greenstar FS 30CDi ErP - Regular,2071.66,3
+BOILERS,Conventional Natural Gas,CBLR1389,Worcester Greenstar FS 42CDi ErP - Regular,2691.74,3
+BOILERS,Conventional Natural Gas,CBLR3538,Worcester Greenstar 8000 Life 30kW Regular,1776.82,0
+BOILERS,Conventional Natural Gas,CBLR3539,Worcester Greenstar 8000 Life 35kW Regular,1961.66,0
+BOILERS,Conventional Natural Gas,CBLR3540,Worcester Greenstar 8000 Life 40kW Regular,2308.37,0
+BOILERS,Conventional Natural Gas,CBLR3541,Worcester Greenstar 8000 Life 45kW Regular,2506.49,0
+BOILERS,Conventional Natural Gas,CBLR3542,Worcester Greenstar 8000 Life 50kW Regular,2655.08,0
+BOILERS,Conventional Natural Gas,CBLR3512,Worcester Greenstar 8000 Style 30kW System (Black and Chrome),1653.26,0
+BOILERS,Conventional Natural Gas,CBLR3575,Worcester Greenstar 8000+ 35kW Regular NG,1952.8,1
+BOILERS,Conventional Natural Gas,CBLR3576,Worcester Greenstar 8000+ 40kW Regular NG,2143.8,3
+BOILERS,Conventional Natural Gas,CBLR3577,Worcester Greenstar 8000+ 45kW Regular NG,2428.6,5
+BOILERS,Conventional Natural Gas,CBLR3578,Worcester Greenstar 8000+ 50kW Regular NG,2546.8,5
+BOILERS,Conventional Natural Gas,CBLR3375,Glowworm Energy7 12r – Regular,911.41,3
+BOILERS,Conventional Natural Gas,CBLR3377,Glowworm Energy7 18r - Regular,1042.3,1
+BOILERS,Conventional Natural Gas,CBLR3376,Glowworm Energy7 15r - Regular,955.43,1
+BOILERS,Conventional Natural Gas,CBLR3378,Glowworm Energy7 25r - Regular,1096.92,3
+BOILERS,Conventional Natural Gas,CBLR3393,Vaillant ecoTEC plus 424 - Regular,1118.35,3
+BOILERS,Conventional Natural Gas,CBLR3394,Vaillant ecoTEC plus 430 - Regular,1172.98,3
+BOILERS,Conventional Natural Gas,CBLR3423,Vaillant ecoFIT pure 412 - Regular,1043.46,3
+BOILERS,Conventional Natural Gas,CBLR3425,Vaillant ecoFIT pure 418 - Regular,1188.24,3
+BOILERS,Conventional Natural Gas,CBLR3428,Vaillant ecoFIT pure 435 - Regular,1670.83,3
+BOILERS,Conventional Natural Gas,CBLR1911,Ideal Logic Heat Boiler 30kW,1133.71,0
+BOILERS,Conventional Natural Gas,CBLR3390,Vaillant ecoTEC plus 412 - Regular,920.87,3
+BOILERS,Conventional Natural Gas,CBLR3391,Vaillant ecoTEC plus 415 - Regular,987.48,3
+BOILERS,Conventional Natural Gas,CBLR3424,Vaillant ecoFIT pure 415 - Regular,1236.49,3
+BOILERS,Conventional Natural Gas,CBLR3426,Vaillant ecoFIT pure 425 - Regular,1188.24,3
+BOILERS,Conventional Natural Gas,CBLR3427,Vaillant ecoFIT pure 430 - Regular,1236.49,3
+BOILERS,Conventional Natural Gas,CBLR1919,Ideal Logic Heat2 H12 Boiler,870.11,3
+BOILERS,Conventional Natural Gas,CBLR3003,Keston Heat 2 45kW Regular Boiler,2986.78,7
+BOILERS,Conventional Natural Gas,CBLR1920,Ideal Logic Heat2 H15 Boiler,933.04,3
+BOILERS,Conventional Natural Gas,CBLR1921,Ideal Logic Heat2 H18 Boiler,964.12,3
+BOILERS,Conventional Natural Gas,CBLR1922,Ideal Logic Heat2 H24 Boiler,1027.04,3
+BOILERS,Conventional Natural Gas,CBLR1923,Ideal Logic Heat2 H30 Boiler,1181.86,3
+BOILERS,Conventional Natural Gas,CBLR3379,Glowworm Energy7 30r - Regular,1129.16,3
+BOILERS,Conventional Natural Gas,CBLR3379,Glowworm Energy7 30r - Regular,1129.16,3
+BOILERS,Conventional Natural Gas,CBLR3392,Vaillant ecoTEC plus 418 - Regular,1054.27,3
+BOILERS,Conventional Natural Gas,CBLR3709,Ariston Clas One R 15,750.0,3
+BOILERS,Conventional LPG,CBLR3456,Worcester Greenstar Ri 15kW LPG - Regular,1058.9,3
+BOILERS,Conventional LPG,CBLR3458,Worcester Greenstar Ri 18kW LPG - Regular,1111.21,3
+BOILERS,Conventional LPG,CBLR3462,Worcester Greenstar Ri 24kW LPG - Regular,1175.5,3
+BOILERS,Conventional LPG,CBLR1381,Worcester Greenstar 30Ri ErP LPG - Regular,1365.83,5
+BOILERS,Conventional LPG,CBLR3543,Worcester Greenstar 8000 Life 30kW Regular LPG,1987.42,0
+BOILERS,Conventional LPG,CBLR3544,Worcester Greenstar 8000 Life 35kW Regular LPG,2132.58,0
+BOILERS,Conventional LPG,CBLR3547,Worcester Greenstar 8000 Life 50kW Regular LPG,2728.49,0
+BOILERS,Conventional LPG,CBLR3454,Worcester Greenstar Ri 12kW LPG - Regular,992.29,5
+BOILERS,Conventional LPG,CBLR3545,Worcester Greenstar 8000 Life 40kW Regular LPG,2315.77,0
+BOILERS,Conventional LPG,CBLR3581,Worcester Greenstar 8000+ 30kW Regular LPG,2028.0,5
+BOILERS,Conventional LPG,CBLR3582,Worcester Greenstar 8000+ 35kW Regular LPG,2178.4,5
+BOILERS,Conventional LPG,CBLR3583,Worcester Greenstar 8000+ 40kW Regular LPG,2368.2,7
+BOILERS,Conventional LPG,CBLR3584,Worcester Greenstar 8000+ 45kW Regular LPG,2663.8,7
+BOILERS,Conventional LPG,CBLR3585,Worcester Greenstar 8000+ 50kW Regular LPG,2795.8,7
+BOILERS,Conventional LPG,CBLR3546,Worcester Greenstar 8000 Life 45kW Regular LPG,2601.08,0
+BOILERS,System Natural Gas,CBLR3380,Glowworm Energy7 18s System ErP,1054.27,3
+BOILERS,System Natural Gas,CBLR3429,Vaillant ecoFIT pure 612 - System,1188.24,3
+BOILERS,System Natural Gas,CBLR3430,Vaillant ecoFIT pure 615 - System,1226.84,3
+BOILERS,System Natural Gas,CBLR3432,Vaillant ecoFIT pure 625 - System,1381.27,3
+BOILERS,System Natural Gas,CBLR3433,Vaillant ecoFIT pure 630 - System,1574.3,3
+BOILERS,System Natural Gas,CBLR3510,Worcester Greenstar 8000 Style 30kW System (White and Chrome),1800.74,0
+BOILERS,System Natural Gas,CBLR3511,Worcester Greenstar 8000 Style 35kW System (White and Chrome),1828.39,0
+BOILERS,System Natural Gas,CBLR3513,Worcester Greenstar 8000 Style 35kW System (Black and Chrome),1933.94,0
+BOILERS,System Natural Gas,CBLR3548,Worcester Greenstar 8000 Life 30kW System,1653.26,0
+BOILERS,System Natural Gas,CBLR3549,Worcester Greenstar 8000 Life 35kW System,2010.2,0
+BOILERS,System Natural Gas,CBLR3604,Worcester Greenstar 4000 12kW System NG,1051.75,3
+BOILERS,System Natural Gas,CBLR3606,Worcester Greenstar 4000 15kW System NG,1142.96,1
+BOILERS,System Natural Gas,CBLR3608,Worcester Greenstar 4000 18kW System NG,1163.71,1
+BOILERS,System Natural Gas,CBLR3612,Worcester Greenstar 4000 24kW System NG,1354.04,1
+BOILERS,System Natural Gas,CBLR3721,Ariston Clas System One 30,969.44,3
+BOILERS,System Natural Gas,CBLR3720,Ariston Clas System One 24,904.0,3
+BOILERS,System Natural Gas,CBLR3718,Ariston Clas One R 24,896.11,3
+BOILERS,System Natural Gas,CBLR3431,Vaillant ecoFIT pure 618 - System,1284.76,3
+BOILERS,System Natural Gas,CBLR3610,Worcester Greenstar 4000 21kW System NG,1208.69,3
+BOILERS,System Natural Gas,CBLR3002,Keston System 2 S30 System Boiler,1706.28,7
+BOILERS,System Natural Gas,CBLR1915,Ideal Logic System2 S15 Boiler,942.3,3
+BOILERS,System Natural Gas,CBLR1916,Ideal Logic System2 S18 Boiler,1117.2,3
+BOILERS,System Natural Gas,CBLR1917,Ideal Logic System2 S24 Boiler,1363.13,3
+BOILERS,System Natural Gas,CBLR1918,Ideal Logic System2 S30 Boiler,1509.06,3
+BOILERS,System Natural Gas,CBLR3719,Ariston Clas System One 18,745.76,0
+BOILERS,System Natural Gas,CBLR3381,Glowworm Energy7 25s System ErP,1118.35,3
+BOILERS,System Natural Gas,CBLR3572,Worcester Greenstar 8000+ 30kW System NG,1681.8,5
+BOILERS,System Natural Gas,CBLR3573,Worcester Greenstar 8000+ 35kW System NG,1806.2,3
+BOILERS,System LPG,CBLR1049,Worcester Greenstar 9i System ErP LPG,976.56,0
+BOILERS,System LPG,CBLR1393,Worcester Greenstar 12i System ErP LPG,1000.33,0
+BOILERS,System LPG,CBLR3605,Worcester Greenstar 4000 12kW System LPG,1108.9,3
+BOILERS,System LPG,CBLR3607,Worcester Greenstar 4000 15kW System LPG,1172.98,3
+BOILERS,System LPG,CBLR3609,Worcester Greenstar 4000 18kW System LPG,1217.18,3
+BOILERS,System LPG,CBLR3611,Worcester Greenstar 4000 21kW System LPG,1271.63,5
+BOILERS,System LPG,CBLR3613,Worcester Greenstar 4000 24kW System LPG,1439.87,3
+BOILERS,System LPG,CBLR3550,Worcester Greenstar 8000 Life 30kW System LPG,1784.15,0
+BOILERS,System LPG,CBLR3551,Worcester Greenstar 8000 Life 35kW System LPG,1974.36,0
+BOILERS,System LPG,CBLR3524,Worcester Greenstar 8000 Style 30kW System LPG (White and Chrome),1784.15,0
+BOILERS,System LPG,CBLR3525,Worcester Greenstar 8000 Style 35kW System LPG (White and Chrome),2140.03,0
+BOILERS,System LPG,CBLR3526,Worcester Greenstar 8000 Style 30kW System LPG (Black and Chrome),1927.96,0
+BOILERS,System LPG,CBLR3527,Worcester Greenstar 8000 Style 35kW System LPG (Black and Chrome),1974.36,0
+BOILERS,System LPG,CBLR3579,Worcester Greenstar 8000+ 30kW System LPG,1817.4,7
+BOILERS,System LPG,CBLR3580,Worcester Greenstar 8000+ 35kW System LPG,1952.8,7

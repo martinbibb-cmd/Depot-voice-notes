@@ -1,0 +1,229 @@
+section,subsection,component_id,description,selling_price_gbp,lead_time_days
+Heat Pumps,,CAHP001,Vaillant aroTHERM plus 3.5kW,6666.67,0
+Heat Pumps,,CAHP002,Vaillant aroTHERM plus 5kW,6666.67,0
+Heat Pumps,,CAHP003,Vaillant aroTHERM plus 7kW,6666.67,0
+Heat Pumps,,CAHP004,Vaillant aroTHERM plus 10kW,6666.67,0
+Heat Pumps,,CAHP005,Vaillant aroTHERM plus 12kW,6666.67,0
+Heat Pumps,,CAHP006,Vaillant aroTHERM plus 3.5kW,4750.0,7
+Heat Pumps,,CAHP007,Vaillant aroTHERM plus 5kW,4830.0,7
+Heat Pumps,,CAHP008,Vaillant aroTHERM plus 7kW,5050.0,7
+Heat Pumps,,CAHP009,Vaillant aroTHERM plus 10kW,5950.0,7
+Heat Pumps,,CAHP010,Vaillant aroTHERM plus 12kW,6130.0,7
+Heat Pumps,,CAHP013,Daikin 9KW Altherma Monobloc,4470.0,7
+Heat Pumps,,CAHP016,Daikin 16KW Altherma Monobloc,5240.0,7
+Heat Pumps,,CAHP015,Daikin 14KW Altherma Monobloc,4960.0,7
+Heat Pumps,,CAHP014,Daikin 11KW Altherma Monobloc,4730.0,7
+Heat Pumps,,CAHP019,Daikin 8KW Altherma Monobloc,4150.0,7
+Heat Pumps,,CAHP018,Daikin 6KW Altherma Monobloc,4050.0,7
+Heat Pumps,,P1020,ASHP monobloc core install labour pack,3770.0,0
+Heat Pumps,,P1021,ASHP Split Systems Core Install Labour Pack,4060.0,0
+Heat Pumps,,P1022,"ASHP labour per radiator with repipe, under 150 m2",350.0,0
+Heat Pumps,,P1023,"ASHP labour per radiator with repipe, over 150 m2",350.0,0
+Heat Pumps,,P1024,"ASHP labour per radiator no repipe, under 150 m2",70.0,0
+Heat Pumps,,P1026,ASHP power flush,480.0,0
+Heat Pumps,,P1027,ASHP additional mechanical labour - 1 hour,60.0,0
+Heat Pumps,,P1028,ASHP additional electrical labour - 1 hour,70.0,0
+Heat Pumps,,CCYL1338,ALTECNIC HEAT PUMP BUFFER TANK 80 LITRE,276.24,7
+Heat Pumps,,CCYL1336,ALTECNIC HEAT PUMP BUFFER TANK 12 LITRE,170.32,7
+Heat Pumps,,CCYL1337,ALTECNIC HEAT PUMP BUFFER TANK 25 LITRE,209.54,7
+Heat Pumps,,CAHP017,Daikin 4KW Altherma Monobloc,3740.0,7
+Heat Pumps,,CCYL1141,Daikin 150l Indirect Slimline Pre-plumbed Heat Pump Cylinder (R32),1350.0,0
+Heat Pumps,,CAHP903,Daikin Low Temp R-Split wall hung (Class 11) Single Phase,4210.0,7
+Heat Pumps,,CAHP910,Daikin Low Temp R-Split Class 6 & 8 Integrated 230L,4850.0,7
+Heat Pumps,,CAHP902,Daikin Low Temp R-Split wall hung (class 6 & 8),3870.0,7
+Heat Pumps,,CAHP909,Daikin Low Temp R-Split Class 6 & 8 Integrated 180L,4710.0,7
+Heat Pumps,,CAHP904,Daikin Low Temp R-Split wall hung (Class 11) Three Phase,4210.0,7
+Heat Pumps,,CAHP911,Daikin Low Temp R-Split Class 11-16 Integrated 230L,5330.0,7
+Heat Pumps,,CAHP905,Daikin Low Temp R-Split wall hung (Class 14 & 16) Single Phase,4330.0,7
+Heat Pumps,,CAHP023,Daikin Low Temp R-split Class 11 Single Phase,4400.0,7
+Heat Pumps,,CAHP026,Daikin Low Temp R-split class 14 Three Phase,5010.0,7
+Heat Pumps,,CAHP028,Daikin Low Temp R-split class 16 Three Phase,5280.0,7
+Heat Pumps,,CAHP906,Daikin Low Temp R-Split wall hung (Class 14 & 16) Three Phase,4330.0,7
+Heat Pumps,,CAHP027,Daikin Low Temp R-split Class 16 Single Phase,5000.0,7
+Heat Pumps,,CAHP020,Daikin Low Temp R-Split Class 4,3140.0,7
+Heat Pumps,,CAHP907,Daikin Low Temp R-Split Class 4 Integrated 180L,4710.0,7
+Heat Pumps,,CAHP021,Daikin Low Temp R-Split Class 6,3160.0,7
+Heat Pumps,,CAHP901,Daikin Low Temp R-split wall hung (Class 4),3840.0,7
+Heat Pumps,,CAHP022,Daikin Low Temp R-Split Class 8,3520.0,7
+Heat Pumps,,CAHP908,Daikin Low Temp R-Split Class 4 Integrated 230L,4850.0,7
+Heat Pumps,,CAHP024,Daikin Low Temp R-split class 11 Three Phase,4630.0,7
+Heat Pumps,,CAHP025,Daikin Low Temp R-split Class 14 Single Phase,4750.0,7
+Heat Pumps,,CAHP029,Samsung Gen 7 Integrated 5kW R290 Monobloc,4120.0,5
+Heat Pumps,,CAHP030,Samsung Gen 7 Integrated 8kW R290 Monobloc,4480.0,5
+Heat Pumps,,CAHP031,Samsung Gen 7 Integrated 12kW R290 Monobloc,5510.0,5
+Heat Pumps,,CAHP032,Samsung Gen 7 Integrated 16kW R290 Monobloc,5880.0,5
+Heat Pumps,,CAHP033,"Daikin 4KW heat pump, blygold protected",3990.0,28
+Heat Pumps,,CAHP034,"Daikin 6KW heat pump, blygold protected",4290.0,28
+Heat Pumps,,CAHP035,"Daikin 8kW heat pump, blygold protected",4390.0,28
+Heat Pumps,,CAHP036,"Daikin 9kW heat pump, blygold protected",4580.0,28
+Heat Pumps,,CAHP037,"Daikin 11kW heat pump, blygold protected",4810.0,28
+Heat Pumps,,CAHP038,"Daikin 14kW heat pump, blygold protected",5030.0,28
+Heat Pumps,,CAHP039,"Daikin 16kW heat pump, blygold protected.",5430.0,28
+Heat Pumps,,P2024,ASHP Labour Pack - Medium,3300.0,0
+Heat Pumps,,P2025,ASHP Labour Pack - Large,7480.0,0
+Heat Pumps,,P2023,ASHP Labour Pack - Small,1320.0,0
+Heat Pumps,,P2034,ASHP Large Mech labour Pack (12 - 18 rads),7043.0,0
+Heat Pumps,,P2026,ASHP 8 hours Small Electric Labour Packs,480.0,0
+Heat Pumps,,P2030,ASHP 100% Underfloor labour Pack,1856.0,0
+Heat Pumps,,P2029,ASHP Replacement Labour Pack,1856.0,0
+Heat Pumps,,P2031,ASHP Existing Carcass Labour Pack,2320.0,0
+Heat Pumps,,P2032,ASHP Small Mech labour Pack (Up to 7 rads),3796.0,0
+Heat Pumps,,P2027,ASHP 16 hours Medium Electric Labour Packs,960.0,0
+Heat Pumps,,P2033,ASHP Medium Mech labour Pack (8 - 11 rads),4990.0,0
+Heat Pumps,,P2028,ASHP 24 hours Large Electric Labour Packs,1440.0,0
+Heat Pumps,,P2035,ASHP X-Large labour Pack (19 rads plus),8203.0,0
+Heat Pumps,,CCYL1138,Daikin 210l Indirect Pre-plumbed Heat Pump Cylinder (R32),1370.0,0
+Heat Pumps,,CCYL1139,Daikin 250l Indirect Pre-plumbed Heat Pump Cylinder (R32),1380.0,0
+Heat Pumps,,CCYL1140,Daikin 300l Indirect Pre-plumbed Heat Pump Cylinder (R32),1630.0,0
+Heat Pumps,,CCYL1142,Daikin 180l Indirect Slimline Pre-plumbed Heat Pump Cylinder (R32),1440.0,0
+Heat Pumps,,P1025,"ASHP labour per radiator no repipe, over 150 m2",70.0,0
+Heat Pumps,,P1945,Specialist Building Work (3),268.5,1
+Heat Pumps,,P1946,Specialist Building Work (5),468.1,1
+Heat Pumps,,P1948,Building Work (Customer to Provide Bricks),187.91,1
+Heat Pumps,,P1949,Building Work (Engineer to supply/collect bricks),252.3,1
+Heat Pumps,,P1992,Minor building work,104.66,1
+Heat Pumps,,P1993,Other building work,193.14,1
+Heat Pumps,,P1822,Increase height or width of fire opening,126.18,1
+Heat Pumps,,P1823,Lower fire opening height,124.76,1
+Heat Pumps,,P1824,Reduce fire opening width,131.83,1
+Heat Pumps,,P1825,Remove chairbrick and seal flue,150.88,1
+Heat Pumps,,P1826,Make Insulated Opening intoCavity-Inset BF/FF Fire,320.75,1
+Heat Pumps,,P1955,Specialist Carpentry Work (3),224.89,1
+Heat Pumps,,P1956,Specialist Carpentry Work (5),374.35,1
+Heat Pumps,,P1940,Additional Labour,115.15,1
+Heat Pumps,,P3389,Fire Business Merchant Delivery Charge,51.16,1
+Heat Pumps,,P2006,Central London 2nd Fix pack,858.18,1
+Heat Pumps,,P2005,Central London Working at Heights Access pack,1528.24,1
+Heat Pumps,,P2000,Central London installation pack,630.04,1
+Heat Pumps,,P2001,Keston Central London installation pack,892.75,1
+Heat Pumps,,P193,Supply and fit electric point (fused spur),92.18,1
+Heat Pumps,,P2954,CHC Connect Electrics and Test,207.9,1
+Heat Pumps,,P2955,Electrical Core Installation Work,106.07,1
+Heat Pumps,,P1954,Core Cutting Specialist,177.18,1
+Heat Pumps,,P2962,Supplementary Bonding,209.23,1
+Heat Pumps,,P2967,Other electric supplementary bonding (bathroom),52.14,1
+Heat Pumps,,P2968,Install Earth Spike,529.44,1
+Heat Pumps,,P2969,Electrical Pre-Installation Survey,91.75,1
+Heat Pumps,,P334,Disconnect & remove electric shower,20.58,1
+Heat Pumps,,P335,Disconnect & remove immersion heater,14.93,1
+Heat Pumps,,P1921,Install cable -Elec Shower/New Immersion Heater,188.83,1
+Heat Pumps,,P1922,Install fused CU with RCCB,188.83,1
+Heat Pumps,,P1931,Supply & Fit Additional Fuse Spur,92.18,1
+Heat Pumps,,P1941,Alterations to electrical installation other than boiler,55.04,1
+Heat Pumps,,P2976,Install Fused RCD,92.18,1
+Heat Pumps,,P2977,Install Fused RCD for Additional Equipment-not BLR,114.37,1
+Heat Pumps,,P336,Install 11' immersion heater,38.72,1
+Heat Pumps,,P356,Install 27' Immersion heater,38.72,1
+Heat Pumps,,P3361,Install 14' Immersion Heater,38.72,1
+Heat Pumps,,P1952,Electrical Work,41.45,1
+Heat Pumps,,P1957,Electrical Work (15mins ASPs only),19.78,1
+Heat Pumps,,P1571,Install 5' GC1 terminal,108.83,3
+Heat Pumps,,P1575,Brewer Cowl Ultimate Flue Outlet,181.81,3
+Heat Pumps,,P1611,British Gas 5' dia terminal extension kit,209.14,3
+Heat Pumps,,P2322,Fit plastic coated terminal guard (circ 11.5x9),15.42,1
+Heat Pumps,,P2324,Terminal Guard for Plume Management Kit,26.03,1
+Heat Pumps,,P231,Fit terminal guard (circular 7'),14.72,3
+Heat Pumps,,P232,Fit terminal guard (circular 11'),15.42,3
+Heat Pumps,,P2321,Fit plastic coated terminal guard (circ. 6.5'x11'),15.42,1
+Heat Pumps,,P1951,Additional Work (labour only half hour),57.68,1
+Heat Pumps,,P194,Additional work (labour only),115.15,1
+Heat Pumps,,P1953,Route Clearance,52.14,1
+Heat Pumps,,P182,Remove fire surround (wooden/decorative),50.14,1
+Heat Pumps,,P183,Disconnect & remove solid fuel back boiler,166.21,1
+Heat Pumps,,P1821,Remove fire surround (brick/tiled),331.12,1
+Heat Pumps,,P187,Additional storey pack,318.07,1
+Heat Pumps,,P195,Disconnect & remove existing system (up to 3 rads),250.64,1
+Heat Pumps,,P196,Disconnect & remove existing radiator,30.7,1
+Heat Pumps,,P198,Disconnect & Remove Gas Warm Air Unit,267.79,1
+Heat Pumps,,P199,Disconnect & remove hot water cylinder,50.14,1
+Heat Pumps,,P257,"Drain down, recommission and inhibit system",220.79,1
+Heat Pumps,,P2571,Additional Visit Installation,245.56,1
+Heat Pumps,,P357,Heat shield (for gutters/soffits),34.14,3
+Heat Pumps,,P1321,Install pressure reducing valve,67.9,1
+Heat Pumps,,P1341,Install mini pressure expansion vessel,36.9,1
+Heat Pumps,,P2542,Zone valve replacement,99.08,1
+Heat Pumps,,P1831,Disconnect & remove oil boiler,177.85,0
+Heat Pumps,,P1950,Make Up Wooden Base for F&E/CWS Tank,154.19,1
+Heat Pumps,,P1231,Fit new F&E tank (with vented SS Boiler),409.58,3
+Heat Pumps,,P1973,Remove small ESR ( no asbestos),25.16,1
+Heat Pumps,,P1979,Remove Plastic CWS Tank,25.16,1
+Heat Pumps,,P1991,Disconnect & remove F & E tank,25.16,1
+Heat Pumps,,P1994,Disconnect & remove unit/wall/water heater,54.95,1
+Heat Pumps,,P1995,Disconnect & remove flueless heater,54.95,1
+Heat Pumps,,P1996,Disconnect cold water storage tank,25.16,1
+Heat Pumps,,P1999,Remove flue liner,34.36,1
+Heat Pumps,,P2051,35mm Reducing Pack,58.36,3
+Heat Pumps,,P2052,42mm Reducer Pack,68.98,0
+Heat Pumps,,P2611,Install Superlux Board 900x900x6mm,64.1,3
+Heat Pumps,,P2972,Install 22mm Air Separator,12.23,1
+Heat Pumps,,P297,Install 22mm air separator,13.01,1
+Heat Pumps,,P2973,Install 28mm Air Separator,16.07,1
+Heat Pumps,,P2971,Install 28mm air separator,18.16,1
+Heat Pumps,,P3322,"Disconnect, flush and re-fix radiator",50.14,1
+Heat Pumps,,P3373,Core Installation,129.18,1
+Heat Pumps,,P3393,Remove Rigid Flue 3STORY (Asb Cement or Twinwall),153.13,1
+Heat Pumps,,P3394,Remove Rigid Flue 2STORY (Asb Cement or Twinwall),122.65,1
+Heat Pumps,,P3395,Remove Rigid Flue 1STORY (Asb Cement or Twinwall),100.81,1
+Heat Pumps,,P3397,Remove twinwall rigid flue 1 story,96.12,1
+Heat Pumps,,P3398,Remove twinwall rigid flue 2 story,116.95,1
+Heat Pumps,,P3399,Remove twinwall rigid flue 3 story,146.02,1
+Heat Pumps,,P209,Install RD430i Cylinder Stat,41.39,1
+Heat Pumps,,P210,Install RD532i Filling Loop,9.12,1
+Heat Pumps,,P2960,Simplicity Engineer Connect Boiler Electrics &Test,101.36,1
+Heat Pumps,,P3391,Waste Collection And Disposal (FB),86.87,1
+Heat Pumps,,P1981,Licensed Asbestos Removal Payment Unit (???100),139.46,1
+Heat Pumps,,P1982,Licensed Asbestos Removal - Fixed Rate,1527.78,1
+Heat Pumps,,P3396,Small Asbestos Bags Pack,3.67,1
+Heat Pumps,,P3392,Large Asbestos Bags Pack,5.64,1
+Heat Pumps,,P3553,Safe Access at Height - 2 Storey/Bungalow,872.64,1
+Heat Pumps,,P3554,Safe Access at Height - 3 Storey/Terrace,957.46,1
+Heat Pumps,,P3555,"Safe Access at Height - Flat Roof Handrail, up to 2nd Storey Access",709.12,1
+Heat Pumps,,P3556,Safe Access at Height - 6 mtr Internal Only Access Tower,729.3,1
+Heat Pumps,,P3558,"Safe Access at Height - Bridging Tower, up to 2nd Storey Access",751.55,1
+Heat Pumps,,P3557,Safe Access at Height - Additional Storey charge beyond 3 Storey,80.02,1
+Heat Pumps,Radiator Installation Packs (to be used when raising an ASP),P124,Install new additional radiator (15mm),100.39,1
+Heat Pumps,Radiator Installation Packs (to be used when raising an ASP),P1241,Install new additional radiator (10mm),75.58,1
+Heat Pumps,Radiator Installation Packs (to be used when raising an ASP),P1242,Replace Radiator (15mm),48.5,1
+Heat Pumps,Radiator Installation Packs (to be used when raising an ASP),P1244,Electrical connection for radiator (fc/tw),35.1,1
+Heat Pumps,Radiator Installation Packs (to be used when raising an ASP),PCX129,Install Pipe (15mm x 2mtr length),28.63,1
+Heat Pumps,Radiator Installation Packs (to be used when raising an ASP),P1247,Replace Radiator (10mm),74.08,1
+Heat Pumps,Radiator Installation Packs (to be used when raising an ASP),P1248,Replace Radiator (8mm),120.08,1
+Heat Pumps,Radiator Installation Packs (to be used when raising an ASP),P12421,Install New Dual Fuel Radiator (incs Fused RCD),241.6,1
+Heat Pumps,Radiator Installation Packs (to be used when raising an ASP),P221,Install new additional rad (kickspace),293.54,1
+Heat Pumps,"Fire, Flue Liner, & Multipoint Installation Packs",P262,Install inset fire (concealed connection),306.76,1
+Heat Pumps,"Fire, Flue Liner, & Multipoint Installation Packs",P263,Install outset fire (exposed connection),198.26,1
+Heat Pumps,"Fire, Flue Liner, & Multipoint Installation Packs",P2654,Install Electric Fire,33.68,1
+Heat Pumps,"Fire, Flue Liner, & Multipoint Installation Packs",P2655,Install Electric Fire Suite,38.77,1
+Heat Pumps,"Fire, Flue Liner, & Multipoint Installation Packs",P150,Fit Flue Liner 5' x 1 Storey (inc remove old),280.91,5
+Heat Pumps,"Fire, Flue Liner, & Multipoint Installation Packs",P153,Fit Flue Liner 5' x 2 Storey (inc remove old),440.88,5
+Heat Pumps,"Fire, Flue Liner, & Multipoint Installation Packs",P156,Fit Flue Liner 5' x 3 Storey (inc remove old),550.07,5
+Heat Pumps,"Fire, Flue Liner, & Multipoint Installation Packs",P161,Fit Rigid Flue in 5' x 1 Storey,568.98,5
+Heat Pumps,"Fire, Flue Liner, & Multipoint Installation Packs",P162,Fit Rigid Flue in 5' x 2 Storey,885.88,5
+Heat Pumps,"Fire, Flue Liner, & Multipoint Installation Packs",P163,Fit Rigid Flue in 5' x 3 Storey,1084.12,5
+Heat Pumps,"Fire, Flue Liner, & Multipoint Installation Packs",P7735,Horizontal Flue Flashing - For flat roofs and pitched roofs up to 45,150.42,3
+Heat Pumps,"Fire, Flue Liner, & Multipoint Installation Packs",P287,Install CO Detector,33.71,1
+Heat Pumps,"Fire, Flue Liner, & Multipoint Installation Packs",P322,Install outside tap,62.42,1
+Heat Pumps,"Fire, Flue Liner, & Multipoint Installation Packs",P1976,Complex Installation Pack,149.53,1
+Heat Pumps,"Fire, Flue Liner, & Multipoint Installation Packs",P2021,Install loft light,53.56,1
+Heat Pumps,"Fire, Flue Liner, & Multipoint Installation Packs",P2041,Flexible Hose Connector for Mobile Home,53.0,1
+Heat Pumps,"Fire, Flue Liner, & Multipoint Installation Packs",P3235,Talon Boiler Pipe Cover - 500mm high x 400mm wide x 200mm deep,85.93,3
+Heat Pumps,"Fire, Flue Liner, & Multipoint Installation Packs",P7994,Ariston Plume Kit (inc. 1000mm Horizontal Terminal),275.47,5
+Heat Pumps,"Fire, Flue Liner, & Multipoint Installation Packs",P0042,Talon 47-51mm Rubber Lined Clip (Pack of 5),8.96,7
+Heat Pumps,"Fire, Flue Liner, & Multipoint Installation Packs",P3230,Kinetico Sumo 1 Water Softener with 15mm By-Pass Kit,720.31,0
+Heat Pumps,"Fire, Flue Liner, & Multipoint Installation Packs",P3231,Kinetico Sumo 1 Water Softener with 22mm By-Pass Kit,807.24,0
+Heat Pumps,"Fire, Flue Liner, & Multipoint Installation Packs",P3232,Kinetico Sumo 2 Water Softener with 22mm By-Pass Kit,886.0,0
+Heat Pumps,Radiator Accessories,P5614,Stelrad Classic Column Feet Set for 2 and 3 Column,82.87,7
+Heat Pumps,Radiator Accessories,P135,Fit new hot water cylinder (indirect),187.33,1
+Heat Pumps,Radiator Accessories,P136,Replace hot water cylinder,133.84,1
+Heat Pumps,Radiator Accessories,P1351,Install thermal store cylinder,246.4,1
+Heat Pumps,Radiator Accessories,P1352,Install unvented cylinder,391.85,3
+Heat Pumps,Radiator Accessories,P1353,Balanced Cold Supply - Tank Fed System,61.42,1
+Heat Pumps,Radiator Accessories,P1354,Secondary Circulation For Unvented Cylinder,558.92,1
+Heat Pumps,Radiator Accessories,P1355,Upgrade Cold Supply to 22mm (incs 12m Copper Pipe),313.54,1
+Heat Pumps,Radiator Accessories,P1356,Balance Cold Supply - Mains Fed System,50.22,1
+Heat Pumps,Radiator Accessories,P127,Fit Replacement Pump,97.07,1
+Heat Pumps,Radiator Accessories,P1272,Fit replacement pump (35mm equivalent),699.68,3
+Heat Pumps,Radiator Accessories,P128,Fit new pump valves (22mm),33.53,1
+Heat Pumps,Radiator Accessories,P1281,Fit new pump valves (28mm),34.5,1
+Heat Pumps,Radiator Accessories,P1282,Fit new Pump valves (35mm equiv),105.36,1
+Heat Pumps,Radiator Accessories,P1342,Baxi Remote Pressure Relief Valve,73.57,0

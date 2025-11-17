@@ -1,0 +1,74 @@
+================================================================================
+BG MANUAL PRICEBOOK PDF TO CSV CONVERSION SUMMARY
+================================================================================
+Date: 2025-11-17
+Source: Manual_Pricebook_28.05.2025 - Updated.pdf
+Total Rows Extracted: 2,001
+Unclassified Rows: 0
+
+CSV SCHEMA:
+-----------
+All CSV files use the following standardized columns:
+  1. section           - Top-level category (e.g., "Core Packs", "Boilers")
+  2. subsection        - Second-level category (e.g., "Combi Natural Gas")
+  3. component_id      - Price book code (e.g., "P100", "CBLR3501")
+  4. description       - Full product description
+  5. selling_price_gbp - Selling price in GBP (numeric, no currency symbol)
+  6. lead_time_days    - Lead time in days (integer)
+
+OUTPUT FILES:
+-------------
+File Name                          | Rows  | Description
+-----------------------------------|-------|------------------------------------------
+core_packs.csv                     |    17 | Full System & Part System core packs
+electrics_and_waste.csv            |    14 | Electrical connections, filling loops, PRVs, waste
+controls_and_stats.csv             |    58 | Controls, stats, timers, programmers
+smart_hive.csv                     |    83 | Hive Active Heating, TRVs, Hubs, Boiler IQ
+boilers_combi_ng.csv               |    77 | Combi boilers - Natural Gas
+boilers_combi_lpg.csv              |    32 | Combi boilers - LPG
+boilers_other.csv                  |   100 | System, Regular, Conventional boilers
+heat_pumps_and_ashp_labour.csv     |   228 | Heat pumps, ASHP labour, radiator packs
+radiators_and_valves.csv           | 1,005 | Radiators, valves, powerflush, Stelrad, Myson
+flues_worcester.csv                |   341 | Worcester & Vaillant flue components
+heat_pump_accessories.csv          |     0 | ASHP accessories (none found in PDF)
+extras_and_charges.csv             |     6 | Delivery charges, assessments
+price_alignment.csv                |    40 | Price alignment codes (CP0001-CP00xx)
+-----------------------------------|-------|------------------------------------------
+TOTAL                              | 2,001 |
+
+SAMPLE DATA VERIFICATION:
+------------------------
+✓ Core Packs: P100-P1142 range correctly classified
+✓ Boilers (Combi NG): CBLR1366-CBLR3528 with Worcester & Vaillant models
+✓ Boilers (Combi LPG): CBLR1370-CBLR3533 correctly separated
+✓ Heat Pumps: CAHP001+ aroTHERM series with £6,666.67 pricing
+✓ Smart/Hive: PSLT3+ Hive products with Boiler IQ subsection
+✓ Radiators & Valves: 1,005 items including Stelrad, Myson, valves
+✓ Flues: 341 Worcester/Vaillant flue components
+✓ Price Alignment: CP0001-CP0040 range captured
+✓ All prices extracted correctly as numeric values
+✓ Lead times captured as integers (0-7 days typical)
+
+PARSING NOTES:
+--------------
+- PDF processed: 23 pages
+- All major sections identified and classified
+- Subsection-aware classification implemented
+- No data loss - all 2,001 component rows successfully extracted
+- Prices cleaned (£ and commas removed)
+- UTF-8 encoding used for all CSV files
+- LF line endings
+
+KNOWN LIMITATIONS:
+------------------
+- Some items may have truncated descriptions if line wrapping occurred
+- Heat pump accessories file is empty (section may not exist in PDF)
+- Flue components include both Worcester and Vaillant (combined in one file)
+
+NEXT STEPS:
+-----------
+For boiler-specific enhanced CSVs (with kW, fuel type, flue size columns):
+- Extend schema with product-specific fields
+- Add boiler kW extraction from description
+- Add fuel type normalization (NG/LPG)
+- Add flue diameter field for flue components

@@ -61,12 +61,14 @@ const startLiveBtn = document.getElementById("startLiveBtn");
 const pauseLiveBtn = document.getElementById("pauseLiveBtn");
 const finishLiveBtn = document.getElementById("finishLiveBtn");
 const exportBtn = document.getElementById("exportBtn");
+const assembleQuoteBtn = document.getElementById("assembleQuoteBtn");
 const saveSessionBtn = document.getElementById("saveSessionBtn");
 const loadSessionBtn = document.getElementById("loadSessionBtn");
 const loadSessionInput = document.getElementById("loadSessionInput");
 const importAudioBtn = document.getElementById("importAudioBtn");
 const importAudioInput = document.getElementById("importAudioInput");
 const newJobBtn = document.getElementById("newJobBtn");
+const quoteDisplayEl = document.getElementById("quoteDisplay");
 const partsListEl = document.getElementById("partsList");
 const voiceErrorEl = document.getElementById("voice-error");
 const sleepWarningEl = document.getElementById("sleep-warning");
@@ -539,18 +541,92 @@ function coerceSectionField(value) {
   return String(value);
 }
 
+/**
+ * Calculate similarity between two strings (0.0 to 1.0)
+ */
+function calculateSimilarity(str1, str2) {
+  const s1 = str1.toLowerCase().replace(/[^\w\s]/g, '');
+  const s2 = str2.toLowerCase().replace(/[^\w\s]/g, '');
+
+  if (s1 === s2) return 1.0;
+
+  // Simple word-based similarity
+  const words1 = new Set(s1.split(/\s+/).filter(w => w.length > 2));
+  const words2 = new Set(s2.split(/\s+/).filter(w => w.length > 2));
+
+  if (words1.size === 0 && words2.size === 0) return 1.0;
+  if (words1.size === 0 || words2.size === 0) return 0.0;
+
+  const intersection = new Set([...words1].filter(w => words2.has(w)));
+  const union = new Set([...words1, ...words2]);
+
+  return intersection.size / union.size;
+}
+
+/**
+ * Deduplicate bullet points in text
+ */
+function deduplicateBullets(text) {
+  const lines = text.split('\n');
+  const uniqueLines = [];
+  const seenNormalized = new Set();
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+
+    // Normalize for comparison (remove bullets, punctuation, lowercase)
+    const normalized = trimmed
+      .replace(/^[•\-\*\+]\s*/, '')
+      .toLowerCase()
+      .replace(/[;,\.]+$/, '')
+      .trim();
+
+    // Check if we've seen something very similar
+    let isDuplicate = false;
+    for (const seen of seenNormalized) {
+      if (calculateSimilarity(normalized, seen) > 0.85) {
+        isDuplicate = true;
+        break;
+      }
+    }
+
+    if (!isDuplicate) {
+      uniqueLines.push(trimmed);
+      seenNormalized.add(normalized);
+    }
+  }
+
+  return uniqueLines.join('\n');
+}
+
 function mergeTextFields(existing, incoming) {
   const prev = typeof existing === "string" ? existing : "";
   const next = typeof incoming === "string" ? incoming : "";
   const prevTrim = prev.trim();
   const nextTrim = next.trim();
+
+  // Empty checks
   if (!prevTrim && !nextTrim) return next || prev || "";
   if (!prevTrim) return next;
   if (!nextTrim) return prev;
+
+  // Exact match (case-insensitive)
   if (prevTrim.toLowerCase() === nextTrim.toLowerCase()) return next || prev;
+
+  // Full substring checks
   if (prevTrim.includes(nextTrim)) return prev;
   if (nextTrim.includes(prevTrim)) return next;
-  return `${prevTrim}\n${nextTrim}`.trim();
+
+  // Check if they're highly similar (>80% match) - prefer newer
+  const similarity = calculateSimilarity(prevTrim, nextTrim);
+  if (similarity > 0.80) {
+    return next; // Incoming is probably a rephrasing, use the latest
+  }
+
+  // Merge and deduplicate
+  const merged = `${prevTrim}\n${nextTrim}`.trim();
+  return deduplicateBullets(merged);
 }
 
 function normaliseSectionCandidate(section, index = 0) {
@@ -1418,6 +1494,207 @@ exportBtn.onclick = async () => {
   URL.revokeObjectURL(url);
   setStatus("Notes downloaded.");
 };
+
+// --- QUOTE ASSEMBLER ---
+assembleQuoteBtn.onclick = async () => {
+  try {
+    setStatus("Assembling quote from notes...");
+    assembleQuoteBtn.disabled = true;
+
+    const payload = {
+      sections: lastSections || [],
+      materials: sessionState.materials || [],
+      customerSummary: customerSummaryEl.textContent || ""
+    };
+
+    const workerUrl = localStorage.getItem("workerUrl") || "";
+    if (!workerUrl) {
+      alert("No worker URL configured. Please set it in Settings.");
+      setStatus("Quote assembly failed: no worker URL");
+      assembleQuoteBtn.disabled = false;
+      return;
+    }
+
+    const resp = await fetch(`${workerUrl}/assemble-quote`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+
+    if (!resp.ok) {
+      const errText = await resp.text();
+      console.error("Quote assembly error:", errText);
+      throw new Error(`Server error: ${resp.status}`);
+    }
+
+    const data = await resp.json();
+
+    if (!data.success || !data.quote) {
+      throw new Error("Invalid response from quote assembler");
+    }
+
+    // Display the quote
+    displayQuote(data.quote);
+    setStatus("Quote assembled successfully!");
+
+  } catch (err) {
+    console.error("Quote assembly failed:", err);
+    setStatus(`Quote assembly failed: ${err.message}`);
+    alert(`Failed to assemble quote: ${err.message}`);
+  } finally {
+    assembleQuoteBtn.disabled = false;
+  }
+};
+
+function displayQuote(quote) {
+  if (!quoteDisplayEl) return;
+
+  const { quote_items, missing_information, quote_summary, estimated_duration_days } = quote;
+
+  let html = '';
+
+  // Quote summary
+  if (quote_summary) {
+    html += `<div class="quote-section">
+      <h4>Summary</h4>
+      <p>${escapeHtml(quote_summary)}</p>
+    </div>`;
+  }
+
+  // Estimated duration
+  if (estimated_duration_days) {
+    html += `<div class="quote-section">
+      <h4>Estimated Duration</h4>
+      <p>${estimated_duration_days} day${estimated_duration_days !== 1 ? 's' : ''}</p>
+    </div>`;
+  }
+
+  // Quote items
+  if (quote_items && quote_items.length > 0) {
+    html += `<div class="quote-section">
+      <h4>Line Items</h4>
+      <table class="quote-table">
+        <thead>
+          <tr>
+            <th>Category</th>
+            <th>Description</th>
+            <th>Component ID</th>
+            <th>Qty</th>
+            <th>Confidence</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>`;
+
+    quote_items.forEach(item => {
+      const confidenceClass = item.confidence === 'high' ? 'confidence-high' :
+                             item.confidence === 'medium' ? 'confidence-medium' : 'confidence-low';
+      html += `<tr>
+        <td>${escapeHtml(item.category || '')}</td>
+        <td>${escapeHtml(item.description || '')}</td>
+        <td><code>${escapeHtml(item.suggested_component_id || 'N/A')}</code></td>
+        <td>${item.quantity || 1}</td>
+        <td><span class="${confidenceClass}">${escapeHtml(item.confidence || 'unknown')}</span></td>
+        <td class="small">${escapeHtml(item.notes || '')}</td>
+      </tr>`;
+    });
+
+    html += `</tbody></table></div>`;
+  }
+
+  // Missing information
+  if (missing_information && missing_information.length > 0) {
+    html += `<div class="quote-section missing-info">
+      <h4>Missing Information / Assumptions</h4>
+      <ul>`;
+    missing_information.forEach(info => {
+      html += `<li>${escapeHtml(info)}</li>`;
+    });
+    html += `</ul></div>`;
+  }
+
+  // Copy quote button
+  html += `<div class="quote-section">
+    <button id="copyQuoteBtn" class="pill-secondary">Copy Quote to Clipboard</button>
+    <button id="exportQuoteBtn" class="pill-secondary">Export Quote as JSON</button>
+  </div>`;
+
+  quoteDisplayEl.innerHTML = html;
+
+  // Add event handlers for copy and export
+  const copyQuoteBtn = document.getElementById("copyQuoteBtn");
+  const exportQuoteBtn = document.getElementById("exportQuoteBtn");
+
+  if (copyQuoteBtn) {
+    copyQuoteBtn.onclick = () => {
+      const text = formatQuoteAsText(quote);
+      navigator.clipboard.writeText(text).then(() => {
+        setStatus("Quote copied to clipboard!");
+      }).catch(err => {
+        console.error("Copy failed:", err);
+        alert("Failed to copy to clipboard");
+      });
+    };
+  }
+
+  if (exportQuoteBtn) {
+    exportQuoteBtn.onclick = () => {
+      const blob = new Blob([JSON.stringify(quote, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `quote-${new Date().toISOString().slice(0, 10)}.json`;
+      link.click();
+      URL.revokeObjectURL(url);
+      setStatus("Quote exported!");
+    };
+  }
+}
+
+function formatQuoteAsText(quote) {
+  let text = '';
+
+  if (quote.quote_summary) {
+    text += `QUOTE SUMMARY\n${'='.repeat(60)}\n${quote.quote_summary}\n\n`;
+  }
+
+  if (quote.estimated_duration_days) {
+    text += `Estimated Duration: ${quote.estimated_duration_days} day(s)\n\n`;
+  }
+
+  if (quote.quote_items && quote.quote_items.length > 0) {
+    text += `LINE ITEMS\n${'='.repeat(60)}\n`;
+    quote.quote_items.forEach((item, idx) => {
+      text += `\n${idx + 1}. ${item.category} - ${item.description}\n`;
+      text += `   Component ID: ${item.suggested_component_id || 'N/A'}\n`;
+      text += `   Quantity: ${item.quantity || 1}\n`;
+      text += `   Confidence: ${item.confidence || 'unknown'}\n`;
+      if (item.notes) {
+        text += `   Notes: ${item.notes}\n`;
+      }
+    });
+    text += '\n';
+  }
+
+  if (quote.missing_information && quote.missing_information.length > 0) {
+    text += `\nMISSING INFORMATION / ASSUMPTIONS\n${'='.repeat(60)}\n`;
+    quote.missing_information.forEach(info => {
+      text += `• ${info}\n`;
+    });
+  }
+
+  return text;
+}
+
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
 
 function blobToBase64(blob) {
   return new Promise((resolve, reject) => {

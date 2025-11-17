@@ -12,12 +12,20 @@ export default {
         return jsonResponse({ status: "ok" }, 200);
       }
 
+      if (request.method === "GET" && url.pathname === "/schema") {
+        return jsonResponse(schemaConfig, 200);
+      }
+
       if (request.method === "POST" && url.pathname === "/text") {
         return handleText(request, env);
       }
 
       if (request.method === "POST" && url.pathname === "/audio") {
         return handleAudio(request, env);
+      }
+
+      if (request.method === "POST" && url.pathname === "/assemble-quote") {
+        return handleAssembleQuote(request, env);
       }
 
       return jsonResponse({ error: "not_found" }, 404);
@@ -609,4 +617,150 @@ function getSchemaInfoFromPayload(raw) {
     return buildSchemaInfo(raw);
   }
   return DEFAULT_SCHEMA_INFO;
+}
+
+/**
+ * Handle auto quote assembly from notes
+ */
+async function handleAssembleQuote(request, env) {
+  try {
+    const body = await request.json();
+    const { sections, materials, customerSummary } = body;
+
+    if (!sections || !Array.isArray(sections)) {
+      return jsonResponse({
+        error: "invalid_request",
+        message: "sections array required"
+      }, 400);
+    }
+
+    // Build context from sections
+    const context = sections
+      .map(s => {
+        const heading = s.section || s.name || '';
+        const content = s.plainText || s.naturalLanguage || '';
+        if (!content.trim()) return '';
+        return `${heading}:\n${content}`;
+      })
+      .filter(Boolean)
+      .join('\n\n');
+
+    // Build materials context
+    const materialsContext = (materials || [])
+      .map(m => `- ${m.item} (qty: ${m.qty || 1})${m.notes ? ': ' + m.notes : ''}`)
+      .join('\n');
+
+    // Prepare AI prompt
+    const prompt = `You are a heating installation quote assembler. Analyze the following survey notes and materials list to create a comprehensive quote.
+
+SURVEY NOTES:
+${context}
+
+${materialsContext ? `MATERIALS IDENTIFIED:\n${materialsContext}\n` : ''}
+${customerSummary ? `CUSTOMER SUMMARY:\n${customerSummary}\n` : ''}
+
+Based on these notes, create a structured quote with the following:
+
+1. **Line Items**: Identify all products/services needed:
+   - Boiler (model, fuel type, kW rating)
+   - Core packs (Full or Part system)
+   - Flue components
+   - Controls (Hive, stats, programmers)
+   - Radiators and valves
+   - Pipework
+   - Labour items
+   - Extras (powerflush, warranty, etc.)
+
+2. **Suggested Component IDs**: Based on the British Gas pricebook structure:
+   - Core Packs: P100-P1142
+   - Boilers Combi NG: CBLR1366-CBLR3528
+   - Boilers Combi LPG: CBLR1370-CBLR3533
+   - Heat Pumps: CAHP001+
+   - Hive Products: PSLT3+
+   - Price Alignment: CP0001-CP0040
+
+3. **Missing Information**: List any critical details needed to complete the quote
+
+Return a JSON object with this exact structure:
+{
+  "quote_items": [
+    {
+      "category": "string (e.g., Boiler, Core Pack, Controls)",
+      "description": "string (detailed description)",
+      "suggested_component_id": "string (best guess from pricebook pattern)",
+      "quantity": number,
+      "notes": "string (any clarifications needed)",
+      "confidence": "high|medium|low"
+    }
+  ],
+  "missing_information": [
+    "string (e.g., 'Boiler kW rating not specified - assumed 30kW based on property size')"
+  ],
+  "quote_summary": "string (brief overview of the installation)",
+  "estimated_duration_days": number
+}
+
+Be specific and use real component ID patterns where possible. Flag items with low confidence where details are unclear.`;
+
+    // Call OpenAI API
+    const openaiResp = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${env.OPENAI_API_KEY}`
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: "You are a British Gas heating installation quote specialist. You understand the BG pricebook structure and can suggest appropriate component IDs."
+          },
+          {
+            role: "user",
+            content: prompt
+          }
+        ],
+        response_format: { type: "json_object" },
+        temperature: 0.3
+      })
+    });
+
+    if (!openaiResp.ok) {
+      const errText = await openaiResp.text();
+      console.error("OpenAI error:", errText);
+      return jsonResponse({
+        error: "ai_error",
+        message: `OpenAI API failed: ${openaiResp.status}`
+      }, 500);
+    }
+
+    const data = await openaiResp.json();
+    const rawContent = data?.choices?.[0]?.message?.content || "{}";
+
+    let quoteData;
+    try {
+      quoteData = JSON.parse(rawContent);
+    } catch (parseErr) {
+      console.error("Failed to parse AI response:", rawContent);
+      return jsonResponse({
+        error: "parse_error",
+        message: "Failed to parse AI response"
+      }, 500);
+    }
+
+    // Return the assembled quote
+    return jsonResponse({
+      success: true,
+      quote: quoteData,
+      generated_at: new Date().toISOString()
+    }, 200);
+
+  } catch (err) {
+    console.error("handleAssembleQuote error:", err);
+    return jsonResponse({
+      error: "internal_error",
+      message: String(err)
+    }, 500);
+  }
 }

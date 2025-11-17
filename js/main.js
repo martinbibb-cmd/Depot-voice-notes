@@ -3,6 +3,9 @@ import {
   isWorkerEndpointStorageKey
 } from "../src/app/worker-config.js";
 import { loadSchema } from "./schema.js";
+import { loadPricebook, matchMaterialsToPricebook, findCorePack } from "./pricebook.js";
+import { showQuoteBuilderModal } from "./quoteBuilder.js";
+import { generateMultipleQuotePDFs, downloadPDF } from "./quotePDF.js";
 
 // --- CONFIG / STORAGE KEYS ---
 const SECTION_STORAGE_KEY = "depot.sectionSchema";
@@ -61,6 +64,7 @@ const startLiveBtn = document.getElementById("startLiveBtn");
 const pauseLiveBtn = document.getElementById("pauseLiveBtn");
 const finishLiveBtn = document.getElementById("finishLiveBtn");
 const exportBtn = document.getElementById("exportBtn");
+const createQuoteBtn = document.getElementById("createQuoteBtn");
 const saveSessionBtn = document.getElementById("saveSessionBtn");
 const loadSessionBtn = document.getElementById("loadSessionBtn");
 const loadSessionInput = document.getElementById("loadSessionInput");
@@ -1418,6 +1422,180 @@ exportBtn.onclick = async () => {
   URL.revokeObjectURL(url);
   setStatus("Notes downloaded.");
 };
+
+// --- CREATE QUOTE ---
+createQuoteBtn.onclick = async () => {
+  // Check if we have materials to quote
+  if (!lastMaterials || lastMaterials.length === 0) {
+    alert("No materials found to create a quote. Please process a transcript first with the 'Send text' button.");
+    return;
+  }
+
+  setStatus("Loading pricebook...");
+
+  try {
+    // Load pricebook
+    const pricebook = await loadPricebook();
+
+    // Auto-detect core pack from transcript/sections
+    const systemDetails = detectSystemDetails();
+    const corePack = findCorePack(pricebook, systemDetails);
+
+    // Combine core pack with other materials
+    let allMaterials = [...lastMaterials];
+    if (corePack) {
+      allMaterials.unshift({
+        category: 'Core Packs',
+        item: corePack.description,
+        qty: 1,
+        notes: 'Automatically selected based on system requirements'
+      });
+    }
+
+    // Match materials to pricebook items
+    const matchedItems = matchMaterialsToPricebook(pricebook, allMaterials);
+
+    setStatus("Review quote items...");
+
+    // Extract customer name and job reference from transcript/sections
+    const customerInfo = extractCustomerInfo();
+
+    // Detect if multiple quotes are discussed
+    const allowMultipleQuotes = detectMultipleQuotesInTranscript();
+
+    // Show quote builder modal
+    showQuoteBuilderModal(pricebook, matchedItems, {
+      customerName: customerInfo.name,
+      jobReference: customerInfo.reference,
+      allowMultipleQuotes,
+      onConfirm: async (quoteData) => {
+        setStatus("Generating PDF quote(s)...");
+
+        try {
+          const pdfs = await generateMultipleQuotePDFs(quoteData);
+
+          // Download each PDF
+          pdfs.forEach(({ doc, filename }) => {
+            downloadPDF(doc, filename);
+          });
+
+          setStatus(`Quote PDF${pdfs.length > 1 ? 's' : ''} generated successfully!`);
+        } catch (error) {
+          console.error("Error generating PDF:", error);
+          alert("Error generating PDF: " + error.message);
+          setStatus("Error generating PDF.");
+        }
+      },
+      onCancel: () => {
+        setStatus("Quote creation cancelled.");
+      }
+    });
+
+  } catch (error) {
+    console.error("Error creating quote:", error);
+    alert("Error creating quote: " + error.message);
+    setStatus("Error creating quote.");
+  }
+};
+
+// Helper: Detect system details from transcript and sections
+function detectSystemDetails() {
+  const transcript = transcriptInput.value.toLowerCase();
+  const details = {
+    systemType: 'Full System',
+    boilerKw: 18,
+    isCombiToCombi: false,
+    isConventionalToCombi: false
+  };
+
+  // Detect system type
+  if (transcript.includes('part') && (transcript.includes('central') || transcript.includes('pch'))) {
+    details.systemType = 'Part System';
+  }
+
+  // Detect replacement type
+  if (transcript.includes('combi to combi') || (transcript.includes('replace') && transcript.includes('combi'))) {
+    details.isCombiToCombi = true;
+  }
+  if (transcript.includes('conventional to combi')) {
+    details.isConventionalToCombi = true;
+  }
+
+  // Detect boiler kW from sections or materials
+  const kwMatches = transcript.match(/(\d+)\s*kw/i);
+  if (kwMatches) {
+    details.boilerKw = parseInt(kwMatches[1]);
+  } else {
+    // Check materials for boiler specifications
+    lastMaterials.forEach(material => {
+      const itemText = (material.item || '').toLowerCase();
+      const kwMatch = itemText.match(/(\d+)\s*kw/i);
+      if (kwMatch) {
+        details.boilerKw = parseInt(kwMatch[1]);
+      }
+    });
+  }
+
+  return details;
+}
+
+// Helper: Extract customer info from transcript
+function extractCustomerInfo() {
+  const info = {
+    name: '',
+    reference: ''
+  };
+
+  // Try to extract from customer summary
+  if (lastCustomerSummary) {
+    const nameMatch = lastCustomerSummary.match(/(?:customer|client|name)[:\s]+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/i);
+    if (nameMatch) {
+      info.name = nameMatch[1];
+    }
+  }
+
+  // Try to extract from sections
+  if (lastSections && lastSections.length > 0) {
+    lastSections.forEach(section => {
+      if (section.title && section.title.toLowerCase().includes('customer')) {
+        const content = section.content || '';
+        const nameMatch = content.match(/([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/);
+        if (nameMatch) {
+          info.name = nameMatch[1];
+        }
+      }
+    });
+  }
+
+  // Generate reference from date if not found
+  if (!info.reference) {
+    const date = new Date();
+    info.reference = `JOB-${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}${String(date.getDate()).padStart(2, '0')}`;
+  }
+
+  return info;
+}
+
+// Helper: Detect if multiple quotes are discussed in transcript
+function detectMultipleQuotesInTranscript() {
+  const transcript = transcriptInput.value.toLowerCase();
+
+  // Look for phrases indicating multiple options
+  const multipleQuoteIndicators = [
+    'two quotes',
+    'two options',
+    'option 1',
+    'option 2',
+    'quote 1',
+    'quote 2',
+    'first option',
+    'second option',
+    'alternative',
+    'or alternatively'
+  ];
+
+  return multipleQuoteIndicators.some(indicator => transcript.includes(indicator));
+}
 
 function blobToBase64(blob) {
   return new Promise((resolve, reject) => {

@@ -5,6 +5,7 @@ import {
 import { loadSchema } from "./schema.js";
 import { loadPricebook, matchMaterialsToPricebook, findCorePack } from "./pricebook.js";
 import { showQuoteBuilderModal } from "./quoteBuilder.js";
+import { showPackSelectorModal } from "./packSelector.js";
 import { generateMultipleQuotePDFs, downloadPDF } from "./quotePDF.js";
 
 // --- CONFIG / STORAGE KEYS ---
@@ -1439,57 +1440,72 @@ createQuoteBtn.onclick = async () => {
 
     // Auto-detect core pack from transcript/sections
     const systemDetails = detectSystemDetails();
-    const corePack = findCorePack(pricebook, systemDetails);
+    const recommendedPack = findCorePack(pricebook, systemDetails);
 
-    // Combine core pack with other materials
-    let allMaterials = [...lastMaterials];
-    if (corePack) {
-      allMaterials.unshift({
-        category: 'Core Packs',
-        item: corePack.description,
-        qty: 1,
-        notes: 'Automatically selected based on system requirements'
-      });
-    }
+    setStatus("Select core pack...");
 
-    // Match materials to pricebook items
-    const matchedItems = matchMaterialsToPricebook(pricebook, allMaterials);
-
-    setStatus("Review quote items...");
-
-    // Extract customer name and job reference from transcript/sections
-    const customerInfo = extractCustomerInfo();
-
-    // Detect if multiple quotes are discussed
-    const allowMultipleQuotes = detectMultipleQuotesInTranscript();
-
-    // Show quote builder modal
-    showQuoteBuilderModal(pricebook, matchedItems, {
-      customerName: customerInfo.name,
-      jobReference: customerInfo.reference,
-      allowMultipleQuotes,
-      onConfirm: async (quoteData) => {
-        setStatus("Generating PDF quote(s)...");
-
-        try {
-          const pdfs = await generateMultipleQuotePDFs(quoteData);
-
-          // Download each PDF
-          pdfs.forEach(({ doc, filename }) => {
-            downloadPDF(doc, filename);
+    // Show pack selector modal first
+    showPackSelectorModal(
+      pricebook,
+      systemDetails,
+      recommendedPack,
+      // onConfirm callback - receives selected pack (or null if skipped)
+      async (selectedPack) => {
+        // Combine selected pack with other materials
+        let allMaterials = [...lastMaterials];
+        if (selectedPack) {
+          allMaterials.unshift({
+            category: 'Core Packs',
+            item: selectedPack.description,
+            qty: 1,
+            notes: `Selected: ${selectedPack.component_id}`
           });
-
-          setStatus(`Quote PDF${pdfs.length > 1 ? 's' : ''} generated successfully!`);
-        } catch (error) {
-          console.error("Error generating PDF:", error);
-          alert("Error generating PDF: " + error.message);
-          setStatus("Error generating PDF.");
         }
+
+        // Match materials to pricebook items
+        const matchedItems = matchMaterialsToPricebook(pricebook, allMaterials);
+
+        setStatus("Review quote items...");
+
+        // Extract customer name and job reference from transcript/sections
+        const customerInfo = extractCustomerInfo();
+
+        // Detect if multiple quotes are discussed
+        const allowMultipleQuotes = detectMultipleQuotesInTranscript();
+
+        // Show quote builder modal
+        showQuoteBuilderModal(pricebook, matchedItems, {
+          customerName: customerInfo.name,
+          jobReference: customerInfo.reference,
+          allowMultipleQuotes,
+          onConfirm: async (quoteData) => {
+            setStatus("Generating PDF quote(s)...");
+
+            try {
+              const pdfs = await generateMultipleQuotePDFs(quoteData);
+
+              // Download each PDF
+              pdfs.forEach(({ doc, filename }) => {
+                downloadPDF(doc, filename);
+              });
+
+              setStatus(`Quote PDF${pdfs.length > 1 ? 's' : ''} generated successfully!`);
+            } catch (error) {
+              console.error("Error generating PDF:", error);
+              alert("Error generating PDF: " + error.message);
+              setStatus("Error generating PDF.");
+            }
+          },
+          onCancel: () => {
+            setStatus("Quote creation cancelled.");
+          }
+        });
       },
-      onCancel: () => {
-        setStatus("Quote creation cancelled.");
+      // onCancel callback - user cancelled pack selection
+      () => {
+        setStatus("Pack selection cancelled.");
       }
-    });
+    );
 
   } catch (error) {
     console.error("Error creating quote:", error);

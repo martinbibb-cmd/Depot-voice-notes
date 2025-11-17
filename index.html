@@ -250,6 +250,7 @@
       <button id="finishLiveBtn" class="pill-secondary" disabled>Finish</button>
       <button id="importAudioBtn" class="pill-secondary">Use audio file</button>
       <button id="exportBtn" class="pill-secondary">Send notes</button>
+      <button id="createQuoteBtn" class="pill-secondary">Create quote</button>
       <button id="saveSessionBtn" class="pill-secondary">Save session</button>
       <button id="loadSessionBtn" class="pill-secondary">Load session</button>
       <button id="newJobBtn" class="danger-btn">Start new job</button>
@@ -329,6 +330,9 @@
 
   <input id="loadSessionInput" type="file" accept=".depotvoice.json,application/json" style="display:none;">
   <input id="importAudioInput" type="file" accept="audio/*" style="display:none;">
+
+  <!-- jsPDF library for quote PDF generation -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
   <script type="module" src="./js/main.js"></script>
 </body>

@@ -6,35 +6,73 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
     :root {
-      --bg: #eef2f7;
+      --bg: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      --bg-secondary: #f8fafc;
       --card: #ffffff;
-      --border: #d4dbe5;
-      --accent: #0f766e;
-      --accent-soft: #14b8a6;
+      --border: #e2e8f0;
+      --accent: #667eea;
+      --accent-hover: #5a67d8;
+      --accent-soft: #818cf8;
+      --success: #10b981;
+      --success-soft: #d1fae5;
       --muted: #64748b;
-      --danger: #b91c1c;
+      --danger: #ef4444;
+      --warning: #f59e0b;
       --radius: 16px;
+      --shadow-sm: 0 1px 3px rgba(0,0,0,0.1);
+      --shadow-md: 0 4px 6px rgba(0,0,0,0.1);
+      --shadow-lg: 0 10px 15px rgba(0,0,0,0.1);
+      --shadow-xl: 0 20px 25px rgba(0,0,0,0.15);
     }
     * { box-sizing: border-box; }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    @keyframes slideIn {
+      from { transform: translateY(-10px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+    @keyframes waveform {
+      0%, 100% { height: 8px; }
+      50% { height: 24px; }
+    }
     body {
       margin: 0;
-      background: var(--bg);
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg-secondary);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
       color: #0f172a;
       min-height: 100vh;
       display: flex;
       flex-direction: column;
     }
     header {
-      background: #0f172a;
+      background: var(--bg);
       color: #fff;
-      padding: 14px 16px;
+      padding: 16px 20px;
       display: flex;
       gap: 12px;
       align-items: center;
       flex-wrap: wrap;
+      box-shadow: var(--shadow-lg);
+      position: relative;
     }
-    header h1 { margin: 0; font-size: 1.05rem; }
+    header::after {
+      content: '';
+      position: absolute;
+      bottom: -4px;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+      opacity: 0.5;
+    }
+    header h1 {
+      margin: 0;
+      font-size: 1.3rem;
+      font-weight: 700;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
     .toolbar-row {
       display: flex;
       flex-wrap: wrap;
@@ -67,18 +105,28 @@
       background: var(--card);
       border: 1px solid var(--border);
       border-radius: var(--radius);
-      padding: 12px 14px 10px;
+      padding: 16px 18px;
+      box-shadow: var(--shadow-sm);
+      transition: all 0.3s ease;
+      animation: slideIn 0.3s ease;
+    }
+    .card:hover {
+      box-shadow: var(--shadow-md);
+      transform: translateY(-2px);
     }
     .card-title {
-      font-size: .75rem;
+      font-size: .8rem;
       text-transform: uppercase;
-      letter-spacing: .03em;
-      font-weight: 600;
-      margin-bottom: 6px;
+      letter-spacing: .04em;
+      font-weight: 700;
+      margin-bottom: 10px;
       display: flex;
       justify-content: space-between;
       gap: 8px;
       align-items: baseline;
+      color: #1e293b;
+      border-bottom: 2px solid #f1f5f9;
+      padding-bottom: 8px;
     }
     .small { font-size: .68rem; color: var(--muted); }
     textarea {
@@ -94,24 +142,40 @@
       background: var(--accent);
       color: #fff;
       border-radius: 999px;
-      padding: 6px 14px 6px;
-      font-size: .7rem;
+      padding: 8px 16px;
+      font-size: .75rem;
       font-weight: 600;
       cursor: pointer;
       display: inline-flex;
       gap: 6px;
       align-items: center;
+      transition: all 0.2s ease;
+      box-shadow: var(--shadow-sm);
     }
-    button:disabled { opacity: .55; cursor: default; }
+    button:hover:not(:disabled) {
+      background: var(--accent-hover);
+      transform: translateY(-1px);
+      box-shadow: var(--shadow-md);
+    }
+    button:active:not(:disabled) {
+      transform: translateY(0);
+    }
+    button:disabled { opacity: .5; cursor: not-allowed; }
     .pill-secondary {
-      background: rgba(148,163,184,.16);
-      color: #e2e8f0;
+      background: rgba(100,116,139,.12);
+      color: #334155;
+    }
+    .pill-secondary:hover:not(:disabled) {
+      background: rgba(100,116,139,.2);
     }
     .pill-danger {
       background: var(--danger);
     }
     .danger-btn {
       background: var(--danger);
+    }
+    .danger-btn:hover:not(:disabled) {
+      background: #dc2626;
     }
     .clarifications {
       display: flex;
@@ -386,24 +450,206 @@
       gap: 8px;
       justify-content: flex-end;
     }
+    /* Audio Control Panel */
+    .audio-control-panel {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-radius: var(--radius);
+      padding: 20px;
+      box-shadow: var(--shadow-lg);
+      color: white;
+    }
+    .audio-controls-wrapper {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .audio-status-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 16px;
+      background: rgba(255,255,255,0.15);
+      border-radius: 12px;
+      backdrop-filter: blur(10px);
+    }
+    .audio-status-indicator {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: .85rem;
+      font-weight: 600;
+    }
+    .status-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #94a3b8;
+      transition: all 0.3s ease;
+    }
+    .status-dot.recording {
+      background: #ef4444;
+      animation: pulse 1.5s ease-in-out infinite;
+      box-shadow: 0 0 0 0 rgba(239,68,68,0.7);
+    }
+    .status-dot.paused {
+      background: #f59e0b;
+    }
+    .audio-timer {
+      font-family: 'Courier New', monospace;
+      font-size: 1.1rem;
+      font-weight: 700;
+      letter-spacing: 1px;
+    }
+    .audio-waveform {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+      height: 40px;
+      padding: 8px 16px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 12px;
+    }
+    .waveform-bar {
+      width: 4px;
+      height: 8px;
+      background: rgba(255,255,255,0.6);
+      border-radius: 2px;
+      transition: all 0.1s ease;
+    }
+    .waveform-bar.active {
+      animation: waveform 0.8s ease-in-out infinite;
+      background: #fff;
+    }
+    .audio-control-buttons {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .audio-btn {
+      background: rgba(255,255,255,0.95);
+      color: #667eea;
+      padding: 12px 24px;
+      border-radius: 12px;
+      font-weight: 700;
+      font-size: .85rem;
+      min-width: 120px;
+      justify-content: center;
+      box-shadow: var(--shadow-md);
+    }
+    .audio-btn:hover:not(:disabled) {
+      background: #fff;
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-lg);
+    }
+    .audio-btn.recording {
+      background: #ef4444;
+      color: white;
+    }
+    .audio-btn.recording:hover:not(:disabled) {
+      background: #dc2626;
+    }
+    .audio-btn.paused {
+      background: #f59e0b;
+      color: white;
+    }
+    .audio-level-meter {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: .75rem;
+    }
+    .level-bar-container {
+      flex: 1;
+      height: 6px;
+      background: rgba(255,255,255,0.2);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .level-bar {
+      height: 100%;
+      background: linear-gradient(90deg, #10b981, #f59e0b, #ef4444);
+      border-radius: 3px;
+      width: 0%;
+      transition: width 0.1s ease;
+    }
+    /* Transcript Panels */
+    .transcript-panels {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+    @media (max-width: 970px) {
+      .transcript-panels {
+        grid-template-columns: 1fr;
+      }
+    }
+    .transcript-panel {
+      display: flex;
+      flex-direction: column;
+    }
+    .transcript-panel-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 8px;
+      background: var(--accent-soft);
+      color: white;
+      border-radius: 6px;
+      font-size: .65rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .5px;
+    }
+    .transcript-panel-badge.live {
+      background: #ef4444;
+      animation: pulse 2s ease-in-out infinite;
+    }
+    .transcript-panel-badge.processed {
+      background: var(--success);
+    }
+    /* Notes Sections */
+    .notes-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+    @media (max-width: 970px) {
+      .notes-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+    .notes-section-card {
+      position: relative;
+    }
+    .save-json-btn {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      padding: 6px 12px;
+      font-size: .7rem;
+      background: var(--success);
+      z-index: 10;
+    }
+    .save-json-btn:hover:not(:disabled) {
+      background: #059669;
+    }
   </style>
 </head>
 <body>
   <header>
-    <h1>Survey Brain</h1>
-    <div id="sessionNameDisplay" style="display: none; margin-left: 12px; padding: 4px 12px; background: var(--accent-soft); color: white; border-radius: 999px; font-size: 0.7rem; font-weight: 600;"></div>
+    <h1>🎙️ Survey Brain</h1>
+    <div id="sessionNameDisplay" style="display: none; margin-left: 12px; padding: 6px 14px; background: rgba(255,255,255,0.2); color: white; border-radius: 999px; font-size: 0.75rem; font-weight: 700; backdrop-filter: blur(10px); box-shadow: 0 2px 8px rgba(0,0,0,0.1);"></div>
     <div class="toolbar-row">
-      <button id="sendTextBtn">Send text</button>
-      <button id="startLiveBtn">Start live</button>
-      <button id="pauseLiveBtn" class="pill-secondary" disabled>Pause</button>
-      <button id="finishLiveBtn" class="pill-secondary" disabled>Finish</button>
-      <button id="importAudioBtn" class="pill-secondary">Use audio file</button>
-      <button id="exportBtn" class="pill-secondary">Send notes</button>
-      <button id="createQuoteBtn" class="pill-secondary">Create quote</button>
-      <button id="saveSessionBtn" class="pill-secondary">Save session</button>
-      <button id="loadSessionBtn" class="pill-secondary">Load session</button>
-      <button id="newJobBtn" class="danger-btn">Start new session</button>
-      <button id="settingsBtn" class="pill-secondary">Settings</button>
+      <button id="sendTextBtn">📤 Send text</button>
+      <button id="importAudioBtn" class="pill-secondary">🎵 Import audio</button>
+      <button id="exportBtn" class="pill-secondary">📋 Export notes</button>
+      <button id="createQuoteBtn" class="pill-secondary">💰 Create quote</button>
+      <button id="saveSessionBtn" class="pill-secondary">💾 Save session</button>
+      <button id="loadSessionBtn" class="pill-secondary">📂 Load session</button>
+      <button id="newJobBtn" class="danger-btn">🆕 New session</button>
+      <button id="settingsBtn" class="pill-secondary">⚙️ Settings</button>
     </div>
   </header>
 
@@ -412,21 +658,93 @@
 
   <main>
     <div class="column main-left">
-      <div class="card">
-        <div class="card-title">
-          Live transcript / summary
-          <span class="small">You talk to customer • system listens</span>
-        </div>
-        <div class="transcript-container">
-          <div class="search-bar">
-            <input type="text" id="transcriptSearch" class="search-input" placeholder="Search transcript...">
-            <button id="searchPrevBtn" class="search-nav-btn" disabled>← Prev</button>
-            <button id="searchNextBtn" class="search-nav-btn" disabled>Next →</button>
+      <!-- Audio Control Panel -->
+      <div class="audio-control-panel">
+        <div class="audio-controls-wrapper">
+          <div class="audio-status-bar">
+            <div class="audio-status-indicator">
+              <div class="status-dot" id="audioStatusDot"></div>
+              <span id="audioStatusText">Ready</span>
+            </div>
+            <div class="audio-timer" id="audioTimer">00:00</div>
           </div>
-          <div id="transcriptDisplay" class="transcript-scroll-box"></div>
-          <textarea id="transcriptInput" placeholder="Replace existing combi in the same place, fit Hive, reuse flue where possible..." style="display: none;"></textarea>
+
+          <div class="audio-waveform" id="audioWaveform">
+            <div class="waveform-bar"></div>
+            <div class="waveform-bar"></div>
+            <div class="waveform-bar"></div>
+            <div class="waveform-bar"></div>
+            <div class="waveform-bar"></div>
+            <div class="waveform-bar"></div>
+            <div class="waveform-bar"></div>
+            <div class="waveform-bar"></div>
+            <div class="waveform-bar"></div>
+            <div class="waveform-bar"></div>
+            <div class="waveform-bar"></div>
+            <div class="waveform-bar"></div>
+            <div class="waveform-bar"></div>
+            <div class="waveform-bar"></div>
+            <div class="waveform-bar"></div>
+          </div>
+
+          <div class="audio-level-meter">
+            <span>Level:</span>
+            <div class="level-bar-container">
+              <div class="level-bar" id="audioLevelBar"></div>
+            </div>
+          </div>
+
+          <div class="audio-control-buttons">
+            <button id="startLiveBtn" class="audio-btn">
+              <span>🎙️</span>
+              <span>Start Recording</span>
+            </button>
+            <button id="pauseLiveBtn" class="audio-btn paused" disabled>
+              <span>⏸️</span>
+              <span>Pause</span>
+            </button>
+            <button id="finishLiveBtn" class="audio-btn" disabled>
+              <span>⏹️</span>
+              <span>Stop & Finish</span>
+            </button>
+          </div>
         </div>
-        <div class="statusbar" id="statusBar">Idle (Online • Manual)</div>
+      </div>
+
+      <!-- Transcript Panels -->
+      <div class="transcript-panels">
+        <div class="card transcript-panel">
+          <div class="card-title">
+            <div>
+              Live Transcript
+              <span class="transcript-panel-badge live" id="liveTranscriptBadge">● LIVE</span>
+            </div>
+            <span class="small">On-board speech recognition</span>
+          </div>
+          <div class="transcript-container">
+            <div class="search-bar">
+              <input type="text" id="transcriptSearch" class="search-input" placeholder="Search live...">
+              <button id="searchPrevBtn" class="search-nav-btn" disabled>← Prev</button>
+              <button id="searchNextBtn" class="search-nav-btn" disabled>Next →</button>
+            </div>
+            <div id="transcriptDisplay" class="transcript-scroll-box"></div>
+            <textarea id="transcriptInput" placeholder="Or type/paste notes here..." style="display: none;"></textarea>
+          </div>
+          <div class="statusbar" id="statusBar">Idle (Online • Manual)</div>
+        </div>
+
+        <div class="card transcript-panel">
+          <div class="card-title">
+            <div>
+              Processed Transcript
+              <span class="transcript-panel-badge processed">✓ PROCESSED</span>
+            </div>
+            <span class="small">Cleaned & formatted</span>
+          </div>
+          <div id="processedTranscriptDisplay" class="transcript-scroll-box">
+            <span class="small" style="color: var(--muted); font-style: italic;">Processed transcript will appear here after AI processing...</span>
+          </div>
+        </div>
       </div>
 
       <div class="card">
@@ -462,15 +780,35 @@
   </main>
 
   <section class="results-row">
-    <div class="card">
-      <div class="card-title">
-        Depot sections so far
-        <span class="small">Standard layout</span>
+    <!-- Side-by-side Notes Sections -->
+    <div class="notes-grid">
+      <div class="card notes-section-card">
+        <button id="saveAutomaticNotesBtn" class="save-json-btn">
+          💾 Save Automatic Notes
+        </button>
+        <div class="card-title">
+          Automatic Depot Notes
+          <span class="small">Standard structured layout</span>
+        </div>
+        <div id="sectionsList" class="sections-list">
+          <span class="small">No automatic notes yet.</span>
+        </div>
       </div>
-      <div id="sectionsList" class="sections-list">
-        <span class="small">No sections yet.</span>
+
+      <div class="card notes-section-card">
+        <button id="saveAINotesBtn" class="save-json-btn">
+          💾 Save AI Notes
+        </button>
+        <div class="card-title">
+          AI Natural Language Notes
+          <span class="small">AI-enhanced narrative summary</span>
+        </div>
+        <div id="aiNotesList" class="sections-list">
+          <span class="small">No AI notes yet.</span>
+        </div>
       </div>
     </div>
+
     <div class="card">
       <div class="card-title">
         Worker debug
@@ -568,6 +906,9 @@
   <!-- jsPDF library for quote PDF generation -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
+  <!-- UI Enhancements -->
+  <script type="module" src="./js/uiEnhancements.js"></script>
   <script type="module" src="./js/main.js"></script>
+  <script type="module" src="./js/mainIntegration.js"></script>
 </body>
 </html>

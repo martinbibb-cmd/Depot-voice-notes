@@ -9,6 +9,7 @@ Voice-notes capture tool for depot/site surveys. Free mode keeps everything in t
 - Pro unlock via signed Ed25519 license tokens (local + Worker verification)
 - 20 second Pro recording limit with MediaRecorder capture
 - Cloudflare Worker proxy to OpenAI `gpt-4o-mini-transcribe`
+- Integrated bug reporting system with email notifications via Mailchannels
 
 ## Quick start
 
@@ -40,6 +41,27 @@ Voice-notes capture tool for depot/site surveys. Free mode keeps everything in t
 
 5. **Using the app**
    - Free users rely on Web Speech per section.
-   - Pro users paste the issued unlock code. They gain “Copy ALL” and cloud transcription (`/transcribe`).
+   - Pro users paste the issued unlock code. They gain "Copy ALL" and cloud transcription (`/transcribe`).
    - Badge shows remaining days (refresh as needed).
+
+## Bug Reporting
+
+The app includes a built-in bug reporting system that automatically collects diagnostic information and sends it via email using Mailchannels.
+
+**How it works:**
+- Users click the "Report Bug" button in the app
+- They describe the issue and optionally attach screenshots
+- The system automatically collects:
+  - Browser and environment information
+  - Recent error logs
+  - App state and localStorage data
+  - Performance metrics
+- All data is formatted into a comprehensive HTML email and sent to the configured email address
+
+**Email Configuration:**
+- Bug reports are sent via Mailchannels (free email service for Cloudflare Workers)
+- Default recipient: `martinbibb@gmail.com`
+- To change the recipient, edit the email address in `brain-worker.js` (line ~197)
+
+**Note:** Mailchannels doesn't require API keys or additional configuration when used with Cloudflare Workers.
 

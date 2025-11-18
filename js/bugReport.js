@@ -246,7 +246,53 @@ export function downloadBugReport(format = 'markdown', userDescription = "") {
 }
 
 /**
- * Show bug report modal
+ * Get worker endpoint URL
+ */
+function getWorkerEndpoint() {
+  // Use the existing worker config if available
+  if (typeof window !== 'undefined' && window.DepotWorkerConfig) {
+    return window.DepotWorkerConfig.getWorkerEndpoint();
+  }
+  // Fallback to default endpoint
+  return 'https://depot-voice-notes.martinbibb.workers.dev';
+}
+
+/**
+ * Send bug report to server
+ */
+async function sendBugReport(userDescription, screenshots) {
+  const bugReportData = collectBugReportData();
+
+  // Get the worker base URL from the config or use default
+  const workerBaseUrl = getWorkerEndpoint();
+
+  try {
+    const response = await fetch(`${workerBaseUrl}/bug-report`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        userDescription,
+        bugReportData,
+        screenshots
+      })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || `Server error: ${response.status}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to send bug report:", error);
+    throw error;
+  }
+}
+
+/**
+ * Show simplified bug report modal
  */
 export function showBugReportModal() {
   const modal = document.createElement('div');
@@ -269,90 +315,115 @@ export function showBugReportModal() {
     background: white;
     padding: 2rem;
     border-radius: 8px;
-    max-width: 600px;
+    max-width: 500px;
     width: 90%;
     max-height: 80vh;
     overflow-y: auto;
   `;
 
   content.innerHTML = `
-    <h2 style="margin-top: 0;">Report a Bug</h2>
-    <p>Describe the issue you're experiencing. Your report will include app state and error logs to help diagnose the problem.</p>
+    <h2 style="margin-top: 0; color: #667eea;">Report a Bug</h2>
+    <p style="color: #64748b; font-size: 0.9rem;">
+      Describe the issue you're experiencing. We'll automatically include technical details to help diagnose the problem.
+    </p>
 
-    <textarea id="bug-description"
-      placeholder="Describe what happened, what you expected, and steps to reproduce..."
-      style="width: 100%; min-height: 150px; padding: 0.5rem; margin-bottom: 1rem; font-family: inherit; resize: vertical;"
-    ></textarea>
+    <div style="margin-bottom: 1rem;">
+      <label for="bug-description" style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: #0f172a;">
+        What went wrong?
+      </label>
+      <textarea id="bug-description"
+        placeholder="Example: Recording stops unexpectedly when I pause and resume..."
+        style="width: 100%; min-height: 120px; padding: 0.75rem; margin-bottom: 0.5rem; font-family: inherit; resize: vertical; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 0.9rem;"
+      ></textarea>
+      <p style="font-size: 0.75rem; color: #64748b; margin: 0;">
+        Please include what you were doing, what happened, and what you expected.
+      </p>
+    </div>
 
-    <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1rem;">
-      <button id="copy-markdown" style="padding: 0.5rem 1rem; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 4px;">
-        Copy as Markdown
+    <div style="margin-bottom: 1.5rem;">
+      <label for="screenshot-input" style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: #0f172a;">
+        Screenshots (optional)
+      </label>
+      <input type="file" id="screenshot-input" accept="image/*" multiple
+        style="width: 100%; padding: 0.5rem; border: 2px dashed #cbd5e1; border-radius: 8px; cursor: pointer; font-size: 0.85rem;"
+      />
+      <div id="screenshot-preview" style="margin-top: 0.5rem; display: flex; gap: 0.5rem; flex-wrap: wrap;"></div>
+    </div>
+
+    <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
+      <button id="close-modal" style="padding: 0.75rem 1.5rem; cursor: pointer; background: #e2e8f0; color: #0f172a; border: none; border-radius: 8px; font-weight: 600; font-size: 0.9rem;">
+        Cancel
       </button>
-      <button id="copy-json" style="padding: 0.5rem 1rem; cursor: pointer; background: #28a745; color: white; border: none; border-radius: 4px;">
-        Copy as JSON
-      </button>
-      <button id="download-report" style="padding: 0.5rem 1rem; cursor: pointer; background: #6c757d; color: white; border: none; border-radius: 4px;">
-        Download Report
-      </button>
-      <button id="close-modal" style="padding: 0.5rem 1rem; cursor: pointer; background: #dc3545; color: white; border: none; border-radius: 4px; margin-left: auto;">
-        Close
+      <button id="send-report" style="padding: 0.75rem 1.5rem; cursor: pointer; background: #667eea; color: white; border: none; border-radius: 8px; font-weight: 600; font-size: 0.9rem;">
+        Send Bug Report
       </button>
     </div>
 
-    <div id="copy-status" style="color: green; font-weight: bold;"></div>
-
-    <details style="margin-top: 1rem;">
-      <summary style="cursor: pointer; font-weight: bold;">Preview Report</summary>
-      <pre id="report-preview" style="background: #f5f5f5; padding: 1rem; border-radius: 4px; overflow-x: auto; font-size: 0.85rem; max-height: 300px; overflow-y: auto;"></pre>
-    </details>
+    <div id="status-message" style="margin-top: 1rem; padding: 0.75rem; border-radius: 8px; display: none; font-size: 0.85rem;"></div>
   `;
 
   modal.appendChild(content);
   document.body.appendChild(modal);
 
   const descriptionEl = document.getElementById('bug-description');
-  const statusEl = document.getElementById('copy-status');
-  const previewEl = document.getElementById('report-preview');
+  const screenshotInput = document.getElementById('screenshot-input');
+  const screenshotPreview = document.getElementById('screenshot-preview');
+  const sendButton = document.getElementById('send-report');
+  const statusEl = document.getElementById('status-message');
 
-  // Update preview when description changes
-  descriptionEl.addEventListener('input', () => {
-    const report = collectBugReportData();
-    previewEl.textContent = formatBugReportForAI(report, descriptionEl.value);
-  });
+  let screenshots = [];
 
-  // Initial preview
-  const initialReport = collectBugReportData();
-  previewEl.textContent = formatBugReportForAI(initialReport, '');
+  // Handle screenshot selection
+  screenshotInput.addEventListener('change', async (e) => {
+    const files = Array.from(e.target.files);
+    screenshots = [];
+    screenshotPreview.innerHTML = '';
 
-  // Copy markdown
-  document.getElementById('copy-markdown').addEventListener('click', async () => {
-    const success = await copyBugReportToClipboard('markdown', descriptionEl.value);
-    if (success) {
-      statusEl.textContent = 'Copied to clipboard as Markdown!';
-      setTimeout(() => statusEl.textContent = '', 3000);
-    } else {
-      statusEl.textContent = 'Failed to copy. Please try downloading instead.';
-      statusEl.style.color = 'red';
+    for (const file of files) {
+      try {
+        const dataUrl = await readFileAsDataURL(file);
+        screenshots.push({
+          filename: file.name,
+          type: file.type,
+          data: dataUrl
+        });
+
+        // Show preview
+        const img = document.createElement('img');
+        img.src = dataUrl;
+        img.style.cssText = 'width: 80px; height: 80px; object-fit: cover; border-radius: 4px; border: 2px solid #e2e8f0;';
+        screenshotPreview.appendChild(img);
+      } catch (err) {
+        console.error("Failed to read file:", file.name, err);
+      }
     }
   });
 
-  // Copy JSON
-  document.getElementById('copy-json').addEventListener('click', async () => {
-    const success = await copyBugReportToClipboard('json', descriptionEl.value);
-    if (success) {
-      statusEl.textContent = 'Copied to clipboard as JSON!';
-      setTimeout(() => statusEl.textContent = '', 3000);
-    } else {
-      statusEl.textContent = 'Failed to copy. Please try downloading instead.';
-      statusEl.style.color = 'red';
-    }
-  });
+  // Send report
+  sendButton.addEventListener('click', async () => {
+    const description = descriptionEl.value.trim();
 
-  // Download
-  document.getElementById('download-report').addEventListener('click', () => {
-    downloadBugReport('markdown', descriptionEl.value);
-    statusEl.textContent = 'Report downloaded!';
-    setTimeout(() => statusEl.textContent = '', 3000);
+    if (!description) {
+      showStatus('Please describe the issue before sending.', 'error');
+      return;
+    }
+
+    sendButton.disabled = true;
+    sendButton.textContent = 'Sending...';
+
+    try {
+      await sendBugReport(description, screenshots);
+      showStatus('Bug report sent successfully! Thank you.', 'success');
+
+      // Close modal after 2 seconds
+      setTimeout(() => {
+        document.body.removeChild(modal);
+      }, 2000);
+    } catch (err) {
+      showStatus(`Failed to send report: ${err.message}`, 'error');
+      sendButton.disabled = false;
+      sendButton.textContent = 'Send Bug Report';
+    }
   });
 
   // Close
@@ -365,5 +436,25 @@ export function showBugReportModal() {
     if (e.target === modal) {
       document.body.removeChild(modal);
     }
+  });
+
+  function showStatus(message, type) {
+    statusEl.textContent = message;
+    statusEl.style.display = 'block';
+    statusEl.style.background = type === 'success' ? '#d1fae5' : '#fee2e2';
+    statusEl.style.color = type === 'success' ? '#065f46' : '#991b1b';
+    statusEl.style.borderLeft = `4px solid ${type === 'success' ? '#10b981' : '#ef4444'}`;
+  }
+}
+
+/**
+ * Read file as data URL
+ */
+function readFileAsDataURL(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
   });
 }

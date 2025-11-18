@@ -20,6 +20,10 @@ export default {
         return handleAudio(request, env);
       }
 
+      if (request.method === "POST" && url.pathname === "/bug-report") {
+        return handleBugReport(request, env);
+      }
+
       return jsonResponse({ error: "not_found" }, 404);
     } catch (err) {
       console.error("Worker fatal error:", err);
@@ -138,6 +142,222 @@ async function handleAudio(request, env) {
       500
     );
   }
+}
+
+/* ---------- /bug-report ---------- */
+
+async function handleBugReport(request, env) {
+  let payload;
+  try {
+    payload = await request.json();
+  } catch {
+    return jsonResponse(
+      { error: "bad_request", message: "JSON body required" },
+      400
+    );
+  }
+
+  const { userDescription, bugReportData, screenshots = [] } = payload;
+
+  if (!userDescription || typeof userDescription !== "string") {
+    return jsonResponse(
+      { error: "bad_request", message: "userDescription required" },
+      400
+    );
+  }
+
+  try {
+    // Send email via Mailchannels
+    await sendBugReportEmail(userDescription, bugReportData, screenshots);
+    return jsonResponse({ success: true, message: "Bug report sent successfully" }, 200);
+  } catch (err) {
+    console.error("handleBugReport error:", err);
+    return jsonResponse(
+      { error: "email_error", message: String(err) },
+      500
+    );
+  }
+}
+
+async function sendBugReportEmail(userDescription, bugReportData, screenshots) {
+  // Format the bug report data as HTML
+  const htmlBody = formatBugReportHTML(userDescription, bugReportData);
+
+  // Prepare attachments from screenshots
+  const attachments = screenshots.map((screenshot, index) => ({
+    filename: screenshot.filename || `screenshot-${index + 1}.png`,
+    content: screenshot.data.split(',')[1], // Remove data URL prefix
+    type: screenshot.type || 'image/png',
+    disposition: 'attachment'
+  }));
+
+  const emailPayload = {
+    personalizations: [
+      {
+        to: [{ email: "martinbibb@gmail.com", name: "Martin Bibb" }],
+      },
+    ],
+    from: {
+      email: "bugreport@depot-voice-notes.com",
+      name: "Depot Voice Notes Bug Reporter",
+    },
+    subject: `Bug Report: ${userDescription.substring(0, 50)}${userDescription.length > 50 ? '...' : ''}`,
+    content: [
+      {
+        type: "text/html",
+        value: htmlBody,
+      },
+    ],
+  };
+
+  // Add attachments if present
+  if (attachments.length > 0) {
+    emailPayload.attachments = attachments;
+  }
+
+  const response = await fetch("https://api.mailchannels.net/tx/v1/send", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(emailPayload),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Mailchannels error ${response.status}: ${errorText}`);
+  }
+}
+
+function formatBugReportHTML(userDescription, data) {
+  const report = data || {};
+
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 800px; margin: 0 auto; padding: 20px; }
+    h1 { color: #667eea; border-bottom: 3px solid #667eea; padding-bottom: 10px; }
+    h2 { color: #764ba2; margin-top: 30px; border-bottom: 2px solid #e2e8f0; padding-bottom: 5px; }
+    h3 { color: #5a67d8; margin-top: 20px; }
+    .section { background: #f8fafc; padding: 15px; border-radius: 8px; margin: 10px 0; }
+    .meta { background: #ecfdf5; padding: 10px; border-left: 4px solid #10b981; margin: 10px 0; }
+    .error { background: #fee2e2; padding: 10px; border-left: 4px solid #ef4444; margin: 10px 0; }
+    pre { background: #0f172a; color: #e2e8f0; padding: 15px; border-radius: 5px; overflow-x: auto; font-size: 12px; }
+    table { border-collapse: collapse; width: 100%; margin: 10px 0; }
+    th, td { border: 1px solid #e2e8f0; padding: 8px; text-align: left; }
+    th { background: #f1f5f9; font-weight: bold; }
+    .user-description { background: #fef3c7; padding: 15px; border-left: 4px solid #f59e0b; margin: 20px 0; font-size: 16px; }
+  </style>
+</head>
+<body>
+  <h1>🐛 Bug Report - Depot Voice Notes</h1>
+
+  <div class="user-description">
+    <h2>User Description</h2>
+    <p><strong>${escapeHtml(userDescription)}</strong></p>
+  </div>
+
+  <div class="meta">
+    <h2>📋 Environment Information</h2>
+    <table>
+      <tr><th>Timestamp</th><td>${report.meta?.timestamp || 'N/A'}</td></tr>
+      <tr><th>URL</th><td>${escapeHtml(report.meta?.url || 'N/A')}</td></tr>
+      <tr><th>User Agent</th><td>${escapeHtml(report.meta?.userAgent || 'N/A')}</td></tr>
+      <tr><th>Browser</th><td>${escapeHtml(report.browser?.vendor || 'N/A')}</td></tr>
+      <tr><th>Platform</th><td>${escapeHtml(report.browser?.platform || 'N/A')}</td></tr>
+      <tr><th>Language</th><td>${report.browser?.language || 'N/A'}</td></tr>
+      <tr><th>Viewport</th><td>${report.meta?.viewport?.width || 'N/A'}x${report.meta?.viewport?.height || 'N/A'}</td></tr>
+      <tr><th>Online Status</th><td>${report.browser?.onLine ? 'Online ✅' : 'Offline ❌'}</td></tr>
+      <tr><th>Cookies Enabled</th><td>${report.browser?.cookiesEnabled ? 'Yes ✅' : 'No ❌'}</td></tr>
+    </table>
+  </div>
+
+  ${formatErrorsSection(report.errors)}
+  ${formatAppStateSection(report.appState)}
+  ${formatPerformanceSection(report.performance)}
+
+  <div class="section">
+    <h2>📄 Full Report JSON</h2>
+    <pre>${escapeHtml(JSON.stringify(report, null, 2))}</pre>
+  </div>
+</body>
+</html>
+  `;
+}
+
+function formatErrorsSection(errors) {
+  if (!errors || !Array.isArray(errors) || errors.length === 0) {
+    return '<div class="section"><h2>✅ Recent Errors</h2><p>No errors logged.</p></div>';
+  }
+
+  let html = '<div class="error"><h2>⚠️ Recent Errors</h2>';
+  errors.forEach((err, idx) => {
+    html += `
+      <h3>Error ${idx + 1}: ${escapeHtml(err.timestamp || 'N/A')}</h3>
+      <p><strong>Message:</strong> ${escapeHtml(err.message || 'N/A')}</p>
+      ${err.context && Object.keys(err.context).length > 0 ? `<p><strong>Context:</strong> <pre>${escapeHtml(JSON.stringify(err.context, null, 2))}</pre></p>` : ''}
+      ${err.stack ? `<p><strong>Stack:</strong><pre>${escapeHtml(err.stack)}</pre></p>` : ''}
+    `;
+  });
+  html += '</div>';
+  return html;
+}
+
+function formatAppStateSection(appState) {
+  if (!appState) {
+    return '<div class="section"><h2>💾 App State</h2><p>No app state data.</p></div>';
+  }
+
+  let html = '<div class="section"><h2>💾 App State</h2>';
+
+  if (appState.debugInfo) {
+    html += `<h3>Debug Info</h3><pre>${escapeHtml(JSON.stringify(appState.debugInfo, null, 2))}</pre>`;
+  }
+
+  if (appState.localStorage) {
+    html += `<h3>LocalStorage</h3><pre>${escapeHtml(JSON.stringify(appState.localStorage, null, 2))}</pre>`;
+  }
+
+  html += '</div>';
+  return html;
+}
+
+function formatPerformanceSection(performance) {
+  if (!performance) {
+    return '<div class="section"><h2>⚡ Performance</h2><p>No performance data.</p></div>';
+  }
+
+  let html = '<div class="section"><h2>⚡ Performance</h2><table>';
+
+  if (performance.memory) {
+    html += `
+      <tr><th>JS Heap Used</th><td>${(performance.memory.usedJSHeapSize / 1024 / 1024).toFixed(2)} MB</td></tr>
+      <tr><th>JS Heap Total</th><td>${(performance.memory.totalJSHeapSize / 1024 / 1024).toFixed(2)} MB</td></tr>
+      <tr><th>JS Heap Limit</th><td>${(performance.memory.jsHeapSizeLimit / 1024 / 1024).toFixed(2)} MB</td></tr>
+    `;
+  }
+
+  if (performance.timing) {
+    html += `
+      <tr><th>Load Time</th><td>${performance.timing.loadTime}ms</td></tr>
+      <tr><th>DOM Ready</th><td>${performance.timing.domReady}ms</td></tr>
+    `;
+  }
+
+  html += '</table></div>';
+  return html;
+}
+
+function escapeHtml(unsafe) {
+  if (unsafe === null || unsafe === undefined) return '';
+  return String(unsafe)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
 }
 
 /* ---------- OpenAI helpers ---------- */

@@ -71,9 +71,7 @@ const statusBar = document.getElementById("statusBar");
 const startLiveBtn = document.getElementById("startLiveBtn");
 const pauseLiveBtn = document.getElementById("pauseLiveBtn");
 const finishLiveBtn = document.getElementById("finishLiveBtn");
-const exportBtn = document.getElementById("exportBtn");
 const createQuoteBtn = document.getElementById("createQuoteBtn");
-const saveSessionBtn = document.getElementById("saveSessionBtn");
 const loadSessionBtn = document.getElementById("loadSessionBtn");
 const loadSessionInput = document.getElementById("loadSessionInput");
 const importAudioBtn = document.getElementById("importAudioBtn");
@@ -120,6 +118,16 @@ let SECTION_KEY_LOOKUP = new Map();
 let schemaLoaded = false;
 let CHECKLIST_SOURCE = [];
 let CHECKLIST_ITEMS = [];
+
+// Expose state to window for save menu access
+function exposeStateToWindow() {
+  window.__depotLastMaterials = lastMaterials;
+  window.__depotLastCheckedItems = lastCheckedItems;
+  window.__depotLastMissingInfo = lastMissingInfo;
+  window.__depotLastCustomerSummary = lastCustomerSummary;
+  window.__depotSessionAudioChunks = sessionAudioChunks;
+  window.__depotLastAudioMime = lastAudioMime;
+}
 
 function sanitiseChecklistArray(value) {
   const asArray = (input) => {
@@ -1462,6 +1470,9 @@ function refreshUiFromState() {
   // 3) Parts + checklist
   renderPartsList(lastMaterials);
   renderChecklist(clarificationsEl, lastCheckedItems, lastMissingInfo);
+
+  // 4) Expose state to window for save menu
+  exposeStateToWindow();
 }
 
 function applyVoiceResult(result) {
@@ -1629,57 +1640,8 @@ async function sendAudio(blob) {
 }
 
 // --- EXPORT / SESSION / AUDIO IMPORT ---
-exportBtn.onclick = async () => {
-  setStatus("Preparing notes…");
-  const payload = {
-    exportedAt: new Date().toISOString(),
-    sections: lastSections || []
-  };
-
-  const format = getExportFormat();
-  const defaultName = "depot-notes";
-  const userName = prompt("File name (without extension):", defaultName);
-  if (userName === null) {
-    setStatus("Export cancelled.");
-    return;
-  }
-  const safeName = (userName || defaultName).replace(/[^a-z0-9_\-]+/gi, "-");
-  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-
-  let blob, filename, mimeType;
-
-  if (format === 'csv') {
-    const csvContent = depotNotesToCSV(payload);
-    blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    filename = `${safeName}-${timestamp}.csv`;
-    mimeType = "text/csv";
-  } else {
-    const pretty = JSON.stringify(payload, null, 2);
-    blob = new Blob([pretty], { type: "application/json" });
-    filename = `${safeName}-${timestamp}.json`;
-    mimeType = "application/json";
-  }
-
-  const fileForShare = new File([blob], filename, { type: mimeType });
-  if (navigator.canShare && navigator.canShare({ files: [fileForShare] })) {
-    try {
-      await navigator.share({ files: [fileForShare] });
-      setStatus("Notes shared.");
-      return;
-    } catch (err) {
-      console.error("Share failed", err);
-    }
-  }
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
-  setStatus("Notes downloaded.");
-};
+// NOTE: Export button has been replaced by the unified Save menu
+// The old exportBtn handler has been removed - use saveMenuBtn instead
 
 // --- CREATE QUOTE ---
 createQuoteBtn.onclick = async () => {
@@ -1949,7 +1911,8 @@ async function saveSessionToFile() {
   URL.revokeObjectURL(url);
 }
 
-saveSessionBtn.onclick = saveSessionToFile;
+// NOTE: saveSessionBtn has been replaced by the unified Save menu
+// The old saveSessionBtn.onclick handler has been removed - use saveMenuBtn instead
 
 function autoSaveSessionToLocal() {
   try {

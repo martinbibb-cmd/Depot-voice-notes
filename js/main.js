@@ -3097,10 +3097,10 @@ async function enhancedFinishLiveSession() {
     await originalFinishLiveSession();
   }
 
-  // Show finish modal
-  setTimeout(() => {
-    showFinishSessionModal();
-  }, 500);
+  // Popup removed - recording will remain on main page
+  // setTimeout(() => {
+  //   showFinishSessionModal();
+  // }, 500);
 
   // Mark session as inactive
   localStorage.removeItem(SESSION_ACTIVE_KEY);

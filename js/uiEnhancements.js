@@ -3,6 +3,11 @@
  * Handles audio control panel, waveform visualization, and notes management
  */
 
+import {
+  notesToCSV,
+  getExportFormat
+} from "./csvExport.js";
+
 // Audio Control Panel State
 let audioStartTime = null;
 let audioTimerInterval = null;
@@ -249,7 +254,7 @@ function saveNotesAsJSON(type) {
       sections: sections
     };
 
-    filename = `automatic-notes-${Date.now()}.json`;
+    filename = `automatic-notes-${Date.now()}`;
   } else if (type === 'ai') {
     // Collect AI notes
     const notes = [];
@@ -269,19 +274,28 @@ function saveNotesAsJSON(type) {
       notes: notes
     };
 
-    filename = `ai-notes-${Date.now()}.json`;
+    filename = `ai-notes-${Date.now()}`;
   }
 
-  // Download JSON file
-  const json = JSON.stringify(data, null, 2);
-  const blob = new Blob([json], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
+  // Get export format and create file
+  const format = getExportFormat();
+  let blob, finalFilename;
 
+  if (format === 'csv') {
+    const csvContent = notesToCSV(data);
+    blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    finalFilename = `${filename}.csv`;
+  } else {
+    const json = JSON.stringify(data, null, 2);
+    blob = new Blob([json], { type: 'application/json' });
+    finalFilename = `${filename}.json`;
+  }
+
+  const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = filename;
+  a.download = finalFilename;
   a.click();
-
   URL.revokeObjectURL(url);
 
   // Show feedback

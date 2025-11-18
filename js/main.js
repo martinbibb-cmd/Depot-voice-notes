@@ -7,6 +7,7 @@ import { loadPricebook, matchMaterialsToPricebook, findCorePack } from "./priceb
 import { showQuoteBuilderModal } from "./quoteBuilder.js";
 import { showPackSelectorModal } from "./packSelector.js";
 import { generateMultipleQuotePDFs, downloadPDF } from "./quotePDF.js";
+import { logError, showBugReportModal } from "./bugReport.js";
 
 // --- CONFIG / STORAGE KEYS ---
 const SECTION_STORAGE_KEY = "depot.sectionSchema";
@@ -76,6 +77,7 @@ const partsListEl = document.getElementById("partsList");
 const voiceErrorEl = document.getElementById("voice-error");
 const sleepWarningEl = document.getElementById("sleep-warning");
 const settingsBtn = document.getElementById("settingsBtn");
+const bugReportBtn = document.getElementById("bugReportBtn");
 const workerDebugEl = document.getElementById("workerDebug");
 const debugSectionsPre = document.getElementById("debugSectionsJson");
 const debugSectionsDetails = document.getElementById("debugSections");
@@ -405,6 +407,98 @@ function normaliseDepotSections(rawSections) {
   return ordered;
 }
 
+// --- Semantic Deduplication Helpers ---
+function normalizeTextForComparison(text) {
+  if (!text || typeof text !== "string") return "";
+  return text
+    .toLowerCase()
+    .replace(/[^\w\s]/g, " ") // Remove punctuation
+    .replace(/\s+/g, " ") // Normalize whitespace
+    .trim();
+}
+
+function getTextTokens(text) {
+  const normalized = normalizeTextForComparison(text);
+  if (!normalized) return new Set();
+
+  // Remove common stop words that don't add meaning
+  const stopWords = new Set([
+    "a", "an", "and", "are", "as", "at", "be", "by", "for", "from",
+    "has", "he", "in", "is", "it", "its", "of", "on", "that", "the",
+    "to", "was", "will", "with", "have", "this", "but", "they", "been"
+  ]);
+
+  return new Set(
+    normalized.split(/\s+/).filter(token => token.length > 2 && !stopWords.has(token))
+  );
+}
+
+function calculateSimilarity(text1, text2) {
+  const tokens1 = getTextTokens(text1);
+  const tokens2 = getTextTokens(text2);
+
+  if (tokens1.size === 0 && tokens2.size === 0) return 1.0; // Both empty
+  if (tokens1.size === 0 || tokens2.size === 0) return 0.0; // One empty
+
+  // Calculate Jaccard similarity (intersection over union)
+  const intersection = new Set([...tokens1].filter(t => tokens2.has(t)));
+  const union = new Set([...tokens1, ...tokens2]);
+
+  return intersection.size / union.size;
+}
+
+function areLinesSemanticallySimilar(line1, line2, threshold = 0.6) {
+  // Exact match (case-insensitive)
+  if (normalizeTextForComparison(line1) === normalizeTextForComparison(line2)) {
+    return true;
+  }
+
+  // One contains the other (with significant overlap)
+  const norm1 = normalizeTextForComparison(line1);
+  const norm2 = normalizeTextForComparison(line2);
+  if (norm1.includes(norm2) || norm2.includes(norm1)) {
+    return true;
+  }
+
+  // Semantic similarity via token overlap
+  const similarity = calculateSimilarity(line1, line2);
+  return similarity >= threshold;
+}
+
+function deduplicateLines(lines, similarityThreshold = 0.6) {
+  if (!Array.isArray(lines) || lines.length === 0) return [];
+
+  const uniqueLines = [];
+  const processed = new Set();
+
+  for (let i = 0; i < lines.length; i++) {
+    if (processed.has(i)) continue;
+
+    const currentLine = lines[i];
+    let bestLine = currentLine;
+    let bestLength = currentLine.length;
+    processed.add(i);
+
+    // Find all similar lines and keep the most detailed one
+    for (let j = i + 1; j < lines.length; j++) {
+      if (processed.has(j)) continue;
+
+      if (areLinesSemanticallySimilar(currentLine, lines[j], similarityThreshold)) {
+        processed.add(j);
+        // Keep the longer, more detailed version
+        if (lines[j].length > bestLength) {
+          bestLine = lines[j];
+          bestLength = lines[j].length;
+        }
+      }
+    }
+
+    uniqueLines.push(bestLine);
+  }
+
+  return uniqueLines;
+}
+
 function cleanSectionContent(section) {
   if (!section || typeof section !== "object") return section;
 
@@ -416,14 +510,8 @@ function cleanSectionContent(section) {
       .map((line) => line.trim())
       .filter(Boolean);
 
-    const seen = new Set();
-    let uniqueLines = [];
-    rawLines.forEach((line) => {
-      const key = line.toLowerCase();
-      if (seen.has(key)) return;
-      seen.add(key);
-      uniqueLines.push(line);
-    });
+    // Apply semantic deduplication instead of just exact match
+    let uniqueLines = deduplicateLines(rawLines, 0.6);
 
     const hasDetail = uniqueLines.some((line) => !/^no\b/i.test(line));
     if (hasDetail) {
@@ -556,12 +644,26 @@ function mergeTextFields(existing, incoming) {
   const next = typeof incoming === "string" ? incoming : "";
   const prevTrim = prev.trim();
   const nextTrim = next.trim();
+
   if (!prevTrim && !nextTrim) return next || prev || "";
   if (!prevTrim) return next;
   if (!nextTrim) return prev;
+
+  // Exact match (case-insensitive)
   if (prevTrim.toLowerCase() === nextTrim.toLowerCase()) return next || prev;
+
+  // Substring containment
   if (prevTrim.includes(nextTrim)) return prev;
   if (nextTrim.includes(prevTrim)) return next;
+
+  // Check semantic similarity - if very similar, keep the longer one
+  const similarity = calculateSimilarity(prevTrim, nextTrim);
+  if (similarity >= 0.75) {
+    // Very similar - keep the more detailed version
+    return prevTrim.length >= nextTrim.length ? prevTrim : nextTrim;
+  }
+
+  // Different content - merge both
   return `${prevTrim}\n${nextTrim}`.trim();
 }
 
@@ -707,6 +809,9 @@ function mergeSectionsPreservingRequired(previousSections, incomingSections) {
 }
 
 function showVoiceError(message) {
+  // Log error to bug report system
+  logError(new Error(message), { source: 'voiceError', timestamp: new Date().toISOString() });
+
   if (!voiceErrorEl) {
     console.error("Voice error:", message);
     alert(message);
@@ -2246,6 +2351,12 @@ async function loadStaticConfig() {
 if (settingsBtn) {
   settingsBtn.addEventListener("click", () => {
     window.location.href = "settings.html";
+  });
+}
+
+if (bugReportBtn) {
+  bugReportBtn.addEventListener("click", () => {
+    showBugReportModal();
   });
 }
 

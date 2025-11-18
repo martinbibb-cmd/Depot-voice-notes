@@ -215,6 +215,15 @@ Your job is to:
 3. Suggest a small list of materials/parts.
 4. Write a short customer-friendly summary of the job.
 
+CRITICAL DEDUPLICATION RULES:
+- If alreadyCaptured contains information for a section, DO NOT repeat that information.
+- Only add NEW information from the current transcript that isn't already captured.
+- Do NOT rephrase or reword existing captured information - completely skip it.
+- If a detail is semantically the same (e.g., "Worcester Bosch 35kW boiler" vs "35kW Worcester Bosch"), treat as duplicate.
+- Within each section, avoid listing the same information multiple times even if worded differently.
+- For materials, do NOT duplicate items already in the list (check item names, not just exact strings).
+- If the transcript only repeats what's already captured, return empty or minimal content for that section.
+
 You MUST respond with ONLY valid JSON matching this shape:
 
 {

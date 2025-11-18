@@ -235,7 +235,7 @@ You MUST respond with ONLY valid JSON matching this shape:
     }
   ],
   "missingInfo": [
-    { "target": "engineer | customer", "question": "Short question if anything important is unclear." }
+    { "target": "expert | customer", "question": "Short question if anything important is unclear." }
   ],
   "customerSummary": "2–4 sentence summary suitable to show the customer."
 }

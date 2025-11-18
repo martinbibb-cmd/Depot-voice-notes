@@ -1165,8 +1165,8 @@ function renderChecklist(container, checkedIds, missingInfoFromServer) {
     questions.forEach(q => {
       const div = document.createElement("div");
       div.className = "clar-chip";
-      div.dataset.target = q.target || "engineer";
-      div.innerHTML = `<strong>${q.target || "engineer"}:</strong> ${q.question}`;
+      div.dataset.target = q.target || "expert";
+      div.innerHTML = `<strong>${q.target || "expert"}:</strong> ${q.question}`;
       container.appendChild(div);
     });
   }
@@ -2246,12 +2246,588 @@ lastSentTranscript = committedTranscript;
 updateLiveControls();
 setStatus("Boot OK – ready to test.");
 
+// ============================================================================
+// SESSION MANAGEMENT ENHANCEMENTS
+// ============================================================================
+
+const SESSION_NAME_KEY = "depot.currentSessionName";
+const SESSION_ACTIVE_KEY = "depot.sessionActive";
+const SESSION_START_TIME_KEY = "depot.sessionStartTime";
+const SESSION_TRANSCRIPTS_KEY = "depot.sessionTranscripts";
+
+let currentSessionName = "";
+let sessionStartTime = null;
+let transcriptSegments = []; // Array of {timestamp, speaker, text}
+
+// Get UI elements for new features
+const sessionNameDisplay = document.getElementById("sessionNameDisplay");
+const transcriptDisplay = document.getElementById("transcriptDisplay");
+const transcriptSearch = document.getElementById("transcriptSearch");
+const searchPrevBtn = document.getElementById("searchPrevBtn");
+const searchNextBtn = document.getElementById("searchNextBtn");
+
+// Modal elements
+const sessionNameModal = document.getElementById("sessionNameModal");
+const sessionNameInput = document.getElementById("sessionNameInput");
+const confirmSessionNameBtn = document.getElementById("confirmSessionNameBtn");
+const cancelSessionNameBtn = document.getElementById("cancelSessionNameBtn");
+const sessionResumeModal = document.getElementById("sessionResumeModal");
+const resumeSessionText = document.getElementById("resumeSessionText");
+const continueSessionBtn = document.getElementById("continueSessionBtn");
+const startNewFromResumeBtn = document.getElementById("startNewFromResumeBtn");
+const finishSessionModal = document.getElementById("finishSessionModal");
+const closeFinishModalBtn = document.getElementById("closeFinishModalBtn");
+
+let searchMatches = [];
+let currentSearchIndex = -1;
+
+// ============================================================================
+// SESSION NAME FUNCTIONS
+// ============================================================================
+
+function validateSessionName(name) {
+  const trimmed = name.trim();
+  if (!trimmed) return null;
+  // Only allow letters, numbers, and dashes
+  if (!/^[A-Za-z0-9-]+$/.test(trimmed)) return null;
+  return trimmed;
+}
+
+function setSessionName(name) {
+  currentSessionName = name;
+  localStorage.setItem(SESSION_NAME_KEY, name);
+  if (sessionNameDisplay) {
+    sessionNameDisplay.textContent = `Session: ${name}`;
+    sessionNameDisplay.style.display = name ? "block" : "none";
+  }
+}
+
+function getSessionName() {
+  return currentSessionName || localStorage.getItem(SESSION_NAME_KEY) || "";
+}
+
+function clearSessionName() {
+  currentSessionName = "";
+  localStorage.removeItem(SESSION_NAME_KEY);
+  localStorage.removeItem(SESSION_ACTIVE_KEY);
+  localStorage.removeItem(SESSION_START_TIME_KEY);
+  if (sessionNameDisplay) {
+    sessionNameDisplay.style.display = "none";
+  }
+}
+
+function showSessionNameModal() {
+  if (sessionNameModal) {
+    sessionNameModal.classList.add("active");
+    if (sessionNameInput) {
+      sessionNameInput.value = "";
+      sessionNameInput.focus();
+    }
+  }
+}
+
+function hideSessionNameModal() {
+  if (sessionNameModal) {
+    sessionNameModal.classList.remove("active");
+  }
+}
+
+function markSessionActive() {
+  localStorage.setItem(SESSION_ACTIVE_KEY, "true");
+  sessionStartTime = new Date().toISOString();
+  localStorage.setItem(SESSION_START_TIME_KEY, sessionStartTime);
+}
+
+function isSessionActive() {
+  return localStorage.getItem(SESSION_ACTIVE_KEY) === "true";
+}
+
+// ============================================================================
+// TRANSCRIPT DISPLAY WITH DIARISATION
+// ============================================================================
+
+function parseTranscriptSegments(fullText) {
+  if (!fullText) return [];
+
+  const segments = [];
+  const lines = fullText.split('\n').filter(l => l.trim());
+
+  let currentTime = 0;
+
+  lines.forEach((line, index) => {
+    // Try to extract timestamp and speaker from various formats
+    // Format: [00:12] Speaker: text
+    // Or: Speaker: text
+    // Or: plain text
+
+    const timestampMatch = line.match(/^\[(\d+):(\d+)\]\s*/);
+    const speakerMatch = line.match(/^(?:\[\d+:\d+\]\s*)?([^:]+):\s*(.+)/);
+
+    let timestamp = null;
+    let speaker = null;
+    let text = line;
+
+    if (timestampMatch) {
+      const minutes = parseInt(timestampMatch[1]);
+      const seconds = parseInt(timestampMatch[2]);
+      timestamp = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+      text = line.substring(timestampMatch[0].length);
+      currentTime = minutes * 60 + seconds;
+    }
+
+    if (speakerMatch) {
+      speaker = speakerMatch[1].trim();
+      text = speakerMatch[2].trim();
+    }
+
+    // Auto-generate timestamp if not present
+    if (!timestamp && index > 0) {
+      currentTime += 5; // Approximate 5 seconds per segment
+      const minutes = Math.floor(currentTime / 60);
+      const seconds = currentTime % 60;
+      timestamp = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    } else if (!timestamp) {
+      timestamp = '00:00';
+    }
+
+    // Auto-detect speaker if not present (alternating pattern)
+    if (!speaker) {
+      speaker = index % 2 === 0 ? 'Expert' : 'Customer';
+    }
+
+    segments.push({ timestamp, speaker, text: text.trim() });
+  });
+
+  return segments.filter(s => s.text);
+}
+
+function renderTranscriptDisplay() {
+  if (!transcriptDisplay) return;
+
+  const fullText = transcriptInput.value.trim();
+
+  if (!fullText) {
+    transcriptDisplay.innerHTML = '<p class="small" style="color: var(--muted); padding: 8px;">No transcript yet. Start recording or enter text above.</p>';
+    return;
+  }
+
+  // Parse segments from transcript
+  const segments = parseTranscriptSegments(fullText);
+
+  if (segments.length === 0) {
+    // Fallback: show as plain text
+    transcriptDisplay.innerHTML = `<div class="transcript-line">${escapeHtml(fullText)}</div>`;
+  } else {
+    // Render with diarisation
+    let html = '';
+    segments.forEach(seg => {
+      html += `
+        <div class="transcript-line">
+          <span class="transcript-timestamp">[${seg.timestamp}]</span>
+          <span class="transcript-speaker">${escapeHtml(seg.speaker)}:</span>
+          <span>${escapeHtml(seg.text)}</span>
+        </div>
+      `;
+    });
+    transcriptDisplay.innerHTML = html;
+  }
+
+  // Auto-scroll to bottom
+  transcriptDisplay.scrollTop = transcriptDisplay.scrollHeight;
+
+  // Apply search highlighting if active
+  if (transcriptSearch && transcriptSearch.value.trim()) {
+    performSearch(transcriptSearch.value.trim());
+  }
+}
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+// Update transcript display whenever the input changes
+const originalUpdateTextarea = updateTextareaFromBuffers;
+window.updateTextareaFromBuffers = function() {
+  if (typeof originalUpdateTextarea === 'function') {
+    originalUpdateTextarea();
+  }
+  renderTranscriptDisplay();
+};
+
+// ============================================================================
+// TRANSCRIPT SEARCH FUNCTIONALITY
+// ============================================================================
+
+function performSearch(query) {
+  if (!transcriptDisplay || !query) {
+    clearSearchHighlights();
+    return;
+  }
+
+  const content = transcriptDisplay.innerHTML;
+  const regex = new RegExp(`(${escapeRegExp(query)})`, 'gi');
+
+  // Remove previous highlights
+  const cleaned = content.replace(/<span class="highlight">(.*?)<\/span>/gi, '$1');
+
+  // Add new highlights
+  const highlighted = cleaned.replace(regex, '<span class="highlight">$1</span>');
+  transcriptDisplay.innerHTML = highlighted;
+
+  // Find all matches
+  searchMatches = Array.from(transcriptDisplay.querySelectorAll('.highlight'));
+  currentSearchIndex = searchMatches.length > 0 ? 0 : -1;
+
+  // Enable/disable navigation buttons
+  if (searchPrevBtn) searchPrevBtn.disabled = searchMatches.length === 0;
+  if (searchNextBtn) searchNextBtn.disabled = searchMatches.length === 0;
+
+  // Scroll to first match
+  if (searchMatches.length > 0) {
+    scrollToMatch(0);
+  }
+}
+
+function clearSearchHighlights() {
+  if (!transcriptDisplay) return;
+
+  const content = transcriptDisplay.innerHTML;
+  const cleaned = content.replace(/<span class="highlight">(.*?)<\/span>/gi, '$1');
+  transcriptDisplay.innerHTML = cleaned;
+
+  searchMatches = [];
+  currentSearchIndex = -1;
+
+  if (searchPrevBtn) searchPrevBtn.disabled = true;
+  if (searchNextBtn) searchNextBtn.disabled = true;
+}
+
+function scrollToMatch(index) {
+  if (index < 0 || index >= searchMatches.length) return;
+
+  currentSearchIndex = index;
+  const match = searchMatches[index];
+
+  // Remove active class from all
+  searchMatches.forEach(m => m.style.background = '#fef08a');
+
+  // Highlight current
+  match.style.background = '#facc15';
+
+  // Scroll into view
+  match.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function escapeRegExp(string) {
+  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// Wire up search events
+if (transcriptSearch) {
+  transcriptSearch.addEventListener('input', (e) => {
+    const query = e.target.value.trim();
+    if (query) {
+      performSearch(query);
+    } else {
+      clearSearchHighlights();
+    }
+  });
+}
+
+if (searchPrevBtn) {
+  searchPrevBtn.addEventListener('click', () => {
+    if (searchMatches.length === 0) return;
+    const newIndex = currentSearchIndex - 1;
+    scrollToMatch(newIndex < 0 ? searchMatches.length - 1 : newIndex);
+  });
+}
+
+if (searchNextBtn) {
+  searchNextBtn.addEventListener('click', () => {
+    if (searchMatches.length === 0) return;
+    const newIndex = (currentSearchIndex + 1) % searchMatches.length;
+    scrollToMatch(newIndex);
+  });
+}
+
+// ============================================================================
+// FINISH SESSION MODAL
+// ============================================================================
+
+function showFinishSessionModal() {
+  if (!finishSessionModal) return;
+
+  // Populate session info
+  const sessionNameEl = document.getElementById('finishSessionName');
+  const sessionTimeEl = document.getElementById('finishSessionTime');
+  if (sessionNameEl) {
+    sessionNameEl.textContent = currentSessionName ? `Session: ${currentSessionName}` : 'Session: (no name)';
+  }
+  if (sessionTimeEl && sessionStartTime) {
+    const start = new Date(sessionStartTime);
+    const end = new Date();
+    const duration = Math.round((end - start) / 1000 / 60);
+    sessionTimeEl.textContent = `Started: ${start.toLocaleString()} • Duration: ${duration} minutes`;
+  }
+
+  // Populate transcript
+  const finishTranscript = document.getElementById('finishTranscript');
+  if (finishTranscript) {
+    finishTranscript.innerHTML = transcriptDisplay ? transcriptDisplay.innerHTML : escapeHtml(transcriptInput.value);
+  }
+
+  // Populate customer summary
+  const finishCustomerSummary = document.getElementById('finishCustomerSummary');
+  if (finishCustomerSummary) {
+    finishCustomerSummary.textContent = lastCustomerSummary || '(none)';
+  }
+
+  // Populate checklist
+  const finishChecklist = document.getElementById('finishChecklist');
+  if (finishChecklist) {
+    renderChecklist(finishChecklist, lastCheckedItems, lastMissingInfo);
+  }
+
+  // Populate sections
+  const finishSections = document.getElementById('finishSections');
+  if (finishSections) {
+    finishSections.innerHTML = sectionsListEl ? sectionsListEl.innerHTML : '';
+  }
+
+  // Setup audio player if available
+  const finishAudioSection = document.getElementById('finishAudioSection');
+  const finishAudioPlayer = document.getElementById('finishAudioPlayer');
+  if (sessionAudioChunks && sessionAudioChunks.length > 0 && finishAudioPlayer) {
+    const mime = lastAudioMime || "audio/webm";
+    const audioBlob = new Blob(sessionAudioChunks, { type: mime });
+    const audioUrl = URL.createObjectURL(audioBlob);
+    finishAudioPlayer.src = audioUrl;
+    if (finishAudioSection) finishAudioSection.style.display = 'block';
+  } else {
+    if (finishAudioSection) finishAudioSection.style.display = 'none';
+  }
+
+  finishSessionModal.classList.add('active');
+}
+
+function hideFinishSessionModal() {
+  if (finishSessionModal) {
+    finishSessionModal.classList.remove('active');
+  }
+}
+
+// Wire up finish modal events
+if (closeFinishModalBtn) {
+  closeFinishModalBtn.addEventListener('click', hideFinishSessionModal);
+}
+
+// Export buttons
+const copyNotesBtn = document.getElementById('copyNotesBtn');
+const copyTranscriptBtn = document.getElementById('copyTranscriptBtn');
+const copyEverythingBtn = document.getElementById('copyEverythingBtn');
+const exportJSONBtn = document.getElementById('exportJSONBtn');
+
+if (copyNotesBtn) {
+  copyNotesBtn.addEventListener('click', () => {
+    let text = 'DEPOT NOTES\n\n';
+    lastSections.forEach(sec => {
+      text += `${sec.section}\n`;
+      text += `${sec.plainText || 'No content'}\n\n`;
+    });
+    navigator.clipboard.writeText(text).then(() => alert('Notes copied to clipboard!'));
+  });
+}
+
+if (copyTranscriptBtn) {
+  copyTranscriptBtn.addEventListener('click', () => {
+    const text = transcriptInput.value.trim();
+    navigator.clipboard.writeText(text).then(() => alert('Transcript copied to clipboard!'));
+  });
+}
+
+if (copyEverythingBtn) {
+  copyEverythingBtn.addEventListener('click', () => {
+    let text = `SESSION: ${currentSessionName || '(no name)'}\n\n`;
+    text += `TRANSCRIPT\n${transcriptInput.value.trim()}\n\n`;
+    text += `CUSTOMER SUMMARY\n${lastCustomerSummary || '(none)'}\n\n`;
+    text += `DEPOT NOTES\n`;
+    lastSections.forEach(sec => {
+      text += `\n${sec.section}\n`;
+      text += `${sec.plainText || 'No content'}\n`;
+    });
+    navigator.clipboard.writeText(text).then(() => alert('Everything copied to clipboard!'));
+  });
+}
+
+if (exportJSONBtn) {
+  exportJSONBtn.addEventListener('click', () => {
+    saveSessionToFile();
+  });
+}
+
+// ============================================================================
+// SESSION RESUME PROMPT
+// ============================================================================
+
+function showSessionResumeModal(sessionName) {
+  if (!sessionResumeModal) return;
+
+  if (resumeSessionText) {
+    resumeSessionText.textContent = `You were in a session named "${sessionName}". Continue or start a new one?`;
+  }
+
+  sessionResumeModal.classList.add('active');
+}
+
+function hideSessionResumeModal() {
+  if (sessionResumeModal) {
+    sessionResumeModal.classList.remove('active');
+  }
+}
+
+// Wire up resume modal events
+if (continueSessionBtn) {
+  continueSessionBtn.addEventListener('click', () => {
+    hideSessionResumeModal();
+    // Session data is already loaded from autosave
+  });
+}
+
+if (startNewFromResumeBtn) {
+  startNewFromResumeBtn.addEventListener('click', () => {
+    hideSessionResumeModal();
+    resetSessionState();
+    showSessionNameModal();
+  });
+}
+
+// ============================================================================
+// ENHANCED START LIVE SESSION
+// ============================================================================
+
+const originalStartLiveSession = startLiveSession;
+async function enhancedStartLiveSession() {
+  if (!currentSessionName) {
+    showSessionNameModal();
+    return;
+  }
+
+  markSessionActive();
+  if (originalStartLiveSession) {
+    await originalStartLiveSession();
+  }
+}
+
+// Session name modal handlers
+if (confirmSessionNameBtn) {
+  confirmSessionNameBtn.addEventListener('click', () => {
+    const name = sessionNameInput.value.trim();
+    const validated = validateSessionName(name);
+
+    if (!validated) {
+      alert('Invalid session name. Use only letters, numbers, and dashes.');
+      return;
+    }
+
+    setSessionName(validated);
+    hideSessionNameModal();
+    markSessionActive();
+
+    // Now start the live session
+    if (originalStartLiveSession) {
+      originalStartLiveSession();
+    }
+  });
+}
+
+if (cancelSessionNameBtn) {
+  cancelSessionNameBtn.addEventListener('click', () => {
+    hideSessionNameModal();
+  });
+}
+
+// Allow Enter key to confirm
+if (sessionNameInput) {
+  sessionNameInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      confirmSessionNameBtn.click();
+    }
+  });
+}
+
+// Override the start live button
+if (startLiveBtn) {
+  startLiveBtn.onclick = enhancedStartLiveSession;
+}
+
+// ============================================================================
+// ENHANCED FINISH SESSION
+// ============================================================================
+
+const originalFinishLiveSession = finishLiveSession;
+async function enhancedFinishLiveSession() {
+  if (originalFinishLiveSession) {
+    await originalFinishLiveSession();
+  }
+
+  // Show finish modal
+  setTimeout(() => {
+    showFinishSessionModal();
+  }, 500);
+
+  // Mark session as inactive
+  localStorage.removeItem(SESSION_ACTIVE_KEY);
+}
+
+// Override the finish live button
+if (finishLiveBtn) {
+  finishLiveBtn.onclick = enhancedFinishLiveSession;
+}
+
+// ============================================================================
+// ENHANCED NEW JOB
+// ============================================================================
+
+const originalResetSessionState = resetSessionState;
+function enhancedResetSessionState() {
+  clearSessionName();
+  if (originalResetSessionState) {
+    originalResetSessionState();
+  }
+  renderTranscriptDisplay();
+}
+
+// Override the new job button
+if (newJobBtn) {
+  newJobBtn.onclick = () => {
+    const confirmed = confirm('Start a new session? This will clear the current transcript and notes.');
+    if (confirmed) {
+      enhancedResetSessionState();
+      showSessionNameModal();
+    }
+  };
+}
+
+// ============================================================================
+// ENHANCED AUTOSAVE WITH SESSION RECOVERY
+// ============================================================================
+
 (async function restoreAutosaveOnLoad() {
   try {
     const autosaved = localStorage.getItem(LS_AUTOSAVE_KEY);
-    if (!autosaved) return;
+    if (!autosaved) {
+      // Check if we need to prompt for session name on first load
+      renderTranscriptDisplay();
+      return;
+    }
+
     const snap = JSON.parse(autosaved);
-    if (!snap || !snap.fullTranscript) return;
+    if (!snap || !snap.fullTranscript) {
+      renderTranscriptDisplay();
+      return;
+    }
 
     transcriptInput.value = snap.fullTranscript || "";
     committedTranscript = transcriptInput.value.trim();
@@ -2261,16 +2837,46 @@ setStatus("Boot OK – ready to test.");
     lastCheckedItems = Array.isArray(snap.checkedItems) ? snap.checkedItems : [];
     lastMissingInfo = Array.isArray(snap.missingInfo) ? snap.missingInfo : [];
     lastCustomerSummary = snap.customerSummary || "";
+
     await ensureSectionSchema();
     const normalisedFromAutosave = normaliseSectionsFromResponse({ sections: lastRawSections }, SECTION_SCHEMA);
     lastRawSections = Array.isArray(normalisedFromAutosave) ? normalisedFromAutosave : [];
     syncSectionsState(lastRawSections);
     refreshUiFromState();
     setWorkerDebugPayload(null);
-    showSleepWarning(
-      "Recovered an auto-saved session. Check details, then tap Start for a new visit or Resume to continue."
-    );
+
+    // Check if session was active
+    const wasActive = isSessionActive();
+    const savedSessionName = getSessionName();
+
+    if (wasActive && savedSessionName) {
+      // Restore session name display
+      setSessionName(savedSessionName);
+
+      // Show resume prompt
+      showSessionResumeModal(savedSessionName);
+    } else {
+      showSleepWarning(
+        "Recovered an auto-saved session. Check details, then tap Start for a new visit or Resume to continue."
+      );
+    }
+
+    // Render the transcript display
+    renderTranscriptDisplay();
+
   } catch (err) {
     console.warn("No valid autosave on load", err);
+    renderTranscriptDisplay();
   }
 })();
+
+// Update transcript display whenever text input changes
+if (transcriptInput) {
+  const originalInputHandler = transcriptInput.oninput;
+  transcriptInput.addEventListener('input', () => {
+    renderTranscriptDisplay();
+  });
+}
+
+// Initial render
+renderTranscriptDisplay();

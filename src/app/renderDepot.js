@@ -69,7 +69,7 @@ function stripSequencingPreamble(line) {
   let s = String(line || "").trim();
   s = s
     .replace(/^(then|next|first|second|after|before|finally|so)\b[:,\s-]*/i, "")
-    .replace(/^(we(?:'|\u2019)ll|we will|i(?:'|\u2019)ll|engineer will|installer will|we need to|need to|we can|we should)\b[:,\s-]*/i, "")
+    .replace(/^(we(?:'|\u2019)ll|we will|i(?:'|\u2019)ll|expert will|installer will|we need to|need to|we can|we should)\b[:,\s-]*/i, "")
     .replace(/^(please|note|recommend(?:ed)? to)\b[:,\s-]*/i, "");
   s = s.replace(/\bwill need to\b/gi, "required to");
   return s.trim();

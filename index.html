@@ -654,20 +654,106 @@
         grid-template-columns: 1fr;
       }
     }
-    .notes-section-card {
-      position: relative;
+    /* Save Menu Modal */
+    .save-menu-modal {
+      background: white;
+      border-radius: var(--radius);
+      padding: 24px;
+      max-width: 600px;
+      width: 90%;
+      max-height: 90vh;
+      overflow-y: auto;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.15);
     }
-    .save-json-btn {
-      position: absolute;
-      top: 16px;
-      right: 16px;
-      padding: 6px 12px;
-      font-size: .7rem;
-      background: var(--success);
-      z-index: 10;
+    .save-menu-content {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
     }
-    .save-json-btn:hover:not(:disabled) {
-      background: #059669;
+    .save-section h3 {
+      margin: 0 0 12px 0;
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: #1e293b;
+    }
+    .save-options {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .save-option-item {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      padding: 12px;
+      border: 2px solid #e2e8f0;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .save-option-item:hover {
+      border-color: var(--accent);
+      background: #f8fafc;
+    }
+    .save-option-item input[type="checkbox"] {
+      margin-top: 2px;
+      width: 18px;
+      height: 18px;
+      cursor: pointer;
+    }
+    .option-details {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      flex: 1;
+    }
+    .option-title {
+      font-weight: 600;
+      font-size: 0.8rem;
+      color: #0f172a;
+    }
+    .option-description {
+      font-size: 0.7rem;
+      color: var(--muted);
+    }
+    .format-options {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .format-option-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 16px;
+      border: 2px solid #e2e8f0;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .format-option-item:hover {
+      border-color: var(--accent);
+      background: #f8fafc;
+    }
+    .format-option-item input[type="radio"] {
+      width: 16px;
+      height: 16px;
+      cursor: pointer;
+    }
+    .save-filename-input {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      font-size: 0.8rem;
+    }
+    .save-actions {
+      display: flex;
+      gap: 12px;
+      justify-content: flex-end;
+      margin-top: 8px;
     }
   </style>
 </head>
@@ -678,10 +764,9 @@
     <div class="toolbar-row">
       <button id="sendTextBtn">📤 Send text</button>
       <button id="importAudioBtn" class="pill-secondary">🎵 Import audio</button>
-      <button id="exportBtn" class="pill-secondary">📋 Export notes</button>
-      <button id="createQuoteBtn" class="pill-secondary">💰 Create quote</button>
-      <button id="saveSessionBtn" class="pill-secondary">💾 Save session</button>
+      <button id="saveMenuBtn" class="pill-secondary">💾 Save</button>
       <button id="loadSessionBtn" class="pill-secondary">📂 Load session</button>
+      <button id="createQuoteBtn" class="pill-secondary">💰 Create quote</button>
       <button id="newJobBtn" class="danger-btn">🆕 New session</button>
       <button id="settingsBtn" class="pill-secondary">⚙️ Settings</button>
       <button id="bugReportBtn" class="pill-secondary">🐛 Report bug</button>
@@ -823,10 +908,7 @@
   <section class="results-row">
     <!-- Side-by-side Notes Sections -->
     <div class="notes-grid">
-      <div class="card notes-section-card">
-        <button id="saveAutomaticNotesBtn" class="save-json-btn">
-          💾 Save Automatic Notes
-        </button>
+      <div class="card">
         <div class="card-title">
           Automatic Depot Notes
           <span class="small">Standard structured layout</span>
@@ -836,10 +918,7 @@
         </div>
       </div>
 
-      <div class="card notes-section-card">
-        <button id="saveAINotesBtn" class="save-json-btn">
-          💾 Save AI Notes
-        </button>
+      <div class="card">
         <div class="card-title">
           AI Natural Language Notes
           <span class="small">AI-enhanced narrative summary</span>
@@ -866,6 +945,79 @@
 
   <input id="loadSessionInput" type="file" accept=".depotvoice.json,application/json" style="display:none;">
   <input id="importAudioInput" type="file" accept="audio/*" style="display:none;">
+
+  <!-- Save Menu Modal -->
+  <div id="saveMenuModal" class="modal-overlay">
+    <div class="save-menu-modal">
+      <div class="modal-header">
+        <h2>Save Options</h2>
+        <button id="closeSaveMenuBtn" class="modal-close">Close</button>
+      </div>
+
+      <div class="save-menu-content">
+        <div class="save-section">
+          <h3>Select what to save:</h3>
+          <div class="save-options">
+            <label class="save-option-item">
+              <input type="checkbox" id="saveFullSession" value="session">
+              <div class="option-details">
+                <span class="option-title">Full Session</span>
+                <span class="option-description">Complete session with transcript, notes, checklist, and audio</span>
+              </div>
+            </label>
+            <label class="save-option-item">
+              <input type="checkbox" id="saveDepotNotes" value="depot" checked>
+              <div class="option-details">
+                <span class="option-title">Depot Notes</span>
+                <span class="option-description">Structured sections in standard format</span>
+              </div>
+            </label>
+            <label class="save-option-item">
+              <input type="checkbox" id="saveAINotes" value="ai">
+              <div class="option-details">
+                <span class="option-title">AI Notes</span>
+                <span class="option-description">AI-enhanced narrative summary</span>
+              </div>
+            </label>
+            <label class="save-option-item">
+              <input type="checkbox" id="saveTranscript" value="transcript">
+              <div class="option-details">
+                <span class="option-title">Transcript Only</span>
+                <span class="option-description">Just the conversation transcript</span>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <div class="save-section">
+          <h3>Select format:</h3>
+          <div class="format-options">
+            <label class="format-option-item">
+              <input type="radio" name="saveFormat" value="json" id="saveFormatJSON" checked>
+              <span>JSON (includes all data)</span>
+            </label>
+            <label class="format-option-item">
+              <input type="radio" name="saveFormat" value="csv" id="saveFormatCSV">
+              <span>CSV (spreadsheet format, no audio)</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="save-section">
+          <label for="saveFilename">
+            <h3>Filename:</h3>
+          </label>
+          <input type="text" id="saveFilename" class="save-filename-input" placeholder="depot-notes" pattern="[A-Za-z0-9-_]+" />
+          <p class="small" style="color: var(--muted); margin-top: 4px;">Extension will be added automatically</p>
+        </div>
+
+        <div class="save-actions">
+          <button id="cancelSaveMenuBtn" class="pill-secondary">Cancel</button>
+          <button id="confirmSaveMenuBtn">Save Selected</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- Session Name Prompt Modal -->
   <div id="sessionNameModal" class="modal-overlay">
@@ -948,6 +1100,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
   <!-- UI Enhancements -->
+  <script type="module" src="./js/saveMenu.js"></script>
   <script type="module" src="./js/uiEnhancements.js"></script>
   <script type="module" src="./js/main.js"></script>
   <script type="module" src="./js/mainIntegration.js"></script>

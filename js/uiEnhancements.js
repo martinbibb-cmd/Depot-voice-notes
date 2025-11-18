@@ -3,11 +3,6 @@
  * Handles audio control panel, waveform visualization, and notes management
  */
 
-import {
-  notesToCSV,
-  getExportFormat
-} from "./csvExport.js";
-
 // Audio Control Panel State
 let audioStartTime = null;
 let audioTimerInterval = null;
@@ -24,8 +19,6 @@ const audioLevelBar = document.getElementById('audioLevelBar');
 const waveformBars = audioWaveform?.querySelectorAll('.waveform-bar');
 const processedTranscriptDisplay = document.getElementById('processedTranscriptDisplay');
 const aiNotesList = document.getElementById('aiNotesList');
-const saveAutomaticNotesBtn = document.getElementById('saveAutomaticNotesBtn');
-const saveAINotesBtn = document.getElementById('saveAINotesBtn');
 const liveTranscriptBadge = document.getElementById('liveTranscriptBadge');
 
 // Audio Timer Functions
@@ -216,101 +209,6 @@ export function updateAINotes(notes) {
   aiNotesList.innerHTML = html;
 }
 
-// Save Notes Functions
-export function setupSaveButtons() {
-  if (saveAutomaticNotesBtn) {
-    saveAutomaticNotesBtn.addEventListener('click', () => {
-      saveNotesAsJSON('automatic');
-    });
-  }
-
-  if (saveAINotesBtn) {
-    saveAINotesBtn.addEventListener('click', () => {
-      saveNotesAsJSON('ai');
-    });
-  }
-}
-
-function saveNotesAsJSON(type) {
-  let data = {};
-  let filename = '';
-
-  if (type === 'automatic') {
-    // Collect automatic notes from sections list
-    const sections = [];
-    const sectionItems = document.querySelectorAll('#sectionsList .section-item');
-
-    sectionItems.forEach(item => {
-      const title = item.querySelector('h4')?.textContent || '';
-      const content = item.querySelector('pre')?.textContent || '';
-      if (title && content) {
-        sections.push({ section: title, content: content });
-      }
-    });
-
-    data = {
-      type: 'automatic_notes',
-      timestamp: new Date().toISOString(),
-      sections: sections
-    };
-
-    filename = `automatic-notes-${Date.now()}`;
-  } else if (type === 'ai') {
-    // Collect AI notes
-    const notes = [];
-    const noteItems = document.querySelectorAll('#aiNotesList .section-item');
-
-    noteItems.forEach(item => {
-      const title = item.querySelector('h4')?.textContent || '';
-      const content = item.querySelector('pre')?.textContent || '';
-      if (title && content) {
-        notes.push({ title: title, content: content });
-      }
-    });
-
-    data = {
-      type: 'ai_notes',
-      timestamp: new Date().toISOString(),
-      notes: notes
-    };
-
-    filename = `ai-notes-${Date.now()}`;
-  }
-
-  // Get export format and create file
-  const format = getExportFormat();
-  let blob, finalFilename;
-
-  if (format === 'csv') {
-    const csvContent = notesToCSV(data);
-    blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    finalFilename = `${filename}.csv`;
-  } else {
-    const json = JSON.stringify(data, null, 2);
-    blob = new Blob([json], { type: 'application/json' });
-    finalFilename = `${filename}.json`;
-  }
-
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = finalFilename;
-  a.click();
-  URL.revokeObjectURL(url);
-
-  // Show feedback
-  const button = type === 'automatic' ? saveAutomaticNotesBtn : saveAINotesBtn;
-  if (button) {
-    const originalText = button.textContent;
-    button.textContent = '✓ Saved!';
-    button.style.background = '#059669';
-    setTimeout(() => {
-      button.textContent = originalText;
-      button.style.background = '';
-    }, 2000);
-  }
-}
-
 // Live Transcript Badge Animation
 export function setLiveTranscriptBadge(isLive) {
   if (!liveTranscriptBadge) return;
@@ -329,13 +227,6 @@ function escapeHtml(text) {
   const div = document.createElement('div');
   div.textContent = text;
   return div.innerHTML;
-}
-
-// Initialize on load
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', setupSaveButtons);
-} else {
-  setupSaveButtons();
 }
 
 // Export for use in main.js

@@ -8,6 +8,12 @@ import { showQuoteBuilderModal } from "./quoteBuilder.js";
 import { showPackSelectorModal } from "./packSelector.js";
 import { generateMultipleQuotePDFs, downloadPDF } from "./quotePDF.js";
 import { logError, showBugReportModal } from "./bugReport.js";
+import {
+  depotNotesToCSV,
+  sessionToSingleCSV,
+  downloadCSV,
+  getExportFormat
+} from "./csvExport.js";
 
 // --- CONFIG / STORAGE KEYS ---
 const SECTION_STORAGE_KEY = "depot.sectionSchema";
@@ -1629,8 +1635,8 @@ exportBtn.onclick = async () => {
     exportedAt: new Date().toISOString(),
     sections: lastSections || []
   };
-  const pretty = JSON.stringify(payload, null, 2);
-  const blob = new Blob([pretty], { type: "application/json" });
+
+  const format = getExportFormat();
   const defaultName = "depot-notes";
   const userName = prompt("File name (without extension):", defaultName);
   if (userName === null) {
@@ -1639,8 +1645,22 @@ exportBtn.onclick = async () => {
   }
   const safeName = (userName || defaultName).replace(/[^a-z0-9_\-]+/gi, "-");
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-  const filename = `${safeName}-${timestamp}.json`;
-  const fileForShare = new File([blob], filename, { type: "application/json" });
+
+  let blob, filename, mimeType;
+
+  if (format === 'csv') {
+    const csvContent = depotNotesToCSV(payload);
+    blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    filename = `${safeName}-${timestamp}.csv`;
+    mimeType = "text/csv";
+  } else {
+    const pretty = JSON.stringify(payload, null, 2);
+    blob = new Blob([pretty], { type: "application/json" });
+    filename = `${safeName}-${timestamp}.json`;
+    mimeType = "application/json";
+  }
+
+  const fileForShare = new File([blob], filename, { type: mimeType });
   if (navigator.canShare && navigator.canShare({ files: [fileForShare] })) {
     try {
       await navigator.share({ files: [fileForShare] });
@@ -1892,14 +1912,33 @@ async function saveSessionToFile() {
       console.warn("Failed to attach audio to session", err);
     }
   }
-  const jsonStr = JSON.stringify(session, null, 2);
-  const fileBlob = new Blob([jsonStr], { type: "application/json" });
+
+  const format = getExportFormat();
   const defaultName = "depot-voice-session";
   const userName = prompt("Session file name (without extension):", defaultName);
   if (userName === null) return;
   const safeName = (userName || defaultName).replace(/[^a-z0-9_\-]+/gi, "-");
   const ts = new Date().toISOString().replace(/[:.]/g, "-");
-  const filename = `${safeName}-${ts}.depotvoice.json`;
+
+  let fileBlob, filename;
+
+  if (format === 'csv') {
+    // Note: CSV format cannot include audio data
+    if (session.audioBase64) {
+      const includeAudioWarning = confirm(
+        "CSV format cannot include audio data. The session will be saved without audio. Continue?"
+      );
+      if (!includeAudioWarning) return;
+    }
+    const csvContent = sessionToSingleCSV(session);
+    fileBlob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    filename = `${safeName}-${ts}.csv`;
+  } else {
+    const jsonStr = JSON.stringify(session, null, 2);
+    fileBlob = new Blob([jsonStr], { type: "application/json" });
+    filename = `${safeName}-${ts}.depotvoice.json`;
+  }
+
   const url = URL.createObjectURL(fileBlob);
   const link = document.createElement("a");
   link.href = url;

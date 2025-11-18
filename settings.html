@@ -241,6 +241,28 @@
   </header>
 
   <main>
+    <!-- Export Format Preferences -->
+    <section class="card" style="grid-column: 1 / -1;">
+      <div class="card-header">
+        <h2>Export Format</h2>
+        <span>Choose default file format for exports</span>
+      </div>
+      <div style="display: flex; gap: 12px; align-items: center;">
+        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+          <input type="radio" name="exportFormat" value="json" id="formatJSON" checked>
+          <span style="font-size: 0.75rem; font-weight: 600;">JSON (default)</span>
+        </label>
+        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+          <input type="radio" name="exportFormat" value="csv" id="formatCSV">
+          <span style="font-size: 0.75rem; font-weight: 600;">CSV (Comma-Separated Values)</span>
+        </label>
+      </div>
+      <p class="hint">
+        This setting controls the format used when exporting depot notes, sessions, and automatic/AI notes.
+        JSON exports include all data in a structured format, while CSV exports are optimized for spreadsheet applications.
+      </p>
+    </section>
+
     <!-- LEFT: section schema editor -->
     <section class="card">
       <div class="card-header">
@@ -862,10 +884,28 @@
       e.target.value = "";
     };
 
+    // --- Export Format Preferences ---
+    function loadExportFormat() {
+      const format = localStorage.getItem('exportFormat') || 'json';
+      const radioBtn = document.getElementById(format === 'csv' ? 'formatCSV' : 'formatJSON');
+      if (radioBtn) radioBtn.checked = true;
+    }
+
+    function saveExportFormat(format) {
+      localStorage.setItem('exportFormat', format);
+    }
+
+    document.querySelectorAll('input[name="exportFormat"]').forEach(radio => {
+      radio.addEventListener('change', (e) => {
+        saveExportFormat(e.target.value);
+      });
+    });
+
     // --- Boot ---
     (async function boot() {
       await loadSections();
       await loadChecklist();
+      loadExportFormat();
     })();
   </script>
 </body>

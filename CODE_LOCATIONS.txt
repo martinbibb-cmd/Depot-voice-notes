@@ -1,0 +1,385 @@
+================================================================================
+KEY CODE LOCATIONS - REFERENCE GUIDE
+================================================================================
+
+1. NOTE CREATION & AI PROCESSING
+================================================================================
+
+Note Submission Flow:
+  File: js/main.js, lines 1400-1476
+    - sendText() [1400-1436] - Submit transcript
+    - sendAudio() [1438-1476] - Submit audio blob
+    - Both call postJSON() to worker at /text or /audio
+
+Request Building:
+  File: js/main.js, lines 1028-1058
+    Function: buildVoiceRequestPayload()
+    Creates payload with:
+      - transcript
+      - alreadyCaptured (existing sections for dedup)
+      - expectedSections (canonical names)
+      - sectionHints (keyword → section mapping)
+      - forceStructured: true
+      - checklistItems
+      - depotSections
+
+Response Processing:
+  File: js/main.js, lines 1060-1074
+    Function: normaliseSectionsFromResponse()
+    - Extracts sections from worker response
+    - Calls normaliseDepotSections()
+
+AI Processing (Backend):
+  File: brain-worker.js, lines 171-318
+    Function: callNotesModel()
+    - Receives transcript + context
+    - Constructs GPT-4 prompt
+    - Calls OpenAI API
+    - Parses JSON response
+    - Returns sections, materials, checklist items
+
+Whisper Transcription:
+  File: brain-worker.js, lines 145-169
+    Function: transcribeAudio()
+    - Takes audio blob + MIME type
+    - Calls Whisper API
+    - Returns transcript text
+
+System Prompt (AI Instructions):
+  File: brain-worker.js, lines 196-247
+    - Instructions for GPT-4 to avoid duplicates
+    - Section names and order
+    - Expected JSON output format
+    - Materials and customer summary requirements
+
+================================================================================
+2. DUPLICATION HANDLING & MERGING
+================================================================================
+
+Main Merge Function:
+  File: js/main.js, lines 656-706
+    Function: mergeSectionsPreservingRequired()
+    - Partitions into required (canonical) + extras
+    - Combines old + new sections
+    - Preserves required section structure
+    - Merges extra sections with order tracking
+
+Text Field Merging Logic:
+  File: js/main.js, lines 554-566
+    Function: mergeTextFields()
+    - Compares existing vs incoming text
+    - Checks for exact match (case-insensitive)
+    - Checks for text inclusion
+    - Combines if different
+    - KEY: Only detects whole-text inclusion, not partial
+
+Content Cleaning (Final Dedup):
+  File: js/main.js, lines 408-451
+    Function: cleanSectionContent()
+    - Splits plainText by semicolons/newlines
+    - Deduplicates lines (case-insensitive)
+    - Removes "No..." statements if detail exists
+    - Rejoins with semicolons
+    - KEY: Line-level dedup, no word-order handling
+
+Section Normalisation:
+  File: js/main.js, lines 316-406
+    Function: normaliseDepotSections()
+    - Maps raw section names to canonical names
+    - Handles multiple field name variants
+    - Builds ordered section array
+    - Returns complete section structure
+
+Helper: Partition Sections:
+  File: js/main.js, lines 609-629
+    Function: partitionSectionsByRequirement()
+    - Splits into required (canonical) vs extras
+    - Used by mergeSectionsPreservingRequired()
+
+Helper: Section Normalisation:
+  File: js/main.js, lines 568-591
+    Function: normaliseSectionCandidate()
+    - Normalizes single section entry
+    - Handles variant field names
+    - Identifies required vs custom sections
+
+AI-side Normalisation:
+  File: brain-worker.js, lines 365-408
+    Function: normaliseSectionsFromModel()
+    - Ensures all expected sections present
+    - Maps AI output to canonical names
+    - Handles missing sections
+
+Already Captured Parsing:
+  File: brain-worker.js, lines 320-337
+    Function: normaliseCapturedSections()
+    - Parses alreadyCaptured array
+    - Validates section/plainText/naturalLanguage
+    - Passed to AI to avoid duplicates
+
+================================================================================
+3. ERROR HANDLING & BUG REPORTING
+================================================================================
+
+Error Display:
+  File: js/main.js, lines 709-722
+    Functions: showVoiceError() / clearVoiceError()
+    - Shows error in #voice-error div
+    - Falls back to alert() if element not found
+    - Called from catch blocks in sendText/sendAudio
+
+Error Handling in API Calls:
+  File: js/main.js
+    - Line 1428: sendText() catch block
+    - Line 1467: sendAudio() catch block
+    - Both use err.voiceMessage or err.message
+    - Call showVoiceError() and setStatus()
+
+Worker Error Response:
+  File: brain-worker.js, lines 24-27
+    - Catches all fetch errors
+    - Returns 500 with { error, message }
+    - No retry logic implemented
+
+Debug Output:
+  File: js/main.js, lines 778-801
+    Functions: updateDebugSnapshot(), setWorkerDebugPayload()
+    Updates window.__depotVoiceNotesDebug with:
+      - lastWorkerResponse: Full API response
+      - lastNormalisedSections: Processed sections
+
+Debug Display:
+  File: js/main.js, lines 744-776
+    Functions: renderWorkerDebug(), updateDebugView()
+    - Renders to #workerDebug element
+    - Renders to #debugSectionsJson element
+    - Shows in #debugSections accordion
+
+HTML Elements:
+  File: index.html
+    - #voice-error [690] - Error message display
+    - #workerDebug [857] - Worker response JSON
+    - #debugSectionsJson [863] - Raw payload
+    - #debugSections [861] - Debug accordion wrapper
+
+================================================================================
+4. STATE MANAGEMENT
+================================================================================
+
+Global App State:
+  File: js/main.js, lines 94-115
+    Variables:
+      - APP_STATE.sections[] - Current sections
+      - APP_STATE.notes[] - Same as sections
+      - lastRawSections[] - Previous state
+      - lastSections[] - Processed sections
+      - lastMaterials[] - Extracted materials
+      - lastWorkerPayload - Most recent response
+
+Schema State:
+  File: js/main.js, lines 108-114
+    Variables:
+      - SECTION_SCHEMA[] - Section definitions
+      - SECTION_ORDER[] - Canonical section order
+      - SECTION_ORDER_MAP - Section → order mapping
+      - SECTION_KEY_LOOKUP - Name variant → canonical
+      - CHECKLIST_ITEMS[] - Checklist entries
+      - CHECKLIST_SOURCE[] - Full checklist config
+
+Speech Recognition State:
+  File: js/main.js, lines 195-213
+    Variables:
+      - liveState - "idle" | "running" | "paused"
+      - recognitionActive - Boolean
+      - committedTranscript - Confirmed text
+      - interimTranscript - Partial text
+      - currentChunkInterval - Adaptive timing
+
+LocalStorage Keys:
+  File: src/app/state.js
+    CHECKLIST_CONFIG_STORAGE_KEY = "depot.checklistConfig"
+    DEPOT_SCHEMA_STORAGE_KEY = "depot-output-schema"
+    WORKER_URL_STORAGE_KEY = "WORKER_ENDPOINT"
+    (Plus 11 other keys for legacy/settings)
+
+Config Loading:
+  File: src/app/state.js, lines 49-102
+    Functions:
+      - loadChecklistConfig() - Load/merge checklist
+      - loadDepotSchema() - Load section schema
+      - loadChecklistState() - Load checked items
+      - saveChecklistState() - Persist state
+      - loadWorkerUrl() - Get worker endpoint
+
+Settings Storage:
+  File: src/settings/settings.js, lines 1-150+
+    Functions:
+      - loadSectionSchema() - Load + merge schemas
+      - loadChecklistConfig() - Load checklist
+      - Various save functions for settings
+
+================================================================================
+5. CONFIGURATION & SCHEMA
+================================================================================
+
+Depot Output Schema:
+  File: depot.output.schema.json
+    Structure: { sections: [ { name, description }, ... ] }
+    14 canonical section names defined
+    Also defines section order/priority
+
+Checklist Configuration:
+  File: checklist.config.json
+    Structure: { sectionsOrder: [...], items: [...] }
+    Each item has:
+      - id, label, hint
+      - plainText, naturalLanguage
+      - section/depotSection
+      - materials array
+    300+ lines, ~120 checklist items
+
+Routing & ASR Normalization:
+  File: routing.json
+    - asr_normalise: ASR typo corrections
+    - phrase_overrides: Keyword → section mapping
+    - intents: Intent classification patterns
+
+================================================================================
+6. INTEGRATION & FEATURE MODULES
+================================================================================
+
+Quote Generation:
+  File: js/quoteBuilder.js [432 lines]
+    - Modal UI for quote creation
+    - Quote builder with pricing
+    - Customer info extraction
+
+Quote PDF Output:
+  File: js/quotePDF.js [339 lines]
+    - Uses jsPDF library
+    - Generates PDF documents
+    - Handles multiple quotes
+    - Downloads to client
+
+Pricebook System:
+  File: js/pricebook.js [315 lines]
+    - CSV loading and parsing
+    - Material matching logic
+    - Core pack detection
+    - Pricing lookup
+
+Pack Selector Modal:
+  File: js/packSelector.js [328 lines]
+    - UI for selecting boiler packs
+    - Auto-suggestion based on system
+    - Integration with quote builder
+
+Settings UI:
+  File: src/settings/settings.js [943 lines]
+    - Section editor
+    - Checklist editor
+    - Schema customization
+    - Multiple tabs/panels
+
+Settings Rendering:
+  File: src/app/renderDepot.js [178 lines]
+    - renderDepotSections() - Display sections
+    - renderMaterialsList() - Display materials
+    - formatPlainTextForSection() - Format output
+    - splitPipeRoute() - Parse pipe work descriptions
+
+Notes Engine:
+  File: src/notes/notesEngine.js [76 lines]
+    - buildDepotOutputFromChecklist()
+    - Converts checklist state to output
+    - Combines materials from checked items
+
+UI Enhancements:
+  File: js/uiEnhancements.js [338 lines]
+    - Audio level meter
+    - Transcript panels (raw vs processed)
+    - Visual feedback elements
+
+Main Integration:
+  File: js/mainIntegration.js [211 lines]
+    - Bridges main.js with UI enhancements
+    - Button event handlers
+    - Worker response interception
+
+================================================================================
+7. API ENDPOINTS
+================================================================================
+
+Worker Endpoints (brain-worker.js):
+
+POST /text [lines 57-106]
+  Request:
+    {
+      transcript: string,
+      checklistItems?: array,
+      depotSections?: array,
+      alreadyCaptured?: array,
+      expectedSections?: array,
+      sectionHints?: object,
+      forceStructured?: boolean
+    }
+  Response: { sections, materials, checklist, summary, missingInfo }
+  Error: { error, message }
+
+POST /audio [lines 110-141]
+  Request: Raw audio blob
+    Content-Type: audio/webm or application/octet-stream
+  Response: Same as /text (transcription + processing)
+  Error: { error, message }
+
+GET /health [lines 11-13]
+  Purpose: Health check (used for speed testing)
+  Response: { status: "ok" }
+
+OPTIONS (CORS) [lines 6-10]
+  Purpose: CORS preflight
+  Response: 204 with CORS headers
+
+================================================================================
+8. FUNCTIONS REFERENCE TABLE
+================================================================================
+
+Speech Recognition & Input:
+  ensureSectionSchema()         - Load schema on demand
+  startLive()                   - Start live session
+  pauseLive()                   - Pause/resume live
+  finishLive()                  - End session
+  sendText()                    - Submit transcript
+  sendAudio()                   - Submit audio blob
+  startAudioCapture()           - Record audio backup
+  stopAudioCapture()            - Stop recording
+
+Processing & Merging:
+  buildVoiceRequestPayload()    - Create API request
+  normaliseSectionsFromResponse() - Extract from response
+  mergeSectionsPreservingRequired() - Main merge logic
+  cleanSectionContent()         - Final dedup
+  normaliseDepotSections()      - Canonicalize names
+  mergeTextFields()             - Basic merge algorithm
+  mergeIncomingSection()        - Merge one section
+  combineSectionEntries()       - Combine old + new
+
+Error Handling:
+  showVoiceError()              - Display error
+  clearVoiceError()             - Hide error
+  setStatus()                   - Update status bar
+  setWorkerDebugPayload()       - Store debug data
+
+Utilities:
+  safeParseJSON()               - Safe JSON parsing
+  cloneDeep()                   - Deep clone
+  normaliseSectionKey()         - Normalize section name
+  resolveRequiredSectionName()  - Map to canonical
+  deriveSectionHints()          - Create keyword map
+  normaliseChecklistConfig()    - Validate checklist
+
+Performance:
+  measureInternetSpeed()        - Test latency
+  startSpeedMonitoring()        - Periodic speed test
+
+================================================================================

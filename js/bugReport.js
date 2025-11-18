@@ -246,49 +246,39 @@ export function downloadBugReport(format = 'markdown', userDescription = "") {
 }
 
 /**
- * Get worker endpoint URL
- */
-function getWorkerEndpoint() {
-  // Use the existing worker config if available
-  if (typeof window !== 'undefined' && window.DepotWorkerConfig) {
-    return window.DepotWorkerConfig.getWorkerEndpoint();
-  }
-  // Fallback to default endpoint
-  return 'https://depot-voice-notes.martinbibb.workers.dev';
-}
-
-/**
- * Send bug report to server
+ * Send bug report via mailto: link
  */
 async function sendBugReport(userDescription, screenshots) {
   const bugReportData = collectBugReportData();
 
-  // Get the worker base URL from the config or use default
-  const workerBaseUrl = getWorkerEndpoint();
+  // Format the bug report
+  const formattedReport = formatBugReportForAI(bugReportData, userDescription);
 
-  try {
-    const response = await fetch(`${workerBaseUrl}/bug-report`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        userDescription,
-        bugReportData,
-        screenshots
-      })
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || `Server error: ${response.status}`);
-    }
-
-    return await response.json();
-  } catch (error) {
-    console.error("Failed to send bug report:", error);
-    throw error;
+  // Add note about screenshots if any were selected
+  let emailBody = formattedReport;
+  if (screenshots && screenshots.length > 0) {
+    emailBody += "\n\n---\n\n";
+    emailBody += `Note: ${screenshots.length} screenshot(s) were selected but could not be automatically attached.\n`;
+    emailBody += "Please attach them manually to this email if needed.\n";
   }
+
+  // Create mailto: link
+  const recipient = 'martinbibb@gmail.com';
+  const subject = `Bug Report: ${userDescription.substring(0, 50)}${userDescription.length > 50 ? '...' : ''}`;
+
+  // Encode the email body for URL (limit length to avoid issues with very long URLs)
+  const maxBodyLength = 8000;
+  let bodyForEmail = emailBody;
+  if (bodyForEmail.length > maxBodyLength) {
+    bodyForEmail = bodyForEmail.substring(0, maxBodyLength) + '\n\n[Report truncated - full details in localStorage]';
+  }
+
+  const mailtoLink = `mailto:${encodeURIComponent(recipient)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(bodyForEmail)}`;
+
+  // Open the mailto: link
+  window.location.href = mailtoLink;
+
+  return { success: true };
 }
 
 /**
@@ -324,7 +314,7 @@ export function showBugReportModal() {
   content.innerHTML = `
     <h2 style="margin-top: 0; color: #667eea;">Report a Bug</h2>
     <p style="color: #64748b; font-size: 0.9rem;">
-      Describe the issue you're experiencing. We'll automatically include technical details to help diagnose the problem.
+      Describe the issue you're experiencing. Your email app will open with technical details automatically included to help diagnose the problem.
     </p>
 
     <div style="margin-bottom: 1rem;">
@@ -347,6 +337,9 @@ export function showBugReportModal() {
       <input type="file" id="screenshot-input" accept="image/*" multiple
         style="width: 100%; padding: 0.5rem; border: 2px dashed #cbd5e1; border-radius: 8px; cursor: pointer; font-size: 0.85rem;"
       />
+      <p style="font-size: 0.75rem; color: #64748b; margin-top: 0.25rem;">
+        Note: Screenshots will need to be attached manually in your email app
+      </p>
       <div id="screenshot-preview" style="margin-top: 0.5rem; display: flex; gap: 0.5rem; flex-wrap: wrap;"></div>
     </div>
 
@@ -355,7 +348,7 @@ export function showBugReportModal() {
         Cancel
       </button>
       <button id="send-report" style="padding: 0.75rem 1.5rem; cursor: pointer; background: #667eea; color: white; border: none; border-radius: 8px; font-weight: 600; font-size: 0.9rem;">
-        Send Bug Report
+        Open Email App
       </button>
     </div>
 
@@ -404,25 +397,25 @@ export function showBugReportModal() {
     const description = descriptionEl.value.trim();
 
     if (!description) {
-      showStatus('Please describe the issue before sending.', 'error');
+      showStatus('Please describe the issue before opening your email app.', 'error');
       return;
     }
 
     sendButton.disabled = true;
-    sendButton.textContent = 'Sending...';
+    sendButton.textContent = 'Opening...';
 
     try {
       await sendBugReport(description, screenshots);
-      showStatus('Bug report sent successfully! Thank you.', 'success');
+      showStatus('Email app opened! Please send the email to complete your bug report.', 'success');
 
-      // Close modal after 2 seconds
+      // Close modal after 3 seconds
       setTimeout(() => {
         document.body.removeChild(modal);
-      }, 2000);
+      }, 3000);
     } catch (err) {
-      showStatus(`Failed to send report: ${err.message}`, 'error');
+      showStatus(`Failed to open email app: ${err.message}`, 'error');
       sendButton.disabled = false;
-      sendButton.textContent = 'Send Bug Report';
+      sendButton.textContent = 'Open Email App';
     }
   });
 

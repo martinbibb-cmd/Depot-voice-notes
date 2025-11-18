@@ -202,8 +202,15 @@ let committedTranscript = "";
 let interimTranscript = "";
 let lastSentTranscript = "";
 let chunkTimerId = null;
-const LIVE_CHUNK_INTERVAL_MS = 20000;
+const LIVE_CHUNK_INTERVAL_MS = 20000; // Default 20 seconds
+let currentChunkInterval = LIVE_CHUNK_INTERVAL_MS; // Adaptive interval
 let pendingFinishSend = false;
+
+// Internet speed measurement
+let internetSpeed = "unknown"; // "fast" | "medium" | "slow" | "unknown"
+let lastSpeedTest = 0;
+const SPEED_TEST_INTERVAL = 60000; // Test every 60 seconds
+let speedTestInProgress = false;
 
 // --- HELPERS ---
 function sanitiseSectionSchema(input) {
@@ -817,6 +824,89 @@ async function postJSON(path, body) {
     body: JSON.stringify(body)
   });
   return res;
+}
+
+// Internet speed measurement function
+async function measureInternetSpeed() {
+  if (speedTestInProgress) return;
+  speedTestInProgress = true;
+
+  const speedBadge = document.getElementById("internetSpeedBadge");
+  const chunkIntervalDisplay = document.getElementById("chunkIntervalDisplay");
+
+  try {
+    // Test with a small payload to the worker
+    const testPayload = {
+      transcript: "Speed test",
+      alreadyCaptured: [],
+      expectedSections: [],
+      sectionHints: {},
+      forceStructured: false
+    };
+
+    const startTime = performance.now();
+    const base = requireWorkerBaseUrl();
+    const res = await fetch(base + "/health", {
+      method: "GET"
+    });
+    const endTime = performance.now();
+
+    const latency = endTime - startTime;
+
+    // Classify speed based on latency
+    if (latency < 200) {
+      internetSpeed = "fast";
+      currentChunkInterval = 10000; // 10 seconds for fast connection
+      if (speedBadge) {
+        speedBadge.textContent = "🟢 Fast";
+        speedBadge.className = "speed-badge fast";
+      }
+    } else if (latency < 500) {
+      internetSpeed = "medium";
+      currentChunkInterval = 20000; // 20 seconds for medium connection
+      if (speedBadge) {
+        speedBadge.textContent = "🟡 Medium";
+        speedBadge.className = "speed-badge medium";
+      }
+    } else {
+      internetSpeed = "slow";
+      currentChunkInterval = 30000; // 30 seconds for slow connection
+      if (speedBadge) {
+        speedBadge.textContent = "🔴 Slow";
+        speedBadge.className = "speed-badge slow";
+      }
+    }
+
+    if (chunkIntervalDisplay) {
+      chunkIntervalDisplay.textContent = `Chunk: ${currentChunkInterval / 1000}s`;
+    }
+
+    lastSpeedTest = Date.now();
+    console.log(`Internet speed: ${internetSpeed}, latency: ${latency.toFixed(0)}ms, chunk interval: ${currentChunkInterval}ms`);
+  } catch (err) {
+    console.error("Speed test failed:", err);
+    internetSpeed = "unknown";
+    currentChunkInterval = LIVE_CHUNK_INTERVAL_MS; // Use default
+    if (speedBadge) {
+      speedBadge.textContent = "⚠️ Unknown";
+      speedBadge.className = "speed-badge testing";
+    }
+    if (chunkIntervalDisplay) {
+      chunkIntervalDisplay.textContent = `Chunk: ${currentChunkInterval / 1000}s`;
+    }
+  } finally {
+    speedTestInProgress = false;
+  }
+}
+
+// Periodically test internet speed
+async function startSpeedMonitoring() {
+  await measureInternetSpeed();
+  setInterval(() => {
+    if (Date.now() - lastSpeedTest >= SPEED_TEST_INTERVAL) {
+      measureInternetSpeed();
+    }
+  }, SPEED_TEST_INTERVAL);
 }
 
 async function startAudioCapture(resetChunks = false) {
@@ -1812,6 +1902,7 @@ if (SpeechRec) {
 
   recognition.onstart = () => {
     recognitionActive = true;
+    console.log("Speech recognition started and active");
   };
 
   recognition.onresult = (event) => {
@@ -1827,8 +1918,10 @@ if (SpeechRec) {
           : text;
         interimTranscript = "";
         sawFinal = true;
+        console.log("Final transcript:", text);
       } else {
         interimTranscript = text;
+        console.log("Interim transcript:", text);
       }
     }
     updateTextareaFromBuffers();
@@ -1902,10 +1995,15 @@ if (SpeechRec) {
 
 async function startLiveSession() {
   if (!SpeechRec || !recognition) {
-    showVoiceError("On-device speech recognition not supported in this browser.");
+    console.error("Speech recognition not available. SpeechRec:", SpeechRec, "recognition:", recognition);
+    showVoiceError("On-device speech recognition not supported in this browser. Try Chrome, Edge, or Safari.");
     return;
   }
-  if (liveState === "running") return;
+  if (liveState === "running") {
+    console.log("Session already running");
+    return;
+  }
+  console.log("Starting live transcription session...");
   clearSleepWarning();
   wasBackgroundedDuringSession = false;
   pauseReason = null;
@@ -1920,16 +2018,20 @@ async function startLiveSession() {
   liveState = "running";
   updateLiveControls();
   try {
+    console.log("Starting speech recognition...");
     recognition.start();
+    console.log("Speech recognition started successfully");
     await startAudioCapture(true);
-    setStatus("Listening…");
+    console.log("Audio capture started");
+    setStatus("Listening… (Speak now)");
     scheduleNextChunk();
+    console.log("Chunk scheduling initiated");
   } catch (err) {
     console.error("Speech recognition start failed", err);
     liveState = "idle";
     shouldRestartRecognition = false;
     updateLiveControls();
-    showVoiceError("Couldn't start speech recognition: " + (err.message || "Unknown error"));
+    showVoiceError("Couldn't start speech recognition: " + (err.message || "Unknown error") + ". Check browser permissions.");
     setStatus("Live session unavailable.");
     stopAudioCapture();
   }
@@ -2015,9 +2117,46 @@ async function sendTranscriptChunkToWorker(force = false) {
   try {
     setStatus("Updating notes…");
     clearVoiceError();
+
+    // Measure actual transfer speed
+    const startTime = performance.now();
     const schemaSnapshot = await ensureSectionSchema();
     const res = await postJSON("/text", buildVoiceRequestPayload(fullTranscript, schemaSnapshot));
     const raw = await res.text();
+    const endTime = performance.now();
+    const transferTime = endTime - startTime;
+
+    // Update speed indicator based on actual transfer
+    const speedBadge = document.getElementById("internetSpeedBadge");
+    const chunkIntervalDisplay = document.getElementById("chunkIntervalDisplay");
+
+    if (transferTime < 2000) {
+      internetSpeed = "fast";
+      currentChunkInterval = 10000;
+      if (speedBadge) {
+        speedBadge.textContent = "🟢 Fast";
+        speedBadge.className = "speed-badge fast";
+      }
+    } else if (transferTime < 5000) {
+      internetSpeed = "medium";
+      currentChunkInterval = 20000;
+      if (speedBadge) {
+        speedBadge.textContent = "🟡 Medium";
+        speedBadge.className = "speed-badge medium";
+      }
+    } else {
+      internetSpeed = "slow";
+      currentChunkInterval = 30000;
+      if (speedBadge) {
+        speedBadge.textContent = "🔴 Slow";
+        speedBadge.className = "speed-badge slow";
+      }
+    }
+
+    if (chunkIntervalDisplay) {
+      chunkIntervalDisplay.textContent = `Chunk: ${currentChunkInterval / 1000}s (${Math.round(transferTime)}ms)`;
+    }
+
     if (!res.ok) {
       const snippet = raw ? `: ${raw.slice(0, 200)}` : "";
       throw new Error(`Worker error ${res.status} ${res.statusText}${snippet}`);
@@ -2067,7 +2206,7 @@ function scheduleNextChunk() {
   chunkTimerId = setTimeout(async () => {
     await sendTranscriptChunkToWorker();
     scheduleNextChunk();
-  }, LIVE_CHUNK_INTERVAL_MS);
+  }, currentChunkInterval); // Use adaptive interval based on internet speed
 }
 
 // --- SETTINGS ---
@@ -2880,3 +3019,6 @@ if (transcriptInput) {
 
 // Initial render
 renderTranscriptDisplay();
+
+// Initialize internet speed monitoring
+startSpeedMonitoring();

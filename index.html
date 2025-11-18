@@ -574,6 +574,40 @@
       width: 0%;
       transition: width 0.1s ease;
     }
+    .internet-speed-indicator {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: .75rem;
+      margin-top: 8px;
+    }
+    .speed-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 3px 10px;
+      border-radius: 6px;
+      font-size: .7rem;
+      font-weight: 600;
+      background: rgba(255,255,255,0.2);
+      transition: all 0.3s ease;
+    }
+    .speed-badge.fast {
+      background: var(--success);
+      color: white;
+    }
+    .speed-badge.medium {
+      background: var(--warning);
+      color: white;
+    }
+    .speed-badge.slow {
+      background: var(--danger);
+      color: white;
+    }
+    .speed-badge.testing {
+      background: rgba(255,255,255,0.3);
+      color: rgba(255,255,255,0.9);
+      animation: pulse 2s ease-in-out infinite;
+    }
     /* Transcript Panels */
     .transcript-panels {
       display: grid;
@@ -692,6 +726,12 @@
             <div class="level-bar-container">
               <div class="level-bar" id="audioLevelBar"></div>
             </div>
+          </div>
+
+          <div class="internet-speed-indicator">
+            <span>Connection:</span>
+            <span id="internetSpeedBadge" class="speed-badge">Testing...</span>
+            <span id="chunkIntervalDisplay" class="small" style="margin-left: 8px; color: var(--muted);">Chunk: --s</span>
           </div>
 
           <div class="audio-control-buttons">

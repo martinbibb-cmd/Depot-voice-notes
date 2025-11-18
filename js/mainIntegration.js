@@ -101,6 +101,8 @@ function interceptWorkerResponses() {
     // Check if there's debug data we can use
     const debugData = window.__depotVoiceNotesDebug || window.__depotDebug;
 
+    let transcriptUpdated = false;
+
     if (debugData && debugData.lastWorkerResponse) {
       const response = debugData.lastWorkerResponse;
 
@@ -108,6 +110,7 @@ function interceptWorkerResponses() {
       if (response.fullTranscript || response.transcript) {
         const transcript = response.fullTranscript || response.transcript;
         ui.updateProcessedTranscript(transcript);
+        transcriptUpdated = true;
       }
 
       // Generate AI notes from sections if available
@@ -137,6 +140,32 @@ function interceptWorkerResponses() {
 
         if (aiNotes.length > 0) {
           ui.updateAINotes(aiNotes);
+        }
+      }
+    }
+
+    // Fallback: if worker response is unavailable, try to get transcript from localStorage or input
+    if (!transcriptUpdated) {
+      // Try localStorage autosave first
+      try {
+        const autosave = localStorage.getItem('surveyBrainAutosave');
+        if (autosave) {
+          const parsed = JSON.parse(autosave);
+          if (parsed.fullTranscript) {
+            ui.updateProcessedTranscript(parsed.fullTranscript);
+            transcriptUpdated = true;
+          }
+        }
+      } catch (e) {
+        console.warn('Could not read autosave from localStorage:', e);
+      }
+
+      // If still no transcript, try the input element
+      if (!transcriptUpdated) {
+        const transcriptInput = document.getElementById('transcriptInput');
+        if (transcriptInput && transcriptInput.value.trim()) {
+          ui.updateProcessedTranscript(transcriptInput.value.trim());
+          transcriptUpdated = true;
         }
       }
     }

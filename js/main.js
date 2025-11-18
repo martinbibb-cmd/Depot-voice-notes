@@ -1017,6 +1017,7 @@ async function startSpeedMonitoring() {
 async function startAudioCapture(resetChunks = false) {
   if (!navigator.mediaDevices || typeof window.MediaRecorder === "undefined") {
     console.warn("MediaRecorder not supported; audio backup disabled.");
+    showSleepWarning("Audio recording not supported on this device. Text capture only.");
     return;
   }
   if (mediaRecorder && mediaRecorder.state === "recording") {
@@ -1029,14 +1030,42 @@ async function startAudioCapture(resetChunks = false) {
       sessionAudioChunks = [];
     }
     mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    const options = window.MediaRecorder.isTypeSupported && window.MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
-      ? { mimeType: "audio/webm;codecs=opus" }
-      : undefined;
+
+    // Try multiple codecs in order of preference, with Safari iOS compatibility
+    const codecPriority = [
+      "audio/webm;codecs=opus",  // Chrome/Firefox
+      "audio/mp4",                // Safari iOS/macOS
+      "audio/webm",               // Generic webm
+      "audio/x-m4a",              // Safari fallback
+      "audio/wav"                 // Universal fallback
+    ];
+
+    let options = undefined;
+    let selectedCodec = null;
+
+    if (window.MediaRecorder.isTypeSupported) {
+      for (const codec of codecPriority) {
+        if (window.MediaRecorder.isTypeSupported(codec)) {
+          options = { mimeType: codec };
+          selectedCodec = codec;
+          console.log("Selected audio codec:", codec);
+          break;
+        }
+      }
+    }
+
+    if (!options) {
+      console.log("Using browser default audio codec");
+    }
+
     mediaRecorder = new MediaRecorder(mediaStream, options);
-    lastAudioMime = mediaRecorder.mimeType || (options && options.mimeType) || lastAudioMime || "audio/webm";
+    lastAudioMime = mediaRecorder.mimeType || selectedCodec || "audio/webm";
+    console.log("MediaRecorder initialized with MIME type:", lastAudioMime);
+
     mediaRecorder.ondataavailable = (event) => {
       if (event.data && event.data.size > 0) {
         sessionAudioChunks.push(event.data);
+        console.log("Audio chunk recorded:", event.data.size, "bytes");
       }
     };
     mediaRecorder.onstop = () => {
@@ -1045,11 +1074,17 @@ async function startAudioCapture(resetChunks = false) {
         mediaStream = null;
       }
       mediaRecorder = null;
+      console.log("Audio recording stopped. Total chunks:", sessionAudioChunks.length);
+    };
+    mediaRecorder.onerror = (event) => {
+      console.error("MediaRecorder error:", event.error);
+      showSleepWarning("Audio recording error: " + (event.error?.message || "Unknown error"));
     };
     mediaRecorder.start();
+    console.log("Audio recording started successfully");
   } catch (err) {
     console.error("Audio capture error", err);
-    showSleepWarning("Audio backup could not start; text capture still running.");
+    showSleepWarning("⚠️ Audio recording failed: " + (err.message || "Permission denied or not supported") + ". Text capture still running.");
   }
 }
 
@@ -2216,7 +2251,8 @@ async function sendTranscriptChunkToWorker(force = false) {
   const fullTranscript = transcriptInput.value.trim();
   if (!force && (!fullTranscript || fullTranscript === lastSentTranscript)) return false;
   if (!navigator.onLine) {
-    setStatus("Offline – storing notes locally.");
+    setStatus("📴 Offline – storing notes locally.");
+    showSleepWarning("You're offline. Transcript is saved locally but won't be processed until you're back online.");
     return false;
   }
   try {
@@ -2264,14 +2300,27 @@ async function sendTranscriptChunkToWorker(force = false) {
 
     if (!res.ok) {
       const snippet = raw ? `: ${raw.slice(0, 200)}` : "";
-      throw new Error(`Worker error ${res.status} ${res.statusText}${snippet}`);
+
+      // Provide more specific error messages based on status code
+      let errorMessage = `Worker error ${res.status}`;
+      if (res.status === 404) {
+        errorMessage = "⚠️ AI worker not found. Service may be unavailable.";
+      } else if (res.status === 500 || res.status === 502 || res.status === 503) {
+        errorMessage = "⚠️ AI worker is temporarily unavailable. Your transcript is saved locally.";
+      } else if (res.status === 401 || res.status === 403) {
+        errorMessage = "⚠️ Authentication error. Please check your settings.";
+      } else if (res.status >= 400 && res.status < 500) {
+        errorMessage = `⚠️ Request error (${res.status}). Check your configuration.`;
+      }
+
+      throw new Error(errorMessage + snippet);
     }
     let data;
     try {
       data = JSON.parse(raw);
     } catch (e) {
       console.error("Voice worker returned non-JSON:", raw);
-      showVoiceError("AI response wasn't in the expected format. Please try again.");
+      showVoiceError("⚠️ AI response wasn't in the expected format. Your transcript is saved. Please try again or check connection.");
       return false;
     }
     setWorkerDebugPayload(data);
@@ -2287,12 +2336,31 @@ async function sendTranscriptChunkToWorker(force = false) {
     }
     return true;
   } catch (err) {
-    console.error(err);
-    showVoiceError("Voice AI failed: " + (err.message || "Unknown error"));
-    if (liveState === "running") {
-      setStatus("Update failed – will retry later.");
+    console.error("Worker communication error:", err);
+
+    // Check if it's a network error
+    const isNetworkError = err.message && (
+      err.message.includes('fetch') ||
+      err.message.includes('network') ||
+      err.message.includes('NetworkError') ||
+      err.message.includes('Failed to fetch') ||
+      err.name === 'TypeError'
+    );
+
+    if (isNetworkError) {
+      showVoiceError("🌐 Network error. Your transcript is saved locally. Check your internet connection or try again later.");
+      if (liveState === "running") {
+        setStatus("Network issue – will retry automatically.");
+      } else {
+        setStatus("Network error. Data saved locally.");
+      }
     } else {
-      setStatus("Update failed.");
+      showVoiceError(err.message || "⚠️ AI processing failed. Your transcript is saved locally.");
+      if (liveState === "running") {
+        setStatus("Update failed – will retry later.");
+      } else {
+        setStatus("Update failed. Data saved locally.");
+      }
     }
     return false;
   }

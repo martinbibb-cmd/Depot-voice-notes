@@ -1602,6 +1602,13 @@ async function sendAudio(blob) {
     }
     setWorkerDebugPayload(data);
     normaliseSectionsFromResponse(data, schemaSnapshot);
+    if (data.fullTranscript || data.transcript) {
+      const transcriptText = data.fullTranscript || data.transcript;
+      transcriptInput.value = transcriptText;
+      committedTranscript = transcriptText.trim();
+      lastSentTranscript = committedTranscript;
+      updateTranscriptDisplay();
+    }
     applyVoiceResult(data);
     setStatus("Audio processed.");
   } catch (err) {

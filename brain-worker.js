@@ -134,7 +134,14 @@ async function handleAudio(request, env) {
       sectionHints: {},
       forceStructured: true
     });
-    return jsonResponse(result, 200);
+    return jsonResponse(
+      {
+        ...result,
+        transcript,
+        fullTranscript: transcript
+      },
+      200
+    );
   } catch (err) {
     console.error("handleAudio error:", err);
     return jsonResponse(

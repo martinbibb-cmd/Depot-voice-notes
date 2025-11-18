@@ -126,7 +126,7 @@
       padding: 5px 10px 6px;
       font-size: .65rem;
     }
-    .clar-chip[data-target="engineer"] {
+    .clar-chip[data-target="expert"] {
       background: #fef9c3;
       border-color: #fde68a;
     }
@@ -238,11 +238,160 @@
       font-weight: 600;
       color: #0f172a;
     }
+    .transcript-container {
+      position: relative;
+    }
+    .transcript-scroll-box {
+      max-height: 400px;
+      overflow-y: auto;
+      border: 1px solid #cbd5e1;
+      border-radius: 10px;
+      padding: 8px 9px;
+      background: white;
+    }
+    .transcript-line {
+      margin-bottom: 8px;
+      font-size: .75rem;
+      line-height: 1.4;
+    }
+    .transcript-timestamp {
+      color: var(--muted);
+      font-weight: 600;
+      margin-right: 4px;
+    }
+    .transcript-speaker {
+      font-weight: 700;
+      margin-right: 4px;
+    }
+    .search-bar {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 6px;
+      align-items: center;
+    }
+    .search-input {
+      flex: 1;
+      border-radius: 6px;
+      border: 1px solid #cbd5e1;
+      padding: 4px 8px;
+      font-size: .7rem;
+    }
+    .search-nav-btn {
+      padding: 4px 8px;
+      font-size: .65rem;
+    }
+    .highlight {
+      background: #fef08a;
+      font-weight: 600;
+    }
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-overlay.active {
+      display: flex;
+    }
+    .modal-content {
+      background: white;
+      border-radius: var(--radius);
+      padding: 20px;
+      max-width: 900px;
+      max-height: 90vh;
+      overflow-y: auto;
+      width: 90%;
+    }
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+      border-bottom: 2px solid var(--border);
+      padding-bottom: 12px;
+    }
+    .modal-header h2 {
+      margin: 0;
+      font-size: 1.2rem;
+    }
+    .modal-close {
+      background: var(--danger);
+      padding: 4px 12px;
+      font-size: .7rem;
+    }
+    .modal-section {
+      margin-bottom: 16px;
+    }
+    .modal-section h3 {
+      font-size: .9rem;
+      margin-bottom: 8px;
+      color: var(--accent);
+    }
+    .export-buttons {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+    }
+    .audio-player {
+      margin-top: 8px;
+    }
+    .session-prompt-modal {
+      background: white;
+      border-radius: var(--radius);
+      padding: 24px;
+      max-width: 500px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+    }
+    .session-prompt-modal h2 {
+      margin: 0 0 16px;
+      font-size: 1.1rem;
+    }
+    .session-prompt-modal input {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      font-size: .85rem;
+      margin-bottom: 16px;
+    }
+    .session-prompt-modal .button-group {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+    .session-resume-modal {
+      background: white;
+      border-radius: var(--radius);
+      padding: 24px;
+      max-width: 500px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+    }
+    .session-resume-modal h2 {
+      margin: 0 0 12px;
+      font-size: 1.1rem;
+    }
+    .session-resume-modal p {
+      margin-bottom: 16px;
+      color: var(--muted);
+    }
+    .session-resume-modal .button-group {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+    }
   </style>
 </head>
 <body>
   <header>
     <h1>Survey Brain</h1>
+    <div id="sessionNameDisplay" style="display: none; margin-left: 12px; padding: 4px 12px; background: var(--accent-soft); color: white; border-radius: 999px; font-size: 0.7rem; font-weight: 600;"></div>
     <div class="toolbar-row">
       <button id="sendTextBtn">Send text</button>
       <button id="startLiveBtn">Start live</button>
@@ -253,7 +402,7 @@
       <button id="createQuoteBtn" class="pill-secondary">Create quote</button>
       <button id="saveSessionBtn" class="pill-secondary">Save session</button>
       <button id="loadSessionBtn" class="pill-secondary">Load session</button>
-      <button id="newJobBtn" class="danger-btn">Start new job</button>
+      <button id="newJobBtn" class="danger-btn">Start new session</button>
       <button id="settingsBtn" class="pill-secondary">Settings</button>
     </div>
   </header>
@@ -268,7 +417,15 @@
           Live transcript / summary
           <span class="small">You talk to customer • system listens</span>
         </div>
-        <textarea id="transcriptInput" placeholder="Replace existing combi in the same place, fit Hive, reuse flue where possible..."></textarea>
+        <div class="transcript-container">
+          <div class="search-bar">
+            <input type="text" id="transcriptSearch" class="search-input" placeholder="Search transcript...">
+            <button id="searchPrevBtn" class="search-nav-btn" disabled>← Prev</button>
+            <button id="searchNextBtn" class="search-nav-btn" disabled>Next →</button>
+          </div>
+          <div id="transcriptDisplay" class="transcript-scroll-box"></div>
+          <textarea id="transcriptInput" placeholder="Replace existing combi in the same place, fit Hive, reuse flue where possible..." style="display: none;"></textarea>
+        </div>
         <div class="statusbar" id="statusBar">Idle (Online • Manual)</div>
       </div>
 
@@ -330,6 +487,83 @@
 
   <input id="loadSessionInput" type="file" accept=".depotvoice.json,application/json" style="display:none;">
   <input id="importAudioInput" type="file" accept="audio/*" style="display:none;">
+
+  <!-- Session Name Prompt Modal -->
+  <div id="sessionNameModal" class="modal-overlay">
+    <div class="session-prompt-modal">
+      <h2>Start New Session</h2>
+      <p class="small">Enter a session name (lead number)</p>
+      <input type="text" id="sessionNameInput" placeholder="e.g., LEAD-12345" pattern="[A-Za-z0-9-]+" maxlength="50">
+      <p class="small" style="color: var(--muted); margin-top: -12px;">Only letters, numbers, and dashes allowed</p>
+      <div class="button-group">
+        <button id="cancelSessionNameBtn" class="pill-secondary">Cancel</button>
+        <button id="confirmSessionNameBtn">Start Session</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Session Resume Modal -->
+  <div id="sessionResumeModal" class="modal-overlay">
+    <div class="session-resume-modal">
+      <h2>Resume Session?</h2>
+      <p id="resumeSessionText">You were in a session. Would you like to continue or start a new one?</p>
+      <div class="button-group">
+        <button id="startNewFromResumeBtn" class="danger-btn">Start New</button>
+        <button id="continueSessionBtn">Continue Session</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Finish Session Modal -->
+  <div id="finishSessionModal" class="modal-overlay">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Session Complete</h2>
+        <button id="closeFinishModalBtn" class="modal-close">Close</button>
+      </div>
+
+      <div class="modal-section">
+        <h3>Session Information</h3>
+        <p id="finishSessionName" class="small"></p>
+        <p id="finishSessionTime" class="small"></p>
+      </div>
+
+      <div class="modal-section" id="finishAudioSection" style="display: none;">
+        <h3>Audio Recording</h3>
+        <audio id="finishAudioPlayer" class="audio-player" controls style="width: 100%;"></audio>
+      </div>
+
+      <div class="modal-section">
+        <h3>Full Transcript</h3>
+        <div id="finishTranscript" class="transcript-scroll-box" style="max-height: 200px;"></div>
+      </div>
+
+      <div class="modal-section">
+        <h3>Customer Summary</h3>
+        <p id="finishCustomerSummary" class="small"></p>
+      </div>
+
+      <div class="modal-section">
+        <h3>Checklist Summary</h3>
+        <div id="finishChecklist"></div>
+      </div>
+
+      <div class="modal-section">
+        <h3>Depot Notes</h3>
+        <div id="finishSections" class="sections-list"></div>
+      </div>
+
+      <div class="modal-section">
+        <h3>Export Options</h3>
+        <div class="export-buttons">
+          <button id="copyNotesBtn">Copy Notes Only</button>
+          <button id="copyTranscriptBtn">Copy Transcript Only</button>
+          <button id="copyEverythingBtn">Copy Everything</button>
+          <button id="exportJSONBtn" class="pill-secondary">Export JSON</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- jsPDF library for quote PDF generation -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>

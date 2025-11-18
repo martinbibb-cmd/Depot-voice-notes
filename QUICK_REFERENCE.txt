@@ -1,0 +1,188 @@
+=============================================================================
+DEPOT VOICE NOTES - QUICK REFERENCE SUMMARY
+=============================================================================
+
+WHAT IT DOES:
+  Voice-to-text survey notes app for heating/boiler installation surveys
+  - Free mode: Browser-based (Web Speech API)
+  - Pro mode: Cloud transcription (OpenAI Whisper + GPT-4)
+  - Generates structured notes, materials lists, PDF quotes
+
+KEY FILES:
+  js/main.js (3024 lines)     ← Core app logic, voice input, UI control
+  brain-worker.js (613 lines) ← Cloudflare Worker, AI processing
+  index.html (954 lines)      ← UI markup, styles, scripts
+
+HOW NOTES ARE CREATED:
+  1. User speaks or types transcript
+  2. Submitted to /text or /audio endpoint
+  3. brain-worker.js calls GPT-4 with:
+     - Transcript
+     - alreadyCaptured sections (for dedup)
+     - expectedSections list
+     - sectionHints (keyword mapping)
+     - forceStructured=true
+  4. GPT-4 returns JSON with sections, materials, checklist items
+  5. Frontend merges results via:
+     - mergeSectionsPreservingRequired() ← Merge logic
+     - cleanSectionContent()            ← Final dedup pass
+
+DUPLICATION ISSUES:
+  Root Cause: Multiple overlapping merge functions, AI doesn't always
+              follow dedup instructions, no semantic matching
+  
+  Where it happens:
+    - Layer 1: AI prompt (weak - model ignores)
+    - Layer 2: mergeSectionsPreservingRequired() (text inclusion checks)
+    - Layer 3: cleanSectionContent() (case-insensitive line dedup)
+  
+  Known issues: Commits 31aa765, 09e3b98, c0983c8 all fix duplication
+               Still recurring in edge cases (partial matches, word order)
+  
+  What's missing: Semantic/embedding-based dedup, no NLP
+
+AI PROCESSING:
+  Model: GPT-4.1
+  Temperature: 0.2 (deterministic)
+  Response: JSON only (no markdown wrapping)
+  Key instruction: "avoid duplicates" (but often ignored by model)
+  
+  System prompt tells model:
+    - Use alreadyCaptured sections to avoid duplicates
+    - Output sections in canonical order
+    - Return specific JSON structure
+    - Preserve boiler/cylinder make & model exactly
+
+BUG REPORTING:
+  Current state: NO FORMAL BUG REPORTING SYSTEM
+  
+  What exists:
+    - showVoiceError() displays to #voice-error div
+    - Console.error() logging only
+    - window.__depotVoiceNotesDebug object for developers
+    - Debug accordion in UI (#debugSections)
+  
+  What's missing:
+    - No /feedback endpoint for error submission
+    - No error context collection (browser, device, etc.)
+    - No user contact info collection
+    - No automated error tracking (no Sentry, etc.)
+    - No "Report Bug" button or form
+
+ARCHITECTURE:
+  
+  Browser (index.html, js/main.js)
+       │ HTTPS POST /text or /audio
+       ↓
+  Cloudflare Worker (brain-worker.js)
+       │ API calls
+       ↓
+  OpenAI (Whisper + GPT-4)
+  
+  Data Storage:
+    - Browser localStorage only (14 storage keys)
+    - No backend database
+    - Session autosave to browser
+    - Optional JSON export
+
+INTEGRATION POINTS:
+  
+  Standalone (Free):
+    - Pure browser app, no backend needed
+    - Works offline (except speech recognition)
+  
+  Cloud (Pro):
+    - Requires Cloudflare Worker + OpenAI API key
+    - License tokens via Ed25519 signing
+  
+  With other systems:
+    - Quote PDF generation (jsPDF)
+    - Pricebook CSV matching
+    - Checklist system integration
+    - Settings page for customization
+  
+  NOT integrated with:
+    - CRM systems (Salesforce, etc.)
+    - Project management (Jira, etc.)
+    - Accounting (Xero, QuickBooks)
+    - Third-party APIs (no webhooks, OAuth)
+    - Error tracking (Sentry, Rollbar)
+
+DEDUPLICATION LOGIC (Code locations):
+  
+  js/main.js:554     mergeTextFields() - Basic text comparison
+  js/main.js:593     mergeIncomingSection() - Merge old + new
+  js/main.js:631     combineSectionEntries() - Combine for required sections
+  js/main.js:656     mergeSectionsPreservingRequired() ← Main merge function
+  js/main.js:408     cleanSectionContent() ← Final dedup pass
+  
+  brain-worker.js:320  normaliseCapturedSections() - Parse already captured
+  brain-worker.js:365  normaliseSectionsFromModel() - Normalize AI output
+
+STATE MANAGEMENT:
+  APP_STATE = {
+    sections: [],    ← Current sections
+    notes: []        ← Same as sections
+  }
+  
+  Global variables:
+    lastRawSections[]   ← Previous section state
+    lastMaterials[]     ← Extracted materials
+    lastSections[]      ← Processed sections
+    lastWorkerPayload   ← Most recent API response
+  
+  LocalStorage keys (14 total):
+    depot.checklistConfig
+    depot-checklist-state
+    depot.sectionSchema
+    surveyBrainAutosave
+    [others for worker endpoint, legacy data]
+
+ERROR HANDLING PATTERN:
+  try {
+    const result = await operation();
+    setStatus("Done");
+  } catch (err) {
+    const msg = err.voiceMessage || `Failed: ${err.message}`;
+    showVoiceError(msg);
+    setStatus("Failed");
+  }
+  
+  Error types:
+    - Worker URL not configured
+    - Network errors
+    - JSON parsing errors
+    - AI model errors (via err.message)
+    - Audio capture errors
+
+NOTABLE FEATURES:
+  - Internet speed detection (measures latency to /health)
+  - Adaptive chunk intervals (10s-30s based on speed)
+  - Audio level meter visualization
+  - Dual transcript panels (raw vs processed)
+  - Session management with autosave
+  - Quote PDF generation with pricebook matching
+  - Settings page for custom sections/checklist
+  - Debug output in browser console
+
+WEAKNESSES:
+  1. Duplication still occurs despite 4+ fixes
+  2. No error reporting/feedback system
+  3. Merge logic is complex and fragile
+  4. AI model doesn't reliably follow dedup hints
+  5. No semantic matching (word order, synonyms not handled)
+  6. Single point of failure (brain-worker.js)
+  7. No rate limiting or usage tracking
+  8. Limited integration with external systems
+
+STRENGTHS:
+  1. Works offline (free mode)
+  2. Clear modular architecture
+  3. Adaptive to network conditions
+  4. Comprehensive configuration options
+  5. Clean UI with real-time feedback
+  6. Proper error handling patterns
+  7. Debug tools for developers
+  8. Multiple input methods (voice, text, audio file)
+
+=============================================================================

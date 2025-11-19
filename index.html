@@ -643,6 +643,20 @@
     .transcript-panel-badge.processed {
       background: var(--success);
     }
+    .transcript-edited-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 8px;
+      background: #f59e0b;
+      color: white;
+      border-radius: 6px;
+      font-size: .65rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .5px;
+      margin-left: 6px;
+    }
     /* Notes Sections */
     .notes-grid {
       display: grid;
@@ -844,6 +858,7 @@
             <div>
               Live Transcript
               <span class="transcript-panel-badge live" id="liveTranscriptBadge">● LIVE</span>
+              <span class="transcript-edited-badge" id="transcriptEditedBadge" style="display: none;">✏️ EDITED</span>
             </div>
             <span class="small">On-board speech recognition</span>
           </div>
@@ -852,6 +867,7 @@
               <input type="text" id="transcriptSearch" class="search-input" placeholder="Search live...">
               <button id="searchPrevBtn" class="search-nav-btn" disabled>← Prev</button>
               <button id="searchNextBtn" class="search-nav-btn" disabled>Next →</button>
+              <button id="editTranscriptBtn" class="search-nav-btn" style="margin-left: auto;">✏️ Edit</button>
             </div>
             <div id="transcriptDisplay" class="transcript-scroll-box"></div>
             <textarea id="transcriptInput" placeholder="Or type/paste notes here..." style="display: none;"></textarea>

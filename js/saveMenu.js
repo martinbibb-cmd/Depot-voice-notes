@@ -25,6 +25,11 @@ const saveTranscriptCheckbox = document.getElementById('saveTranscript');
 // Format radio buttons
 const saveFormatJSON = document.getElementById('saveFormatJSON');
 const saveFormatCSV = document.getElementById('saveFormatCSV');
+const saveFormatTXT = document.getElementById('saveFormatTXT');
+
+// Audio export checkboxes
+const saveAudioWavCheckbox = document.getElementById('saveAudioWav');
+const saveAudioMp3Checkbox = document.getElementById('saveAudioMp3');
 
 // Filename input
 const saveFilenameInput = document.getElementById('saveFilename');
@@ -56,6 +61,7 @@ function hideSaveMenu() {
  */
 function getSelectedFormat() {
   if (saveFormatCSV && saveFormatCSV.checked) return 'csv';
+  if (saveFormatTXT && saveFormatTXT.checked) return 'txt';
   return 'json';
 }
 
@@ -67,7 +73,9 @@ function getSelectedOptions() {
     fullSession: saveFullSessionCheckbox && saveFullSessionCheckbox.checked,
     depotNotes: saveDepotNotesCheckbox && saveDepotNotesCheckbox.checked,
     aiNotes: saveAINotesCheckbox && saveAINotesCheckbox.checked,
-    transcript: saveTranscriptCheckbox && saveTranscriptCheckbox.checked
+    transcript: saveTranscriptCheckbox && saveTranscriptCheckbox.checked,
+    audioWav: saveAudioWavCheckbox && saveAudioWavCheckbox.checked,
+    audioMp3: saveAudioMp3Checkbox && saveAudioMp3Checkbox.checked
   };
 }
 
@@ -173,13 +181,22 @@ async function saveSelected() {
       await saveTranscript(appData, filename, format, timestamp);
     }
 
+    // Handle audio export options
+    if (options.audioWav) {
+      await saveAudioWav(appData, filename, timestamp);
+    }
+
+    if (options.audioMp3) {
+      await saveAudioNative(appData, filename, timestamp);
+    }
+
     // Hide modal and show success
     hideSaveMenu();
 
     // Show feedback
     const statusBar = document.getElementById('statusBar');
     if (statusBar) {
-      const count = [options.fullSession, options.depotNotes, options.aiNotes, options.transcript].filter(Boolean).length;
+      const count = [options.fullSession, options.depotNotes, options.aiNotes, options.transcript, options.audioWav, options.audioMp3].filter(Boolean).length;
       statusBar.textContent = `Saved ${count} file(s) successfully`;
       setTimeout(() => {
         statusBar.textContent = 'Idle (Online • Manual)';
@@ -217,9 +234,9 @@ async function saveFullSession(appData, filename, format, timestamp) {
     } catch (err) {
       console.warn('Failed to attach audio to session', err);
     }
-  } else if (format === 'csv' && appData.audioChunks && appData.audioChunks.length > 0) {
+  } else if ((format === 'csv' || format === 'txt') && appData.audioChunks && appData.audioChunks.length > 0) {
     const includeAudioWarning = confirm(
-      "CSV format cannot include audio data. The session will be saved without audio. Continue?"
+      `${format.toUpperCase()} format cannot include audio data. The session will be saved without audio. Continue?`
     );
     if (!includeAudioWarning) return;
   }
@@ -230,6 +247,10 @@ async function saveFullSession(appData, filename, format, timestamp) {
     const csvContent = sessionToSingleCSV(session);
     blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     finalFilename = `${filename}-session-${timestamp}.csv`;
+  } else if (format === 'txt') {
+    const txtContent = sessionToText(session);
+    blob = new Blob([txtContent], { type: 'text/plain;charset=utf-8;' });
+    finalFilename = `${filename}-session-${timestamp}.txt`;
   } else {
     const jsonStr = JSON.stringify(session, null, 2);
     blob = new Blob([jsonStr], { type: 'application/json' });
@@ -255,6 +276,10 @@ async function saveDepotNotes(appData, filename, format, timestamp) {
     const csvContent = depotNotesToCSV(data);
     blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     finalFilename = `${filename}-depot-${timestamp}.csv`;
+  } else if (format === 'txt') {
+    const txtContent = depotNotesToText(data);
+    blob = new Blob([txtContent], { type: 'text/plain;charset=utf-8;' });
+    finalFilename = `${filename}-depot-${timestamp}.txt`;
   } else {
     const jsonStr = JSON.stringify(data, null, 2);
     blob = new Blob([jsonStr], { type: 'application/json' });
@@ -280,6 +305,10 @@ async function saveAINotes(appData, filename, format, timestamp) {
     const csvContent = notesToCSV(data);
     blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     finalFilename = `${filename}-ai-${timestamp}.csv`;
+  } else if (format === 'txt') {
+    const txtContent = aiNotesToText(data);
+    blob = new Blob([txtContent], { type: 'text/plain;charset=utf-8;' });
+    finalFilename = `${filename}-ai-${timestamp}.txt`;
   } else {
     const jsonStr = JSON.stringify(data, null, 2);
     blob = new Blob([jsonStr], { type: 'application/json' });
@@ -306,6 +335,11 @@ async function saveTranscript(appData, filename, format, timestamp) {
     const csvContent = 'Transcript\n' + appData.fullTranscript.replace(/"/g, '""');
     blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     finalFilename = `${filename}-transcript-${timestamp}.csv`;
+  } else if (format === 'txt') {
+    // Plain text format for transcript
+    const txtContent = appData.fullTranscript;
+    blob = new Blob([txtContent], { type: 'text/plain;charset=utf-8;' });
+    finalFilename = `${filename}-transcript-${timestamp}.txt`;
   } else {
     const jsonStr = JSON.stringify(data, null, 2);
     blob = new Blob([jsonStr], { type: 'application/json' });
@@ -313,6 +347,232 @@ async function saveTranscript(appData, filename, format, timestamp) {
   }
 
   downloadFile(blob, finalFilename);
+}
+
+/**
+ * Convert session to plain text format
+ */
+function sessionToText(session) {
+  let text = 'DEPOT VOICE NOTES - FULL SESSION\n';
+  text += '='.repeat(50) + '\n\n';
+  text += `Created: ${session.createdAt}\n\n`;
+
+  if (session.fullTranscript) {
+    text += 'TRANSCRIPT\n' + '-'.repeat(50) + '\n';
+    text += session.fullTranscript + '\n\n';
+  }
+
+  if (session.sections && session.sections.length > 0) {
+    text += 'SECTIONS\n' + '-'.repeat(50) + '\n';
+    session.sections.forEach(section => {
+      text += `\n${section.section.toUpperCase()}\n`;
+      text += section.content + '\n';
+    });
+    text += '\n';
+  }
+
+  if (session.materials && session.materials.length > 0) {
+    text += 'MATERIALS\n' + '-'.repeat(50) + '\n';
+    session.materials.forEach(material => {
+      text += `- ${material}\n`;
+    });
+    text += '\n';
+  }
+
+  if (session.checkedItems && session.checkedItems.length > 0) {
+    text += 'CHECKED ITEMS\n' + '-'.repeat(50) + '\n';
+    session.checkedItems.forEach(item => {
+      text += `- ${item}\n`;
+    });
+    text += '\n';
+  }
+
+  if (session.missingInfo && session.missingInfo.length > 0) {
+    text += 'MISSING INFORMATION\n' + '-'.repeat(50) + '\n';
+    session.missingInfo.forEach(info => {
+      text += `- ${info}\n`;
+    });
+    text += '\n';
+  }
+
+  if (session.customerSummary) {
+    text += 'CUSTOMER SUMMARY\n' + '-'.repeat(50) + '\n';
+    text += session.customerSummary + '\n\n';
+  }
+
+  return text;
+}
+
+/**
+ * Convert depot notes to plain text format
+ */
+function depotNotesToText(data) {
+  let text = 'DEPOT NOTES\n';
+  text += '='.repeat(50) + '\n\n';
+  text += `Exported: ${data.exportedAt}\n\n`;
+
+  if (data.sections && data.sections.length > 0) {
+    data.sections.forEach(section => {
+      text += `${section.section.toUpperCase()}\n`;
+      text += '-'.repeat(50) + '\n';
+      text += section.content + '\n\n';
+    });
+  }
+
+  return text;
+}
+
+/**
+ * Convert AI notes to plain text format
+ */
+function aiNotesToText(data) {
+  let text = 'AI NOTES\n';
+  text += '='.repeat(50) + '\n\n';
+  text += `Generated: ${data.timestamp}\n\n`;
+
+  if (data.notes && data.notes.length > 0) {
+    data.notes.forEach(note => {
+      text += `${note.title.toUpperCase()}\n`;
+      text += '-'.repeat(50) + '\n';
+      text += note.content + '\n\n';
+    });
+  }
+
+  return text;
+}
+
+/**
+ * Save audio as WAV format
+ */
+async function saveAudioWav(appData, filename, timestamp) {
+  if (!appData.audioChunks || appData.audioChunks.length === 0) {
+    alert('No audio available to export');
+    return;
+  }
+
+  try {
+    // Create blob from audio chunks
+    const mime = appData.audioMime || 'audio/webm';
+    const audioBlob = new Blob(appData.audioChunks, { type: mime });
+
+    // Convert to WAV using Web Audio API
+    const arrayBuffer = await audioBlob.arrayBuffer();
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+
+    // Convert AudioBuffer to WAV
+    const wavBlob = audioBufferToWav(audioBuffer);
+    const finalFilename = `${filename}-audio-${timestamp}.wav`;
+
+    downloadFile(wavBlob, finalFilename);
+  } catch (error) {
+    console.error('Error converting audio to WAV:', error);
+    alert('Error converting audio to WAV format. The recorded format may not be supported for conversion.');
+  }
+}
+
+/**
+ * Save audio in native recorded format
+ */
+async function saveAudioNative(appData, filename, timestamp) {
+  if (!appData.audioChunks || appData.audioChunks.length === 0) {
+    alert('No audio available to export');
+    return;
+  }
+
+  try {
+    const mime = appData.audioMime || 'audio/webm';
+    const audioBlob = new Blob(appData.audioChunks, { type: mime });
+
+    // Determine file extension based on MIME type
+    let extension = 'webm';
+    if (mime.includes('mp4')) extension = 'mp4';
+    else if (mime.includes('m4a')) extension = 'm4a';
+    else if (mime.includes('wav')) extension = 'wav';
+    else if (mime.includes('ogg')) extension = 'ogg';
+
+    const finalFilename = `${filename}-audio-${timestamp}.${extension}`;
+
+    downloadFile(audioBlob, finalFilename);
+  } catch (error) {
+    console.error('Error saving audio:', error);
+    alert('Error saving audio file: ' + error.message);
+  }
+}
+
+/**
+ * Convert AudioBuffer to WAV blob
+ */
+function audioBufferToWav(audioBuffer) {
+  const numberOfChannels = audioBuffer.numberOfChannels;
+  const sampleRate = audioBuffer.sampleRate;
+  const format = 1; // PCM
+  const bitDepth = 16;
+
+  const bytesPerSample = bitDepth / 8;
+  const blockAlign = numberOfChannels * bytesPerSample;
+
+  const data = [];
+  for (let i = 0; i < audioBuffer.numberOfChannels; i++) {
+    data.push(audioBuffer.getChannelData(i));
+  }
+
+  const interleaved = interleave(data);
+  const dataLength = interleaved.length * bytesPerSample;
+  const buffer = new ArrayBuffer(44 + dataLength);
+  const view = new DataView(buffer);
+
+  // Write WAV header
+  writeString(view, 0, 'RIFF');
+  view.setUint32(4, 36 + dataLength, true);
+  writeString(view, 8, 'WAVE');
+  writeString(view, 12, 'fmt ');
+  view.setUint32(16, 16, true); // fmt chunk size
+  view.setUint16(20, format, true);
+  view.setUint16(22, numberOfChannels, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * blockAlign, true); // byte rate
+  view.setUint16(32, blockAlign, true);
+  view.setUint16(34, bitDepth, true);
+  writeString(view, 36, 'data');
+  view.setUint32(40, dataLength, true);
+
+  // Write audio data
+  let offset = 44;
+  for (let i = 0; i < interleaved.length; i++) {
+    const sample = Math.max(-1, Math.min(1, interleaved[i]));
+    view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7FFF, true);
+    offset += 2;
+  }
+
+  return new Blob([buffer], { type: 'audio/wav' });
+}
+
+/**
+ * Interleave audio channels
+ */
+function interleave(channelData) {
+  const length = channelData[0].length;
+  const numberOfChannels = channelData.length;
+  const result = new Float32Array(length * numberOfChannels);
+
+  let offset = 0;
+  for (let i = 0; i < length; i++) {
+    for (let channel = 0; channel < numberOfChannels; channel++) {
+      result[offset++] = channelData[channel][i];
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Write string to DataView
+ */
+function writeString(view, offset, string) {
+  for (let i = 0; i < string.length; i++) {
+    view.setUint8(offset + i, string.charCodeAt(i));
+  }
 }
 
 /**

@@ -213,6 +213,14 @@ let recognition = null;
 let liveState = "idle"; // idle | running | paused
 let recognitionActive = false;
 let shouldRestartRecognition = false;
+
+// Helper function to update liveState and dispatch event
+function setLiveState(newState) {
+  liveState = newState;
+  window.dispatchEvent(new CustomEvent('liveSessionStateChange', {
+    detail: { state: newState }
+  }));
+}
 let recognitionStopMode = null; // null | "pause" | "finish"
 let committedTranscript = "";
 let interimTranscript = "";
@@ -2014,6 +2022,10 @@ function updateTextareaFromBuffers() {
   if (interim) parts.push(interim);
   const combined = parts.join(parts.length > 1 ? " " : "");
   transcriptInput.value = combined.trim();
+  // Update the display to show real-time transcription
+  if (typeof renderTranscriptDisplay === 'function') {
+    renderTranscriptDisplay();
+  }
 }
 
 function updateLiveControls() {
@@ -2074,8 +2086,12 @@ if (SpeechRec) {
       }
     }
     updateTextareaFromBuffers();
-    if (sawFinal && liveState === "running") {
-      scheduleNextChunk();
+    if (sawFinal) {
+      // Auto-save transcript locally whenever we get final text
+      autoSaveSessionToLocal();
+      if (liveState === "running") {
+        scheduleNextChunk();
+      }
     }
   };
 
@@ -2087,7 +2103,7 @@ if (SpeechRec) {
     if (liveState !== "idle") {
       const reason = event && event.error ? `: ${event.error}` : "";
       showVoiceError(`Speech recognition error${reason}`);
-      liveState = "idle";
+      setLiveState("idle");
       updateLiveControls();
       setStatus("Speech error.");
       stopAudioCapture();
@@ -2116,7 +2132,7 @@ if (SpeechRec) {
         recognition.start();
       } catch (err) {
         console.error("Speech recognition restart failed", err);
-        liveState = "idle";
+        setLiveState("idle");
         shouldRestartRecognition = false;
         updateLiveControls();
         showVoiceError("Could not restart speech recognition.");
@@ -2164,7 +2180,7 @@ async function startLiveSession() {
   recognitionStopMode = null;
   pendingFinishSend = false;
   clearVoiceError();
-  liveState = "running";
+  setLiveState("running");
   updateLiveControls();
   try {
     console.log("Starting speech recognition...");
@@ -2177,7 +2193,7 @@ async function startLiveSession() {
     console.log("Chunk scheduling initiated");
   } catch (err) {
     console.error("Speech recognition start failed", err);
-    liveState = "idle";
+    setLiveState("idle");
     shouldRestartRecognition = false;
     updateLiveControls();
     showVoiceError("Couldn't start speech recognition: " + (err.message || "Unknown error") + ". Check browser permissions.");
@@ -2189,7 +2205,7 @@ async function startLiveSession() {
 function togglePauseResumeLive(reason = null) {
   if (!SpeechRec || !recognition) return;
   if (liveState === "running") {
-    liveState = "paused";
+    setLiveState("paused");
     shouldRestartRecognition = false;
     recognitionStopMode = "pause";
     pauseReason = reason || "manual";
@@ -2207,7 +2223,7 @@ function togglePauseResumeLive(reason = null) {
   } else if (liveState === "paused") {
     shouldRestartRecognition = true;
     recognitionStopMode = null;
-    liveState = "running";
+    setLiveState("running");
     clearVoiceError();
     clearSleepWarning();
     pauseReason = null;
@@ -2219,7 +2235,7 @@ function togglePauseResumeLive(reason = null) {
       scheduleNextChunk();
     } catch (err) {
       console.error("Speech recognition resume failed", err);
-      liveState = "idle";
+      setLiveState("idle");
       shouldRestartRecognition = false;
       updateLiveControls();
       showVoiceError("Couldn't resume speech recognition: " + (err.message || "Unknown error"));
@@ -2235,7 +2251,7 @@ async function finishLiveSession() {
   pauseReason = null;
   wasBackgroundedDuringSession = false;
   clearSleepWarning();
-  liveState = "idle";
+  setLiveState("idle");
   interimTranscript = "";
   updateTextareaFromBuffers();
   committedTranscript = transcriptInput.value.trim();
@@ -3207,6 +3223,85 @@ if (transcriptInput) {
 
 // Initial render
 renderTranscriptDisplay();
+
+// Transcript Editing Functionality
+const editTranscriptBtn = document.getElementById('editTranscriptBtn');
+const transcriptEditedBadge = document.getElementById('transcriptEditedBadge');
+let isEditingTranscript = false;
+let transcriptWasManuallyEdited = false;
+
+if (editTranscriptBtn && transcriptDisplay) {
+  editTranscriptBtn.addEventListener('click', () => {
+    isEditingTranscript = !isEditingTranscript;
+
+    if (isEditingTranscript) {
+      // Enter edit mode
+      editTranscriptBtn.textContent = '💾 Save';
+      editTranscriptBtn.style.background = 'var(--success)';
+      editTranscriptBtn.style.color = 'white';
+
+      // Make the display editable
+      transcriptDisplay.contentEditable = 'true';
+      transcriptDisplay.style.border = '2px solid var(--accent)';
+      transcriptDisplay.style.outline = 'none';
+      transcriptDisplay.focus();
+
+      // Disable search while editing
+      if (transcriptSearch) transcriptSearch.disabled = true;
+      if (searchPrevBtn) searchPrevBtn.disabled = true;
+      if (searchNextBtn) searchNextBtn.disabled = true;
+
+    } else {
+      // Exit edit mode - save changes
+      editTranscriptBtn.textContent = '✏️ Edit';
+      editTranscriptBtn.style.background = '';
+      editTranscriptBtn.style.color = '';
+
+      // Get the edited text
+      const editedText = transcriptDisplay.innerText || transcriptDisplay.textContent;
+
+      // Update the hidden textarea
+      transcriptInput.value = editedText;
+      committedTranscript = editedText.trim();
+
+      // Mark as manually edited
+      transcriptWasManuallyEdited = true;
+      if (transcriptEditedBadge) {
+        transcriptEditedBadge.style.display = 'inline-flex';
+      }
+
+      // Make the display non-editable
+      transcriptDisplay.contentEditable = 'false';
+      transcriptDisplay.style.border = '';
+
+      // Re-render the display
+      renderTranscriptDisplay();
+
+      // Re-enable search
+      if (transcriptSearch) transcriptSearch.disabled = false;
+
+      // Auto-save the changes
+      autoSaveSessionToLocal();
+
+      console.log('Transcript manually edited and saved');
+    }
+  });
+
+  // Disable editing while live session is running
+  window.addEventListener('liveSessionStateChange', (e) => {
+    if (e.detail && e.detail.state === 'running') {
+      if (isEditingTranscript) {
+        // Force save and exit edit mode
+        editTranscriptBtn.click();
+      }
+      editTranscriptBtn.disabled = true;
+      editTranscriptBtn.title = 'Cannot edit while live session is running';
+    } else {
+      editTranscriptBtn.disabled = false;
+      editTranscriptBtn.title = '';
+    }
+  });
+}
 
 // Initialize internet speed monitoring
 startSpeedMonitoring();

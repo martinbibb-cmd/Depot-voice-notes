@@ -353,51 +353,70 @@ async function saveTranscript(appData, filename, format, timestamp) {
  * Convert session to plain text format
  */
 function sessionToText(session) {
-  let text = 'DEPOT VOICE NOTES - FULL SESSION\n';
-  text += '='.repeat(50) + '\n\n';
-  text += `Created: ${session.createdAt}\n\n`;
+  let text = '';
+  let hasContent = false;
 
   if (session.fullTranscript) {
-    text += 'TRANSCRIPT\n' + '-'.repeat(50) + '\n';
-    text += session.fullTranscript + '\n\n';
+    text += '📝 Transcript\n';
+    text += '===CONTENT===\n';
+    text += session.fullTranscript + '\n';
+    text += '===END===\n';
+    hasContent = true;
   }
 
   if (session.sections && session.sections.length > 0) {
-    text += 'SECTIONS\n' + '-'.repeat(50) + '\n';
-    session.sections.forEach(section => {
-      text += `\n${section.section.toUpperCase()}\n`;
+    if (hasContent) text += '\n';
+    session.sections.forEach((section, index) => {
+      text += `${section.section}\n`;
+      text += '===CONTENT===\n';
       text += section.content + '\n';
+      text += '===END===\n';
+      if (index < session.sections.length - 1) {
+        text += '\n';
+      }
     });
-    text += '\n';
+    hasContent = true;
   }
 
   if (session.materials && session.materials.length > 0) {
-    text += 'MATERIALS\n' + '-'.repeat(50) + '\n';
+    if (hasContent) text += '\n';
+    text += '📝 Materials\n';
+    text += '===CONTENT===\n';
     session.materials.forEach(material => {
-      text += `- ${material}\n`;
+      text += `• ${material}\n`;
     });
-    text += '\n';
+    text += '===END===\n';
+    hasContent = true;
   }
 
   if (session.checkedItems && session.checkedItems.length > 0) {
-    text += 'CHECKED ITEMS\n' + '-'.repeat(50) + '\n';
+    if (hasContent) text += '\n';
+    text += '📝 Checked Items\n';
+    text += '===CONTENT===\n';
     session.checkedItems.forEach(item => {
-      text += `- ${item}\n`;
+      text += `• ${item}\n`;
     });
-    text += '\n';
+    text += '===END===\n';
+    hasContent = true;
   }
 
   if (session.missingInfo && session.missingInfo.length > 0) {
-    text += 'MISSING INFORMATION\n' + '-'.repeat(50) + '\n';
+    if (hasContent) text += '\n';
+    text += '📝 Missing Information\n';
+    text += '===CONTENT===\n';
     session.missingInfo.forEach(info => {
-      text += `- ${info}\n`;
+      text += `• ${info}\n`;
     });
-    text += '\n';
+    text += '===END===\n';
+    hasContent = true;
   }
 
   if (session.customerSummary) {
-    text += 'CUSTOMER SUMMARY\n' + '-'.repeat(50) + '\n';
-    text += session.customerSummary + '\n\n';
+    if (hasContent) text += '\n';
+    text += '📝 Customer Summary\n';
+    text += '===CONTENT===\n';
+    text += session.customerSummary + '\n';
+    text += '===END===\n';
   }
 
   return text;
@@ -407,15 +426,20 @@ function sessionToText(session) {
  * Convert depot notes to plain text format
  */
 function depotNotesToText(data) {
-  let text = 'DEPOT NOTES\n';
-  text += '='.repeat(50) + '\n\n';
-  text += `Exported: ${data.exportedAt}\n\n`;
+  let text = '';
 
   if (data.sections && data.sections.length > 0) {
-    data.sections.forEach(section => {
-      text += `${section.section.toUpperCase()}\n`;
-      text += '-'.repeat(50) + '\n';
-      text += section.content + '\n\n';
+    data.sections.forEach((section, index) => {
+      // Add section title (preserve emoji if present)
+      text += `${section.section}\n`;
+      text += '===CONTENT===\n';
+      text += section.content + '\n';
+      text += '===END===\n';
+
+      // Add blank line between sections, but not after the last one
+      if (index < data.sections.length - 1) {
+        text += '\n';
+      }
     });
   }
 
@@ -426,15 +450,20 @@ function depotNotesToText(data) {
  * Convert AI notes to plain text format
  */
 function aiNotesToText(data) {
-  let text = 'AI NOTES\n';
-  text += '='.repeat(50) + '\n\n';
-  text += `Generated: ${data.timestamp}\n\n`;
+  let text = '';
 
   if (data.notes && data.notes.length > 0) {
-    data.notes.forEach(note => {
-      text += `${note.title.toUpperCase()}\n`;
-      text += '-'.repeat(50) + '\n';
-      text += note.content + '\n\n';
+    data.notes.forEach((note, index) => {
+      // Add note title (preserve emoji if present)
+      text += `${note.title}\n`;
+      text += '===CONTENT===\n';
+      text += note.content + '\n';
+      text += '===END===\n';
+
+      // Add blank line between notes, but not after the last one
+      if (index < data.notes.length - 1) {
+        text += '\n';
+      }
     });
   }
 

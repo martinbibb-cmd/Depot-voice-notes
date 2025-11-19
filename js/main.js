@@ -2013,6 +2013,80 @@ loadSessionInput.onchange = async (e) => {
   }
 };
 
+// --- DUPLICATE SESSION ---
+const duplicateSessionBtn = document.getElementById("duplicateSessionBtn");
+if (duplicateSessionBtn) {
+  duplicateSessionBtn.onclick = async () => {
+    try {
+      // Check if there's any content to duplicate
+      const fullTranscript = (transcriptInput.value || "").trim();
+      const hasContent =
+        fullTranscript ||
+        (Array.isArray(lastRawSections) && lastRawSections.length > 0) ||
+        (Array.isArray(lastMaterials) && lastMaterials.length > 0) ||
+        (Array.isArray(lastCheckedItems) && lastCheckedItems.length > 0) ||
+        (Array.isArray(lastMissingInfo) && lastMissingInfo.length > 0) ||
+        (lastCustomerSummary && lastCustomerSummary.trim());
+
+      if (!hasContent) {
+        showVoiceError("No content to duplicate. Create some notes first.");
+        return;
+      }
+
+      // Create a deep copy of the current session with new timestamp
+      const duplicatedSession = {
+        version: 1,
+        createdAt: new Date().toISOString(),
+        fullTranscript: fullTranscript,
+        sections: JSON.parse(JSON.stringify(lastRawSections)),
+        materials: JSON.parse(JSON.stringify(lastMaterials)),
+        checkedItems: JSON.parse(JSON.stringify(lastCheckedItems)),
+        missingInfo: JSON.parse(JSON.stringify(lastMissingInfo)),
+        customerSummary: lastCustomerSummary
+      };
+
+      // Duplicate audio if present
+      if (sessionAudioChunks && sessionAudioChunks.length > 0) {
+        try {
+          const mime = lastAudioMime || "audio/webm";
+          const audioBlob = new Blob(sessionAudioChunks, { type: mime });
+          const base64 = await blobToBase64(audioBlob);
+          duplicatedSession.audioMime = mime;
+          duplicatedSession.audioBase64 = base64;
+        } catch (audioErr) {
+          console.warn("Failed to duplicate audio", audioErr);
+        }
+      }
+
+      // Generate filename
+      const ts = new Date().toISOString().replace(/[:.]/g, "-");
+      const defaultName = "depot-voice-session-copy";
+      const userName = prompt("Enter filename for duplicated session (without extension):", defaultName);
+      if (userName === null) return;
+
+      const safeName = (userName || defaultName).replace(/[^a-z0-9_\-]+/gi, "-");
+      const filename = `${safeName}-${ts}.depotvoice.json`;
+
+      // Create and download the file
+      const jsonStr = JSON.stringify(duplicatedSession, null, 2);
+      const fileBlob = new Blob([jsonStr], { type: "application/json" });
+      const url = URL.createObjectURL(fileBlob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      setStatus("Session duplicated and downloaded successfully.");
+    } catch (err) {
+      console.error("Duplicate session error:", err);
+      showVoiceError("Could not duplicate session: " + (err.message || "Unknown error"));
+    }
+  };
+}
+
 // --- LIVE SPEECH (on-device) ---
 function updateTextareaFromBuffers() {
   const committed = committedTranscript.trim();

@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Test Speaker Detection & Recommendations</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 1200px;
+      margin: 20px auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .container {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    textarea {
+      width: 100%;
+      height: 300px;
+      font-family: monospace;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+    button {
+      background: #007bff;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-top: 10px;
+    }
+    button:hover {
+      background: #0056b3;
+    }
+    .results {
+      margin-top: 20px;
+      padding: 15px;
+      background: #f8f9fa;
+      border-radius: 4px;
+    }
+    .segment {
+      margin: 8px 0;
+      padding: 8px;
+      background: white;
+      border-left: 3px solid #007bff;
+    }
+    .speaker {
+      font-weight: bold;
+      color: #007bff;
+    }
+    .expert {
+      border-left-color: #28a745;
+    }
+    .expert .speaker {
+      color: #28a745;
+    }
+    .recommendation {
+      margin: 10px 0;
+      padding: 10px;
+      border-radius: 4px;
+    }
+    .recommended {
+      background: #d4edda;
+      border: 2px solid #28a745;
+    }
+    .alternative {
+      background: #fff3cd;
+      border: 1px solid #ffc107;
+    }
+    .score {
+      font-weight: bold;
+      font-size: 1.2em;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Test Speaker Detection & Recommendations</h1>
+
+    <h2>Enter Transcript:</h2>
+    <textarea id="transcript">[00:00] Expert: Family of 6, 3 babies 2 adults 1 5 year old.
+[00:05] Customer: Semi detached bungalow
+[00:10] Expert: Basic controls
+[00:15] Customer: Regular boiler open vented hot water
+[00:20] Expert: Twin entry valves
+[00:25] Customer: Parking on drive easy loft access from bathroom
+[00:30] Expert: Good water pressure.
+[00:35] Customer: 1 bathroom but constant washing clothes and kitchen washing up.
+[00:40] Expert: Suitable for solar pv
+[00:45] Customer: Best advice replace with system boiler with Mixergy unvented hive control and re pipe the whole system to 15mm with 22mm primaries.
+[00:50] Expert: Wb 4000 - 21kw
+[00:55] Customer: 150l cylinder
+[01:00] Expert: New boiler on adjacent wall with vertical flue through pitched roof and make good old hole.
+[01:05] Customer: Remove existing cupboard
+[01:10] Expert: Fit fernox tf1
+[01:15] Customer: Customer to clear working areas</textarea>
+
+    <button onclick="testRecommendations()">Test Recommendations</button>
+
+    <div id="results" class="results"></div>
+  </div>
+
+  <script type="module">
+    import { extractHeatingRequirements, generateRecommendations } from './js/recommendationEngine.js';
+
+    window.testRecommendations = function() {
+      const transcript = document.getElementById('transcript').value;
+      const resultsDiv = document.getElementById('results');
+
+      // Test the extraction
+      const requirements = extractHeatingRequirements([], [transcript]);
+
+      console.log('Extracted requirements:', requirements);
+
+      // Generate recommendations
+      const recommendationData = generateRecommendations(requirements);
+
+      console.log('Recommendations:', recommendationData);
+
+      // Display results
+      let html = '<h2>Extracted Requirements:</h2>';
+      html += `<div class="segment">`;
+      html += `<strong>Occupants:</strong> ${requirements.occupants}<br>`;
+      html += `<strong>Bedrooms:</strong> ${requirements.bedrooms}<br>`;
+      html += `<strong>Bathrooms:</strong> ${requirements.bathrooms}<br>`;
+      html += `<strong>House Type:</strong> ${requirements.houseType}<br>`;
+      html += `<strong>Current Boiler:</strong> ${requirements.currentBoilerType}<br>`;
+      html += `<strong>Current Water System:</strong> ${requirements.currentWaterSystem}<br>`;
+      html += `<strong>Mains Pressure:</strong> ${requirements.mainsPressure} bar<br>`;
+      html += `<strong>Expert Recommendations:</strong> ${requirements.expertRecommendations.join(', ') || 'None detected'}<br>`;
+      html += `</div>`;
+
+      html += '<h2>System Recommendations:</h2>';
+
+      // Show best option
+      const best = recommendationData.bestOption;
+      html += `<div class="recommendation recommended">`;
+      html += `<h3>✓ RECOMMENDED: ${best.profile.name}</h3>`;
+      html += `<div class="score">Score: ${Math.round(best.score)}/100</div>`;
+      html += `<h4>Reasons:</h4>`;
+      html += `<ul>${best.reasons.map(r => `<li>${r}</li>`).join('')}</ul>`;
+      html += `</div>`;
+
+      // Show alternatives
+      recommendationData.alternatives.forEach(alt => {
+        html += `<div class="recommendation alternative">`;
+        html += `<h3>Alternative: ${alt.profile.name}</h3>`;
+        html += `<div class="score">Score: ${Math.round(alt.score)}/100</div>`;
+        html += `<h4>Reasons:</h4>`;
+        html += `<ul>${alt.reasons.map(r => `<li>${r}</li>`).join('')}</ul>`;
+        html += `</div>`;
+      });
+
+      resultsDiv.innerHTML = html;
+    };
+  </script>
+</body>
+</html>

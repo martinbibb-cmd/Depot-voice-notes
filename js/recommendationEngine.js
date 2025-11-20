@@ -186,8 +186,16 @@ export function extractHeatingRequirements(sections, notes) {
     ...notes
   ].join(' ').toLowerCase();
 
-  // Extract occupants
-  const occupantMatch = allText.match(/(\d+)\s*(?:people|persons|occupants|family members)/i);
+  // Extract occupants - try multiple patterns
+  let occupantMatch = allText.match(/(\d+)\s*(?:people|persons|occupants|family members)/i);
+  if (!occupantMatch) {
+    // Try "family of X" pattern
+    occupantMatch = allText.match(/family\s+of\s+(\d+)/i);
+  }
+  if (!occupantMatch) {
+    // Try "X family" pattern (less common but possible)
+    occupantMatch = allText.match(/(\d+)\s+in\s+(?:the\s+)?family/i);
+  }
   if (occupantMatch) requirements.occupants = parseInt(occupantMatch[1]);
 
   // Extract bedrooms
@@ -204,17 +212,68 @@ export function extractHeatingRequirements(sections, notes) {
   else if (allText.includes('semi-detached') || allText.includes('semi detached')) requirements.houseType = 'semi';
   else if (allText.includes('detached')) requirements.houseType = 'detached';
 
-  // Current boiler type
-  if (allText.includes('combi')) requirements.currentBoilerType = 'Combi';
-  else if (allText.includes('system boiler')) requirements.currentBoilerType = 'System';
-  else if (allText.includes('regular boiler') || allText.includes('conventional boiler')) requirements.currentBoilerType = 'Regular';
+  // Current boiler type - check for upgrade patterns and current system
+  let upgradeMatch = null;
+  let detectedCurrentBoiler = null;
 
-  // Current water system
-  if (allText.includes('open vented') || allText.includes('gravity') || allText.includes('tank in loft')) {
+  // First check for "current/existing system is/has X" patterns
+  const currentSystemMatch = allText.match(/(?:current|existing)\s+(?:system|boiler)\s+(?:is|has)\s+(regular|combi|system)(?:\s+boiler)?/i);
+  if (currentSystemMatch) {
+    detectedCurrentBoiler = currentSystemMatch[1].toLowerCase();
+    console.log(`✓ Detected current system: ${detectedCurrentBoiler}`);
+  }
+
+  // Try different upgrade pattern variations
+  // Pattern 1: "regular boiler to unvented" or "regular to unvented" (direct upgrade)
+  upgradeMatch = allText.match(/\b(regular|combi|system)(?:\s+boiler)?\s+(?:to|→)\s+(regular|combi|system|unvented|open\s*vented)/i);
+
+  // Pattern 2: "upgrade/convert from X to Y"
+  if (!upgradeMatch) {
+    upgradeMatch = allText.match(/(?:upgrade|convert|change)\s+from\s+(regular|combi|system)(?:\s+boiler)?.*?(?:to|→)\s+(regular|combi|system|unvented|open\s*vented)/i);
+  }
+
+  // Set the current boiler type
+  if (detectedCurrentBoiler) {
+    // Prefer explicit "current system is X" detection
+    if (detectedCurrentBoiler === 'combi') requirements.currentBoilerType = 'Combi';
+    else if (detectedCurrentBoiler === 'system') requirements.currentBoilerType = 'System';
+    else if (detectedCurrentBoiler === 'regular') requirements.currentBoilerType = 'Regular';
+  } else if (upgradeMatch) {
+    // Fall back to upgrade pattern detection
+    const currentType = upgradeMatch[1].toLowerCase();
+    if (currentType === 'combi') requirements.currentBoilerType = 'Combi';
+    else if (currentType === 'system') requirements.currentBoilerType = 'System';
+    else if (currentType === 'regular') requirements.currentBoilerType = 'Regular';
+
+    console.log(`✓ Detected upgrade from ${currentType} to ${upgradeMatch[2]}`);
+  } else {
+    // Last resort - look for simple current system indicators
+    if (allText.includes('current combi') || allText.includes('existing combi') || allText.includes('has combi')) {
+      requirements.currentBoilerType = 'Combi';
+    } else if (allText.includes('current regular') || allText.includes('existing regular') || allText.includes('conventional boiler')) {
+      requirements.currentBoilerType = 'Regular';
+    }
+  }
+
+  // Current water system - infer from detected boiler type and upgrade patterns
+  if (detectedCurrentBoiler || upgradeMatch) {
+    const currentType = detectedCurrentBoiler || upgradeMatch[1].toLowerCase();
+    // If they have a regular boiler, assume open vented unless stated otherwise
+    if (currentType === 'regular') {
+      requirements.currentWaterSystem = 'Open vented';
+    } else if (currentType === 'combi') {
+      requirements.currentWaterSystem = 'On-demand';
+    }
+  }
+
+  // Override with explicit water system mentions
+  if (allText.includes('current open vented') || allText.includes('existing open vented') ||
+      allText.includes('gravity') || allText.includes('tank in loft')) {
     requirements.currentWaterSystem = 'Open vented';
-  } else if (allText.includes('unvented') || allText.includes('megaflo') || allText.includes('pressurised cylinder')) {
+  } else if (allText.includes('current unvented') || allText.includes('existing unvented') ||
+             allText.includes('current megaflo') || allText.includes('existing pressurised')) {
     requirements.currentWaterSystem = 'Unvented';
-  } else if (allText.includes('combi')) {
+  } else if (allText.includes('current combi') || allText.includes('existing combi')) {
     requirements.currentWaterSystem = 'On-demand';
   }
 
@@ -229,12 +288,21 @@ export function extractHeatingRequirements(sections, notes) {
   // Estimate values if not found
   if (!requirements.occupants && requirements.bedrooms) {
     requirements.occupants = Math.max(2, requirements.bedrooms);
+    console.log(`⚠️  Occupancy not found in transcript. Estimated ${requirements.occupants} based on ${requirements.bedrooms} bedrooms.`);
+  } else if (!requirements.occupants) {
+    // No occupants or bedrooms found - use conservative estimate
+    requirements.occupants = 2;
+    console.log(`⚠️  Occupancy not found in transcript. Using default of 2 occupants.`);
   }
+
   if (!requirements.bathrooms) {
     requirements.bathrooms = requirements.bedrooms >= 4 ? 2 : 1;
+    console.log(`⚠️  Bathrooms not found in transcript. Estimated ${requirements.bathrooms} based on property size.`);
   }
-  if (!requirements.dailyDraws) {
+
+  if (!requirements.dailyDraws || requirements.dailyDraws === 0) {
     requirements.dailyDraws = requirements.occupants * 3; // Estimate 3 draws per person
+    console.log(`⚠️  Daily draws calculated as ${requirements.dailyDraws} (${requirements.occupants} occupants × 3 draws).`);
   }
 
   // Space constraints
@@ -261,6 +329,17 @@ export function extractHeatingRequirements(sections, notes) {
   } else {
     requirements.budget = 'medium';
   }
+
+  // Log extracted requirements for debugging
+  console.log('📋 Extracted heating requirements:', {
+    occupants: requirements.occupants,
+    bedrooms: requirements.bedrooms,
+    bathrooms: requirements.bathrooms,
+    currentBoilerType: requirements.currentBoilerType || 'Not specified',
+    currentWaterSystem: requirements.currentWaterSystem || 'Not specified',
+    mainsPressure: requirements.mainsPressure || 'Not measured',
+    flowRate: requirements.flowRate || 'Not measured'
+  });
 
   return requirements;
 }

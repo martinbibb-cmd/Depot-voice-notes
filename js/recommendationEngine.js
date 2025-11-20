@@ -161,6 +161,133 @@ const SYSTEM_PROFILES = {
 };
 
 /**
+ * Parse transcript text into segments with speaker labels
+ * Similar to parseTranscriptSegments in main.js but for recommendation engine
+ */
+function parseTranscriptWithSpeakers(text) {
+  if (!text) return [];
+
+  const segments = [];
+  const lines = text.split('\n').filter(l => l.trim());
+
+  lines.forEach((line, index) => {
+    // Try to extract timestamp and speaker from various formats
+    // Format: [00:12] Speaker: text
+    // Or: Speaker: text
+    // Or: plain text
+
+    const timestampMatch = line.match(/^\[(\d+):(\d+)\]\s*/);
+    const speakerMatch = line.match(/^(?:\[\d+:\d+\]\s*)?([^:]+):\s*(.+)/);
+
+    let speaker = null;
+    let text = line;
+
+    if (speakerMatch) {
+      speaker = speakerMatch[1].trim();
+      text = speakerMatch[2].trim();
+    }
+
+    // Auto-detect speaker if not present (alternating pattern)
+    if (!speaker) {
+      speaker = index % 2 === 0 ? 'Expert' : 'Customer';
+    }
+
+    segments.push({ speaker, text: text.trim() });
+  });
+
+  return segments.filter(s => s.text);
+}
+
+/**
+ * Detect explicit expert recommendations from transcript
+ * Returns an array of system keys that were explicitly recommended
+ */
+function detectExpertRecommendations(segments) {
+  const recommendations = [];
+
+  // Get all statements, but prioritize Expert statements
+  // Also include statements with strong recommendation language regardless of speaker
+  // (since sometimes recommendations are mislabeled or summarized by customer)
+  const expertStatements = segments
+    .filter(seg => {
+      const text = seg.text.toLowerCase();
+      const speaker = (seg.speaker || '').toLowerCase();
+
+      // Include if it's from expert
+      if (speaker.includes('expert')) return true;
+
+      // Also include if it contains strong recommendation language
+      // (likely expert advice even if mislabeled)
+      if (text.includes('best advice') ||
+          text.includes('recommend') ||
+          text.includes('should replace with')) {
+        return true;
+      }
+
+      return false;
+    })
+    .map(seg => seg.text.toLowerCase());
+
+  const expertText = expertStatements.join(' ');
+
+  // Look for explicit recommendation patterns
+  // Check for "system boiler with mixergy" pattern first (most specific)
+  if (/(?:system boiler|system).*?(?:with|and).*?mixergy/i.test(expertText)) {
+    recommendations.push('system-mixergy');
+    console.log('✓ Detected: system boiler with Mixergy');
+  }
+
+  // Check for standalone Mixergy mentions
+  if (/\bmixergy\b/i.test(expertText) && !recommendations.includes('system-mixergy')) {
+    recommendations.push('system-mixergy');
+    console.log('✓ Detected: Mixergy cylinder');
+  }
+
+  // Check for thermal store
+  if (/thermal\s+store/i.test(expertText)) {
+    recommendations.push('regular-thermal');
+    console.log('✓ Detected: Thermal store');
+  }
+
+  // Now check general patterns
+  const recommendationPatterns = [
+    /(?:best|recommend|suggest|advise|should).*?(combi|system boiler|regular boiler|unvented|open vented)/gi,
+    /(?:replace with|upgrade to|install|fit).*?(combi|system boiler|regular boiler|unvented|open vented)/gi
+  ];
+
+  for (const pattern of recommendationPatterns) {
+    let match;
+    while ((match = pattern.exec(expertText)) !== null) {
+      const recommended = match[1].toLowerCase();
+
+      // Map to system keys (only if not already added)
+      if (recommended.includes('system') && recommended.includes('unvented') && !recommendations.includes('system-unvented')) {
+        recommendations.push('system-unvented');
+      } else if (recommended.includes('system') && !recommendations.includes('system-mixergy') && !recommendations.includes('system-unvented')) {
+        // If Mixergy is mentioned anywhere in expert text, it's system-mixergy
+        if (expertText.includes('mixergy') || expertText.includes('smart cylinder')) {
+          if (!recommendations.includes('system-mixergy')) {
+            recommendations.push('system-mixergy');
+          }
+        } else {
+          recommendations.push('system-unvented');
+        }
+      } else if (recommended.includes('combi') && !recommendations.includes('combi')) {
+        recommendations.push('combi');
+      } else if (recommended.includes('regular') && (recommended.includes('open') || recommended.includes('vented'))) {
+        if (!recommendations.includes('regular-openvented')) {
+          recommendations.push('regular-openvented');
+        }
+      } else if (recommended.includes('regular') && !recommendations.includes('regular-openvented') && !recommendations.includes('regular-thermal')) {
+        recommendations.push('regular-openvented');
+      }
+    }
+  }
+
+  return [...new Set(recommendations)]; // Remove duplicates
+}
+
+/**
  * Extract heating system requirements from transcript data
  */
 export function extractHeatingRequirements(sections, notes) {
@@ -177,47 +304,61 @@ export function extractHeatingRequirements(sections, notes) {
     hasSpaceConstraints: false,
     wantsSmartTech: false,
     consideringRenewables: false,
-    budget: ''
+    budget: '',
+    expertRecommendations: [] // NEW: Track expert recommendations
   };
 
   // Combine all text from sections and notes
   const allText = [
     ...sections.map(s => `${s.plainText || ''} ${s.naturalLanguage || ''}`),
     ...notes
-  ].join(' ').toLowerCase();
+  ].join(' ');
+
+  // Parse transcript with speaker information
+  const segments = parseTranscriptWithSpeakers(allText);
+
+  // Detect explicit expert recommendations
+  requirements.expertRecommendations = detectExpertRecommendations(segments);
+
+  if (requirements.expertRecommendations.length > 0) {
+    console.log('🎯 Expert explicitly recommended:', requirements.expertRecommendations);
+  }
+
+  // Continue with existing extraction but use lowercase for pattern matching
+  const allTextLower = allText.toLowerCase();
 
   // Extract occupants - try multiple patterns
-  let occupantMatch = allText.match(/(\d+)\s*(?:people|persons|occupants|family members)/i);
+  let occupantMatch = allTextLower.match(/(\d+)\s*(?:people|persons|occupants|family members)/i);
   if (!occupantMatch) {
     // Try "family of X" pattern
-    occupantMatch = allText.match(/family\s+of\s+(\d+)/i);
+    occupantMatch = allTextLower.match(/family\s+of\s+(\d+)/i);
   }
   if (!occupantMatch) {
     // Try "X family" pattern (less common but possible)
-    occupantMatch = allText.match(/(\d+)\s+in\s+(?:the\s+)?family/i);
+    occupantMatch = allTextLower.match(/(\d+)\s+in\s+(?:the\s+)?family/i);
   }
   if (occupantMatch) requirements.occupants = parseInt(occupantMatch[1]);
 
   // Extract bedrooms
-  const bedroomMatch = allText.match(/(\d+)\s*bed(?:room)?s?/i);
+  const bedroomMatch = allTextLower.match(/(\d+)\s*bed(?:room)?s?/i);
   if (bedroomMatch) requirements.bedrooms = parseInt(bedroomMatch[1]);
 
   // Extract bathrooms
-  const bathroomMatch = allText.match(/(\d+)\s*bath(?:room)?s?/i);
+  const bathroomMatch = allTextLower.match(/(\d+)\s*bath(?:room)?s?/i);
   if (bathroomMatch) requirements.bathrooms = parseInt(bathroomMatch[1]);
 
   // House type
-  if (allText.includes('flat') || allText.includes('apartment')) requirements.houseType = 'flat';
-  else if (allText.includes('terraced')) requirements.houseType = 'terraced';
-  else if (allText.includes('semi-detached') || allText.includes('semi detached')) requirements.houseType = 'semi';
-  else if (allText.includes('detached')) requirements.houseType = 'detached';
+  if (allTextLower.includes('flat') || allTextLower.includes('apartment')) requirements.houseType = 'flat';
+  else if (allTextLower.includes('terraced')) requirements.houseType = 'terraced';
+  else if (allTextLower.includes('semi-detached') || allTextLower.includes('semi detached')) requirements.houseType = 'semi';
+  else if (allTextLower.includes('detached')) requirements.houseType = 'detached';
 
   // Current boiler type - check for upgrade patterns and current system
   let upgradeMatch = null;
   let detectedCurrentBoiler = null;
 
   // First check for "current/existing system is/has X" patterns
-  const currentSystemMatch = allText.match(/(?:current|existing)\s+(?:system|boiler)\s+(?:is|has)\s+(regular|combi|system)(?:\s+boiler)?/i);
+  const currentSystemMatch = allTextLower.match(/(?:current|existing)\s+(?:system|boiler)\s+(?:is|has)\s+(regular|combi|system)(?:\s+boiler)?/i);
   if (currentSystemMatch) {
     detectedCurrentBoiler = currentSystemMatch[1].toLowerCase();
     console.log(`✓ Detected current system: ${detectedCurrentBoiler}`);
@@ -225,11 +366,11 @@ export function extractHeatingRequirements(sections, notes) {
 
   // Try different upgrade pattern variations
   // Pattern 1: "regular boiler to unvented" or "regular to unvented" (direct upgrade)
-  upgradeMatch = allText.match(/\b(regular|combi|system)(?:\s+boiler)?\s+(?:to|→)\s+(regular|combi|system|unvented|open\s*vented)/i);
+  upgradeMatch = allTextLower.match(/\b(regular|combi|system)(?:\s+boiler)?\s+(?:to|→)\s+(regular|combi|system|unvented|open\s*vented)/i);
 
   // Pattern 2: "upgrade/convert from X to Y"
   if (!upgradeMatch) {
-    upgradeMatch = allText.match(/(?:upgrade|convert|change)\s+from\s+(regular|combi|system)(?:\s+boiler)?.*?(?:to|→)\s+(regular|combi|system|unvented|open\s*vented)/i);
+    upgradeMatch = allTextLower.match(/(?:upgrade|convert|change)\s+from\s+(regular|combi|system)(?:\s+boiler)?.*?(?:to|→)\s+(regular|combi|system|unvented|open\s*vented)/i);
   }
 
   // Set the current boiler type
@@ -248,9 +389,9 @@ export function extractHeatingRequirements(sections, notes) {
     console.log(`✓ Detected upgrade from ${currentType} to ${upgradeMatch[2]}`);
   } else {
     // Last resort - look for simple current system indicators
-    if (allText.includes('current combi') || allText.includes('existing combi') || allText.includes('has combi')) {
+    if (allTextLower.includes('current combi') || allTextLower.includes('existing combi') || allTextLower.includes('has combi')) {
       requirements.currentBoilerType = 'Combi';
-    } else if (allText.includes('current regular') || allText.includes('existing regular') || allText.includes('conventional boiler')) {
+    } else if (allTextLower.includes('current regular') || allTextLower.includes('existing regular') || allTextLower.includes('conventional boiler')) {
       requirements.currentBoilerType = 'Regular';
     }
   }
@@ -267,22 +408,22 @@ export function extractHeatingRequirements(sections, notes) {
   }
 
   // Override with explicit water system mentions
-  if (allText.includes('current open vented') || allText.includes('existing open vented') ||
-      allText.includes('gravity') || allText.includes('tank in loft')) {
+  if (allTextLower.includes('current open vented') || allTextLower.includes('existing open vented') ||
+      allTextLower.includes('gravity') || allTextLower.includes('tank in loft')) {
     requirements.currentWaterSystem = 'Open vented';
-  } else if (allText.includes('current unvented') || allText.includes('existing unvented') ||
-             allText.includes('current megaflo') || allText.includes('existing pressurised')) {
+  } else if (allTextLower.includes('current unvented') || allTextLower.includes('existing unvented') ||
+             allTextLower.includes('current megaflo') || allTextLower.includes('existing pressurised')) {
     requirements.currentWaterSystem = 'Unvented';
-  } else if (allText.includes('current combi') || allText.includes('existing combi')) {
+  } else if (allTextLower.includes('current combi') || allTextLower.includes('existing combi')) {
     requirements.currentWaterSystem = 'On-demand';
   }
 
   // Mains pressure (bar)
-  const pressureMatch = allText.match(/(\d+\.?\d*)\s*bar/i);
+  const pressureMatch = allTextLower.match(/(\d+\.?\d*)\s*bar/i);
   if (pressureMatch) requirements.mainsPressure = parseFloat(pressureMatch[1]);
 
   // Flow rate (L/min)
-  const flowMatch = allText.match(/(\d+\.?\d*)\s*(?:l\/min|litres? per min)/i);
+  const flowMatch = allTextLower.match(/(\d+\.?\d*)\s*(?:l\/min|litres? per min)/i);
   if (flowMatch) requirements.flowRate = parseFloat(flowMatch[1]);
 
   // Estimate values if not found
@@ -306,25 +447,25 @@ export function extractHeatingRequirements(sections, notes) {
   }
 
   // Space constraints
-  requirements.hasSpaceConstraints = allText.includes('no loft') ||
-                                     allText.includes('limited space') ||
-                                     allText.includes('small property') ||
-                                     allText.includes('no room for cylinder');
+  requirements.hasSpaceConstraints = allTextLower.includes('no loft') ||
+                                     allTextLower.includes('limited space') ||
+                                     allTextLower.includes('small property') ||
+                                     allTextLower.includes('no room for cylinder');
 
   // Smart tech interest
-  requirements.wantsSmartTech = allText.includes('smart') ||
-                               allText.includes('app control') ||
-                               allText.includes('wifi');
+  requirements.wantsSmartTech = allTextLower.includes('smart') ||
+                               allTextLower.includes('app control') ||
+                               allTextLower.includes('wifi');
 
   // Renewables
-  requirements.consideringRenewables = allText.includes('solar') ||
-                                       allText.includes('heat pump') ||
-                                       allText.includes('renewable');
+  requirements.consideringRenewables = allTextLower.includes('solar') ||
+                                       allTextLower.includes('heat pump') ||
+                                       allTextLower.includes('renewable');
 
   // Budget
-  if (allText.includes('budget') || allText.includes('cheap') || allText.includes('cost-effective')) {
+  if (allTextLower.includes('budget') || allTextLower.includes('cheap') || allTextLower.includes('cost-effective')) {
     requirements.budget = 'low';
-  } else if (allText.includes('premium') || allText.includes('high-end')) {
+  } else if (allTextLower.includes('premium') || allTextLower.includes('high-end')) {
     requirements.budget = 'high';
   } else {
     requirements.budget = 'medium';
@@ -350,6 +491,12 @@ export function extractHeatingRequirements(sections, notes) {
 export function scoreSystem(systemKey, profile, requirements) {
   let score = 100; // Start with perfect score
   const reasons = [];
+
+  // EXPERT RECOMMENDATION - Highest priority!
+  if (requirements.expertRecommendations && requirements.expertRecommendations.includes(systemKey)) {
+    score += 50; // Massive bonus for expert recommendation
+    reasons.push(`✓ Explicitly recommended by heating expert`);
+  }
 
   // Household size matching
   if (requirements.occupants > 0) {

@@ -3,6 +3,9 @@
  * Provides slide-over UI for viewing and copying sections to clipboard
  */
 
+// State for the view mode
+let viewMode = 'natural'; // 'natural' or 'automatic'
+
 /**
  * Show the send sections slide-over
  */
@@ -31,12 +34,21 @@ function createSlideOverElement(sections) {
     <div class="slide-over-backdrop"></div>
     <div class="slide-over-panel">
       <div class="slide-over-header">
-        <h2>Send Sections</h2>
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <h2 style="margin: 0;">Send Sections</h2>
+          <div class="view-mode-toggle" style="display: flex; align-items: center; gap: 8px; margin-left: auto; margin-right: 40px;">
+            <span style="font-size: 0.75rem; font-weight: 600; color: white; opacity: ${viewMode === 'automatic' ? '1' : '0.6'};">Automatic</span>
+            <div id="viewModeToggle" class="toggle-switch ${viewMode === 'natural' ? 'active' : ''}">
+              <div class="toggle-slider"></div>
+            </div>
+            <span style="font-size: 0.75rem; font-weight: 600; color: white; opacity: ${viewMode === 'natural' ? '1' : '0.6'};">Natural</span>
+          </div>
+        </div>
         <button class="close-slide-over-btn" aria-label="Close">
           <span style="font-size: 1.5rem;">×</span>
         </button>
       </div>
-      <div class="slide-over-content">
+      <div class="slide-over-content" id="sectionsContent">
         ${renderSectionsList(sections)}
       </div>
     </div>
@@ -59,23 +71,38 @@ function renderSectionsList(sections) {
     `;
   }
 
-  return sections.map((section, index) => `
-    <div class="section-card" data-section-index="${index}">
-      <div class="section-card-header">
-        <h3 class="section-card-title">${escapeHtml(section.title || 'Untitled Section')}</h3>
-        <button class="copy-section-btn" data-section-index="${index}" title="Copy to clipboard">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-          </svg>
-          Copy
-        </button>
+  return sections.map((section, index) => {
+    // Determine what content to show based on view mode
+    let content;
+    let title;
+
+    // Handle both old format (section.content) and new format (section.plainText/naturalLanguage)
+    if (viewMode === 'natural') {
+      content = section.naturalLanguage || section.natural_language || section.summary || section.notes || section.content || '';
+      title = section.section || section.title || 'Untitled Section';
+    } else {
+      content = section.plainText || section.plain_text || section.text || section.content || '';
+      title = section.section || section.title || 'Untitled Section';
+    }
+
+    return `
+      <div class="section-card" data-section-index="${index}">
+        <div class="section-card-header">
+          <h3 class="section-card-title">${escapeHtml(title)}</h3>
+          <button class="copy-section-btn" data-section-index="${index}" title="Copy to clipboard">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+            </svg>
+            Copy
+          </button>
+        </div>
+        <div class="section-card-content">
+          ${formatSectionContent(content)}
+        </div>
       </div>
-      <div class="section-card-content">
-        ${formatSectionContent(section.content)}
-      </div>
-    </div>
-  `).join('');
+    `;
+  }).join('');
 }
 
 /**
@@ -110,6 +137,42 @@ function setupSlideOverEvents(slideOver, sections) {
   backdrop.addEventListener('click', () => {
     closeSlideOver(slideOver);
   });
+
+  // View mode toggle
+  const viewModeToggle = slideOver.querySelector('#viewModeToggle');
+  if (viewModeToggle) {
+    viewModeToggle.addEventListener('click', () => {
+      // Toggle view mode
+      viewMode = viewMode === 'natural' ? 'automatic' : 'natural';
+
+      // Update toggle visual state
+      viewModeToggle.classList.toggle('active', viewMode === 'natural');
+
+      // Update label opacity
+      const toggleContainer = slideOver.querySelector('.view-mode-toggle');
+      const labels = toggleContainer.querySelectorAll('span');
+      labels[0].style.opacity = viewMode === 'automatic' ? '1' : '0.6';
+      labels[1].style.opacity = viewMode === 'natural' ? '1' : '0.6';
+
+      // Re-render sections with new mode
+      const contentEl = slideOver.querySelector('#sectionsContent');
+      if (contentEl) {
+        contentEl.innerHTML = renderSectionsList(sections);
+
+        // Re-attach copy button listeners
+        const copyBtns = contentEl.querySelectorAll('.copy-section-btn');
+        copyBtns.forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            const index = parseInt(e.currentTarget.dataset.sectionIndex, 10);
+            const section = sections[index];
+            if (section) {
+              copySectionToClipboard(section, e.currentTarget);
+            }
+          });
+        });
+      }
+    });
+  }
 
   // Copy buttons
   const copyBtns = slideOver.querySelectorAll('.copy-section-btn');
@@ -176,8 +239,15 @@ async function copySectionToClipboard(section, buttonElement) {
  * Format section for clipboard (plain text)
  */
 function formatSectionForClipboard(section) {
-  const title = section.title || 'Untitled Section';
-  const content = section.content || '';
+  const title = section.section || section.title || 'Untitled Section';
+
+  // Use the content based on current view mode
+  let content;
+  if (viewMode === 'natural') {
+    content = section.naturalLanguage || section.natural_language || section.summary || section.notes || section.content || '';
+  } else {
+    content = section.plainText || section.plain_text || section.text || section.content || '';
+  }
 
   return `${title}\n${'='.repeat(title.length)}\n\n${content}`;
 }

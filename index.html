@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Survey Brain – Live Depot Notes</title>
+  <title>voice-notes – Live Depot Notes</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
     :root {
@@ -530,11 +530,11 @@
     .audio-btn {
       background: rgba(255,255,255,0.95);
       color: #667eea;
-      padding: 12px 24px;
+      padding: 10px 16px;
       border-radius: 12px;
       font-weight: 700;
-      font-size: .85rem;
-      min-width: 120px;
+      font-size: .8rem;
+      min-width: auto;
       justify-content: center;
       box-shadow: var(--shadow-md);
     }
@@ -1339,18 +1339,15 @@
 </head>
 <body>
   <header>
-    <h1>🎙️ Survey Brain</h1>
+    <h1>🎙️ voice-notes</h1>
     <div id="sessionNameDisplay" style="display: none; margin-left: 12px; padding: 6px 14px; background: rgba(255,255,255,0.2); color: white; border-radius: 999px; font-size: 0.75rem; font-weight: 700; backdrop-filter: blur(10px); box-shadow: 0 2px 8px rgba(0,0,0,0.1);"></div>
     <div class="toolbar-row">
-      <button id="sendTextBtn">📤 Send text</button>
+      <button id="sessionMenuBtn" class="pill-secondary">📁 Menu</button>
       <button id="sendSectionsBtn" class="pill-secondary">📋 Send sections</button>
-      <button id="importAudioBtn" class="pill-secondary">🎵 Import audio</button>
       <button id="saveMenuBtn" class="pill-secondary">💾 Save</button>
-      <button id="loadSessionBtn" class="pill-secondary">📂 Load session</button>
       <button id="duplicateSessionBtn" class="pill-secondary">📋 Duplicate</button>
       <button id="createQuoteBtn" class="pill-secondary">💰 Create quote</button>
       <button id="generateSummaryBtn" class="pill-secondary">📊 Generate summary</button>
-      <button id="newJobBtn" class="danger-btn">🆕 New session</button>
       <div class="agent-mode-toggle" title="Toggle Agent Monitoring Mode">
         <span style="font-size: 0.7rem; font-weight: 600; color: white;">🤖 Agent</span>
         <div id="agentModeToggle" class="toggle-switch">
@@ -1410,17 +1407,29 @@
           </div>
 
           <div class="audio-control-buttons">
+            <button id="skipBackwardBtn" class="audio-btn" disabled>
+              <span>⏮️</span>
+            </button>
+            <button id="rewindBtn" class="audio-btn" disabled>
+              <span>⏪</span>
+            </button>
             <button id="startLiveBtn" class="audio-btn">
-              <span>🎙️</span>
-              <span>Start Recording</span>
+              <span>🔴</span>
+              <span>record</span>
             </button>
             <button id="pauseLiveBtn" class="audio-btn paused" disabled>
-              <span>⏸️</span>
-              <span>Pause</span>
+              <span>⏯️</span>
+              <span>play/pause</span>
             </button>
             <button id="finishLiveBtn" class="audio-btn" disabled>
               <span>⏹️</span>
-              <span>Stop & Finish</span>
+              <span>stop</span>
+            </button>
+            <button id="forwardBtn" class="audio-btn" disabled>
+              <span>⏩</span>
+            </button>
+            <button id="skipForwardBtn" class="audio-btn" disabled>
+              <span>⏭️</span>
             </button>
           </div>
         </div>
@@ -1438,6 +1447,9 @@
             <span class="small">On-board speech recognition</span>
           </div>
           <div class="transcript-container">
+            <div style="margin-bottom: 10px;">
+              <button id="sendTextBtn" style="width: 100%; padding: 10px; font-size: 0.85rem; font-weight: 700;">🤖 process</button>
+            </div>
             <div class="search-bar">
               <input type="text" id="transcriptSearch" class="search-input" placeholder="Search live...">
               <button id="searchPrevBtn" class="search-nav-btn" disabled>← Prev</button>
@@ -1536,6 +1548,21 @@
 
   <input id="loadSessionInput" type="file" accept=".depotvoice.json,application/json" style="display:none;">
   <input id="importAudioInput" type="file" accept="audio/*" style="display:none;">
+
+  <!-- Session Menu Modal -->
+  <div id="sessionMenuModal" class="modal-overlay">
+    <div class="session-prompt-modal">
+      <div class="modal-header">
+        <h2>Session Menu</h2>
+        <button id="closeSessionMenuBtn" class="modal-close">Close</button>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 12px; margin-top: 16px;">
+        <button id="newJobBtn" class="danger-btn" style="width: 100%; padding: 14px; font-size: 0.9rem;">🆕 New session</button>
+        <button id="importAudioBtn" class="pill-secondary" style="width: 100%; padding: 14px; font-size: 0.9rem;">🎵 Import audio</button>
+        <button id="loadSessionBtn" class="pill-secondary" style="width: 100%; padding: 14px; font-size: 0.9rem;">📂 Load session</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Save Menu Modal -->
   <div id="saveMenuModal" class="modal-overlay">

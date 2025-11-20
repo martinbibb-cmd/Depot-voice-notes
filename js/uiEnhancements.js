@@ -229,6 +229,49 @@ function escapeHtml(text) {
   return div.innerHTML;
 }
 
+// Session Menu Modal Handling
+const sessionMenuBtn = document.getElementById('sessionMenuBtn');
+const sessionMenuModal = document.getElementById('sessionMenuModal');
+const closeSessionMenuBtn = document.getElementById('closeSessionMenuBtn');
+
+if (sessionMenuBtn) {
+  sessionMenuBtn.addEventListener('click', () => {
+    if (sessionMenuModal) {
+      sessionMenuModal.classList.add('active');
+    }
+  });
+}
+
+if (closeSessionMenuBtn) {
+  closeSessionMenuBtn.addEventListener('click', () => {
+    if (sessionMenuModal) {
+      sessionMenuModal.classList.remove('active');
+    }
+  });
+}
+
+// Close modal when clicking outside
+if (sessionMenuModal) {
+  sessionMenuModal.addEventListener('click', (e) => {
+    if (e.target === sessionMenuModal) {
+      sessionMenuModal.classList.remove('active');
+    }
+  });
+}
+
+// Close session menu when any menu item is clicked
+const sessionMenuItems = ['newJobBtn', 'importAudioBtn', 'loadSessionBtn'];
+sessionMenuItems.forEach(btnId => {
+  const btn = document.getElementById(btnId);
+  if (btn) {
+    btn.addEventListener('click', () => {
+      if (sessionMenuModal) {
+        sessionMenuModal.classList.remove('active');
+      }
+    });
+  }
+});
+
 // Export for use in main.js
 window.uiEnhancements = {
   startAudioTimer,

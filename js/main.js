@@ -14,6 +14,14 @@ import {
   downloadCSV,
   getExportFormat
 } from "./csvExport.js";
+import {
+  initAgentMode,
+  setAgentMode,
+  isAgentModeEnabled,
+  analyzeTranscriptForQuestions,
+  resetAskedQuestions
+} from "./agentMode.js";
+import { showSendSectionsSlideOver } from "./sendSections.js";
 
 // --- CONFIG / STORAGE KEYS ---
 const SECTION_STORAGE_KEY = "depot.sectionSchema";
@@ -3417,3 +3425,80 @@ import('./summaryController.js').then(module => {
 }).catch(error => {
   console.error('Error initializing summary controller:', error);
 });
+
+// ============================================================================
+// AGENT MODE & SEND SECTIONS INTEGRATION
+// ============================================================================
+
+// Initialize Agent Mode
+initAgentMode();
+
+// Agent Mode Toggle
+const agentModeToggle = document.getElementById('agentModeToggle');
+const agentSuggestionsPanel = document.getElementById('agentSuggestionsPanel');
+const closeAgentPanel = document.getElementById('closeAgentPanel');
+
+if (agentModeToggle) {
+  agentModeToggle.addEventListener('click', () => {
+    const newState = !isAgentModeEnabled();
+    setAgentMode(newState);
+    agentModeToggle.classList.toggle('active', newState);
+
+    if (newState && agentSuggestionsPanel) {
+      agentSuggestionsPanel.style.display = 'flex';
+      // Analyze current sections if any
+      if (APP_STATE.sections && APP_STATE.sections.length > 0) {
+        analyzeTranscriptForQuestions(APP_STATE.sections);
+      }
+    }
+  });
+
+  // Set initial state
+  if (isAgentModeEnabled()) {
+    agentModeToggle.classList.add('active');
+    if (agentSuggestionsPanel) {
+      agentSuggestionsPanel.style.display = 'flex';
+    }
+  }
+}
+
+if (closeAgentPanel) {
+  closeAgentPanel.addEventListener('click', () => {
+    setAgentMode(false);
+    if (agentModeToggle) {
+      agentModeToggle.classList.remove('active');
+    }
+  });
+}
+
+// Listen for agent mode state changes
+window.addEventListener('agentModeChanged', (event) => {
+  const { enabled } = event.detail;
+  if (enabled && agentSuggestionsPanel) {
+    agentSuggestionsPanel.style.display = 'flex';
+  } else if (agentSuggestionsPanel) {
+    agentSuggestionsPanel.style.display = 'none';
+  }
+});
+
+// Send Sections Button
+const sendSectionsBtn = document.getElementById('sendSectionsBtn');
+if (sendSectionsBtn) {
+  sendSectionsBtn.addEventListener('click', () => {
+    const sections = APP_STATE.sections || [];
+    showSendSectionsSlideOver(sections);
+  });
+}
+
+// Hook into section updates to trigger agent analysis
+const originalRefreshUiFromState = refreshUiFromState;
+if (typeof refreshUiFromState === 'function') {
+  window.refreshUiFromState = function(...args) {
+    originalRefreshUiFromState.apply(this, args);
+
+    // Trigger agent analysis if enabled
+    if (isAgentModeEnabled() && APP_STATE.sections) {
+      analyzeTranscriptForQuestions(APP_STATE.sections);
+    }
+  };
+}

@@ -72,6 +72,7 @@ const startLiveBtn = document.getElementById("startLiveBtn");
 const pauseLiveBtn = document.getElementById("pauseLiveBtn");
 const finishLiveBtn = document.getElementById("finishLiveBtn");
 const createQuoteBtn = document.getElementById("createQuoteBtn");
+const generateSummaryBtn = document.getElementById("generateSummaryBtn");
 const loadSessionBtn = document.getElementById("loadSessionBtn");
 const loadSessionInput = document.getElementById("loadSessionInput");
 const importAudioBtn = document.getElementById("importAudioBtn");
@@ -127,6 +128,7 @@ function exposeStateToWindow() {
   window.__depotLastCustomerSummary = lastCustomerSummary;
   window.__depotSessionAudioChunks = sessionAudioChunks;
   window.__depotLastAudioMime = lastAudioMime;
+  window.__depotAppState = APP_STATE;
 }
 
 function sanitiseChecklistArray(value) {
@@ -1738,6 +1740,35 @@ createQuoteBtn.onclick = async () => {
     console.error("Error creating quote:", error);
     alert("Error creating quote: " + error.message);
     setStatus("Error creating quote.");
+  }
+};
+
+// Generate Summary button handler
+generateSummaryBtn.onclick = async () => {
+  // Check if we have any sections or notes
+  if ((!APP_STATE.sections || APP_STATE.sections.length === 0) &&
+      (!APP_STATE.notes || APP_STATE.notes.length === 0) &&
+      !transcriptInput.value.trim()) {
+    alert("No data found to generate recommendations. Please process a transcript first with the 'Send text' button.");
+    return;
+  }
+
+  try {
+    // Import the summary controller
+    const { showSummaryModal } = await import('./summaryController.js');
+
+    // Collect all available data
+    const sections = APP_STATE.sections || [];
+    const notes = [
+      ...(APP_STATE.notes || []),
+      transcriptInput.value.trim()
+    ].filter(n => n);
+
+    // Show the summary modal
+    showSummaryModal(sections, notes);
+  } catch (error) {
+    console.error("Error showing summary:", error);
+    alert("Error generating summary: " + error.message);
   }
 };
 
@@ -3379,3 +3410,10 @@ if (editTranscriptBtn && transcriptDisplay) {
 
 // Initialize internet speed monitoring
 startSpeedMonitoring();
+
+// Initialize summary controller
+import('./summaryController.js').then(module => {
+  module.initSummaryController();
+}).catch(error => {
+  console.error('Error initializing summary controller:', error);
+});

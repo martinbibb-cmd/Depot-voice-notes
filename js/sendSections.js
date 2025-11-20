@@ -239,8 +239,6 @@ async function copySectionToClipboard(section, buttonElement) {
  * Format section for clipboard (plain text)
  */
 function formatSectionForClipboard(section) {
-  const title = section.section || section.title || 'Untitled Section';
-
   // Use the content based on current view mode
   let content;
   if (viewMode === 'natural') {
@@ -249,7 +247,7 @@ function formatSectionForClipboard(section) {
     content = section.plainText || section.plain_text || section.text || section.content || '';
   }
 
-  return `${title}\n${'='.repeat(title.length)}\n\n${content}`;
+  return content;
 }
 
 /**

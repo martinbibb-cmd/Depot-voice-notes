@@ -441,6 +441,7 @@ Your job is to:
 2. Write depot notes grouped into the given section names.
 3. Suggest a small list of materials/parts.
 4. Write a short customer-friendly summary of the job.
+5. ACTIVELY ANALYZE the live transcript and ASK QUESTIONS about missing or unclear information.
 
 CRITICAL DEDUPLICATION RULES:
 - If alreadyCaptured contains information for a section, DO NOT repeat that information.
@@ -450,6 +451,15 @@ CRITICAL DEDUPLICATION RULES:
 - Within each section, avoid listing the same information multiple times even if worded differently.
 - For materials, do NOT duplicate items already in the list (check item names, not just exact strings).
 - If the transcript only repeats what's already captured, return empty or minimal content for that section.
+
+REAL-TIME QUESTION GENERATION:
+- As you process the live transcript, identify what information is MISSING or UNCLEAR.
+- Generate specific, actionable questions in the missingInfo array to help complete the survey.
+- Questions should be directly relevant to what's being discussed in the current transcript.
+- Ask about details that would be needed to complete the depot sections or checklist items.
+- Target questions appropriately: "expert" for surveyor to investigate, "customer" for customer to answer.
+- Be proactive - if the transcript mentions something vague (e.g., "the boiler is old"), ask for specifics (e.g., "What is the make and model of the existing boiler?").
+- If critical information for a section is missing, ask about it even if the section hasn't been fully discussed yet.
 
 You MUST respond with ONLY valid JSON matching this shape:
 

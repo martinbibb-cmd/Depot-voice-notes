@@ -3191,10 +3191,10 @@ if (confirmSessionNameBtn) {
     hideSessionNameModal();
     markSessionActive();
 
-    // Now start the live session
-    if (originalStartLiveSession) {
-      originalStartLiveSession();
-    }
+    // Auto-recording disabled - user must manually click Start button
+    // if (originalStartLiveSession) {
+    //   originalStartLiveSession();
+    // }
   });
 }
 

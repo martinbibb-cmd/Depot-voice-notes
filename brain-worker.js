@@ -443,6 +443,17 @@ Your job is to:
 4. Write a short customer-friendly summary of the job.
 5. ACTIVELY ANALYZE the live transcript and ASK QUESTIONS about missing or unclear information.
 
+CRITICAL FORMATTING RULES FOR DETAILED INFORMATION:
+- When DETAILED descriptions of positioning, routing, or spatial arrangements are provided, PRESERVE ALL DETAILS.
+- Break detailed positioning/routing information into separate bullet points (semicolon-separated clauses).
+- Each step, direction change, or distinct position should be its own clause.
+- Examples of detailed information to preserve in bullet format:
+  * Pipe routes: "from boiler; under floorboards; along hallway; up wall cavity; into bathroom"
+  * Positioning: "boiler on kitchen wall; 1.5m from floor; 300mm from corner; clear of window"
+  * Component locations: "cylinder in airing cupboard; filter on return pipe; PRV in loft"
+- Do NOT oversimplify or summarize when specific measurements, directions, or positions are mentioned.
+- Do NOT collapse multiple routing steps into a single generic statement.
+
 CRITICAL DEDUPLICATION RULES:
 - If alreadyCaptured contains information for a section, DO NOT repeat that information.
 - Only add NEW information from the current transcript that isn't already captured.
@@ -468,7 +479,7 @@ You MUST respond with ONLY valid JSON matching this shape:
   "sections": [
     {
       "section": "<one of the depot section names>",
-      "plainText": "Short semi-bullet summary; clauses separated by semicolons;",
+      "plainText": "Detailed semi-bullet format; separate clauses with semicolons; preserve all positioning/routing details as distinct clauses;",
       "naturalLanguage": "Human sentence description for depot notes."
     }
   ],

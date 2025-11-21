@@ -1240,6 +1240,33 @@
       background: rgba(255,255,255,0.3);
       transform: rotate(90deg);
     }
+    .read-aloud-btn {
+      background: rgba(255,255,255,0.2);
+      border: 1px solid rgba(255,255,255,0.3);
+      color: white;
+      padding: 8px 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      transition: all 0.2s ease;
+    }
+    .read-aloud-btn:hover {
+      background: rgba(255,255,255,0.3);
+      transform: translateY(-1px);
+    }
+    .read-aloud-btn.reading {
+      background: var(--danger);
+      border-color: var(--danger);
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.7; }
+    }
     .slide-over-content {
       flex: 1;
       overflow-y: auto;

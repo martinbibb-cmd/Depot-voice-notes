@@ -6,12 +6,28 @@
 // State for the view mode
 let viewMode = 'natural'; // 'natural' or 'automatic'
 
+// Track the active slide-over and its sections
+let activeSlideOver = null;
+let activeSections = null;
+let speechSynthesis = window.speechSynthesis;
+let currentUtterance = null;
+let isSpeaking = false;
+
 /**
  * Show the send sections slide-over
  */
 export function showSendSectionsSlideOver(sections) {
+  // Close existing slide-over if any
+  if (activeSlideOver) {
+    closeSlideOver(activeSlideOver);
+  }
+
   const slideOver = createSlideOverElement(sections);
   document.body.appendChild(slideOver);
+
+  // Store references
+  activeSlideOver = slideOver;
+  activeSections = sections;
 
   // Trigger animation
   setTimeout(() => {
@@ -20,6 +36,62 @@ export function showSendSectionsSlideOver(sections) {
 
   // Setup event listeners
   setupSlideOverEvents(slideOver, sections);
+}
+
+/**
+ * Update the active slide-over with new sections
+ */
+export function updateSendSectionsSlideOver(sections) {
+  if (!activeSlideOver) {
+    return; // No active slide-over to update
+  }
+
+  // Update stored sections
+  activeSections = sections;
+
+  // Re-render the content
+  const contentEl = activeSlideOver.querySelector('#sectionsContent');
+  if (contentEl) {
+    contentEl.innerHTML = renderSectionsList(sections);
+
+    // Re-attach event listeners
+    attachSectionEventListeners(contentEl, sections);
+  }
+}
+
+/**
+ * Attach event listeners to section elements
+ */
+function attachSectionEventListeners(container, sections) {
+  // Copy button listeners
+  const copyBtns = container.querySelectorAll('.copy-section-btn');
+  copyBtns.forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const index = parseInt(e.currentTarget.dataset.sectionIndex, 10);
+      const section = sections[index];
+      if (section) {
+        copySectionToClipboard(section, e.currentTarget);
+      }
+    });
+  });
+
+  // Expand/collapse toggle listeners
+  const expandToggles = container.querySelectorAll('.expand-toggle');
+  expandToggles.forEach(toggle => {
+    toggle.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const contentSection = toggle.closest('.content-section');
+      const contentText = contentSection.querySelector('.section-content-text');
+
+      if (contentText.classList.contains('hidden')) {
+        contentText.classList.remove('hidden');
+        toggle.textContent = '▲ Hide';
+      } else {
+        contentText.classList.add('hidden');
+        toggle.textContent = '▼ Show';
+      }
+    });
+  });
 }
 
 /**
@@ -34,8 +106,16 @@ function createSlideOverElement(sections) {
     <div class="slide-over-backdrop"></div>
     <div class="slide-over-panel">
       <div class="slide-over-header">
-        <div style="display: flex; align-items: center; gap: 12px;">
+        <div style="display: flex; align-items: center; gap: 12px; width: 100%;">
           <h2 style="margin: 0;">Send Sections</h2>
+          <button id="readAloudBtn" class="read-aloud-btn" title="Read notes aloud" style="margin-left: 12px;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+              <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+              <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+            </svg>
+            <span id="readAloudText">Read Aloud</span>
+          </button>
           <div class="view-mode-toggle" style="display: flex; align-items: center; gap: 8px; margin-left: auto; margin-right: 40px;">
             <span style="font-size: 0.75rem; font-weight: 600; color: white; opacity: ${viewMode === 'automatic' ? '1' : '0.6'};">Automatic</span>
             <div id="viewModeToggle" class="toggle-switch ${viewMode === 'natural' ? 'active' : ''}">
@@ -72,23 +152,22 @@ function renderSectionsList(sections) {
   }
 
   return sections.map((section, index) => {
-    // Determine what content to show based on view mode
-    let content;
-    let title;
+    const title = section.section || section.title || 'Untitled Section';
+    const plainText = section.plainText || section.plain_text || section.text || '';
+    const naturalLanguage = section.naturalLanguage || section.natural_language || section.summary || section.notes || '';
+    const description = section.description || '';
 
-    // Handle both old format (section.content) and new format (section.plainText/naturalLanguage)
-    if (viewMode === 'natural') {
-      content = section.naturalLanguage || section.natural_language || section.summary || section.notes || section.content || '';
-      title = section.section || section.title || 'Untitled Section';
-    } else {
-      content = section.plainText || section.plain_text || section.text || section.content || '';
-      title = section.section || section.title || 'Untitled Section';
-    }
+    // Calculate metadata
+    const plainTextWords = plainText.trim() ? plainText.trim().split(/\s+/).length : 0;
+    const naturalLanguageWords = naturalLanguage.trim() ? naturalLanguage.trim().split(/\s+/).length : 0;
 
     return `
       <div class="section-card" data-section-index="${index}">
         <div class="section-card-header">
-          <h3 class="section-card-title">${escapeHtml(title)}</h3>
+          <div>
+            <h3 class="section-card-title">${escapeHtml(title)}</h3>
+            ${description ? `<div class="section-description">${escapeHtml(description)}</div>` : ''}
+          </div>
           <button class="copy-section-btn" data-section-index="${index}" title="Copy to clipboard">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
@@ -98,7 +177,10 @@ function renderSectionsList(sections) {
           </button>
         </div>
         <div class="section-card-content">
-          ${formatSectionContent(content)}
+          ${viewMode === 'natural' ?
+            formatDetailedContent(naturalLanguage, plainText, naturalLanguageWords, plainTextWords) :
+            formatDetailedContent(plainText, naturalLanguage, plainTextWords, naturalLanguageWords)
+          }
         </div>
       </div>
     `;
@@ -106,12 +188,56 @@ function renderSectionsList(sections) {
 }
 
 /**
- * Format section content for display
+ * Format detailed content showing primary and secondary views with metadata
  */
-function formatSectionContent(content) {
-  if (!content) {
+function formatDetailedContent(primaryContent, secondaryContent, primaryWords, secondaryWords) {
+  const hasPrimary = primaryContent && primaryContent.trim();
+  const hasSecondary = secondaryContent && secondaryContent.trim();
+
+  if (!hasPrimary && !hasSecondary) {
     return '<div style="color: var(--muted); font-style: italic;">No content</div>';
   }
+
+  const primaryLabel = viewMode === 'natural' ? 'Natural Language' : 'Structured Format';
+  const secondaryLabel = viewMode === 'natural' ? 'Structured Format' : 'Natural Language';
+
+  let html = '';
+
+  // Primary content (larger, prominent)
+  if (hasPrimary) {
+    html += `
+      <div class="content-section primary">
+        <div class="content-label">
+          ${primaryLabel}
+          <span class="word-count">${primaryWords} word${primaryWords !== 1 ? 's' : ''}</span>
+        </div>
+        <div class="section-content-text">${formatText(primaryContent)}</div>
+      </div>
+    `;
+  }
+
+  // Secondary content (smaller, collapsed by default if both exist)
+  if (hasSecondary) {
+    html += `
+      <div class="content-section secondary ${hasPrimary ? 'collapsed' : ''}">
+        <div class="content-label">
+          ${secondaryLabel}
+          <span class="word-count">${secondaryWords} word${secondaryWords !== 1 ? 's' : ''}</span>
+          ${hasPrimary ? '<span class="expand-toggle">▼ Show</span>' : ''}
+        </div>
+        <div class="section-content-text ${hasPrimary ? 'hidden' : ''}">${formatText(secondaryContent)}</div>
+      </div>
+    `;
+  }
+
+  return html;
+}
+
+/**
+ * Format text with basic markdown support
+ */
+function formatText(content) {
+  if (!content) return '';
 
   // Convert newlines to <br> and preserve formatting
   const formatted = escapeHtml(content)
@@ -119,7 +245,18 @@ function formatSectionContent(content) {
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
     .replace(/\*(.*?)\*/g, '<em>$1</em>');
 
-  return `<div class="section-content-text">${formatted}</div>`;
+  return formatted;
+}
+
+/**
+ * Format section content for display (legacy - kept for compatibility)
+ */
+function formatSectionContent(content) {
+  if (!content) {
+    return '<div style="color: var(--muted); font-style: italic;">No content</div>';
+  }
+
+  return `<div class="section-content-text">${formatText(content)}</div>`;
 }
 
 /**
@@ -138,10 +275,24 @@ function setupSlideOverEvents(slideOver, sections) {
     closeSlideOver(slideOver);
   });
 
+  // Read aloud button
+  const readAloudBtn = slideOver.querySelector('#readAloudBtn');
+  if (readAloudBtn) {
+    readAloudBtn.addEventListener('click', () => {
+      toggleReadAloud(readAloudBtn, sections);
+    });
+  }
+
   // View mode toggle
   const viewModeToggle = slideOver.querySelector('#viewModeToggle');
   if (viewModeToggle) {
     viewModeToggle.addEventListener('click', () => {
+      // Stop reading if switching modes
+      if (isSpeaking) {
+        stopReadAloud();
+        updateReadAloudButton(readAloudBtn, false);
+      }
+
       // Toggle view mode
       viewMode = viewMode === 'natural' ? 'automatic' : 'natural';
 
@@ -158,33 +309,16 @@ function setupSlideOverEvents(slideOver, sections) {
       const contentEl = slideOver.querySelector('#sectionsContent');
       if (contentEl) {
         contentEl.innerHTML = renderSectionsList(sections);
-
-        // Re-attach copy button listeners
-        const copyBtns = contentEl.querySelectorAll('.copy-section-btn');
-        copyBtns.forEach(btn => {
-          btn.addEventListener('click', (e) => {
-            const index = parseInt(e.currentTarget.dataset.sectionIndex, 10);
-            const section = sections[index];
-            if (section) {
-              copySectionToClipboard(section, e.currentTarget);
-            }
-          });
-        });
+        attachSectionEventListeners(contentEl, sections);
       }
     });
   }
 
-  // Copy buttons
-  const copyBtns = slideOver.querySelectorAll('.copy-section-btn');
-  copyBtns.forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      const index = parseInt(e.currentTarget.dataset.sectionIndex, 10);
-      const section = sections[index];
-      if (section) {
-        copySectionToClipboard(section, e.currentTarget);
-      }
-    });
-  });
+  // Initial event listeners for sections
+  const contentEl = slideOver.querySelector('#sectionsContent');
+  if (contentEl) {
+    attachSectionEventListeners(contentEl, sections);
+  }
 
   // Escape key to close
   const escapeHandler = (e) => {
@@ -194,6 +328,92 @@ function setupSlideOverEvents(slideOver, sections) {
     }
   };
   document.addEventListener('keydown', escapeHandler);
+}
+
+/**
+ * Toggle read aloud functionality
+ */
+function toggleReadAloud(buttonElement, sections) {
+  if (isSpeaking) {
+    stopReadAloud();
+    updateReadAloudButton(buttonElement, false);
+  } else {
+    startReadAloud(sections, buttonElement);
+  }
+}
+
+/**
+ * Start reading sections aloud
+ */
+function startReadAloud(sections, buttonElement) {
+  if (!sections || sections.length === 0) {
+    return;
+  }
+
+  // Stop any ongoing speech
+  stopReadAloud();
+
+  // Gather all text to read
+  const textToRead = sections.map(section => {
+    const title = section.section || section.title || 'Untitled Section';
+    let content;
+    if (viewMode === 'natural') {
+      content = section.naturalLanguage || section.natural_language || section.summary || section.notes || section.content || '';
+    } else {
+      content = section.plainText || section.plain_text || section.text || section.content || '';
+    }
+    return `${title}. ${content}`;
+  }).join('. ');
+
+  // Create utterance
+  currentUtterance = new SpeechSynthesisUtterance(textToRead);
+  currentUtterance.rate = 1.0; // Normal speed
+  currentUtterance.pitch = 1.0; // Normal pitch
+  currentUtterance.volume = 1.0; // Full volume
+
+  // Event listeners
+  currentUtterance.onend = () => {
+    isSpeaking = false;
+    updateReadAloudButton(buttonElement, false);
+  };
+
+  currentUtterance.onerror = (event) => {
+    console.error('Speech synthesis error:', event);
+    isSpeaking = false;
+    updateReadAloudButton(buttonElement, false);
+  };
+
+  // Start speaking
+  speechSynthesis.speak(currentUtterance);
+  isSpeaking = true;
+  updateReadAloudButton(buttonElement, true);
+}
+
+/**
+ * Stop reading aloud
+ */
+function stopReadAloud() {
+  if (speechSynthesis.speaking) {
+    speechSynthesis.cancel();
+  }
+  isSpeaking = false;
+  currentUtterance = null;
+}
+
+/**
+ * Update read aloud button appearance
+ */
+function updateReadAloudButton(buttonElement, isReading) {
+  const textElement = buttonElement.querySelector('#readAloudText');
+  if (textElement) {
+    textElement.textContent = isReading ? 'Stop' : 'Read Aloud';
+  }
+
+  if (isReading) {
+    buttonElement.classList.add('reading');
+  } else {
+    buttonElement.classList.remove('reading');
+  }
 }
 
 /**
@@ -254,6 +474,15 @@ function formatSectionForClipboard(section) {
  * Close the slide-over
  */
 function closeSlideOver(slideOver) {
+  // Stop any ongoing speech
+  stopReadAloud();
+
+  // Clear references
+  if (slideOver === activeSlideOver) {
+    activeSlideOver = null;
+    activeSections = null;
+  }
+
   slideOver.classList.remove('active');
 
   setTimeout(() => {

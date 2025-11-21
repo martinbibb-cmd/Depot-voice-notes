@@ -21,7 +21,7 @@ import {
   analyzeTranscriptForQuestions,
   resetAskedQuestions
 } from "./agentMode.js";
-import { showSendSectionsSlideOver } from "./sendSections.js";
+import { showSendSectionsSlideOver, updateSendSectionsSlideOver } from "./sendSections.js";
 
 // --- CONFIG / STORAGE KEYS ---
 const SECTION_STORAGE_KEY = "depot.sectionSchema";
@@ -639,6 +639,9 @@ function syncSectionsState(rawSections = lastRawSections) {
   APP_STATE.sections = normalised;
   APP_STATE.notes = normalised;
   updateDebugSnapshot();
+
+  // Update the slide-over if it's open
+  updateSendSectionsSlideOver(normalised);
 }
 
 function firstDefined(...values) {

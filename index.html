@@ -1240,6 +1240,33 @@
       background: rgba(255,255,255,0.3);
       transform: rotate(90deg);
     }
+    .read-aloud-btn {
+      background: rgba(255,255,255,0.2);
+      border: 1px solid rgba(255,255,255,0.3);
+      color: white;
+      padding: 8px 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      transition: all 0.2s ease;
+    }
+    .read-aloud-btn:hover {
+      background: rgba(255,255,255,0.3);
+      transform: translateY(-1px);
+    }
+    .read-aloud-btn.reading {
+      background: var(--danger);
+      border-color: var(--danger);
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.7; }
+    }
     .slide-over-content {
       flex: 1;
       overflow-y: auto;
@@ -1270,6 +1297,62 @@
       font-weight: 700;
       color: #1e293b;
       margin: 0;
+    }
+    .section-description {
+      font-size: 0.75rem;
+      color: var(--muted);
+      margin-top: 4px;
+      font-style: italic;
+    }
+    .content-section {
+      margin-bottom: 12px;
+    }
+    .content-section.primary {
+      margin-bottom: 16px;
+    }
+    .content-section.secondary {
+      padding-top: 12px;
+      border-top: 1px dashed var(--border);
+    }
+    .content-label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--accent);
+    }
+    .content-section.secondary .content-label {
+      color: var(--muted);
+    }
+    .word-count {
+      font-size: 0.65rem;
+      font-weight: 500;
+      color: var(--muted);
+      background: rgba(0,0,0,0.05);
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+    .expand-toggle {
+      margin-left: auto;
+      cursor: pointer;
+      color: var(--accent);
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: none;
+      letter-spacing: normal;
+      padding: 2px 8px;
+      border-radius: 4px;
+      transition: all 0.2s ease;
+    }
+    .expand-toggle:hover {
+      background: rgba(59, 130, 246, 0.1);
+    }
+    .hidden {
+      display: none;
     }
     .copy-section-btn {
       background: var(--accent);

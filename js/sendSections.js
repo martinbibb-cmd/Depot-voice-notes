@@ -602,6 +602,11 @@ window.showTweakModal = function(section, sectionIndex) {
 
   document.body.appendChild(modal);
 
+  // Trigger animation by adding active class
+  setTimeout(() => {
+    modal.classList.add('active');
+  }, 10);
+
   // Get elements
   const textarea = modal.querySelector('#tweakInstructions');
   const submitBtn = modal.querySelector('.tweak-modal-submit');

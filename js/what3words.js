@@ -6,9 +6,11 @@
 let currentW3WAddress = '';
 let w3wModalInstance = null;
 let w3wPopupWindow = null;
+let pasteListenerActive = false;
+let globalPasteHandler = null;
 
 /**
- * Show the what3words modal
+ * Show the what3words modal and popup
  */
 export function showWhat3WordsModal() {
   // Close existing modal if any
@@ -16,6 +18,10 @@ export function showWhat3WordsModal() {
     closeW3WModal(w3wModalInstance);
   }
 
+  // Open the what3words popup window immediately
+  openWhat3WordsWindow();
+
+  // Create a simplified modal with paste area
   const modal = createW3WModal();
   document.body.appendChild(modal);
   w3wModalInstance = modal;
@@ -26,6 +32,9 @@ export function showWhat3WordsModal() {
   }, 10);
 
   setupW3WModalEvents(modal);
+
+  // Activate global paste listener
+  activatePasteListener();
 }
 
 /**
@@ -45,44 +54,26 @@ function createW3WModal() {
       </div>
       <div class="w3w-modal-body">
         <div class="w3w-instructions">
-          <h4>How to use:</h4>
+          <p style="margin: 0 0 15px 0; color: #059669; font-weight: 500;">
+            ✓ what3words map opened in popup window
+          </p>
+          <h4>Quick steps:</h4>
           <ol>
-            <li>Click "Open what3words Map" to open what3words.com in a new window</li>
             <li>Find your location on the what3words map</li>
             <li>Copy the 3 words address (e.g., ///filled.index.sooner)</li>
-            <li>Paste it into the input field below</li>
-            <li>Click "Add to Delivery & Office Notes"</li>
+            <li>Paste it into the box below</li>
           </ol>
         </div>
-        <div style="text-align: center; margin: 20px 0;">
-          <button class="w3w-open-btn" id="w3wOpenBtn">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
-              <polyline points="15 3 21 3 21 9"></polyline>
-              <line x1="10" y1="14" x2="21" y2="3"></line>
-            </svg>
-            Open what3words Map
-          </button>
-        </div>
-        <div class="w3w-input-container">
-          <input
-            type="text"
-            class="w3w-input"
-            id="w3wAddressInput"
-            placeholder="Paste what3words address here (e.g., ///filled.index.sooner)"
-          />
+        <div class="w3w-paste-area">
+          <div class="w3w-paste-box" id="w3wPasteBox" contenteditable="true" data-placeholder="Paste what3words address here (e.g., ///filled.index.sooner)">
+          </div>
+          <div class="w3w-status" id="w3wStatus"></div>
         </div>
       </div>
       <div class="w3w-modal-footer">
         <div class="w3w-footer-info">
-          Address will be added to both Delivery notes and Office notes
+          Address will be automatically added to Delivery notes and Office notes
         </div>
-        <button class="w3w-paste-btn" id="w3wPasteBtn" disabled>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="20 6 9 17 4 12"></polyline>
-          </svg>
-          Add to Delivery & Office Notes
-        </button>
       </div>
     </div>
   `;
@@ -94,9 +85,8 @@ function createW3WModal() {
  */
 function setupW3WModalEvents(modal) {
   const closeBtn = modal.querySelector('.w3w-modal-close');
-  const openBtn = modal.querySelector('#w3wOpenBtn');
-  const pasteBtn = modal.querySelector('#w3wPasteBtn');
-  const addressInput = modal.querySelector('#w3wAddressInput');
+  const pasteBox = modal.querySelector('#w3wPasteBox');
+  const statusDiv = modal.querySelector('#w3wStatus');
 
   // Close button
   closeBtn.addEventListener('click', () => {
@@ -119,37 +109,102 @@ function setupW3WModalEvents(modal) {
   };
   document.addEventListener('keydown', escapeHandler);
 
-  // Open what3words button
-  openBtn.addEventListener('click', () => {
-    openWhat3WordsWindow();
+  // Paste event in the paste box
+  pasteBox.addEventListener('paste', (e) => {
+    e.preventDefault();
+    const pastedText = e.clipboardData.getData('text');
+    handlePastedAddress(pastedText, pasteBox, statusDiv, modal);
   });
 
-  // Address input change - enable/disable paste button
-  addressInput.addEventListener('input', () => {
-    const value = addressInput.value.trim();
-    const isValid = validateW3WAddress(value);
-    pasteBtn.disabled = !isValid;
-
-    if (isValid) {
-      currentW3WAddress = value;
-      addressInput.style.borderColor = '#10b981';
-      addressInput.style.backgroundColor = '#ecfdf5';
-    } else {
-      addressInput.style.borderColor = '';
-      addressInput.style.backgroundColor = '';
+  // Input event for typed text (less common but possible)
+  pasteBox.addEventListener('input', () => {
+    const text = pasteBox.textContent.trim();
+    if (text) {
+      handlePastedAddress(text, pasteBox, statusDiv, modal);
     }
   });
 
-  // Paste button
-  pasteBtn.addEventListener('click', () => {
-    if (currentW3WAddress) {
-      pasteToDeliveryAndOfficeNotes(currentW3WAddress);
-      closeW3WModal(modal);
-    }
-  });
+  // Focus paste box
+  setTimeout(() => pasteBox.focus(), 100);
+}
 
-  // Focus input
-  setTimeout(() => addressInput.focus(), 100);
+/**
+ * Handle pasted what3words address
+ */
+function handlePastedAddress(text, pasteBox, statusDiv, modal) {
+  const trimmedText = text.trim();
+  const isValid = validateW3WAddress(trimmedText);
+
+  if (isValid) {
+    // Show success status
+    statusDiv.innerHTML = '✓ Valid what3words address detected!';
+    statusDiv.style.color = '#059669';
+    statusDiv.style.fontWeight = '500';
+    pasteBox.style.borderColor = '#10b981';
+    pasteBox.style.backgroundColor = '#ecfdf5';
+    pasteBox.textContent = trimmedText;
+
+    // Auto-populate notes after a brief delay
+    setTimeout(() => {
+      pasteToDeliveryAndOfficeNotes(trimmedText);
+
+      // Show success message
+      statusDiv.innerHTML = '✓ Added to Delivery notes and Office notes!';
+
+      // Close modal and popup after 1.5 seconds
+      setTimeout(() => {
+        closeW3WModal(modal);
+      }, 1500);
+    }, 500);
+  } else {
+    // Show error status
+    statusDiv.innerHTML = '✗ Invalid format. Expected 3 words separated by dots (e.g., ///filled.index.sooner)';
+    statusDiv.style.color = '#dc2626';
+    statusDiv.style.fontWeight = '400';
+    pasteBox.style.borderColor = '#ef4444';
+    pasteBox.style.backgroundColor = '#fef2f2';
+    pasteBox.textContent = trimmedText;
+  }
+}
+
+/**
+ * Activate global paste listener
+ */
+function activatePasteListener() {
+  if (pasteListenerActive) return;
+
+  globalPasteHandler = (e) => {
+    // Only process if modal is open
+    if (!w3wModalInstance) return;
+
+    // Don't interfere with paste in the modal's paste box
+    const pasteBox = document.getElementById('w3wPasteBox');
+    if (e.target === pasteBox) return;
+
+    const pastedText = e.clipboardData?.getData('text');
+    if (pastedText) {
+      const isValid = validateW3WAddress(pastedText);
+      if (isValid && pasteBox) {
+        e.preventDefault();
+        const statusDiv = document.getElementById('w3wStatus');
+        handlePastedAddress(pastedText, pasteBox, statusDiv, w3wModalInstance);
+      }
+    }
+  };
+
+  document.addEventListener('paste', globalPasteHandler, true);
+  pasteListenerActive = true;
+}
+
+/**
+ * Deactivate global paste listener
+ */
+function deactivatePasteListener() {
+  if (globalPasteHandler) {
+    document.removeEventListener('paste', globalPasteHandler, true);
+    globalPasteHandler = null;
+  }
+  pasteListenerActive = false;
 }
 
 /**
@@ -309,6 +364,9 @@ function pasteToDeliveryAndOfficeNotes(address) {
  * Close the what3words modal
  */
 function closeW3WModal(modal) {
+  // Deactivate global paste listener
+  deactivatePasteListener();
+
   // Close popup window if open
   if (w3wPopupWindow && !w3wPopupWindow.closed) {
     w3wPopupWindow.close();

@@ -429,8 +429,12 @@ async function handleTweakSection(request, env) {
 }
 
 async function tweakSectionWithAI(env, payload) {
-  const apiKey = env.OPENAI_API_KEY;
-  if (!apiKey) throw new Error("OPENAI_API_KEY not configured");
+  const openaiKey = env.OPENAI_API_KEY;
+  const anthropicKey = env.ANTHROPIC_API_KEY;
+
+  if (!openaiKey && !anthropicKey) {
+    throw new Error("Either OPENAI_API_KEY or ANTHROPIC_API_KEY must be configured");
+  }
 
   const { sectionName, plainText, naturalLanguage, instructions } = payload;
 
@@ -474,45 +478,82 @@ Do not include any explanation outside the JSON.`.trim();
     instructions
   };
 
-  const body = {
-    model: "gpt-4.1",
-    temperature: 0.3,
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: JSON.stringify(userPayload) }
-    ]
-  };
+  // Try OpenAI first, fall back to Anthropic if it fails
+  let trimmedContent;
+  let lastError;
 
-  const res = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${apiKey}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify(body)
-  });
+  if (openaiKey) {
+    try {
+      console.log("Attempting to call OpenAI for section tweak...");
+      const body = {
+        model: "gpt-4.1",
+        temperature: 0.3,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: JSON.stringify(userPayload) }
+        ]
+      };
 
-  const rawText = await res.text();
+      const res = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${openaiKey}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(body)
+      });
 
-  if (!res.ok) {
-    throw new Error(`chat.completions ${res.status}: ${rawText}`);
+      const rawText = await res.text();
+
+      if (!res.ok) {
+        throw new Error(`OpenAI chat.completions ${res.status}: ${rawText}`);
+      }
+
+      let parsed;
+      try {
+        parsed = JSON.parse(rawText);
+      } catch (err) {
+        throw new Error(`OpenAI returned non-JSON response: ${String(err)} :: ${rawText}`);
+      }
+
+      const content = parsed?.choices?.[0]?.message?.content;
+      if (!content || typeof content !== "string") {
+        throw new Error("No content from OpenAI model");
+      }
+
+      trimmedContent = content.trim();
+      if (!trimmedContent) {
+        throw new Error("OpenAI model content was empty");
+      }
+
+      console.log("OpenAI call successful");
+    } catch (err) {
+      console.error("OpenAI call failed:", String(err));
+      lastError = err;
+      trimmedContent = null;
+    }
   }
 
-  let parsed;
-  try {
-    parsed = JSON.parse(rawText);
-  } catch (err) {
-    throw new Error(`OpenAI returned non-JSON response: ${String(err)} :: ${rawText}`);
+  // Fall back to Anthropic if OpenAI failed or wasn't available
+  if (!trimmedContent && anthropicKey) {
+    try {
+      console.log("Falling back to Anthropic for section tweak...");
+      trimmedContent = await callAnthropicChat(
+        anthropicKey,
+        systemPrompt,
+        JSON.stringify(userPayload),
+        0.3
+      );
+      console.log("Anthropic call successful");
+    } catch (err) {
+      console.error("Anthropic call failed:", String(err));
+      lastError = err;
+      trimmedContent = null;
+    }
   }
 
-  const content = parsed?.choices?.[0]?.message?.content;
-  if (!content || typeof content !== "string") {
-    throw new Error("No content from model");
-  }
-
-  const trimmedContent = content.trim();
   if (!trimmedContent) {
-    throw new Error("Model content was empty");
+    throw new Error(`All AI providers failed. Last error: ${String(lastError)}`);
   }
 
   let jsonOut;
@@ -568,9 +609,57 @@ async function transcribeAudio(env, audioBuffer, mime) {
   return data.text || "";
 }
 
+async function callAnthropicChat(apiKey, systemPrompt, userContent, temperature = 0.2) {
+  if (!apiKey) throw new Error("ANTHROPIC_API_KEY not configured");
+
+  const body = {
+    model: "claude-sonnet-4-5-20250929",
+    max_tokens: 4096,
+    temperature,
+    system: systemPrompt,
+    messages: [
+      { role: "user", content: userContent }
+    ]
+  };
+
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(body)
+  });
+
+  const rawText = await res.text();
+
+  if (!res.ok) {
+    throw new Error(`anthropic.messages ${res.status}: ${rawText}`);
+  }
+
+  let parsed;
+  try {
+    parsed = JSON.parse(rawText);
+  } catch (err) {
+    throw new Error(`Anthropic returned non-JSON response: ${String(err)} :: ${rawText}`);
+  }
+
+  const content = parsed?.content?.[0]?.text;
+  if (!content || typeof content !== "string") {
+    throw new Error("No content from Anthropic model");
+  }
+
+  return content.trim();
+}
+
 async function callNotesModel(env, payload) {
-  const apiKey = env.OPENAI_API_KEY;
-  if (!apiKey) throw new Error("OPENAI_API_KEY not configured");
+  const openaiKey = env.OPENAI_API_KEY;
+  const anthropicKey = env.ANTHROPIC_API_KEY;
+
+  if (!openaiKey && !anthropicKey) {
+    throw new Error("Either OPENAI_API_KEY or ANTHROPIC_API_KEY must be configured");
+  }
 
   const {
     transcript,
@@ -675,46 +764,82 @@ Always preserve boiler/cylinder make & model exactly as spoken.
     forceStructured
   };
 
-  const body = {
-    model: "gpt-4.1",
-    temperature: 0.2,
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: JSON.stringify(userPayload) }
-    ]
-  };
+  // Try OpenAI first, fall back to Anthropic if it fails
+  let trimmedContent;
+  let lastError;
 
-  const res = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${apiKey}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify(body)
-  });
+  if (openaiKey) {
+    try {
+      console.log("Attempting to call OpenAI for notes model...");
+      const body = {
+        model: "gpt-4.1",
+        temperature: 0.2,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: JSON.stringify(userPayload) }
+        ]
+      };
 
-  const rawText = await res.text();
+      const res = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${openaiKey}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(body)
+      });
 
-  if (!res.ok) {
-    // Surface the OpenAI error cleanly to the front-end
-    throw new Error(`chat.completions ${res.status}: ${rawText}`);
+      const rawText = await res.text();
+
+      if (!res.ok) {
+        throw new Error(`OpenAI chat.completions ${res.status}: ${rawText}`);
+      }
+
+      let parsed;
+      try {
+        parsed = JSON.parse(rawText);
+      } catch (err) {
+        throw new Error(`OpenAI returned non-JSON response: ${String(err)} :: ${rawText}`);
+      }
+
+      const content = parsed?.choices?.[0]?.message?.content;
+      if (!content || typeof content !== "string") {
+        throw new Error("No content from OpenAI model");
+      }
+
+      trimmedContent = content.trim();
+      if (!trimmedContent) {
+        throw new Error("OpenAI model content was empty");
+      }
+
+      console.log("OpenAI call successful");
+    } catch (err) {
+      console.error("OpenAI call failed:", String(err));
+      lastError = err;
+      trimmedContent = null;
+    }
   }
 
-  let parsed;
-  try {
-    parsed = JSON.parse(rawText);
-  } catch (err) {
-    throw new Error(`OpenAI returned non-JSON response: ${String(err)} :: ${rawText}`);
+  // Fall back to Anthropic if OpenAI failed or wasn't available
+  if (!trimmedContent && anthropicKey) {
+    try {
+      console.log("Falling back to Anthropic for notes model...");
+      trimmedContent = await callAnthropicChat(
+        anthropicKey,
+        systemPrompt,
+        JSON.stringify(userPayload),
+        0.2
+      );
+      console.log("Anthropic call successful");
+    } catch (err) {
+      console.error("Anthropic call failed:", String(err));
+      lastError = err;
+      trimmedContent = null;
+    }
   }
 
-  const content = parsed?.choices?.[0]?.message?.content;
-  if (!content || typeof content !== "string") {
-    throw new Error("No content from model");
-  }
-
-  const trimmedContent = content.trim();
   if (!trimmedContent) {
-    throw new Error("Model content was empty");
+    throw new Error(`All AI providers failed. Last error: ${String(lastError)}`);
   }
 
   let jsonOut;

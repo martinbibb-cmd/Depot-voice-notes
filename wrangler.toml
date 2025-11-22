@@ -6,5 +6,6 @@ compatibility_date = "2024-11-08"
 # Lock this to your site origin(s) for security:
 ALLOWED_ORIGIN = "https://YOUR-DOMAIN.example"
 
-# Set your secret via:
+# Set your secrets via:
 #   wrangler secret put OPENAI_API_KEY
+#   wrangler secret put ANTHROPIC_API_KEY

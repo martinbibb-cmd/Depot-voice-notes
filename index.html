@@ -1877,6 +1877,59 @@
       cursor: not-allowed;
       opacity: 0.5;
     }
+    .w3w-paste-area {
+      margin-top: 20px;
+    }
+    .w3w-paste-box {
+      min-height: 120px;
+      padding: 16px;
+      border: 2px dashed var(--border);
+      border-radius: 12px;
+      font-size: 1.1rem;
+      font-weight: 600;
+      font-family: monospace;
+      text-align: center;
+      color: var(--accent);
+      transition: all 0.3s ease;
+      cursor: text;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg-secondary);
+      position: relative;
+    }
+    .w3w-paste-box:empty:before {
+      content: attr(data-placeholder);
+      color: var(--muted);
+      font-size: 0.9rem;
+      font-weight: 400;
+      position: absolute;
+      pointer-events: none;
+      opacity: 0.7;
+      max-width: 80%;
+      text-align: center;
+    }
+    .w3w-paste-box:focus {
+      outline: none;
+      border-color: var(--accent);
+      border-style: solid;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+      background: white;
+    }
+    .w3w-paste-box:hover {
+      border-color: var(--accent);
+      background: white;
+    }
+    .w3w-status {
+      margin-top: 12px;
+      padding: 12px;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      text-align: center;
+      min-height: 20px;
+      font-weight: 500;
+      transition: all 0.3s ease;
+    }
   </style>
 </head>
 <body>

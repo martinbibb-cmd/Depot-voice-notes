@@ -139,6 +139,45 @@ function exposeStateToWindow() {
   window.__depotAppState = APP_STATE;
 }
 
+/**
+ * Update a section from the tweak modal
+ * Called by sendSections.js when a section is tweaked with AI
+ */
+window.updateSectionFromTweak = function(sectionIndex, improvedSection) {
+  if (!lastSections || !Array.isArray(lastSections)) {
+    console.warn('updateSectionFromTweak: lastSections not available');
+    return;
+  }
+
+  if (sectionIndex < 0 || sectionIndex >= lastSections.length) {
+    console.warn('updateSectionFromTweak: invalid section index', sectionIndex);
+    return;
+  }
+
+  // Update the section in lastSections
+  lastSections[sectionIndex] = {
+    ...lastSections[sectionIndex],
+    plainText: improvedSection.plainText,
+    naturalLanguage: improvedSection.naturalLanguage,
+    section: improvedSection.section
+  };
+
+  // Sync to APP_STATE
+  APP_STATE.sections = lastSections;
+  APP_STATE.notes = lastSections;
+
+  // Re-expose to window
+  exposeStateToWindow();
+
+  // Refresh UI to show updated content
+  refreshUiFromState();
+
+  // Save to localStorage
+  saveToLocalStorage();
+
+  console.log('Section updated from tweak:', improvedSection.section);
+};
+
 function sanitiseChecklistArray(value) {
   const asArray = (input) => {
     if (!input) return [];

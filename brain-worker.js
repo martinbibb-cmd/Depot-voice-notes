@@ -24,6 +24,10 @@ export default {
         return handleBugReport(request, env);
       }
 
+      if (request.method === "POST" && url.pathname === "/tweak-section") {
+        return handleTweakSection(request, env);
+      }
+
       return jsonResponse({ error: "not_found" }, 404);
     } catch (err) {
       console.error("Worker fatal error:", err);
@@ -365,6 +369,175 @@ function escapeHtml(unsafe) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
+}
+
+/* ---------- /tweak-section ---------- */
+
+async function handleTweakSection(request, env) {
+  let payload;
+  try {
+    payload = await request.json();
+  } catch {
+    return jsonResponse(
+      { error: "bad_request", message: "JSON body required" },
+      400
+    );
+  }
+
+  const { section, instructions } = payload;
+
+  if (!section || typeof section !== "object") {
+    return jsonResponse(
+      { error: "bad_request", message: "section object required" },
+      400
+    );
+  }
+
+  if (!instructions || typeof instructions !== "string" || !instructions.trim()) {
+    return jsonResponse(
+      { error: "bad_request", message: "instructions string required" },
+      400
+    );
+  }
+
+  const sectionName = section.section || section.name || "";
+  const plainText = section.plainText || "";
+  const naturalLanguage = section.naturalLanguage || "";
+
+  if (!sectionName) {
+    return jsonResponse(
+      { error: "bad_request", message: "section must have a name" },
+      400
+    );
+  }
+
+  try {
+    const improved = await tweakSectionWithAI(env, {
+      sectionName,
+      plainText,
+      naturalLanguage,
+      instructions: instructions.trim()
+    });
+    return jsonResponse(improved, 200);
+  } catch (err) {
+    console.error("handleTweakSection error:", err);
+    return jsonResponse(
+      { error: "model_error", message: String(err) },
+      500
+    );
+  }
+}
+
+async function tweakSectionWithAI(env, payload) {
+  const apiKey = env.OPENAI_API_KEY;
+  if (!apiKey) throw new Error("OPENAI_API_KEY not configured");
+
+  const { sectionName, plainText, naturalLanguage, instructions } = payload;
+
+  const systemPrompt = `You are an expert heating survey assistant helping to improve survey notes.
+
+You will receive:
+- A section name (e.g., "Needs", "New boiler and controls")
+- Current plainText (bullet-point style, semicolon-separated)
+- Current naturalLanguage (prose description)
+- User instructions on how to improve the section
+
+Your job is to:
+1. Read the current section content carefully
+2. Apply the user's improvement instructions
+3. Return an improved version of the section that maintains the same format
+
+IMPORTANT RULES:
+- Keep the same section name
+- Maintain the plainText format (semicolon-separated bullet points)
+- Maintain the naturalLanguage format (clear prose)
+- Apply the user's instructions precisely
+- Only modify what the user asks to improve
+- Keep the technical accuracy and detail level
+- Do not add information that wasn't requested
+
+You MUST respond with ONLY valid JSON matching this shape:
+
+{
+  "section": "${sectionName}",
+  "plainText": "Improved bullet points; separated by semicolons;",
+  "naturalLanguage": "Improved prose description."
+}
+
+Do not wrap the JSON in backticks or markdown.
+Do not include any explanation outside the JSON.`.trim();
+
+  const userPayload = {
+    sectionName,
+    currentPlainText: plainText,
+    currentNaturalLanguage: naturalLanguage,
+    instructions
+  };
+
+  const body = {
+    model: "gpt-4.1",
+    temperature: 0.3,
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: JSON.stringify(userPayload) }
+    ]
+  };
+
+  const res = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(body)
+  });
+
+  const rawText = await res.text();
+
+  if (!res.ok) {
+    throw new Error(`chat.completions ${res.status}: ${rawText}`);
+  }
+
+  let parsed;
+  try {
+    parsed = JSON.parse(rawText);
+  } catch (err) {
+    throw new Error(`OpenAI returned non-JSON response: ${String(err)} :: ${rawText}`);
+  }
+
+  const content = parsed?.choices?.[0]?.message?.content;
+  if (!content || typeof content !== "string") {
+    throw new Error("No content from model");
+  }
+
+  const trimmedContent = content.trim();
+  if (!trimmedContent) {
+    throw new Error("Model content was empty");
+  }
+
+  let jsonOut;
+  try {
+    jsonOut = JSON.parse(trimmedContent);
+  } catch (err) {
+    throw new Error(`Model content was not valid JSON: ${String(err)} :: ${content}`);
+  }
+
+  // Safety defaults
+  if (typeof jsonOut.section !== "string" || !jsonOut.section.trim()) {
+    jsonOut.section = sectionName;
+  }
+  if (typeof jsonOut.plainText !== "string") {
+    jsonOut.plainText = plainText;
+  }
+  if (typeof jsonOut.naturalLanguage !== "string") {
+    jsonOut.naturalLanguage = naturalLanguage;
+  }
+
+  return {
+    section: jsonOut.section,
+    plainText: jsonOut.plainText,
+    naturalLanguage: jsonOut.naturalLanguage
+  };
 }
 
 /* ---------- OpenAI helpers ---------- */

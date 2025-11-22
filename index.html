@@ -1694,11 +1694,14 @@
       bottom: 0;
       background: rgba(0,0,0,0.6);
       z-index: 2000;
-      display: flex;
+      display: none;
       align-items: center;
       justify-content: center;
       padding: 20px;
       animation: fadeIn 0.2s ease;
+    }
+    .w3w-modal-backdrop.active {
+      display: flex;
     }
     .w3w-modal-backdrop.closing {
       animation: fadeOut 0.2s ease;

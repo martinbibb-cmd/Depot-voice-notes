@@ -63,6 +63,18 @@ export function updateSendSectionsSlideOver(sections) {
  * Attach event listeners to section elements
  */
 function attachSectionEventListeners(container, sections) {
+  // Tweak button listeners
+  const tweakBtns = container.querySelectorAll('.tweak-section-btn');
+  tweakBtns.forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const index = parseInt(e.currentTarget.dataset.sectionIndex, 10);
+      const section = sections[index];
+      if (section) {
+        showTweakModal(section, index);
+      }
+    });
+  });
+
   // Copy button listeners
   const copyBtns = container.querySelectorAll('.copy-section-btn');
   copyBtns.forEach(btn => {
@@ -168,13 +180,22 @@ function renderSectionsList(sections) {
             <h3 class="section-card-title">${escapeHtml(title)}</h3>
             ${description ? `<div class="section-description">${escapeHtml(description)}</div>` : ''}
           </div>
-          <button class="copy-section-btn" data-section-index="${index}" title="Copy to clipboard">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-            </svg>
-            Copy
-          </button>
+          <div style="display: flex; gap: 8px;">
+            <button class="tweak-section-btn" data-section-index="${index}" title="Tweak this section with AI">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+              </svg>
+              Tweak
+            </button>
+            <button class="copy-section-btn" data-section-index="${index}" title="Copy to clipboard">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+              </svg>
+              Copy
+            </button>
+          </div>
         </div>
         <div class="section-card-content">
           ${viewMode === 'natural' ?
@@ -518,4 +539,193 @@ export function copyAllSections(sections) {
     .catch(err => {
       console.error('Failed to copy all sections:', err);
     });
+}
+
+/**
+ * Show the tweak modal for a section
+ */
+function showTweakModal(section, sectionIndex) {
+  // Create modal
+  const modal = document.createElement('div');
+  modal.className = 'tweak-modal-backdrop';
+  modal.innerHTML = `
+    <div class="tweak-modal">
+      <div class="tweak-modal-header">
+        <h3>Tweak Section: ${escapeHtml(section.section || section.title || 'Untitled')}</h3>
+        <button class="tweak-modal-close" aria-label="Close">×</button>
+      </div>
+      <div class="tweak-modal-body">
+        <div class="tweak-preview">
+          <div class="tweak-preview-label">Current Content:</div>
+          <div class="tweak-preview-content">
+            <div class="tweak-preview-section">
+              <strong>Structured:</strong>
+              <div>${formatText(section.plainText || 'No content')}</div>
+            </div>
+            <div class="tweak-preview-section">
+              <strong>Natural:</strong>
+              <div>${formatText(section.naturalLanguage || 'No content')}</div>
+            </div>
+          </div>
+        </div>
+        <div class="tweak-input-section">
+          <label for="tweakInstructions">How would you like to improve this section?</label>
+          <textarea
+            id="tweakInstructions"
+            placeholder="E.g., 'Make it more concise', 'Add more technical detail', 'Simplify the language'..."
+            rows="4"
+          ></textarea>
+          <div class="tweak-examples">
+            <div class="tweak-examples-label">Suggestion examples:</div>
+            <div class="tweak-example-chips">
+              <button class="tweak-example-chip" data-instruction="Make it more concise">Make it more concise</button>
+              <button class="tweak-example-chip" data-instruction="Add more technical detail">Add more technical detail</button>
+              <button class="tweak-example-chip" data-instruction="Simplify the language">Simplify the language</button>
+              <button class="tweak-example-chip" data-instruction="Make it more specific">Make it more specific</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="tweak-modal-footer">
+        <button class="tweak-modal-cancel">Cancel</button>
+        <button class="tweak-modal-submit" disabled>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: none;">
+            <circle cx="12" cy="12" r="10"></circle>
+            <path d="M12 6v6l4 2"></path>
+          </svg>
+          <span>Apply Tweak</span>
+        </button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+
+  // Get elements
+  const textarea = modal.querySelector('#tweakInstructions');
+  const submitBtn = modal.querySelector('.tweak-modal-submit');
+  const cancelBtn = modal.querySelector('.tweak-modal-cancel');
+  const closeBtn = modal.querySelector('.tweak-modal-close');
+  const exampleChips = modal.querySelectorAll('.tweak-example-chip');
+
+  // Enable/disable submit based on input
+  textarea.addEventListener('input', () => {
+    submitBtn.disabled = !textarea.value.trim();
+  });
+
+  // Example chip click handlers
+  exampleChips.forEach(chip => {
+    chip.addEventListener('click', () => {
+      const instruction = chip.dataset.instruction;
+      textarea.value = instruction;
+      textarea.dispatchEvent(new Event('input'));
+      textarea.focus();
+    });
+  });
+
+  // Submit handler
+  const handleSubmit = async () => {
+    const instructions = textarea.value.trim();
+    if (!instructions) return;
+
+    submitBtn.disabled = true;
+    const submitSpan = submitBtn.querySelector('span');
+    const submitLoader = submitBtn.querySelector('svg');
+    submitSpan.textContent = 'Processing...';
+    if (submitLoader) submitLoader.style.display = 'inline';
+
+    try {
+      await processSectionTweak(section, sectionIndex, instructions);
+      closeTweakModal(modal);
+    } catch (err) {
+      console.error('Tweak error:', err);
+      submitSpan.textContent = 'Error - Try Again';
+      submitBtn.disabled = false;
+      if (submitLoader) submitLoader.style.display = 'none';
+
+      // Show error message
+      alert(`Failed to tweak section: ${err.message || 'Unknown error'}`);
+    }
+  };
+
+  submitBtn.addEventListener('click', handleSubmit);
+
+  // Cancel handlers
+  const closeModal = () => closeTweakModal(modal);
+  cancelBtn.addEventListener('click', closeModal);
+  closeBtn.addEventListener('click', closeModal);
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) closeModal();
+  });
+
+  // Escape key handler
+  const escapeHandler = (e) => {
+    if (e.key === 'Escape') {
+      closeModal();
+      document.removeEventListener('keydown', escapeHandler);
+    }
+  };
+  document.addEventListener('keydown', escapeHandler);
+
+  // Focus textarea
+  setTimeout(() => textarea.focus(), 100);
+}
+
+/**
+ * Close the tweak modal
+ */
+function closeTweakModal(modal) {
+  modal.classList.add('closing');
+  setTimeout(() => {
+    if (modal.parentNode) {
+      modal.parentNode.removeChild(modal);
+    }
+  }, 200);
+}
+
+/**
+ * Process section tweak with AI
+ */
+async function processSectionTweak(section, sectionIndex, instructions) {
+  const workerUrl = window.WORKER_URL || 'https://depot-voice-notes.martinbibb.workers.dev';
+
+  const response = await fetch(`${workerUrl}/tweak-section`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      section: {
+        section: section.section || section.title,
+        plainText: section.plainText || section.plain_text || '',
+        naturalLanguage: section.naturalLanguage || section.natural_language || ''
+      },
+      instructions
+    })
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.message || `Server error: ${response.status}`);
+  }
+
+  const improvedSection = await response.json();
+
+  // Update the section in activeSections
+  if (activeSections && activeSections[sectionIndex]) {
+    activeSections[sectionIndex] = {
+      ...activeSections[sectionIndex],
+      plainText: improvedSection.plainText,
+      naturalLanguage: improvedSection.naturalLanguage,
+      section: improvedSection.section
+    };
+
+    // Re-render the slide-over with updated sections
+    updateSendSectionsSlideOver(activeSections);
+
+    // Notify the main app to update its state
+    if (window.updateSectionFromTweak) {
+      window.updateSectionFromTweak(sectionIndex, improvedSection);
+    }
+  }
 }

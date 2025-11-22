@@ -214,6 +214,30 @@
       color: var(--muted);
       font-style: italic;
     }
+    .tweak-section-btn-main {
+      background: var(--accent-soft);
+      color: white;
+      border: none;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 0.65rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      transition: all 0.2s ease;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .tweak-section-btn-main:hover {
+      background: var(--accent-hover);
+      transform: translateY(-1px);
+      box-shadow: var(--shadow-sm);
+    }
+    .tweak-section-btn-main svg {
+      flex-shrink: 0;
+    }
     .statusbar {
       font-size: .6rem;
       color: var(--muted);

@@ -1507,9 +1507,10 @@ function refreshUiFromState() {
 
   const sectionsToRender = resolved.length ? resolved : normaliseDepotSections([]);
   sectionsListEl.innerHTML = "";
-  sectionsToRender.forEach((sec) => {
+  sectionsToRender.forEach((sec, index) => {
     const div = document.createElement("div");
     div.className = "section-item";
+    div.dataset.sectionIndex = index;
     const plainTextRaw = typeof sec.plainText === "string" ? sec.plainText : "";
     const formattedPlain = plainTextRaw
       ? formatPlainTextForSection(sec.section, plainTextRaw).trim()
@@ -1520,11 +1521,32 @@ function refreshUiFromState() {
       ? `<p class="small" style="margin-top:3px;">${naturalLanguage}</p>`
       : "";
     div.innerHTML = `
-      <h4>${sec.section}</h4>
+      <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+        <h4 style="margin: 0;">${sec.section}</h4>
+        <button class="tweak-section-btn-main" data-section-index="${index}" title="Tweak this section with AI">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+          </svg>
+          Tweak
+        </button>
+      </div>
       <pre${preClassAttr}>${formattedPlain || "No bullets yet."}</pre>
       ${naturalMarkup}
     `;
     sectionsListEl.appendChild(div);
+  });
+
+  // Attach event listeners to tweak buttons
+  const tweakBtns = sectionsListEl.querySelectorAll('.tweak-section-btn-main');
+  tweakBtns.forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const index = parseInt(e.currentTarget.dataset.sectionIndex, 10);
+      const section = sectionsToRender[index];
+      if (section && window.showTweakModal) {
+        window.showTweakModal(section, index);
+      }
+    });
   });
 
   // 3) Parts + checklist

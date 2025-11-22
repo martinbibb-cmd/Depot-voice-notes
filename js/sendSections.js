@@ -70,7 +70,7 @@ function attachSectionEventListeners(container, sections) {
       const index = parseInt(e.currentTarget.dataset.sectionIndex, 10);
       const section = sections[index];
       if (section) {
-        showTweakModal(section, index);
+        window.showTweakModal(section, index);
       }
     });
   });
@@ -543,8 +543,9 @@ export function copyAllSections(sections) {
 
 /**
  * Show the tweak modal for a section
+ * Exposed globally for use by main.js
  */
-function showTweakModal(section, sectionIndex) {
+window.showTweakModal = function(section, sectionIndex) {
   // Create modal
   const modal = document.createElement('div');
   modal.className = 'tweak-modal-backdrop';

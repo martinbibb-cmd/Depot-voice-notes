@@ -22,6 +22,7 @@ import {
   resetAskedQuestions
 } from "./agentMode.js";
 import { showSendSectionsSlideOver, updateSendSectionsSlideOver } from "./sendSections.js";
+import { initWhat3Words } from "./what3words.js";
 
 // --- CONFIG / STORAGE KEYS ---
 const SECTION_STORAGE_KEY = "depot.sectionSchema";
@@ -137,6 +138,7 @@ function exposeStateToWindow() {
   window.__depotSessionAudioChunks = sessionAudioChunks;
   window.__depotLastAudioMime = lastAudioMime;
   window.__depotAppState = APP_STATE;
+  window.lastSections = lastSections; // Expose for what3words and other integrations
 }
 
 /**
@@ -3496,6 +3498,13 @@ import('./summaryController.js').then(module => {
 
 // Initialize Agent Mode
 initAgentMode();
+
+// Initialize what3words
+initWhat3Words();
+
+// Expose functions for external integrations
+window.refreshUiFromState = refreshUiFromState;
+window.saveToLocalStorage = autoSaveSessionToLocal;
 
 // Agent Mode Toggle
 const agentModeToggle = document.getElementById('agentModeToggle');

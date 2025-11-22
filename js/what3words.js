@@ -5,6 +5,7 @@
 
 let currentW3WAddress = '';
 let w3wModalInstance = null;
+let w3wPopupWindow = null;
 
 /**
  * Show the what3words modal
@@ -46,35 +47,30 @@ function createW3WModal() {
         <div class="w3w-instructions">
           <h4>How to use:</h4>
           <ol>
-            <li>Click on the map to select a location</li>
-            <li>The what3words address will appear in the input below</li>
-            <li>Click "Copy & Paste to Notes" to automatically add it to Delivery and Office notes</li>
+            <li>Click "Open what3words Map" to open what3words.com in a new window</li>
+            <li>Find your location on the what3words map</li>
+            <li>Copy the 3 words address (e.g., ///filled.index.sooner)</li>
+            <li>Paste it into the input field below</li>
+            <li>Click "Add to Delivery & Office Notes"</li>
           </ol>
         </div>
-        <div class="w3w-map-container" id="w3wMapContainer">
-          <div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #64748b;">
-            <div style="text-align: center;">
-              <div style="font-size: 2rem; margin-bottom: 12px;">🗺️</div>
-              <div style="font-size: 0.9rem; font-weight: 600;">Loading map...</div>
-              <div style="font-size: 0.75rem; margin-top: 8px;">Click anywhere to get what3words address</div>
-            </div>
-          </div>
+        <div style="text-align: center; margin: 20px 0;">
+          <button class="w3w-open-btn" id="w3wOpenBtn">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+              <polyline points="15 3 21 3 21 9"></polyline>
+              <line x1="10" y1="14" x2="21" y2="3"></line>
+            </svg>
+            Open what3words Map
+          </button>
         </div>
         <div class="w3w-input-container">
           <input
             type="text"
             class="w3w-input"
             id="w3wAddressInput"
-            placeholder="///click.on.map"
-            readonly
+            placeholder="Paste what3words address here (e.g., ///filled.index.sooner)"
           />
-          <button class="w3w-copy-btn" id="w3wCopyBtn">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-            </svg>
-            Copy
-          </button>
         </div>
       </div>
       <div class="w3w-modal-footer">
@@ -85,7 +81,7 @@ function createW3WModal() {
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polyline points="20 6 9 17 4 12"></polyline>
           </svg>
-          Copy & Paste to Notes
+          Add to Delivery & Office Notes
         </button>
       </div>
     </div>
@@ -98,10 +94,9 @@ function createW3WModal() {
  */
 function setupW3WModalEvents(modal) {
   const closeBtn = modal.querySelector('.w3w-modal-close');
-  const copyBtn = modal.querySelector('#w3wCopyBtn');
+  const openBtn = modal.querySelector('#w3wOpenBtn');
   const pasteBtn = modal.querySelector('#w3wPasteBtn');
   const addressInput = modal.querySelector('#w3wAddressInput');
-  const mapContainer = modal.querySelector('#w3wMapContainer');
 
   // Close button
   closeBtn.addEventListener('click', () => {
@@ -124,27 +119,24 @@ function setupW3WModalEvents(modal) {
   };
   document.addEventListener('keydown', escapeHandler);
 
-  // Copy button
-  copyBtn.addEventListener('click', async () => {
-    if (currentW3WAddress) {
-      try {
-        await navigator.clipboard.writeText(currentW3WAddress);
-        const originalHTML = copyBtn.innerHTML;
-        copyBtn.innerHTML = `
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="20 6 9 17 4 12"></polyline>
-          </svg>
-          Copied!
-        `;
-        copyBtn.classList.add('copied');
+  // Open what3words button
+  openBtn.addEventListener('click', () => {
+    openWhat3WordsWindow();
+  });
 
-        setTimeout(() => {
-          copyBtn.innerHTML = originalHTML;
-          copyBtn.classList.remove('copied');
-        }, 2000);
-      } catch (err) {
-        console.error('Failed to copy:', err);
-      }
+  // Address input change - enable/disable paste button
+  addressInput.addEventListener('input', () => {
+    const value = addressInput.value.trim();
+    const isValid = validateW3WAddress(value);
+    pasteBtn.disabled = !isValid;
+
+    if (isValid) {
+      currentW3WAddress = value;
+      addressInput.style.borderColor = '#10b981';
+      addressInput.style.backgroundColor = '#ecfdf5';
+    } else {
+      addressInput.style.borderColor = '';
+      addressInput.style.backgroundColor = '';
     }
   });
 
@@ -156,79 +148,56 @@ function setupW3WModalEvents(modal) {
     }
   });
 
-  // Initialize the map
-  initializeW3WMap(mapContainer, addressInput, pasteBtn);
+  // Focus input
+  setTimeout(() => addressInput.focus(), 100);
 }
 
 /**
- * Initialize the what3words map
+ * Open what3words in a new window
  */
-function initializeW3WMap(container, addressInput, pasteBtn) {
-  // Simple click-to-get-location implementation
-  // In a real implementation, you would integrate the what3words API
-  container.innerHTML = `
-    <div style="width: 100%; height: 100%; position: relative; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); cursor: crosshair;" id="w3wClickArea">
-      <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; color: white; pointer-events: none;">
-        <div style="font-size: 3rem; margin-bottom: 12px;">🗺️</div>
-        <div style="font-size: 1.1rem; font-weight: 700; text-shadow: 0 2px 4px rgba(0,0,0,0.3);">Click anywhere on the map</div>
-        <div style="font-size: 0.85rem; margin-top: 8px; opacity: 0.9;">to get a what3words address</div>
-      </div>
-      <div id="w3wMarker" style="display: none; position: absolute; width: 32px; height: 32px; margin-left: -16px; margin-top: -32px; pointer-events: none;">
-        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
-          <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-          <circle cx="12" cy="10" r="3" fill="white"></circle>
-        </svg>
-      </div>
-    </div>
-  `;
+function openWhat3WordsWindow() {
+  const width = 800;
+  const height = 600;
+  const left = (window.screen.width - width) / 2;
+  const top = (window.screen.height - height) / 2;
 
-  const clickArea = container.querySelector('#w3wClickArea');
-  const marker = container.querySelector('#w3wMarker');
+  // Close previous popup if exists
+  if (w3wPopupWindow && !w3wPopupWindow.closed) {
+    w3wPopupWindow.close();
+  }
 
-  clickArea.addEventListener('click', (e) => {
-    const rect = clickArea.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+  // Open what3words map
+  w3wPopupWindow = window.open(
+    'https://what3words.com/daring.lion.race',
+    'what3words',
+    `width=${width},height=${height},left=${left},top=${top},menubar=no,toolbar=no,location=yes,status=no`
+  );
 
-    // Generate a mock what3words address based on click position
-    const words = generateMockW3WAddress(x, y);
-    currentW3WAddress = `///${words}`;
-
-    // Update input
-    addressInput.value = currentW3WAddress;
-
-    // Enable paste button
-    pasteBtn.disabled = false;
-
-    // Show marker
-    marker.style.display = 'block';
-    marker.style.left = x + 'px';
-    marker.style.top = y + 'px';
-
-    // Visual feedback
-    addressInput.style.borderColor = '#10b981';
-    addressInput.style.backgroundColor = '#ecfdf5';
-    setTimeout(() => {
-      addressInput.style.borderColor = '';
-      addressInput.style.backgroundColor = '';
-    }, 1000);
-  });
+  if (w3wPopupWindow) {
+    w3wPopupWindow.focus();
+  } else {
+    alert('Please allow popups for this site to use what3words integration.');
+  }
 }
 
 /**
- * Generate a mock what3words address
- * In production, this would call the what3words API
+ * Validate what3words address format
  */
-function generateMockW3WAddress(x, y) {
-  const words1 = ['filled', 'index', 'table', 'atomic', 'silent', 'rapid', 'tender', 'golden', 'silver', 'marine'];
-  const words2 = ['surely', 'simply', 'kindly', 'deeply', 'widely', 'mainly', 'partly', 'truly', 'newly', 'duly'];
-  const words3 = ['spoon', 'brick', 'stone', 'cloud', 'river', 'mount', 'field', 'grove', 'beach', 'trail'];
+function validateW3WAddress(address) {
+  if (!address) return false;
 
-  const idx1 = Math.floor(x / 40) % words1.length;
-  const idx2 = Math.floor(y / 40) % words2.length;
-  const idx3 = Math.floor((x + y) / 50) % words3.length;
+  // Remove leading slashes if present
+  const cleaned = address.replace(/^\/+/, '');
 
-  return `${words1[idx1]}.${words2[idx2]}.${words3[idx3]}`;
+  // Check format: should be 3 words separated by dots
+  const parts = cleaned.split('.');
+
+  // Must have exactly 3 parts
+  if (parts.length !== 3) return false;
+
+  // Each part should only contain letters (no numbers or special chars)
+  const wordPattern = /^[a-zA-Z]+$/;
+  return parts.every(part => part.length > 0 && wordPattern.test(part));
 }
 
 /**
@@ -236,6 +205,13 @@ function generateMockW3WAddress(x, y) {
  */
 function pasteToDeliveryAndOfficeNotes(address) {
   if (!address) return;
+
+  // Normalize address format (ensure it has ///)
+  let normalizedAddress = address.trim();
+  if (!normalizedAddress.startsWith('///')) {
+    // Remove any leading slashes and add exactly three
+    normalizedAddress = '///' + normalizedAddress.replace(/^\/+/, '');
+  }
 
   // Get the current sections from the app state
   const sections = window.lastSections || window.APP_STATE?.sections || [];
@@ -248,7 +224,7 @@ function pasteToDeliveryAndOfficeNotes(address) {
     s.section?.toLowerCase().includes('office') && s.section?.toLowerCase().includes('note')
   );
 
-  const locationText = `Location: ${address}`;
+  const locationText = `Location: ${normalizedAddress}`;
   let updated = false;
 
   // Update Delivery notes
@@ -258,7 +234,7 @@ function pasteToDeliveryAndOfficeNotes(address) {
     const naturalLanguage = section.naturalLanguage || '';
 
     // Add to plainText if not already present
-    if (!plainText.includes(address)) {
+    if (!plainText.includes(normalizedAddress)) {
       const newPlainText = plainText
         ? `${plainText}; ${locationText};`
         : `${locationText};`;
@@ -268,7 +244,7 @@ function pasteToDeliveryAndOfficeNotes(address) {
     }
 
     // Add to naturalLanguage if not already present
-    if (!naturalLanguage.includes(address)) {
+    if (!naturalLanguage.includes(normalizedAddress)) {
       const newNaturalLanguage = naturalLanguage
         ? `${naturalLanguage} ${locationText}`
         : locationText;
@@ -285,7 +261,7 @@ function pasteToDeliveryAndOfficeNotes(address) {
     const naturalLanguage = section.naturalLanguage || '';
 
     // Add to plainText if not already present
-    if (!plainText.includes(address)) {
+    if (!plainText.includes(normalizedAddress)) {
       const newPlainText = plainText
         ? `${plainText}; ${locationText};`
         : `${locationText};`;
@@ -295,7 +271,7 @@ function pasteToDeliveryAndOfficeNotes(address) {
     }
 
     // Add to naturalLanguage if not already present
-    if (!naturalLanguage.includes(address)) {
+    if (!naturalLanguage.includes(normalizedAddress)) {
       const newNaturalLanguage = naturalLanguage
         ? `${naturalLanguage} ${locationText}`
         : locationText;
@@ -325,7 +301,7 @@ function pasteToDeliveryAndOfficeNotes(address) {
       window.saveToLocalStorage();
     }
 
-    console.log('what3words address added to Delivery notes and Office notes:', address);
+    console.log('what3words address added to Delivery notes and Office notes:', normalizedAddress);
   }
 }
 
@@ -333,6 +309,12 @@ function pasteToDeliveryAndOfficeNotes(address) {
  * Close the what3words modal
  */
 function closeW3WModal(modal) {
+  // Close popup window if open
+  if (w3wPopupWindow && !w3wPopupWindow.closed) {
+    w3wPopupWindow.close();
+    w3wPopupWindow = null;
+  }
+
   if (modal === w3wModalInstance) {
     w3wModalInstance = null;
     currentW3WAddress = '';

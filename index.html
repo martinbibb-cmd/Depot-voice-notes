@@ -1776,13 +1776,25 @@
     .w3w-instructions li {
       margin: 4px 0;
     }
-    .w3w-map-container {
-      border: 2px solid var(--border);
-      border-radius: 12px;
-      overflow: hidden;
-      height: 400px;
-      background: #f0f0f0;
-      position: relative;
+    .w3w-open-btn {
+      background: var(--accent);
+      color: white;
+      border: none;
+      padding: 14px 28px;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      transition: all 0.2s ease;
+      box-shadow: var(--shadow-md);
+    }
+    .w3w-open-btn:hover {
+      background: var(--accent-hover);
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-lg);
     }
     .w3w-input-container {
       margin-top: 16px;

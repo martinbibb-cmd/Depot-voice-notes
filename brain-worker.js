@@ -653,6 +653,43 @@ async function callAnthropicChat(apiKey, systemPrompt, userContent, temperature 
   return content.trim();
 }
 
+/* ---------- Reference Materials Fetcher ---------- */
+
+async function fetchReferenceMaterials(env, transcript) {
+  const materials = [];
+
+  try {
+    // Check if DB binding exists
+    if (env.DB) {
+      // Fetch all reference materials from the database
+      const result = await env.DB.prepare(
+        "SELECT * FROM reference_materials"
+      ).all();
+
+      if (result.success && result.results && result.results.length > 0) {
+        materials.push("=== Reference Materials from Database ===");
+        result.results.forEach(row => {
+          materials.push(`\n${row.title || 'Untitled'}:`);
+          materials.push(row.content || '');
+        });
+      }
+    }
+  } catch (err) {
+    console.error("Failed to fetch reference materials from DB:", err);
+    // Don't fail the whole request if reference fetch fails
+  }
+
+  // TODO: Add R2 bucket fetching if needed
+  // if (env.REFERENCE_BUCKET) {
+  //   const pricebook = await env.REFERENCE_BUCKET.get("pricebook.txt");
+  //   if (pricebook) {
+  //     materials.push(await pricebook.text());
+  //   }
+  // }
+
+  return materials.length > 0 ? materials.join("\n") : "";
+}
+
 async function callNotesModel(env, payload) {
   const openaiKey = env.OPENAI_API_KEY;
   const anthropicKey = env.ANTHROPIC_API_KEY;
@@ -680,6 +717,9 @@ async function callNotesModel(env, payload) {
     .map((name, idx) => `${idx + 1}. ${name}`)
     .join("\n");
 
+  // Fetch reference materials from database
+  const referenceMaterials = await fetchReferenceMaterials(env, transcript);
+
   // IMPORTANT: we do NOT use response_format here.
   // Instead we *ask* for JSON and parse it ourselves.
   const systemPrompt = `
@@ -692,11 +732,12 @@ You receive:
 - Optionally, a list of sections already captured so you can avoid duplicates.
 - Optional hints that map keywords to section names.
 - A forceStructured flag indicating you MUST return structured depot notes even if the transcript is sparse.
-
+${referenceMaterials ? `- Reference materials from the knowledge database to help you with product specs, pricing, and technical details.\n` : ''}
 Depot section names (in order):
 ${sectionListText}
 
 Always return all of these sections, even if a section has no notes. Use the exact names and order.
+${referenceMaterials ? `\n${referenceMaterials}\n` : ''}
 
 Your job is to:
 1. Decide which checklist ids are clearly satisfied by the transcript.

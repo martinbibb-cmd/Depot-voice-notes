@@ -25,7 +25,7 @@ let selectedSystemKey = null;
 /**
  * Show the summary modal and generate recommendations
  */
-export function showSummaryModal(sections, notes) {
+export function showSummaryModal(sections, notes, transcriptText = '') {
   if (!summaryModal) return;
 
   // Reset state
@@ -41,6 +41,7 @@ export function showSummaryModal(sections, notes) {
   try {
     const requirements = extractHeatingRequirements(sections, notes);
     const recommendationData = generateRecommendations(requirements);
+    recommendationData.transcript = transcriptText || '';
 
     currentRecommendationData = recommendationData;
 
@@ -62,7 +63,7 @@ export function showSummaryModal(sections, notes) {
  * Display recommendations in the modal
  */
 function displayRecommendations(recommendationData) {
-  const { requirements, recommendations, bestOption, alternatives } = recommendationData;
+  const { requirements, recommendations, bestOption, alternatives, transcript } = recommendationData;
 
   let html = '';
 
@@ -82,24 +83,17 @@ function displayRecommendations(recommendationData) {
   }
 
   // Property requirements summary
-  html += `
-    <div class="system-summary">
-      <strong>Your Property Profile:</strong><br>
-      ${requirements.occupants > 0 ? `${requirements.occupants} occupants, ` : ''}
-      ${requirements.bedrooms > 0 ? `${requirements.bedrooms} bedrooms, ` : ''}
-      ${requirements.bathrooms > 0 ? `${requirements.bathrooms} bathrooms` : ''}
-      ${requirements.houseType ? ` | ${requirements.houseType}` : ''}
-      ${requirements.mainsPressure > 0 ? `<br>Mains pressure: ${requirements.mainsPressure} bar` : ''}
-      ${requirements.flowRate > 0 ? `, Flow rate: ${requirements.flowRate} L/min` : ''}
-    </div>
-  `;
+  html += renderTranscriptContext(requirements, bestOption, transcript);
+
+  const bestExplanation = explainRecommendation(bestOption, requirements);
 
   // Display top recommendation
-  html += renderSystemCard(bestOption, true);
+  html += renderSystemCard(bestOption, true, bestExplanation.actionBenefits);
 
   // Display top 2 alternatives
   alternatives.forEach((alt, index) => {
-    html += renderSystemCard(alt, false);
+    const altExplanation = explainRecommendation(alt, requirements);
+    html += renderSystemCard(alt, false, altExplanation.actionBenefits);
   });
 
   summaryContent.innerHTML = html;
@@ -111,7 +105,7 @@ function displayRecommendations(recommendationData) {
 /**
  * Render a system recommendation card
  */
-function renderSystemCard(recommendation, isRecommended) {
+function renderSystemCard(recommendation, isRecommended, actionBenefits = []) {
   const { key, profile, score, reasons } = recommendation;
   const explanation = explainRecommendation(recommendation, currentRecommendationData.requirements);
 
@@ -185,6 +179,70 @@ function renderSystemCard(recommendation, isRecommended) {
           ${isRecommended ? '✓ Accept Recommendation' : 'Select This System Instead'}
         </button>
       ` : '<div style="text-align: center; padding: 12px; color: var(--accent); font-weight: 600;">✓ This system will be featured in the PDF</div>'}
+      ${renderActionBenefits(actionBenefits)}
+    </div>
+  `;
+}
+
+function renderActionBenefits(actionBenefits = []) {
+  if (!actionBenefits.length) return '';
+
+  const limited = actionBenefits.slice(0, 3);
+  return `
+    <div class="system-reasons">
+      <div class="section-title">💡 Actions & Benefits for You</div>
+      ${limited
+        .map(({ action, benefit, annualSaving }) => `
+          <div class="list-item">
+            <strong>${action}:</strong> ${benefit}${annualSaving ? ` (${annualSaving})` : ''}
+          </div>
+        `)
+        .join('')}
+    </div>
+  `;
+}
+
+function renderTranscriptContext(requirements, bestOption, transcript) {
+  const currentSystem = [];
+  if (requirements.currentBoilerType) currentSystem.push(`${requirements.currentBoilerType} boiler`);
+  if (requirements.currentWaterSystem) currentSystem.push(requirements.currentWaterSystem.toLowerCase());
+
+  const currentLabel = currentSystem.length
+    ? currentSystem.join(' with ')
+    : 'Transcript did not clearly state the current system';
+
+  const propertyLine = [
+    requirements.occupants > 0 ? `${requirements.occupants} occupants` : '',
+    requirements.bedrooms > 0 ? `${requirements.bedrooms} bedrooms` : '',
+    requirements.bathrooms > 0 ? `${requirements.bathrooms} bathrooms` : ''
+  ]
+    .filter(Boolean)
+    .join(', ');
+
+  const pressureLine = requirements.mainsPressure > 0
+    ? `${requirements.mainsPressure} bar mains pressure` + (requirements.flowRate > 0 ? `, ${requirements.flowRate} L/min flow` : '')
+    : requirements.flowRate > 0
+      ? `${requirements.flowRate} L/min flow rate`
+      : '';
+
+  const transcriptNote = transcript
+    ? `<div class="small" style="color: var(--muted); margin-top: 6px;">Transcript used: ${transcript.slice(0, 140)}${
+        transcript.length > 140 ? '…' : ''
+      }</div>`
+    : '';
+
+  return `
+    <div class="system-summary">
+      <strong>Your Property Profile:</strong><br>
+      ${propertyLine || 'No property size mentioned'}
+      ${requirements.houseType ? ` | ${requirements.houseType}` : ''}
+      ${pressureLine ? `<br>${pressureLine}` : ''}
+    </div>
+    <div class="system-summary" style="margin-top: 8px;">
+      <strong>Current vs Proposed:</strong><br>
+      Current system: ${currentLabel}<br>
+      Proposed system: ${bestOption.profile.name} (${bestOption.profile.waterSystem})
+      ${transcriptNote}
     </div>
   `;
 }

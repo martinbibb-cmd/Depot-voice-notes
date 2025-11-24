@@ -6,6 +6,21 @@
 import { loadWorkerEndpoint } from '../src/app/worker-config.js';
 
 /**
+ * Timeout wrapper for promises
+ * @param {Promise} promise - Promise to wrap
+ * @param {number} timeoutMs - Timeout in milliseconds
+ * @returns {Promise} - Promise that rejects on timeout
+ */
+function withTimeout(promise, timeoutMs = 10000) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Request timeout')), timeoutMs)
+    )
+  ]);
+}
+
+/**
  * Query the D1 database via the Worker
  * @param {string} query - SQL query to execute
  * @param {Array} params - Query parameters
@@ -346,19 +361,33 @@ export async function fetchPDFData(sessionData) {
   // Extract product names
   const productNames = extractProductNames(aiNotes, materials);
 
-  // Fetch data in parallel
-  const [technicalSpecs, termsAndConditions, products] = await Promise.all([
-    getTechnicalSpecs(productNames),
-    getTermsAndConditions(),
-    getProductInformation(productNames)
-  ]);
+  try {
+    // Fetch data in parallel with 10 second timeout
+    const [technicalSpecs, termsAndConditions, products] = await withTimeout(
+      Promise.all([
+        getTechnicalSpecs(productNames),
+        getTermsAndConditions(),
+        getProductInformation(productNames)
+      ]),
+      10000 // 10 second timeout
+    );
 
-  return {
-    technicalSpecs,
-    termsAndConditions,
-    products,
-    productNames
-  };
+    return {
+      technicalSpecs,
+      termsAndConditions,
+      products,
+      productNames
+    };
+  } catch (error) {
+    console.warn('Database query timeout or error:', error);
+    // Return empty data on timeout/error so PDF generation can continue
+    return {
+      technicalSpecs: [],
+      termsAndConditions: [],
+      products: [],
+      productNames
+    };
+  }
 }
 
 /**

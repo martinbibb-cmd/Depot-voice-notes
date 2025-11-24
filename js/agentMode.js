@@ -511,7 +511,7 @@ function showSectionSelector(content) {
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 10000;
+    z-index: 10200;
   `;
 
   const modalContent = document.createElement('div');
@@ -639,7 +639,7 @@ function appendToSection(sectionName, content) {
     padding: 12px 20px;
     border-radius: 8px;
     font-weight: 600;
-    z-index: 10001;
+    z-index: 10201;
     animation: slideIn 0.3s ease;
   `;
   notification.textContent = `✓ Added to ${sectionName}`;

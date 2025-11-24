@@ -23,6 +23,7 @@ import {
 } from "./agentMode.js";
 import { showSendSectionsSlideOver, updateSendSectionsSlideOver } from "./sendSections.js";
 import { initWhat3Words } from "./what3words.js";
+import { showSummaryModal as showComprehensiveSummaryModal } from "./summaryModal.js";
 
 // --- CONFIG / STORAGE KEYS ---
 const SECTION_STORAGE_KEY = "depot.sectionSchema";
@@ -1727,95 +1728,92 @@ async function sendAudio(blob) {
 // NOTE: Export button has been replaced by the unified Save menu
 // The old exportBtn handler has been removed - use saveMenuBtn instead
 
-// --- CREATE QUOTE ---
+// --- CREATE SUMMARY (formerly CREATE QUOTE) ---
 createQuoteBtn.onclick = async () => {
-  // Check if we have materials to quote
-  if (!lastMaterials || lastMaterials.length === 0) {
-    alert("No materials found to create a quote. Please process a transcript first with the 'Send text' button.");
+  // Check if we have any data to create a summary
+  if ((!lastSections || lastSections.length === 0) &&
+      (!APP_STATE.notes || APP_STATE.notes.length === 0) &&
+      !transcriptInput.value.trim()) {
+    alert("No data found to create a summary. Please process a transcript first with the 'Send text' button.");
     return;
   }
 
-  setStatus("Loading pricebook...");
+  setStatus("Preparing comprehensive summary...");
 
   try {
-    // Load pricebook
-    const pricebook = await loadPricebook();
+    // Collect all session data
+    const sessionData = {
+      sessionName: currentSessionName || 'Heating System Assessment',
+      sections: lastSections || [],
+      aiNotes: extractAINotes(),
+      materials: lastMaterials || [],
+      transcript: transcriptInput.value.trim(),
+      issues: extractIssues(),
+      benefits: extractBenefits()
+    };
 
-    // Auto-detect core pack from transcript/sections
-    const systemDetails = detectSystemDetails();
-    const recommendedPack = findCorePack(pricebook, systemDetails);
+    // Show the comprehensive summary modal
+    await showComprehensiveSummaryModal(sessionData);
 
-    setStatus("Select core pack...");
-
-    // Show pack selector modal first
-    showPackSelectorModal(
-      pricebook,
-      systemDetails,
-      recommendedPack,
-      // onConfirm callback - receives selected pack (or null if skipped)
-      async (selectedPack) => {
-        // Combine selected pack with other materials
-        let allMaterials = [...lastMaterials];
-        if (selectedPack) {
-          allMaterials.unshift({
-            category: 'Core Packs',
-            item: selectedPack.description,
-            qty: 1,
-            notes: `Selected: ${selectedPack.component_id}`
-          });
-        }
-
-        // Match materials to pricebook items
-        const matchedItems = matchMaterialsToPricebook(pricebook, allMaterials);
-
-        setStatus("Review quote items...");
-
-        // Extract customer name and job reference from transcript/sections
-        const customerInfo = extractCustomerInfo();
-
-        // Detect if multiple quotes are discussed
-        const allowMultipleQuotes = detectMultipleQuotesInTranscript();
-
-        // Show quote builder modal
-        showQuoteBuilderModal(pricebook, matchedItems, {
-          customerName: customerInfo.name,
-          jobReference: customerInfo.reference,
-          allowMultipleQuotes,
-          onConfirm: async (quoteData) => {
-            setStatus("Generating PDF quote(s)...");
-
-            try {
-              const pdfs = await generateMultipleQuotePDFs(quoteData);
-
-              // Download each PDF
-              pdfs.forEach(({ doc, filename }) => {
-                downloadPDF(doc, filename);
-              });
-
-              setStatus(`Quote PDF${pdfs.length > 1 ? 's' : ''} generated successfully!`);
-            } catch (error) {
-              console.error("Error generating PDF:", error);
-              alert("Error generating PDF: " + error.message);
-              setStatus("Error generating PDF.");
-            }
-          },
-          onCancel: () => {
-            setStatus("Quote creation cancelled.");
-          }
-        });
-      },
-      // onCancel callback - user cancelled pack selection
-      () => {
-        setStatus("Pack selection cancelled.");
-      }
-    );
-
+    setStatus("Ready to generate summary");
   } catch (error) {
-    console.error("Error creating quote:", error);
-    alert("Error creating quote: " + error.message);
-    setStatus("Error creating quote.");
+    console.error("Error showing summary modal:", error);
+    alert("Error opening summary creator: " + error.message);
+    setStatus("Error opening summary.");
   }
 };
+
+// Helper: Extract AI notes from the UI
+function extractAINotes() {
+  const aiNotesList = document.getElementById('aiNotesList');
+  if (!aiNotesList) return '';
+
+  const notes = [];
+  aiNotesList.querySelectorAll('li').forEach(li => {
+    const text = li.textContent.trim();
+    if (text) notes.push(text);
+  });
+
+  return notes.join('\n\n');
+}
+
+// Helper: Extract identified issues from sections
+function extractIssues() {
+  const issues = [];
+
+  if (lastSections && Array.isArray(lastSections)) {
+    lastSections.forEach(section => {
+      const content = section.content || '';
+      const lowerContent = content.toLowerCase();
+
+      // Look for problem indicators
+      if (lowerContent.includes('issue') ||
+          lowerContent.includes('problem') ||
+          lowerContent.includes('fault') ||
+          lowerContent.includes('broken') ||
+          lowerContent.includes('not working') ||
+          lowerContent.includes('failed')) {
+        issues.push(content);
+      }
+    });
+  }
+
+  return issues;
+}
+
+// Helper: Extract benefits/recommendations
+function extractBenefits() {
+  const benefits = [
+    'Improved energy efficiency',
+    'Enhanced comfort and control',
+    'Reduced running costs',
+    'Modern, reliable technology',
+    'Extended warranty coverage'
+  ];
+
+  // Could be enhanced to extract from AI notes or sections
+  return benefits;
+}
 
 // Generate Summary button handler
 generateSummaryBtn.onclick = async () => {

@@ -199,19 +199,23 @@ export function analyzeTranscriptForQuestions(sections) {
  * Update the suggestions UI
  */
 function updateSuggestionsUI() {
-  const panel = document.getElementById('agentSuggestionsPanel');
   const content = document.getElementById('agentSuggestionsContent');
 
-  if (!panel || !content) {
+  if (!content) {
     return;
   }
 
+  // Agent tile is always visible, just update content
   if (!AGENT_STATE.enabled) {
-    panel.style.display = 'none';
+    content.innerHTML = `
+      <div style="text-align: center; padding: 20px; color: var(--muted);">
+        <div style="font-size: 2rem; margin-bottom: 8px;">🤖</div>
+        <div style="font-size: 0.85rem;">Agent mode is disabled</div>
+        <div style="font-size: 0.75rem; margin-top: 8px;">Enable agent mode to see suggestions</div>
+      </div>
+    `;
     return;
   }
-
-  panel.style.display = 'flex';
 
   const { critical, important, optional } = AGENT_STATE.suggestions;
   const hasAnySuggestions = critical.length > 0 || important.length > 0 || optional.length > 0;
@@ -295,12 +299,10 @@ function renderQuestion(question, priority) {
 
 /**
  * Clear suggestions UI
+ * Note: Agent tile is always visible, this just updates the content
  */
 function clearSuggestionsUI() {
-  const panel = document.getElementById('agentSuggestionsPanel');
-  if (panel) {
-    panel.style.display = 'none';
-  }
+  updateSuggestionsUI();
 }
 
 /**
@@ -380,17 +382,6 @@ function initAgentUI() {
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         sendChatMessage();
-      }
-    });
-  }
-
-  // Close panel button
-  const closeBtn = document.getElementById('closeAgentPanel');
-  if (closeBtn) {
-    closeBtn.addEventListener('click', () => {
-      const panel = document.getElementById('agentSuggestionsPanel');
-      if (panel) {
-        panel.style.display = 'none';
       }
     });
   }

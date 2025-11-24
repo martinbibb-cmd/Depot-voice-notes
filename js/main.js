@@ -1498,8 +1498,10 @@ async function loadChecklistConfigIntoState() {
 // NOTE: Assumes SECTION_SCHEMA has been populated via loadStaticConfig()/ensureSectionSchema().
 // This allows placeholder sections (schema headings) to appear before any worker output arrives.
 function refreshUiFromState() {
-  // 1) Customer summary
-  customerSummaryEl.textContent = lastCustomerSummary || "(none)";
+  // 1) Customer summary (removed from UI, kept for data persistence)
+  if (customerSummaryEl) {
+    customerSummaryEl.textContent = lastCustomerSummary || "(none)";
+  }
 
   // 2) Render sections from the canonical state
   let resolved = Array.isArray(lastSections) ? lastSections : [];

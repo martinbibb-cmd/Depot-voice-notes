@@ -211,7 +211,7 @@ function updateSuggestionsUI() {
     return;
   }
 
-  panel.style.display = 'block';
+  panel.style.display = 'flex';
 
   const { critical, important, optional } = AGENT_STATE.suggestions;
   const hasAnySuggestions = critical.length > 0 || important.length > 0 || optional.length > 0;

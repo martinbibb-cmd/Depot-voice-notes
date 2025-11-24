@@ -32,6 +32,10 @@ export default {
         return handleAgentChat(request, env);
       }
 
+      if (request.method === "POST" && url.pathname === "/query") {
+        return handleQuery(request, env);
+      }
+
       return jsonResponse({ error: "not_found" }, 404);
     } catch (err) {
       console.error("Worker fatal error:", err);
@@ -81,6 +85,8 @@ async function handleText(request, env) {
     ? payload.transcript.trim()
     : "";
 
+  const { sanitisedTranscript, sanityNotes } = applyTranscriptionSanityChecks(transcript);
+
   if (!transcript) {
     return jsonResponse(
       { error: "bad_request", message: "transcript required" },
@@ -99,13 +105,14 @@ async function handleText(request, env) {
 
   try {
     const result = await callNotesModel(env, {
-      transcript,
+      transcript: sanitisedTranscript,
       checklistItems,
       depotSections: payload.depotSections,
       alreadyCaptured,
       expectedSections,
       sectionHints,
-      forceStructured
+      forceStructured,
+      sanityNotes
     });
     return jsonResponse(result, 200);
   } catch (err) {
@@ -133,20 +140,23 @@ async function handleAudio(request, env) {
 
   try {
     const transcript = await transcribeAudio(env, audioData, contentType);
+    const { sanitisedTranscript, sanityNotes } = applyTranscriptionSanityChecks(transcript);
     const result = await callNotesModel(env, {
-      transcript,
+      transcript: sanitisedTranscript,
       checklistItems: [],
       depotSections: [],
       alreadyCaptured: [],
       expectedSections: [],
       sectionHints: {},
-      forceStructured: true
+      forceStructured: true,
+      sanityNotes
     });
     return jsonResponse(
       {
         ...result,
-        transcript,
-        fullTranscript: transcript
+        transcript: sanitisedTranscript,
+        fullTranscript: transcript,
+        sanityNotes
       },
       200
     );
@@ -455,9 +465,14 @@ async function handleAgentChat(request, env) {
   }
 
   try {
+    const { sanitisedTranscript, sanityNotes } = applyTranscriptionSanityChecks(context?.transcript || "");
     const response = await agentChatWithAI(env, {
       message: message.trim(),
-      context: context || {}
+      context: {
+        ...context,
+        transcript: sanitisedTranscript,
+        sanityNotes: Array.isArray(sanityNotes) ? sanityNotes : []
+      }
     });
     return jsonResponse({ response }, 200);
   } catch (err) {
@@ -495,6 +510,11 @@ Your job is to:
 3. Help fill in missing information
 4. Be concise but accurate
 
+SANITY CHECKING:
+- Actively correct obvious transcription mistakes using the context provided (e.g., if a pipe size looks wrong, normalise it to the nearest standard size).
+- Standard pipework sizes are 8/10mm (microbore), 15mm, 22mm, 28mm, and 35mm—prefer these when resolving ambiguities.
+- Prefer the most recent reference material versions (e.g., the latest pricebook such as November 2025) when multiple versions exist.
+
 IMPORTANT:
 - Use the reference materials to provide accurate product specifications and pricing
 - If you don't know something, say so
@@ -505,7 +525,8 @@ IMPORTANT:
     message,
     currentSections: context.sections || [],
     transcript: context.transcript || '',
-    detectedInfo: context.detectedInfo || {}
+    detectedInfo: context.detectedInfo || {},
+    sanityNotes: context.sanityNotes || []
   });
 
   // Try OpenAI first, fall back to Anthropic if it fails
@@ -616,6 +637,7 @@ IMPORTANT RULES:
 - Only modify what the user asks to improve
 - Keep the technical accuracy and detail level
 - Do not add information that wasn't requested
+- Correct any obvious transcription errors using the context provided, especially standard pipe sizes (8/10mm, 15mm, 22mm, 28mm, 35mm) and other common measurements. Normalise improbable values to the nearest sensible standard size.
 
 You MUST respond with ONLY valid JSON matching this shape:
 
@@ -766,6 +788,54 @@ async function transcribeAudio(env, audioBuffer, mime) {
   return data.text || "";
 }
 
+async function handleQuery(request, env) {
+  if (!env.DB) {
+    return jsonResponse(
+      { error: "db_unavailable", message: "Database binding not configured" },
+      503
+    );
+  }
+
+  let payload;
+  try {
+    payload = await request.json();
+  } catch {
+    return jsonResponse(
+      { error: "bad_request", message: "JSON body required" },
+      400
+    );
+  }
+
+  const { query, params = [] } = payload || {};
+
+  if (typeof query !== "string" || !query.trim()) {
+    return jsonResponse(
+      { error: "bad_request", message: "query string required" },
+      400
+    );
+  }
+
+  const trimmedQuery = query.trim();
+  if (!trimmedQuery.toLowerCase().startsWith("select")) {
+    return jsonResponse(
+      { error: "forbidden", message: "only SELECT queries are allowed" },
+      403
+    );
+  }
+
+  try {
+    const stmt = env.DB.prepare(trimmedQuery);
+    const result = await stmt.bind(...(Array.isArray(params) ? params : [])).all();
+    return jsonResponse({ results: result.results || [], success: result.success !== false }, 200);
+  } catch (err) {
+    console.error("handleQuery DB error:", err);
+    return jsonResponse(
+      { error: "db_error", message: String(err) },
+      500
+    );
+  }
+}
+
 async function callAnthropicChat(apiKey, systemPrompt, userContent, temperature = 0.2) {
   if (!apiKey) throw new Error("ANTHROPIC_API_KEY not configured");
 
@@ -816,15 +886,13 @@ async function fetchReferenceMaterials(env, transcript) {
   const materials = [];
 
   try {
-    // Check if DB binding exists
     if (env.DB) {
-      // Fetch all reference materials from the database
-      const result = await env.DB.prepare(
-        "SELECT * FROM reference_materials"
-      ).all();
+      const columns = await getReferenceMaterialColumns(env);
+      const query = buildReferenceMaterialQuery(columns);
+      const result = await env.DB.prepare(query).all();
 
       if (result.success && result.results && result.results.length > 0) {
-        materials.push("=== Reference Materials from Database ===");
+        materials.push("=== Reference Materials from Database (latest versions preferred) ===");
         result.results.forEach(row => {
           materials.push(`\n${row.title || 'Untitled'}:`);
           materials.push(row.content || '');
@@ -836,15 +904,82 @@ async function fetchReferenceMaterials(env, transcript) {
     // Don't fail the whole request if reference fetch fails
   }
 
-  // TODO: Add R2 bucket fetching if needed
-  // if (env.REFERENCE_BUCKET) {
-  //   const pricebook = await env.REFERENCE_BUCKET.get("pricebook.txt");
-  //   if (pricebook) {
-  //     materials.push(await pricebook.text());
-  //   }
-  // }
-
   return materials.length > 0 ? materials.join("\n") : "";
+}
+
+async function getReferenceMaterialColumns(env) {
+  try {
+    const result = await env.DB.prepare("PRAGMA table_info(reference_materials)").all();
+    if (result?.results?.length) {
+      return new Set(result.results.map(row => row.name));
+    }
+  } catch (err) {
+    console.error("Failed to inspect reference_materials schema:", err);
+  }
+  return new Set();
+}
+
+function buildReferenceMaterialQuery(columns) {
+  const orderColumns = [];
+  const preferredOrder = [
+    "version_date",
+    "effective_date",
+    "version_tag",
+    "version",
+    "updated_at",
+    "created_at"
+  ];
+
+  preferredOrder.forEach(col => {
+    if (columns.has(col)) {
+      orderColumns.push(`${col} DESC`);
+    }
+  });
+
+  const whereClause = columns.has("is_latest") ? "WHERE is_latest = 1" : "";
+  const orderClause = orderColumns.length ? `ORDER BY ${orderColumns.join(", ")}` : "ORDER BY ROWID DESC";
+  const limitClause = "LIMIT 50";
+
+  return `SELECT * FROM reference_materials ${whereClause} ${orderClause} ${limitClause}`.trim();
+}
+
+function applyTranscriptionSanityChecks(transcript) {
+  if (typeof transcript !== "string") {
+    return { sanitisedTranscript: "", sanityNotes: [] };
+  }
+
+  const allowedPipeSizes = [8, 10, 15, 22, 28, 35];
+  const sanityNotes = [];
+  let sanitisedTranscript = transcript;
+
+  sanitisedTranscript = sanitisedTranscript.replace(/(\d{1,2})\s*mm/gi, (match, sizeStr) => {
+    const size = Number(sizeStr);
+    if (allowedPipeSizes.includes(size)) return `${size}mm`;
+
+    const correctedSize = closestValue(size, allowedPipeSizes);
+    if (correctedSize) {
+      sanityNotes.push(`Normalised pipe size ${size}mm to ${correctedSize}mm based on standard dimensions.`);
+      return `${correctedSize}mm`;
+    }
+
+    return match;
+  });
+
+  return { sanitisedTranscript: sanitisedTranscript.trim(), sanityNotes };
+}
+
+function closestValue(value, candidates) {
+  if (!candidates?.length) return null;
+  let best = candidates[0];
+  let minDiff = Math.abs(value - candidates[0]);
+  for (let i = 1; i < candidates.length; i++) {
+    const diff = Math.abs(value - candidates[i]);
+    if (diff < minDiff) {
+      minDiff = diff;
+      best = candidates[i];
+    }
+  }
+  return best;
 }
 
 async function callNotesModel(env, payload) {
@@ -861,7 +996,8 @@ async function callNotesModel(env, payload) {
     depotSections: depotSectionsRaw = [],
     alreadyCaptured = [],
     sectionHints = {},
-    forceStructured = false
+    forceStructured = false,
+    sanityNotes = []
   } = payload || {};
 
   const checklistFromPayload = sanitiseChecklistConfig(rawChecklistItems);
@@ -889,6 +1025,7 @@ You receive:
 - Optionally, a list of sections already captured so you can avoid duplicates.
 - Optional hints that map keywords to section names.
 - A forceStructured flag indicating you MUST return structured depot notes even if the transcript is sparse.
+- A set of sanityNotes highlighting any auto-detected transcription corrections.
 ${referenceMaterials ? `- Reference materials from the knowledge database to help you with product specs, pricing, and technical details.\n` : ''}
 Depot section names (in order):
 ${sectionListText}
@@ -902,6 +1039,8 @@ Your job is to:
 3. Suggest a small list of materials/parts.
 4. Write a short customer-friendly summary of the job.
 5. ACTIVELY ANALYZE the live transcript and ASK QUESTIONS about missing or unclear information.
+6. SANITY CHECK transcription details and correct obvious errors using context and standard dimensions (pipework sizes should be 8/10mm, 15mm, 22mm, 28mm, or 35mm; avoid improbable sizes by normalising to the nearest standard size).
+7. Prefer the most recent reference material versions (e.g., the latest pricebook, such as November 2025) if multiple versions are available.
 
 CRITICAL DEDUPLICATION RULES:
 - If alreadyCaptured contains information for a section, DO NOT repeat that information.
@@ -959,7 +1098,8 @@ Always preserve boiler/cylinder make & model exactly as spoken.
     alreadyCaptured,
     expectedSections: activeSchemaInfo.names,
     sectionHints,
-    forceStructured
+    forceStructured,
+    sanityNotes
   };
 
   // Try OpenAI first, fall back to Anthropic if it fails

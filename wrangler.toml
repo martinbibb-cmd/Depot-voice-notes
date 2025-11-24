@@ -13,7 +13,7 @@ ALLOWED_ORIGIN = "https://YOUR-DOMAIN.example"
 # D1 Database for agent reference materials
 [[d1_databases]]
 binding = "DB"
-database_name = "agent"
+database_name = "agent-db"
 database_id = "87400a56-0eff-4ac0-9bed-3f08ef2e0e79"
 
 # R2 Bucket for reference documents

@@ -28,6 +28,10 @@ export default {
         return handleTweakSection(request, env);
       }
 
+      if (request.method === "POST" && url.pathname === "/agent-chat") {
+        return handleAgentChat(request, env);
+      }
+
       return jsonResponse({ error: "not_found" }, 404);
     } catch (err) {
       console.error("Worker fatal error:", err);
@@ -426,6 +430,159 @@ async function handleTweakSection(request, env) {
       500
     );
   }
+}
+
+/* ---------- /agent-chat ---------- */
+
+async function handleAgentChat(request, env) {
+  let payload;
+  try {
+    payload = await request.json();
+  } catch {
+    return jsonResponse(
+      { error: "bad_request", message: "JSON body required" },
+      400
+    );
+  }
+
+  const { message, context } = payload;
+
+  if (!message || typeof message !== "string" || !message.trim()) {
+    return jsonResponse(
+      { error: "bad_request", message: "message string required" },
+      400
+    );
+  }
+
+  try {
+    const response = await agentChatWithAI(env, {
+      message: message.trim(),
+      context: context || {}
+    });
+    return jsonResponse({ response }, 200);
+  } catch (err) {
+    console.error("handleAgentChat error:", err);
+    return jsonResponse(
+      { error: "model_error", message: String(err) },
+      500
+    );
+  }
+}
+
+async function agentChatWithAI(env, payload) {
+  const openaiKey = env.OPENAI_API_KEY;
+  const anthropicKey = env.ANTHROPIC_API_KEY;
+
+  if (!openaiKey && !anthropicKey) {
+    throw new Error("Either OPENAI_API_KEY or ANTHROPIC_API_KEY must be configured");
+  }
+
+  const { message, context } = payload;
+
+  // Fetch reference materials from database
+  const referenceMaterials = await fetchReferenceMaterials(env, context.transcript || '');
+
+  const systemPrompt = `You are an AI assistant helping with heating survey work for a British Gas style boiler installation surveyor.
+
+You have access to:
+- The current survey sections and notes
+- The transcript of conversations
+- Reference materials from the knowledge database
+${referenceMaterials ? `\n${referenceMaterials}\n` : ''}
+Your job is to:
+1. Answer questions about the survey, products, pricing, or technical details
+2. Provide helpful suggestions based on the context
+3. Help fill in missing information
+4. Be concise but accurate
+
+IMPORTANT:
+- Use the reference materials to provide accurate product specifications and pricing
+- If you don't know something, say so
+- Keep responses brief and actionable
+- Focus on helping complete the survey accurately`.trim();
+
+  const userContent = JSON.stringify({
+    message,
+    currentSections: context.sections || [],
+    transcript: context.transcript || '',
+    detectedInfo: context.detectedInfo || {}
+  });
+
+  // Try OpenAI first, fall back to Anthropic if it fails
+  let response;
+  let lastError;
+
+  if (openaiKey) {
+    try {
+      console.log("Attempting to call OpenAI for agent chat...");
+      const body = {
+        model: "gpt-4.1",
+        temperature: 0.5,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userContent }
+        ]
+      };
+
+      const res = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${openaiKey}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(body)
+      });
+
+      const rawText = await res.text();
+
+      if (!res.ok) {
+        throw new Error(`OpenAI chat.completions ${res.status}: ${rawText}`);
+      }
+
+      let parsed;
+      try {
+        parsed = JSON.parse(rawText);
+      } catch (err) {
+        throw new Error(`OpenAI returned non-JSON response: ${String(err)} :: ${rawText}`);
+      }
+
+      const content = parsed?.choices?.[0]?.message?.content;
+      if (!content || typeof content !== "string") {
+        throw new Error("No content from OpenAI model");
+      }
+
+      response = content.trim();
+      console.log("OpenAI call successful");
+    } catch (err) {
+      console.error("OpenAI call failed:", String(err));
+      lastError = err;
+      response = null;
+    }
+  }
+
+  // Fall back to Anthropic if OpenAI failed or wasn't available
+  if (!response && anthropicKey) {
+    try {
+      console.log("Falling back to Anthropic for agent chat...");
+      response = await callAnthropicChat(
+        anthropicKey,
+        systemPrompt,
+        userContent,
+        0.5
+      );
+      console.log("Anthropic call successful");
+    } catch (err) {
+      console.error("Anthropic call failed:", String(err));
+      lastError = err;
+      response = null;
+    }
+  }
+
+  if (!response) {
+    throw new Error(`All AI providers failed. Last error: ${String(lastError)}`);
+  }
+
+  return response;
 }
 
 async function tweakSectionWithAI(env, payload) {

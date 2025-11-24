@@ -276,7 +276,7 @@ function showStatus(message, isError = false) {
     statusEl.textContent = message;
     statusEl.style.display = 'block';
     statusEl.style.background = isError ? '#fee' : '#efe';
-    statusEl.style.color = isError ? var('--danger') : var('--success');
+    statusEl.style.color = isError ? '#ef4444' : '#10b981';
     statusEl.style.border = `1px solid ${isError ? '#fcc' : '#cfc'}`;
 
     // Auto-hide after 5 seconds
@@ -396,7 +396,7 @@ const styles = `
   width: 100%;
   height: 100%;
   background: rgba(0, 0, 0, 0.5);
-  z-index: 10000;
+  z-index: 10100;
   align-items: center;
   justify-content: center;
 }

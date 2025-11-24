@@ -1839,7 +1839,7 @@ generateSummaryBtn.onclick = async () => {
     ].filter(n => n);
 
     // Show the summary modal
-    showSummaryModal(sections, notes);
+    showSummaryModal(sections, notes, transcriptInput.value.trim());
   } catch (error) {
     console.error("Error showing summary:", error);
     alert("Error generating summary: " + error.message);

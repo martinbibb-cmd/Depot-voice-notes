@@ -63,6 +63,44 @@ function addPageHeader(doc, title, pageNum, totalPages) {
   doc.setTextColor(0, 0, 0); // Reset to black
 }
 
+function describeCurrentSystem(requirements) {
+  const parts = [];
+  if (requirements.currentBoilerType) {
+    parts.push(`${requirements.currentBoilerType} boiler`);
+  }
+  if (requirements.currentWaterSystem) {
+    parts.push(requirements.currentWaterSystem.toLowerCase());
+  }
+  if (!parts.length) return 'Transcript did not clearly state the current system';
+  return parts.join(' with ');
+}
+
+function addActionBenefitsSection(doc, actionBenefits, margin, contentWidth, startY) {
+  if (!actionBenefits || !actionBenefits.length) return startY;
+
+  let yPos = startY;
+  doc.setFontSize(12);
+  doc.setFont(undefined, 'bold');
+  doc.setTextColor(59, 130, 246);
+  doc.text('Customer-Specific Actions & Benefits', margin, yPos);
+
+  yPos += 7;
+  doc.setFontSize(9);
+  doc.setFont(undefined, 'normal');
+  doc.setTextColor(0, 0, 0);
+
+  actionBenefits.slice(0, 4).forEach((item) => {
+    const lines = doc.splitTextToSize(`• ${item.action}: ${item.benefit}${item.annualSaving ? ` (${item.annualSaving})` : ''}`, contentWidth);
+    lines.forEach((line) => {
+      doc.text(line, margin + 2, yPos);
+      yPos += 5;
+    });
+    yPos += 2;
+  });
+
+  return yPos + 3;
+}
+
 /**
  * Generate cover page
  */
@@ -271,6 +309,81 @@ async function generateRecommendationPage(doc, recommendation, pageNum, totalPag
         doc.text(line, margin + 3, yPos);
         yPos += 5;
       });
+    });
+  }
+
+  // Customer-specific action benefits
+  yPos = addActionBenefitsSection(doc, explanation.actionBenefits, margin, contentWidth, yPos + 6);
+}
+
+async function generateCurrentVsProposedPage(doc, recommendationData, mainSystem, pageNum, totalPages) {
+  const { requirements, transcript } = recommendationData;
+  const margin = 15;
+  const contentWidth = doc.internal.pageSize.getWidth() - margin * 2;
+  addPageHeader(doc, 'Current vs Proposed System', pageNum, totalPages);
+
+  let yPos = 42;
+  doc.setFontSize(12);
+  doc.setFont(undefined, 'bold');
+  doc.text('What you have today', margin, yPos);
+
+  yPos += 7;
+  doc.setFontSize(10);
+  doc.setFont(undefined, 'normal');
+  const currentSystem = describeCurrentSystem(requirements);
+  const currentLines = doc.splitTextToSize(currentSystem, contentWidth);
+  currentLines.forEach((line) => {
+    doc.text(line, margin, yPos);
+    yPos += 5;
+  });
+
+  yPos += 5;
+  doc.setFontSize(12);
+  doc.setFont(undefined, 'bold');
+  doc.text('Proposed upgrade', margin, yPos);
+
+  yPos += 7;
+  doc.setFontSize(10);
+  doc.setFont(undefined, 'normal');
+  const proposal = `Move to ${mainSystem.profile.name} (${mainSystem.profile.waterSystem}) with ${mainSystem.profile.boilerType} boiler.`;
+  const proposalLines = doc.splitTextToSize(proposal, contentWidth);
+  proposalLines.forEach((line) => {
+    doc.text(line, margin, yPos);
+    yPos += 5;
+  });
+
+  const explanation = explainRecommendation(mainSystem, requirements);
+  yPos += 6;
+  doc.setFontSize(12);
+  doc.setFont(undefined, 'bold');
+  doc.setTextColor(16, 185, 129);
+  doc.text('Key advantages for your property', margin, yPos);
+
+  yPos += 7;
+  doc.setFontSize(10);
+  doc.setFont(undefined, 'normal');
+  doc.setTextColor(0, 0, 0);
+  const advantageLines = doc.splitTextToSize(explanation.summary, contentWidth);
+  advantageLines.forEach((line) => {
+    doc.text(line, margin, yPos);
+    yPos += 5;
+  });
+
+  yPos = addActionBenefitsSection(doc, explanation.actionBenefits, margin, contentWidth, yPos + 4);
+
+  if (transcript) {
+    yPos += 4;
+    doc.setFontSize(11);
+    doc.setFont(undefined, 'bold');
+    doc.text('Transcript cues used', margin, yPos);
+    yPos += 6;
+    doc.setFontSize(9);
+    doc.setFont(undefined, 'normal');
+    const clipped = transcript.slice(0, 320);
+    const transcriptLines = doc.splitTextToSize(clipped, contentWidth);
+    transcriptLines.forEach((line) => {
+      doc.text(line, margin, yPos);
+      yPos += 4;
     });
   }
 }
@@ -570,36 +683,45 @@ export async function generateSummaryPDF(recommendationData, chosenSystemKey = n
 
   const showComparison = chosenSystemKey && chosenSystemKey !== bestOption.key;
 
-  // Calculate total pages (rough estimate)
-  const totalPages = showComparison ? 7 : 5;
+  // Calculate total pages dynamically
+  let totalPages = 4; // cover + main + works + benefits
+  totalPages += 1; // current vs proposed page
+  if (recommendations[1]) totalPages += 1; // alternative option page
+  if (showComparison) totalPages += 1; // comparison page
 
   // Page 1: Cover
   await generateCoverPage(doc, recommendationData);
 
-  // Page 2: Main recommendation
-  doc.addPage();
-  await generateRecommendationPage(doc, mainSystem, 2, totalPages, !showComparison);
+  let pageCounter = 2;
 
-  // Page 3: Works involved
+  // Page 2: Current vs Proposed
+  doc.addPage();
+  await generateCurrentVsProposedPage(doc, recommendationData, mainSystem, pageCounter++, totalPages);
+
+  // Next: Main recommendation
+  doc.addPage();
+  await generateRecommendationPage(doc, mainSystem, pageCounter++, totalPages, !showComparison);
+
+  // Works involved
   const mainExplanation = explainRecommendation(mainSystem, requirements);
   doc.addPage();
-  await generateWorksPage(doc, mainExplanation, 3, totalPages);
+  await generateWorksPage(doc, mainExplanation, pageCounter++, totalPages);
 
-  // Page 4: Benefits
+  // Benefits
   doc.addPage();
-  await generateBenefitsPage(doc, mainExplanation, 4, totalPages);
+  await generateBenefitsPage(doc, mainExplanation, pageCounter++, totalPages);
 
-  // Page 5: Alternative option (if not chosen) or first alternative
+  // Alternative option (if not chosen) or first alternative
   const alternativeSystem = showComparison ? bestOption : recommendations[1];
   if (alternativeSystem) {
     doc.addPage();
-    await generateRecommendationPage(doc, alternativeSystem, 5, totalPages, showComparison);
+    await generateRecommendationPage(doc, alternativeSystem, pageCounter++, totalPages, showComparison);
   }
 
-  // Page 6-7: Comparison (if user chose different system)
+  // Comparison (if user chose different system)
   if (showComparison) {
     doc.addPage();
-    await generateComparisonPage(doc, bestOption, mainSystem, 6, totalPages);
+    await generateComparisonPage(doc, bestOption, mainSystem, pageCounter++, totalPages);
   }
 
   // Save the PDF

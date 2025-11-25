@@ -21,6 +21,19 @@ const iconMap = {
   heatpump: `${ICON_BASE}heatpump.png`,
 };
 
+// Shows a small text note explaining where the options came from.
+function setOptionSourceNote(text) {
+  const el = document.getElementById('optionSourceNote');
+  if (!el) return;
+  if (!text) {
+    el.style.display = 'none';
+    el.textContent = '';
+  } else {
+    el.style.display = 'block';
+    el.textContent = text;
+  }
+}
+
 function readJsonFile(inputEl) {
   return new Promise((resolve) => {
     const file = inputEl?.files?.[0];
@@ -92,9 +105,113 @@ function extractPropertyFromNotes(notesJson) {
   };
 }
 
+// Fallback "mini System Recommendation" using notes.json only.
+// This is a heuristic engine for now. We can later replace it with a shared engine
+// or API from the System-recommendation app.
+function buildOptionsFromNotes(notesJson) {
+  const property = extractPropertyFromNotes(notesJson);
+
+  // Very simple heuristics: adjust these as needed when you see the real notes.json structure.
+  const beds = Number(property.bedrooms || 0) || 0;
+  const hasTwoOrMoreBathrooms = (Number(property.bathrooms || 0) || 0) >= 2;
+  const current = (property.currentSystem || '').toLowerCase();
+
+  const likelyHighDemand = beds >= 4 || hasTwoOrMoreBathrooms;
+  const isCombiNow = current.includes('combi');
+  const isRegularOrSystem =
+    current.includes('regular') ||
+    current.includes('system') ||
+    current.includes('heat-only') ||
+    current.includes('cylinder');
+
+  // Decide main system type
+  let recommendedType = 'combi';
+  if (likelyHighDemand && isRegularOrSystem) {
+    recommendedType = 'system'; // Cylinder-based, better for high demand
+  }
+
+  // Decide cylinder type / extras as simple tags (NOT thermal store).
+  const baseTags = [];
+  if (recommendedType === 'combi') {
+    baseTags.push('combi');
+  } else {
+    baseTags.push('system', 'cylinder'); // conventional or unvented cylinder
+  }
+
+  // Very simple "extras" assumptions:
+  const alwaysExtras = ['hive', 'filter', 'flush'];
+
+  // Gold: best comfort + smart + future ready
+  const goldTags = baseTags.concat(alwaysExtras);
+  const goldBenefits = [
+    'High efficiency system sized for your home.',
+    'Improved comfort and more consistent hot water.',
+    'Smart controls for easier scheduling and remote control.',
+    'Good future-proofing for changing usage over time.',
+  ];
+
+  // Silver: strong but slightly simpler / cheaper
+  const silverTags = baseTags.concat(['hive', 'filter']);
+  const silverBenefits = [
+    'Efficient system upgrade that improves comfort.',
+    'Smart controls to help manage heating times.',
+    'Includes system protection to help keep things cleaner.',
+  ];
+
+  // Bronze: basic compliance option
+  const bronzeTags = baseTags.concat(['filter']);
+  const bronzeBenefits = [
+    'Meets minimum requirements and improves reliability.',
+    'Includes basic system protection.',
+    'Lower upfront investment compared to other options.',
+  ];
+
+  // Slightly adjust wording depending on main type
+  const goldName =
+    recommendedType === 'combi'
+      ? 'Gold: High-efficiency combi with smart controls'
+      : 'Gold: High-efficiency system boiler with cylinder and smart controls';
+
+  const silverName =
+    recommendedType === 'combi'
+      ? 'Silver: Combi boiler with smart controls'
+      : 'Silver: System boiler with cylinder and smart controls';
+
+  const bronzeName =
+    recommendedType === 'combi'
+      ? 'Bronze: Combi boiler with basic controls'
+      : 'Bronze: System boiler with cylinder and basic controls';
+
+  return [
+    {
+      tier: 'gold',
+      name: goldName,
+      shortDescription: 'Our top recommendation based on your home and usage.',
+      benefits: goldBenefits,
+      visualTags: goldTags,
+    },
+    {
+      tier: 'silver',
+      name: silverName,
+      shortDescription: 'A strong balance of performance and cost.',
+      benefits: silverBenefits,
+      visualTags: silverTags,
+    },
+    {
+      tier: 'bronze',
+      name: bronzeName,
+      shortDescription: 'A simpler option that still upgrades your system.',
+      benefits: bronzeBenefits,
+      visualTags: bronzeTags,
+    },
+  ];
+}
+
 function buildOptionsFromSystem(systemJson) {
+  let usedRealSystemJson = false;
+
   if (!systemJson || !Array.isArray(systemJson.options)) {
-    return [
+    const options = [
       {
         tier: 'gold',
         name: 'Recommended high-efficiency system',
@@ -121,29 +238,53 @@ function buildOptionsFromSystem(systemJson) {
         visualTags: ['regular'],
       },
     ];
+    return { options, usedRealSystemJson };
   }
 
+  usedRealSystemJson = true;
   const rawOptions = systemJson.options.slice(0, 3);
   const tiers = ['gold', 'silver', 'bronze'];
 
-  return rawOptions.map((opt, index) => {
+  const options = rawOptions.map((opt, index) => {
     const tier = opt.tier || tiers[index] || 'bronze';
     return {
       tier,
       name: opt.name || opt.title || `Option ${index + 1}`,
-      shortDescription: opt.shortDescription || opt.description || 'System recommendation generated for your home.',
-      benefits: Array.isArray(opt.benefits) && opt.benefits.length > 0
-        ? opt.benefits
-        : (opt.features || []).slice(0, 5),
+      shortDescription:
+        opt.shortDescription ||
+        opt.description ||
+        'System recommendation generated for your home.',
+      benefits:
+        Array.isArray(opt.benefits) && opt.benefits.length > 0
+          ? opt.benefits
+          : (opt.features || []).slice(0, 5),
       visualTags: opt.visualTags || opt.tags || [],
     };
   });
+
+  return { options, usedRealSystemJson };
 }
 
 function buildProposalData({ transcriptJson, notesJson, systemJson }) {
   const customer = summariseTranscript(transcriptJson);
   const property = extractPropertyFromNotes(notesJson);
-  const options = buildOptionsFromSystem(systemJson);
+
+  let options;
+  let sourceText;
+
+  if (systemJson) {
+    const { options: sysOptions, usedRealSystemJson } = buildOptionsFromSystem(systemJson);
+    options = sysOptions;
+    sourceText = usedRealSystemJson
+      ? 'Options generated from System Recommendation JSON.'
+      : 'Options generated using built-in defaults (System Recommendation JSON did not include an options array).';
+  } else {
+    options = buildOptionsFromNotes(notesJson);
+    sourceText = 'Options auto-generated from your survey notes (System Recommendation JSON not supplied).';
+  }
+
+  // Update the note under the heading
+  setOptionSourceNote(sourceText);
 
   return {
     createdAt: new Date(),
@@ -305,6 +446,8 @@ function escapeHtml(str) {
 
 if (generateBtn && printBtn) {
   generateBtn.addEventListener('click', async () => {
+    setOptionSourceNote(''); // clear previous note
+
     const [transcriptJson, notesJson, systemJson] = await Promise.all([
       readJsonFile(transcriptInput),
       readJsonFile(notesInput),

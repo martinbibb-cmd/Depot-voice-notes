@@ -1,0 +1,162 @@
+body {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  margin: 0;
+  padding: 0;
+  background: #f7f7f7;
+  color: #1f2933;
+}
+
+.proposal-header {
+  padding: 1rem 1.5rem;
+  background: #ffffff;
+  border-bottom: 1px solid #ddd;
+}
+
+.proposal-header h1 {
+  margin: 0 0 0.25rem;
+}
+
+.proposal-header p {
+  margin: 0;
+  color: #4b5563;
+}
+
+.proposal-inputs {
+  padding: 1rem 1.5rem;
+  background: #ffffff;
+  border-bottom: 1px solid #ddd;
+}
+
+.proposal-inputs .file-row {
+  margin-bottom: 0.5rem;
+}
+
+.proposal-inputs label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-weight: 600;
+  color: #111827;
+}
+
+.proposal-inputs input[type="file"] {
+  max-width: 320px;
+}
+
+.proposal-inputs button {
+  margin-right: 0.5rem;
+  margin-top: 0.25rem;
+  border: none;
+  background: #4f46e5;
+  color: #fff;
+  border-radius: 6px;
+  padding: 0.55rem 0.9rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+}
+
+.proposal-inputs button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.proposal-inputs button:hover:not(:disabled) {
+  background: #4338ca;
+}
+
+.proposal-inputs .hint {
+  color: #4b5563;
+  max-width: 680px;
+}
+
+.proposal-output {
+  padding: 1.5rem;
+}
+
+.proposal-page {
+  background: #ffffff;
+  border: 1px solid #ddd;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  page-break-after: always;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.04);
+}
+
+.proposal-page:last-child {
+  page-break-after: auto;
+}
+
+.section-title {
+  margin-top: 0;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 0.25rem;
+  margin-bottom: 0.75rem;
+}
+
+.options-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.option-card {
+  flex: 1 1 0;
+  min-width: 220px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 1rem;
+  background: #fafafa;
+}
+
+.option-card h3 {
+  margin-top: 0.4rem;
+  margin-bottom: 0.35rem;
+}
+
+.option-tier {
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.25rem;
+  padding-bottom: 0.25rem;
+}
+
+.option-tier.gold {
+  border-bottom: 2px solid #c6a100;
+}
+
+.option-tier.silver {
+  border-bottom: 2px solid #999999;
+}
+
+.option-tier.bronze {
+  border-bottom: 2px solid #b87333;
+}
+
+.option-visuals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin: 0.5rem 0;
+}
+
+.option-visuals img {
+  height: 32px;
+}
+
+@media print {
+  body {
+    background: #ffffff;
+  }
+  .proposal-inputs, .proposal-header {
+    display: none;
+  }
+  .proposal-page {
+    border: none;
+    margin: 0;
+    padding: 1rem 0;
+    box-shadow: none;
+  }
+}

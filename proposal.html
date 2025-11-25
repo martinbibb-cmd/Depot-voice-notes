@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Proposal Builder – Depot Voice Notes</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="./proposal.css" />
+</head>
+<body>
+  <header class="proposal-header">
+    <h1>Customer Proposal Builder</h1>
+    <p>Turn your survey and recommendations into a customer-friendly printout.</p>
+  </header>
+
+  <section class="proposal-inputs">
+    <h2>1. Load data</h2>
+    <div class="file-row">
+      <label>Transcript JSON
+        <input type="file" id="transcriptFile" accept="application/json" />
+      </label>
+    </div>
+    <div class="file-row">
+      <label>Notes JSON
+        <input type="file" id="notesFile" accept="application/json" />
+      </label>
+    </div>
+    <div class="file-row">
+      <label>System Recommendation JSON
+        <input type="file" id="systemFile" accept="application/json" />
+      </label>
+    </div>
+
+    <button id="generateProposalBtn">Generate Proposal</button>
+    <button id="printProposalBtn" disabled>Print / Save as PDF</button>
+
+    <p class="hint">
+      For now, select the JSON files manually. In a later version this page can pull the
+      current session data directly from depot-voice-notes and System-recommendation.
+    </p>
+  </section>
+
+  <main id="proposalOutput" class="proposal-output">
+  </main>
+
+  <script src="./proposal.js" defer></script>
+</body>
+</html>

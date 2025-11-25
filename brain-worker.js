@@ -496,18 +496,19 @@ async function agentChatWithAI(env, payload) {
     throw new Error("Either OPENAI_API_KEY or ANTHROPIC_API_KEY must be configured");
   }
 
-  const { message, context } = payload;
+  const { message, context, customInstructions } = payload;
 
   // Fetch reference materials from database
   const referenceMaterials = await fetchReferenceMaterials(env, context.transcript || '');
 
-  const systemPrompt = `You are an AI assistant helping with heating survey work for a British Gas style boiler installation surveyor.
+  // Use custom instructions if provided, otherwise use default
+  const defaultSystemPrompt = `You are an AI assistant helping with heating survey work for a British Gas style boiler installation surveyor.
 
 You have access to:
 - The current survey sections and notes
 - The transcript of conversations
 - Reference materials from the knowledge database
-${referenceMaterials ? `\n${referenceMaterials}\n` : ''}
+
 Your job is to:
 1. Answer questions about the survey, products, pricing, or technical details
 2. Provide helpful suggestions based on the context
@@ -523,7 +524,21 @@ IMPORTANT:
 - Use the reference materials to provide accurate product specifications and pricing
 - If you don't know something, say so
 - Keep responses brief and actionable
-- Focus on helping complete the survey accurately`.trim();
+- Focus on helping complete the survey accurately`;
+
+  let systemPrompt = customInstructions || defaultSystemPrompt;
+
+  // Inject reference materials if available
+  if (referenceMaterials) {
+    const insertPoint = systemPrompt.indexOf('Your job is to:');
+    if (insertPoint > 0) {
+      systemPrompt = systemPrompt.slice(0, insertPoint) + `\n${referenceMaterials}\n\n` + systemPrompt.slice(insertPoint);
+    } else {
+      systemPrompt = systemPrompt + `\n\n${referenceMaterials}`;
+    }
+  }
+
+  systemPrompt = systemPrompt.trim();
 
   const userContent = JSON.stringify({
     message,
@@ -618,9 +633,10 @@ async function tweakSectionWithAI(env, payload) {
     throw new Error("Either OPENAI_API_KEY or ANTHROPIC_API_KEY must be configured");
   }
 
-  const { sectionName, plainText, naturalLanguage, instructions } = payload;
+  const { sectionName, plainText, naturalLanguage, instructions, customInstructions } = payload;
 
-  const systemPrompt = `You are an expert heating survey assistant helping to improve survey notes.
+  // Use custom instructions if provided, otherwise use default
+  const defaultSystemPrompt = `You are an expert heating survey assistant helping to improve survey notes.
 
 You will receive:
 - A section name (e.g., "Needs", "New boiler and controls")
@@ -652,7 +668,9 @@ You MUST respond with ONLY valid JSON matching this shape:
 }
 
 Do not wrap the JSON in backticks or markdown.
-Do not include any explanation outside the JSON.`.trim();
+Do not include any explanation outside the JSON.`;
+
+  const systemPrompt = (customInstructions || defaultSystemPrompt).trim();
 
   const userPayload = {
     sectionName,

@@ -412,13 +412,26 @@ async function sendChatMessage() {
     // Get worker URL
     const workerUrl = window.WORKER_URL || 'https://depot-voice-notes.martinbibb.workers.dev';
 
+    // Load custom AI instructions if available
+    let customInstructions = null;
+    try {
+      const aiInstructions = localStorage.getItem('depot.aiInstructions');
+      if (aiInstructions) {
+        const parsed = JSON.parse(aiInstructions);
+        customInstructions = parsed.agentChat;
+      }
+    } catch (err) {
+      console.warn('Failed to load custom AI instructions', err);
+    }
+
     // Call AI endpoint
     const response = await fetch(`${workerUrl}/agent-chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         message,
-        context
+        context,
+        customInstructions
       })
     });
 

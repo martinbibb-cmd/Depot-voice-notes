@@ -7,6 +7,7 @@ const SECTION_STORAGE_KEY = "depot.sectionSchema";
 const LEGACY_SECTION_STORAGE_KEY = "surveybrain-schema";
 const CHECKLIST_STORAGE_KEY = "depot.checklistConfig";
 const CHECKLIST_CONFIG_URL = "../checklist.config.json";
+const AI_INSTRUCTIONS_STORAGE_KEY = "depot.aiInstructions";
 const FUTURE_PLANS_NAME = "Future plans";
 const FUTURE_PLANS_DESCRIPTION = "Notes about any future work or follow-on visits.";
 const AUTOSAVE_STORAGE_KEY = "surveyBrainAutosave";
@@ -237,11 +238,101 @@ function saveLocalChecklistConfig(value) {
   return config;
 }
 
+function getDefaultAIInstructions() {
+  return {
+    agentChat: `You are an AI assistant helping with heating survey work for a British Gas style boiler installation surveyor.
+
+You have access to:
+- The current survey sections and notes
+- The transcript of conversations
+- Reference materials from the knowledge database
+
+Your job is to:
+1. Answer questions about the survey, products, pricing, or technical details
+2. Provide helpful suggestions based on the context
+3. Help fill in missing information
+4. Be concise but accurate
+
+SANITY CHECKING:
+- Actively correct obvious transcription mistakes using the context provided (e.g., if a pipe size looks wrong, normalise it to the nearest standard size).
+- Standard pipework sizes are 8/10mm (microbore), 15mm, 22mm, 28mm, and 35mm—prefer these when resolving ambiguities.
+- Prefer the most recent reference material versions (e.g., the latest pricebook such as November 2025) when multiple versions exist.
+
+IMPORTANT:
+- Use the reference materials to provide accurate product specifications and pricing
+- If you don't know something, say so
+- Keep responses brief and actionable
+- Focus on helping complete the survey accurately`,
+    tweakSection: `You are an expert heating survey assistant helping to improve survey notes.
+
+You will receive:
+- A section name (e.g., "Needs", "New boiler and controls")
+- Current plainText (bullet-point style, semicolon-separated)
+- Current naturalLanguage (prose description)
+- User instructions on how to improve the section
+
+Your job is to:
+1. Read the current section content carefully
+2. Apply the user's improvement instructions
+3. Return an improved version of the section that maintains the same format
+
+IMPORTANT RULES:
+- Keep the same section name
+- Maintain the plainText format (semicolon-separated bullet points)
+- Maintain the naturalLanguage format (clear prose)
+- Apply the user's instructions precisely
+- Only modify what the user asks to improve
+- Keep the technical accuracy and detail level
+- Do not add information that wasn't requested
+- Correct any obvious transcription errors using the context provided, especially standard pipe sizes (8/10mm, 15mm, 22mm, 28mm, 35mm) and other common measurements. Normalise improbable values to the nearest sensible standard size.
+
+You MUST respond with ONLY valid JSON matching this shape:
+
+{
+  "section": "[section name]",
+  "plainText": "Improved bullet points; separated by semicolons;",
+  "naturalLanguage": "Improved prose description."
+}
+
+Do not wrap the JSON in backticks or markdown.
+Do not include any explanation outside the JSON.`
+  };
+}
+
+function loadAIInstructions() {
+  const defaults = getDefaultAIInstructions();
+
+  try {
+    const raw = localStorage.getItem(AI_INSTRUCTIONS_STORAGE_KEY);
+    if (raw) {
+      const stored = JSON.parse(raw);
+      return {
+        agentChat: stored.agentChat || defaults.agentChat,
+        tweakSection: stored.tweakSection || defaults.tweakSection
+      };
+    }
+  } catch (err) {
+    console.warn("Failed to read AI instructions override", err);
+  }
+
+  return defaults;
+}
+
+function saveLocalAIInstructions(instructions) {
+  try {
+    localStorage.setItem(AI_INSTRUCTIONS_STORAGE_KEY, JSON.stringify(instructions));
+  } catch (err) {
+    alert("Unable to save AI instructions: " + (err?.message || err));
+  }
+  return instructions;
+}
+
 function clearLocalDepotStorage() {
   const knownKeys = [
     SECTION_STORAGE_KEY,
     LEGACY_SECTION_STORAGE_KEY,
     CHECKLIST_STORAGE_KEY,
+    AI_INSTRUCTIONS_STORAGE_KEY,
     AUTOSAVE_STORAGE_KEY,
     LEGACY_SCHEMA_STORAGE_KEY,
     CHECKLIST_STATE_STORAGE_KEY,
@@ -362,6 +453,9 @@ let checklistEditor;
 let editableChecklist = [];
 let cachedSectionSchema = [];
 let cachedChecklistOrder = [];
+let agentChatArea;
+let tweakSectionArea;
+let editableAIInstructions = null;
 
 function ensureFuturePresence() {
   let idx = editableSchema.findIndex((entry) => entry.name === FUTURE_PLANS_NAME);
@@ -830,6 +924,8 @@ async function initSettingsPage() {
   schemaArea = document.getElementById("settings-schema-json");
   sectionEditor = document.getElementById("settings-section-editor");
   checklistEditor = document.getElementById("checklist-editor");
+  agentChatArea = document.getElementById("ai-agent-chat-instructions");
+  tweakSectionArea = document.getElementById("ai-tweak-section-instructions");
   const forceReloadBtn = document.getElementById("btn-force-reload");
 
   if (!checklistArea || !schemaArea || !sectionEditor || !checklistEditor) {
@@ -837,9 +933,10 @@ async function initSettingsPage() {
     return;
   }
 
-  const [schema, checklist] = await Promise.all([
+  const [schema, checklist, aiInstructions] = await Promise.all([
     loadSectionSchema(),
-    loadChecklistConfig()
+    loadChecklistConfig(),
+    Promise.resolve(loadAIInstructions())
   ]);
 
   cachedSectionSchema = schema.map((entry) => ({ name: entry.name, description: entry.description || "" }));
@@ -929,6 +1026,43 @@ async function initSettingsPage() {
     renderChecklistEditor(fresh, cachedSectionSchema);
     updateChecklistTextarea();
     alert("Checklist reset to defaults.");
+  });
+
+  // Initialize AI Instructions
+  editableAIInstructions = aiInstructions;
+  if (agentChatArea) {
+    agentChatArea.value = aiInstructions.agentChat;
+  }
+  if (tweakSectionArea) {
+    tweakSectionArea.value = aiInstructions.tweakSection;
+  }
+
+  // AI Instructions event listeners
+  document.getElementById("btn-save-ai-instructions")?.addEventListener("click", () => {
+    try {
+      const instructions = {
+        agentChat: agentChatArea?.value || getDefaultAIInstructions().agentChat,
+        tweakSection: tweakSectionArea?.value || getDefaultAIInstructions().tweakSection
+      };
+      saveLocalAIInstructions(instructions);
+      editableAIInstructions = instructions;
+      alert("AI instructions saved (local to this device).");
+    } catch (err) {
+      alert("Failed to save AI instructions: " + (err?.message || err));
+    }
+  });
+
+  document.getElementById("btn-reset-ai-instructions")?.addEventListener("click", () => {
+    localStorage.removeItem(AI_INSTRUCTIONS_STORAGE_KEY);
+    const defaults = getDefaultAIInstructions();
+    editableAIInstructions = defaults;
+    if (agentChatArea) {
+      agentChatArea.value = defaults.agentChat;
+    }
+    if (tweakSectionArea) {
+      tweakSectionArea.value = defaults.tweakSection;
+    }
+    alert("AI instructions reset to defaults.");
   });
 
   if (forceReloadBtn) {

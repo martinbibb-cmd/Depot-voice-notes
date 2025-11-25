@@ -16,6 +16,8 @@ const GRAPHIC_FALLBACK = {
   alt: 'Heating system illustration.',
 };
 
+const DEFAULT_OPTION_ORDER = ['combi', 'system_mixergy', 'system_unvented'];
+
 function readFromStorage(key) {
   try {
     const local = localStorage.getItem(key);
@@ -47,8 +49,31 @@ function loadAutosave() {
   return parseJson(raw);
 }
 
+function loadAppState() {
+  try {
+    if (typeof window !== 'undefined' && window.__depotAppState) return window.__depotAppState;
+  } catch (_) {
+    // ignore
+  }
+
+  try {
+    if (typeof window !== 'undefined' && window.opener?.__depotAppState) return window.opener.__depotAppState;
+  } catch (_) {
+    // ignore
+  }
+
+  return null;
+}
+
+function loadSnapshot() {
+  return loadAppState() || loadAutosave();
+}
+
 function loadTranscriptText(snapshot) {
+  if (snapshot?.transcriptText) return snapshot.transcriptText;
+  if (snapshot?.transcript) return snapshot.transcript;
   if (snapshot?.fullTranscript) return snapshot.fullTranscript;
+  if (snapshot?.transcript?.text) return snapshot.transcript.text;
   for (const key of TRANSCRIPT_KEYS) {
     const raw = readFromStorage(key);
     if (raw) return raw;
@@ -56,32 +81,85 @@ function loadTranscriptText(snapshot) {
   return '';
 }
 
+function getSections(notes) {
+  if (Array.isArray(notes)) return notes;
+  if (Array.isArray(notes?.sections)) return notes.sections;
+  if (Array.isArray(notes?.notes)) return notes.notes;
+  if (Array.isArray(notes?.sections?.sections)) return notes.sections.sections;
+  return [];
+}
+
+function normaliseNoteValue(value) {
+  if (value === null || typeof value === 'undefined') return '';
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  if (typeof value === 'object') {
+    return (
+      value.text ||
+      value.content ||
+      value.message ||
+      value.label ||
+      value.title ||
+      value.naturalLanguage ||
+      JSON.stringify(value)
+    );
+  }
+  return String(value);
+}
+
+function normaliseNoteList(list) {
+  if (!Array.isArray(list)) return [];
+  return list
+    .map((entry) => normaliseNoteValue(entry))
+    .map((entry) => (entry || '').trim())
+    .filter((entry) => entry.length > 0);
+}
+
 function loadNotes(snapshot) {
-  if (snapshot) {
-    return {
-      propertyType: snapshot.propertyType || '',
-      currentSystem: snapshot.currentSystem || '',
-      bedrooms: snapshot.bedrooms || snapshot.bedroomCount,
-      bathrooms: snapshot.bathrooms || snapshot.bathroomCount,
-      customerSummary: snapshot.customerSummary,
-      sections: snapshot.sections || [],
-      missingInfo: snapshot.missingInfo || [],
-      checkedItems: snapshot.checkedItems || [],
-      flags: snapshot.flags || snapshot.risks || [],
-    };
+  if (!snapshot) {
+    for (const key of NOTES_KEYS) {
+      const json = parseJson(readFromStorage(key));
+      if (json) return loadNotes(json);
+    }
+    return null;
   }
 
-  for (const key of NOTES_KEYS) {
-    const json = parseJson(readFromStorage(key));
-    if (json) return json;
+  if (Array.isArray(snapshot)) {
+    return { sections: snapshot, missingInfo: [], checkedItems: [], flags: [] };
   }
 
-  return null;
+  const notesSource = snapshot.notesJson || snapshot.notes || snapshot.sections || snapshot;
+  const sections = getSections(notesSource);
+
+  return {
+    propertyType:
+      snapshot.propertyType || notesSource.propertyType || snapshot.property || notesSource.property || '',
+    currentSystem: snapshot.currentSystem || notesSource.currentSystem || '',
+    bedrooms:
+      snapshot.bedrooms ||
+      snapshot.bedroomCount ||
+      notesSource.bedrooms ||
+      notesSource.bedroomCount ||
+      notesSource.bedroomsCount,
+    bathrooms:
+      snapshot.bathrooms ||
+      snapshot.bathroomCount ||
+      notesSource.bathrooms ||
+      notesSource.bathroomCount,
+    customerSummary: snapshot.customerSummary || notesSource.customerSummary,
+    hotWaterDemand: snapshot.hotWaterDemand || notesSource.hotWaterDemand,
+    renewables: snapshot.renewables || notesSource.renewables,
+    sections,
+    missingInfo: normaliseNoteList(snapshot.missingInfo || notesSource.missingInfo),
+    checkedItems: normaliseNoteList(snapshot.checkedItems || notesSource.checkedItems),
+    flags: normaliseNoteList(snapshot.flags || snapshot.risks || notesSource.flags || notesSource.risks),
+  };
 }
 
 function flattenSections(notes) {
-  if (!notes || !Array.isArray(notes.sections)) return '';
-  return notes.sections
+  const sections = getSections(notes);
+  if (!sections.length) return '';
+  return sections
     .map((section) => section?.content || section?.text || section?.naturalLanguage || '')
     .join(' ');
 }
@@ -108,12 +186,10 @@ function buildRequirementNotes(notes, transcriptText) {
 }
 
 function buildRecommendationRequirements(transcriptText, notes) {
-  const sections = Array.isArray(notes?.sections)
-    ? notes.sections.map((section) => ({
-        plainText: section?.content || section?.text || section?.naturalLanguage || '',
-        naturalLanguage: section?.naturalLanguage || section?.content || section?.text || '',
-      }))
-    : [];
+  const sections = getSections(notes).map((section) => ({
+    plainText: section?.content || section?.text || section?.naturalLanguage || '',
+    naturalLanguage: section?.naturalLanguage || section?.content || section?.text || '',
+  }));
 
   const noteFragments = buildRequirementNotes(notes, transcriptText);
 
@@ -121,7 +197,23 @@ function buildRecommendationRequirements(transcriptText, notes) {
 }
 
 function detectCurrentSystem(notes, transcriptText) {
-  const combined = `${notes?.currentSystem || ''} ${flattenSections(notes)} ${transcriptText || ''}`.toLowerCase();
+  const targetedSections = getSections(notes).filter((section) => {
+    const title = (section?.title || '').toLowerCase();
+    return (
+      title.includes('new boiler') ||
+      title.includes('existing system') ||
+      title.includes('current system') ||
+      title.includes('boiler and controls')
+    );
+  });
+
+  const targetedText = targetedSections
+    .map((section) => section?.content || section?.text || section?.naturalLanguage || '')
+    .join(' ');
+
+  const combined = `${notes?.currentSystem || ''} ${targetedText} ${flattenSections(notes)} ${
+    transcriptText || ''
+  }`.toLowerCase();
 
   if (/combi/.test(combined)) return 'Combi boiler';
   if (/(system boiler|unvented|pressurised)/.test(combined)) return 'System boiler with unvented cylinder';
@@ -178,7 +270,9 @@ function buildWhatYouToldUs(transcriptText, notes) {
     const extras = [];
     if (Array.isArray(notes?.missingInfo)) extras.push(...notes.missingInfo);
     if (Array.isArray(notes?.checkedItems)) extras.push(...notes.checkedItems);
-    bullets = bullets.concat(extras.map((e) => String(e)).slice(0, 6 - bullets.length));
+    bullets = bullets
+      .concat(extras.map((e) => normaliseNoteValue(e)).slice(0, 6 - bullets.length))
+      .filter(Boolean);
   }
 
   if (!bullets.length) {
@@ -218,24 +312,92 @@ function renderImportantNotes(notes) {
   }
 
   const ul = document.createElement('ul');
-  flags.slice(0, 6).forEach((flag) => {
-    const li = document.createElement('li');
-    li.textContent = String(flag);
-    ul.appendChild(li);
-  });
+  flags
+    .map((flag) => normaliseNoteValue(flag))
+    .filter(Boolean)
+    .slice(0, 6)
+    .forEach((flag) => {
+      const li = document.createElement('li');
+      li.textContent = flag;
+      ul.appendChild(li);
+    });
   target.innerHTML = '';
   target.appendChild(ul);
 }
 
-function fillOption(prefix, option) {
-  const titleEl = document.getElementById(`${prefix}-title`);
-  const subtitleEl = document.getElementById(`${prefix}-subtitle`);
-  const miniSpecEl = document.getElementById(`${prefix}-mini-spec`);
+function renderOptionCard(option, tierClass) {
+  const card = document.createElement('article');
+  card.className = `option-card ${tierClass}`;
 
-  if (titleEl) titleEl.textContent = option?.title || 'Not available';
-  if (subtitleEl) subtitleEl.textContent = option?.subtitle || '';
-  if (miniSpecEl) miniSpecEl.textContent = option?.miniSpec || '';
-  setListContent(`${prefix}-benefits`, option?.benefits || ['Information not available.']);
+  const header = document.createElement('div');
+  header.className = 'option-header';
+
+  const headingGroup = document.createElement('div');
+  const eyebrow = document.createElement('p');
+  eyebrow.className = 'eyebrow';
+  eyebrow.textContent = option?.label || 'Option';
+  headingGroup.appendChild(eyebrow);
+
+  const title = document.createElement('h3');
+  title.textContent = option?.title || 'Not available';
+  headingGroup.appendChild(title);
+
+  if (option?.subtitle) {
+    const subtitle = document.createElement('p');
+    subtitle.className = 'muted';
+    subtitle.textContent = option.subtitle;
+    headingGroup.appendChild(subtitle);
+  }
+
+  header.appendChild(headingGroup);
+
+  if (option?.explicitlyRecommended) {
+    const badge = document.createElement('p');
+    badge.className = 'eyebrow';
+    badge.textContent = '✓ Explicitly recommended by your heating expert';
+    header.appendChild(badge);
+  }
+
+  card.appendChild(header);
+
+  const benefits = option?.benefits?.length ? option.benefits : ['Information not available.'];
+  const list = document.createElement('ul');
+  list.className = 'bullet-list';
+  benefits.slice(0, 6).forEach((benefit) => {
+    const li = document.createElement('li');
+    li.textContent = benefit;
+    list.appendChild(li);
+  });
+  card.appendChild(list);
+
+  if (option?.miniSpec) {
+    const miniSpec = document.createElement('p');
+    miniSpec.className = 'mini-spec';
+    miniSpec.textContent = option.miniSpec;
+    card.appendChild(miniSpec);
+  }
+
+  return card;
+}
+
+function renderOptions(options) {
+  const grid = document.getElementById('options-grid');
+  if (!grid) return;
+
+  grid.innerHTML = '';
+  if (!Array.isArray(options) || !options.length) {
+    const placeholder = document.createElement('p');
+    placeholder.className = 'muted';
+    placeholder.textContent = 'Options will appear once we process your site notes.';
+    grid.appendChild(placeholder);
+    return;
+  }
+
+  const tierClasses = ['gold', 'silver', 'bronze'];
+  options.forEach((option, idx) => {
+    const tierClass = tierClasses[idx] || 'alternative';
+    grid.appendChild(renderOptionCard(option, tierClass));
+  });
 }
 
 function showWarning(message) {
@@ -249,7 +411,7 @@ function init() {
   const dateEl = document.getElementById('proposal-date');
   if (dateEl) dateEl.textContent = today.toLocaleDateString();
 
-  const snapshot = loadAutosave();
+  const snapshot = loadSnapshot();
   const transcriptText = loadTranscriptText(snapshot);
   const notes = loadNotes(snapshot);
 
@@ -279,14 +441,8 @@ function init() {
 
   const requirements = buildRecommendationRequirements(transcriptText, notes || {});
 
-  const { gold, silver, bronze } = getProposalOptions(requirements, [
-    'combi',
-    'system_mixergy',
-    'system_unvented',
-  ]);
-  fillOption('gold', gold);
-  fillOption('silver', silver);
-  fillOption('bronze', bronze);
+  const { options } = getProposalOptions(requirements, DEFAULT_OPTION_ORDER);
+  renderOptions(options);
 
   renderImportantNotes(notes || {});
 }

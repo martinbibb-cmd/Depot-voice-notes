@@ -2,50 +2,100 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Proposal Builder – Depot Voice Notes</title>
+  <title>Heating & Hot Water Proposal</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="stylesheet" href="./proposal.css" />
 </head>
 <body>
-  <header class="proposal-header">
-    <h1>Customer Proposal Builder</h1>
-    <p>Turn your survey and recommendations into a customer-friendly printout.</p>
-  </header>
+  <div class="proposal-shell">
+    <header class="page cover">
+      <div class="cover-text">
+        <p class="eyebrow">Depot Voice Notes</p>
+        <h1>Heating &amp; Hot Water Proposal</h1>
+        <p class="muted">Date: <span id="proposal-date"></span></p>
+        <div class="glance">
+          <h2>Your home at a glance</h2>
+          <ul class="fact-list">
+            <li><span class="label">Property type</span><span id="property-type">Loading…</span></li>
+            <li><span class="label">Current system</span><span id="current-system">Loading…</span></li>
+          </ul>
+        </div>
+        <div class="told-us">
+          <h2>What you told us</h2>
+          <ul id="what-you-told-us-list" class="bullet-list"></ul>
+        </div>
+      </div>
+      <div class="cover-graphic">
+        <img id="system-graphic-img" src="" alt="Heating system diagram" />
+      </div>
+    </header>
 
-  <section class="proposal-inputs">
-    <h2>1. Load data</h2>
-    <div class="file-row">
-      <label>Transcript JSON
-        <input type="file" id="transcriptFile" accept="application/json" />
-      </label>
-    </div>
-    <div class="file-row">
-      <label>Notes JSON
-        <input type="file" id="notesFile" accept="application/json" />
-      </label>
-    </div>
-    <div class="file-row">
-      <label>System Recommendation JSON
-        <input type="file" id="systemFile" accept="application/json" />
-      </label>
-    </div>
+    <main>
+      <section class="page options">
+        <header>
+          <h2>Your options: Gold, Silver &amp; Bronze</h2>
+          <p class="muted">Gold is our recommended fit based on your home and usage.</p>
+        </header>
+        <div class="options-grid">
+          <article class="option-card gold">
+            <div class="option-header">
+              <div>
+                <p class="eyebrow">Gold – Recommended</p>
+                <h3 id="gold-title">Loading…</h3>
+                <p id="gold-subtitle" class="muted"></p>
+              </div>
+            </div>
+            <ul id="gold-benefits" class="bullet-list"></ul>
+            <p id="gold-mini-spec" class="mini-spec"></p>
+          </article>
+          <article class="option-card silver">
+            <div class="option-header">
+              <div>
+                <p class="eyebrow">Silver</p>
+                <h3 id="silver-title">Loading…</h3>
+                <p id="silver-subtitle" class="muted"></p>
+              </div>
+            </div>
+            <ul id="silver-benefits" class="bullet-list"></ul>
+            <p id="silver-mini-spec" class="mini-spec"></p>
+          </article>
+          <article class="option-card bronze">
+            <div class="option-header">
+              <div>
+                <p class="eyebrow">Bronze</p>
+                <h3 id="bronze-title">Loading…</h3>
+                <p id="bronze-subtitle" class="muted"></p>
+              </div>
+            </div>
+            <ul id="bronze-benefits" class="bullet-list"></ul>
+            <p id="bronze-mini-spec" class="mini-spec"></p>
+          </article>
+        </div>
+      </section>
 
-    <button id="generateProposalBtn">Generate Proposal</button>
-    <button id="printProposalBtn" disabled>Print / Save as PDF</button>
+      <section class="page next-steps">
+        <div class="next-col">
+          <h2>What happens next</h2>
+          <ol>
+            <li>We agree the option that’s right for you (Gold, Silver or Bronze).</li>
+            <li>We confirm the final specification and installation date.</li>
+            <li>Our expert installer completes the work and tests the system.</li>
+            <li>We show you how everything works and confirm your guarantees.</li>
+          </ol>
+        </div>
+        <div class="next-col">
+          <h2>Important notes</h2>
+          <p class="muted">Anything we should highlight before work starts.</p>
+          <div id="important-notes" class="note-box"></div>
+          <h3>Additional notes</h3>
+          <div class="note-box blank"></div>
+        </div>
+      </section>
+    </main>
 
-    <p id="autosaveStatus" class="hint" aria-live="polite"></p>
-    <p class="hint">
-      Select the JSON files manually, or keep Depot Voice Notes open in another tab and we’ll
-      pull your latest autosaved session automatically.
-    </p>
-  </section>
+    <p id="load-warning" class="warning" aria-live="polite"></p>
+  </div>
 
-  <main id="proposalOutput" class="proposal-output">
-    <p id="optionSourceNote" class="option-source-note" style="display:none; font-size:0.9rem; color:#555; margin-bottom:0.75rem;"></p>
-  </main>
-
-  <!-- Shared system recommendation engine from System-recommendation -->
-  <script src="https://martinbibb-cmd.github.io/System-recommendation/engine.js"></script>
-  <script src="./proposal.js" defer></script>
+  <script type="module" src="./js/proposal.js"></script>
 </body>
 </html>

@@ -4,6 +4,9 @@ const systemInput = document.getElementById('systemFile');
 const generateBtn = document.getElementById('generateProposalBtn');
 const printBtn = document.getElementById('printProposalBtn');
 const outputEl = document.getElementById('proposalOutput');
+const statusEl = document.getElementById('autosaveStatus');
+
+const AUTOSAVE_KEY = 'surveyBrainAutosave';
 
 const ICON_BASE = 'main/assets/system-graphics/';
 const iconMap = {
@@ -31,6 +34,65 @@ function setOptionSourceNote(text) {
   } else {
     el.style.display = 'block';
     el.textContent = text;
+  }
+}
+
+function setStatusMessage(text) {
+  if (!statusEl) return;
+  statusEl.textContent = text || '';
+}
+
+function safeParseJson(raw) {
+  try {
+    return JSON.parse(raw);
+  } catch (err) {
+    console.warn('Failed to parse JSON', err);
+    return null;
+  }
+}
+
+function loadAutosaveSnapshot() {
+  try {
+    const raw = localStorage.getItem(AUTOSAVE_KEY);
+    if (!raw) return null;
+    return safeParseJson(raw);
+  } catch (err) {
+    console.warn('Could not read autosave from localStorage', err);
+    return null;
+  }
+}
+
+function pullSessionFromOpener() {
+  if (!window.opener) return null;
+  try {
+    const autosaveRaw = window.opener.localStorage?.getItem?.(AUTOSAVE_KEY) || null;
+    if (autosaveRaw) {
+      return safeParseJson(autosaveRaw);
+    }
+  } catch (err) {
+    console.warn('Unable to read data from opener window', err);
+  }
+  return null;
+}
+
+function loadLatestDepotSession() {
+  return loadAutosaveSnapshot() || pullSessionFromOpener();
+}
+
+function formatSnapshotTimestamp(snapshot) {
+  if (!snapshot) return null;
+  const ts = snapshot.savedAt || snapshot.createdAt;
+  return ts ? new Date(ts).toLocaleString() : null;
+}
+
+function announceAutosaveAvailability(snapshot) {
+  if (!statusEl) return;
+  if (snapshot) {
+    const stamp = formatSnapshotTimestamp(snapshot);
+    const label = stamp ? ` from ${stamp}` : '';
+    setStatusMessage(`Auto-detected Depot Voice Notes session${label}. We'll use it if you don't upload files.`);
+  } else {
+    setStatusMessage('Tip: open Depot Voice Notes in another tab to auto-fill the latest session here.');
   }
 }
 
@@ -70,7 +132,11 @@ function summariseTranscript(transcriptJson) {
     };
   }
 
-  const rawText = transcriptJson.text || transcriptJson.transcript || '';
+  const rawText =
+    transcriptJson.text ||
+    transcriptJson.transcript ||
+    transcriptJson.fullTranscript ||
+    '';
   const short = rawText
     ? `${rawText.slice(0, 300)}${rawText.length > 300 ? '…' : ''}`
     : 'Conversation transcript loaded.';
@@ -95,13 +161,35 @@ function extractPropertyFromNotes(notesJson) {
     };
   }
 
+  const sections = Array.isArray(notesJson.sections) ? notesJson.sections : [];
+
+  const summariseSection = (section) => {
+    if (!section) return null;
+    const name = section.section || section.title || section.name || 'Section';
+    const content = (section.content || section.text || section.naturalLanguage || '').trim();
+    if (!content) return name;
+    const clipped = content.slice(0, 140);
+    return `${name}: ${clipped}${content.length > 140 ? '…' : ''}`;
+  };
+
+  const sectionSnippets = sections.length ? sections.slice(0, 5).map(summariseSection).filter(Boolean) : [];
+
   return {
-    property: notesJson.propertyType || notesJson.property || 'Property details recorded',
-    bedrooms: notesJson.bedrooms || null,
-    bathrooms: notesJson.bathrooms || null,
-    currentSystem: notesJson.currentSystem || notesJson.existingSystem || 'Existing system recorded',
-    issues: notesJson.issues || [],
-    flags: notesJson.flags || notesJson.risks || [],
+    property:
+      notesJson.propertyType ||
+      notesJson.property ||
+      notesJson.propertyDescription ||
+      notesJson.customerSummary ||
+      (sections.length ? 'Survey notes loaded' : 'Property details recorded'),
+    bedrooms: notesJson.bedrooms || notesJson.bedroomCount || null,
+    bathrooms: notesJson.bathrooms || notesJson.bathroomCount || null,
+    currentSystem:
+      notesJson.currentSystem ||
+      notesJson.existingSystem ||
+      notesJson.systemType ||
+      'Existing system recorded',
+    issues: notesJson.issues || notesJson.problems || sectionSnippets,
+    flags: notesJson.flags || notesJson.risks || notesJson.missingInfo || notesJson.checkedItems || [],
   };
 }
 
@@ -472,15 +560,47 @@ function escapeHtml(str) {
     .replace(/'/g, '&#39;');
 }
 
+announceAutosaveAvailability(loadLatestDepotSession());
+
 if (generateBtn && printBtn) {
   generateBtn.addEventListener('click', async () => {
     setOptionSourceNote(''); // clear previous note
 
-    const [transcriptJson, notesJson, systemJson] = await Promise.all([
+    const autosaveSnapshot = loadLatestDepotSession();
+    const [fileTranscriptJson, fileNotesJson, systemJson] = await Promise.all([
       readJsonFile(transcriptInput),
       readJsonFile(notesInput),
       readJsonFile(systemInput),
     ]);
+
+    const autosaveTranscript =
+      autosaveSnapshot?.fullTranscript || autosaveSnapshot?.transcript || autosaveSnapshot?.text;
+
+    const transcriptJson =
+      fileTranscriptJson ||
+      (autosaveTranscript ? { fullTranscript: autosaveTranscript, transcript: autosaveTranscript } : null);
+
+    const notesJson =
+      fileNotesJson ||
+      (autosaveSnapshot
+        ? {
+            sections: autosaveSnapshot.sections || [],
+            missingInfo: autosaveSnapshot.missingInfo || [],
+            checkedItems: autosaveSnapshot.checkedItems || [],
+            customerSummary: autosaveSnapshot.customerSummary || '',
+          }
+        : null);
+
+    const usingAutosave = !fileTranscriptJson && !fileNotesJson && !!autosaveSnapshot;
+    if (usingAutosave) {
+      const stamp = formatSnapshotTimestamp(autosaveSnapshot);
+      const label = stamp ? ` from ${stamp}` : '';
+      setStatusMessage(`Using latest Depot Voice Notes autosave${label}.`);
+    } else if (fileTranscriptJson || fileNotesJson) {
+      setStatusMessage('Using uploaded files for this proposal.');
+    } else {
+      setStatusMessage('No data found. Upload the JSON exports from Depot Voice Notes to continue.');
+    }
 
     const proposalData = buildProposalData({ transcriptJson, notesJson, systemJson });
     renderProposal(proposalData);

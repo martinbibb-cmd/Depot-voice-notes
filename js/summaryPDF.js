@@ -177,13 +177,17 @@ async function generateCoverPage(doc, recommendationData) {
 /**
  * Generate recommendation page
  */
-async function generateRecommendationPage(doc, recommendation, pageNum, totalPages, isMainRecommendation = false) {
+async function generateRecommendationPage(doc, recommendation, pageNum, totalPages, isMainRecommendation = false, aiPresentationData = null) {
   const pageWidth = doc.internal.pageSize.getWidth();
   const margin = 15;
   const contentWidth = pageWidth - (margin * 2);
 
+  // Get AI content for this system if available
+  const aiContent = getAIContentForSystem(recommendation.key, aiPresentationData);
+  const hasAI = !!aiContent;
+
   // Header
-  const title = isMainRecommendation ? '✓ Recommended System' : 'Alternative Option';
+  const title = isMainRecommendation ? (hasAI ? '✨ Your Personalized Recommendation' : '✓ Recommended System') : 'Alternative Option';
   addPageHeader(doc, title, pageNum, totalPages);
 
   let yPos = 40;
@@ -244,76 +248,148 @@ async function generateRecommendationPage(doc, recommendation, pageNum, totalPag
     yPos += 5;
   }
 
-  // Summary explanation
-  const explanation = explainRecommendation(recommendation, recommendation.requirements || {});
-  doc.setFontSize(10);
-  doc.setFont(undefined, 'normal');
-  doc.setTextColor(0, 0, 0);
-  yPos = addWrappedText(doc, explanation.summary, margin, yPos, contentWidth, 5);
-  yPos += 8;
-
-  // Strengths section
-  doc.setFontSize(12);
-  doc.setFont(undefined, 'bold');
-  doc.setTextColor(16, 185, 129); // Green
-  doc.text('✓ Strengths', margin, yPos);
-  yPos += 7;
-
-  doc.setFontSize(9);
-  doc.setFont(undefined, 'normal');
-  doc.setTextColor(0, 0, 0);
-  recommendation.profile.strengths.slice(0, 5).forEach(strength => {
-    const lines = doc.splitTextToSize(`• ${strength}`, contentWidth);
-    lines.forEach(line => {
-      doc.text(line, margin + 3, yPos);
-      yPos += 5;
-    });
-  });
-
-  yPos += 5;
-
-  // Limitations section
-  doc.setFontSize(12);
-  doc.setFont(undefined, 'bold');
-  doc.setTextColor(239, 68, 68); // Red
-  doc.text('⚠ Limitations', margin, yPos);
-  yPos += 7;
-
-  doc.setFontSize(9);
-  doc.setFont(undefined, 'normal');
-  doc.setTextColor(0, 0, 0);
-  recommendation.profile.limitations.slice(0, 5).forEach(limitation => {
-    const lines = doc.splitTextToSize(`• ${limitation}`, contentWidth);
-    lines.forEach(line => {
-      doc.text(line, margin + 3, yPos);
-      yPos += 5;
-    });
-  });
-
-  yPos += 5;
-
-  // Specific reasons for this property
-  if (recommendation.reasons && recommendation.reasons.length > 0) {
-    doc.setFontSize(12);
+  // Use AI-generated explanation if available, otherwise use standard
+  if (hasAI && aiContent.customerSpecificExplanation) {
+    // AI-Generated personalized explanation
+    doc.setFontSize(11);
     doc.setFont(undefined, 'bold');
-    doc.setTextColor(102, 126, 234); // Blue
-    doc.text('Why for your property:', margin, yPos);
+    doc.setTextColor(102, 126, 234);
+    doc.text('Why This System is Right for Your Home', margin, yPos);
     yPos += 7;
 
     doc.setFontSize(9);
     doc.setFont(undefined, 'normal');
     doc.setTextColor(0, 0, 0);
-    recommendation.reasons.forEach(reason => {
-      const lines = doc.splitTextToSize(`• ${reason}`, contentWidth);
+
+    // Strip HTML tags from AI content for PDF
+    const cleanText = aiContent.customerSpecificExplanation
+      .replace(/<[^>]*>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    yPos = addWrappedText(doc, cleanText, margin, yPos, contentWidth, 5);
+    yPos += 8;
+
+    // AI Benefits for You
+    if (aiContent.benefitsForThem && aiContent.benefitsForThem.length > 0) {
+      doc.setFontSize(12);
+      doc.setFont(undefined, 'bold');
+      doc.setTextColor(16, 185, 129); // Green
+      doc.text('✓ Benefits for You', margin, yPos);
+      yPos += 7;
+
+      doc.setFontSize(9);
+      doc.setFont(undefined, 'normal');
+      doc.setTextColor(0, 0, 0);
+      aiContent.benefitsForThem.forEach(benefit => {
+        const lines = doc.splitTextToSize(`• ${benefit}`, contentWidth);
+        lines.forEach(line => {
+          doc.text(line, margin + 3, yPos);
+          yPos += 5;
+        });
+      });
+      yPos += 5;
+    }
+
+    // AI Concerns Addressed
+    if (aiContent.concernsAddressed && aiContent.concernsAddressed.length > 0) {
+      doc.setFontSize(12);
+      doc.setFont(undefined, 'bold');
+      doc.setTextColor(59, 130, 246); // Blue
+      doc.text('Your Questions Answered', margin, yPos);
+      yPos += 7;
+
+      doc.setFontSize(9);
+      doc.setTextColor(0, 0, 0);
+      aiContent.concernsAddressed.forEach(concern => {
+        doc.setFont(undefined, 'bold');
+        const questionLines = doc.splitTextToSize(`Q: ${concern.concern}`, contentWidth);
+        questionLines.forEach(line => {
+          doc.text(line, margin + 3, yPos);
+          yPos += 5;
+        });
+
+        doc.setFont(undefined, 'normal');
+        const answerLines = doc.splitTextToSize(`A: ${concern.response}`, contentWidth);
+        answerLines.forEach(line => {
+          doc.text(line, margin + 3, yPos);
+          yPos += 5;
+        });
+        yPos += 2;
+      });
+    }
+  } else {
+    // Standard explanation
+    const explanation = explainRecommendation(recommendation, recommendation.requirements || {});
+    doc.setFontSize(10);
+    doc.setFont(undefined, 'normal');
+    doc.setTextColor(0, 0, 0);
+    yPos = addWrappedText(doc, explanation.summary, margin, yPos, contentWidth, 5);
+    yPos += 8;
+
+    // Strengths section
+    doc.setFontSize(12);
+    doc.setFont(undefined, 'bold');
+    doc.setTextColor(16, 185, 129); // Green
+    doc.text('✓ Strengths', margin, yPos);
+    yPos += 7;
+
+    doc.setFontSize(9);
+    doc.setFont(undefined, 'normal');
+    doc.setTextColor(0, 0, 0);
+    recommendation.profile.strengths.slice(0, 5).forEach(strength => {
+      const lines = doc.splitTextToSize(`• ${strength}`, contentWidth);
       lines.forEach(line => {
         doc.text(line, margin + 3, yPos);
         yPos += 5;
       });
     });
-  }
 
-  // Customer-specific action benefits
-  yPos = addActionBenefitsSection(doc, explanation.actionBenefits, margin, contentWidth, yPos + 6);
+    yPos += 5;
+
+    // Limitations section
+    doc.setFontSize(12);
+    doc.setFont(undefined, 'bold');
+    doc.setTextColor(239, 68, 68); // Red
+    doc.text('⚠ Limitations', margin, yPos);
+    yPos += 7;
+
+    doc.setFontSize(9);
+    doc.setFont(undefined, 'normal');
+    doc.setTextColor(0, 0, 0);
+    recommendation.profile.limitations.slice(0, 5).forEach(limitation => {
+      const lines = doc.splitTextToSize(`• ${limitation}`, contentWidth);
+      lines.forEach(line => {
+        doc.text(line, margin + 3, yPos);
+        yPos += 5;
+      });
+    });
+
+    yPos += 5;
+
+    // Specific reasons for this property
+    if (recommendation.reasons && recommendation.reasons.length > 0) {
+      doc.setFontSize(12);
+      doc.setFont(undefined, 'bold');
+      doc.setTextColor(102, 126, 234); // Blue
+      doc.text('Why for your property:', margin, yPos);
+      yPos += 7;
+
+      doc.setFontSize(9);
+      doc.setFont(undefined, 'normal');
+      doc.setTextColor(0, 0, 0);
+      recommendation.reasons.forEach(reason => {
+        const lines = doc.splitTextToSize(`• ${reason}`, contentWidth);
+        lines.forEach(line => {
+          doc.text(line, margin + 3, yPos);
+          yPos += 5;
+        });
+      });
+    }
+
+    // Customer-specific action benefits
+    yPos = addActionBenefitsSection(doc, explanation.actionBenefits, margin, contentWidth, yPos + 6);
+  }
 }
 
 async function generateCurrentVsProposedPage(doc, recommendationData, mainSystem, pageNum, totalPages) {
@@ -660,7 +736,7 @@ async function generateComparisonPage(doc, recommendedSystem, chosenSystem, page
 /**
  * Main PDF generation function
  */
-export async function generateSummaryPDF(recommendationData, chosenSystemKey = null) {
+export async function generateSummaryPDF(recommendationData, chosenSystemKey = null, aiPresentationData = null) {
   // Wait for jsPDF to load
   if (typeof window.jspdf === 'undefined') {
     throw new Error('jsPDF library not loaded');
@@ -689,33 +765,34 @@ export async function generateSummaryPDF(recommendationData, chosenSystemKey = n
   if (recommendations[1]) totalPages += 1; // alternative option page
   if (showComparison) totalPages += 1; // comparison page
 
-  // Page 1: Cover
-  await generateCoverPage(doc, recommendationData);
+  // Page 1: Cover (enhanced with AI if available)
+  await generateCoverPage(doc, recommendationData, aiPresentationData);
 
   let pageCounter = 2;
 
   // Page 2: Current vs Proposed
   doc.addPage();
-  await generateCurrentVsProposedPage(doc, recommendationData, mainSystem, pageCounter++, totalPages);
+  await generateCurrentVsProposedPage(doc, recommendationData, mainSystem, pageCounter++, totalPages, aiPresentationData);
 
-  // Next: Main recommendation
+  // Next: Main recommendation (with AI content if available)
   doc.addPage();
-  await generateRecommendationPage(doc, mainSystem, pageCounter++, totalPages, !showComparison);
+  await generateRecommendationPage(doc, mainSystem, pageCounter++, totalPages, !showComparison, aiPresentationData);
 
-  // Works involved
+  // Works involved (use AI installation details if available)
   const mainExplanation = explainRecommendation(mainSystem, requirements);
+  const mainAIContent = getAIContentForSystem(mainSystem.key, aiPresentationData);
   doc.addPage();
-  await generateWorksPage(doc, mainExplanation, pageCounter++, totalPages);
+  await generateWorksPage(doc, mainExplanation, pageCounter++, totalPages, mainAIContent);
 
-  // Benefits
+  // Benefits (use AI benefits if available)
   doc.addPage();
-  await generateBenefitsPage(doc, mainExplanation, pageCounter++, totalPages);
+  await generateBenefitsPage(doc, mainExplanation, pageCounter++, totalPages, mainAIContent);
 
   // Alternative option (if not chosen) or first alternative
   const alternativeSystem = showComparison ? bestOption : recommendations[1];
   if (alternativeSystem) {
     doc.addPage();
-    await generateRecommendationPage(doc, alternativeSystem, pageCounter++, totalPages, showComparison);
+    await generateRecommendationPage(doc, alternativeSystem, pageCounter++, totalPages, showComparison, aiPresentationData);
   }
 
   // Comparison (if user chose different system)
@@ -729,4 +806,19 @@ export async function generateSummaryPDF(recommendationData, chosenSystemKey = n
   doc.save(filename);
 
   return filename;
+}
+
+/**
+ * Helper to get AI content for a specific system
+ */
+function getAIContentForSystem(systemKey, aiPresentationData) {
+  if (!aiPresentationData || !aiPresentationData.aiContent) {
+    return null;
+  }
+
+  const systemPresentation = aiPresentationData.aiContent.systemPresentations?.find(
+    sp => sp.systemKey === systemKey
+  );
+
+  return systemPresentation || null;
 }

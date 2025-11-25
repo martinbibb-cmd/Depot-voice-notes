@@ -36,6 +36,10 @@ export default {
         return handleQuery(request, env);
       }
 
+      if (request.method === "POST" && url.pathname === "/generate-presentation") {
+        return handleGeneratePresentation(request, env);
+      }
+
       return jsonResponse({ error: "not_found" }, 404);
     } catch (err) {
       console.error("Worker fatal error:", err);
@@ -834,6 +838,286 @@ async function handleQuery(request, env) {
       500
     );
   }
+}
+
+/* ---------- /generate-presentation ---------- */
+
+async function handleGeneratePresentation(request, env) {
+  let payload;
+  try {
+    payload = await request.json();
+  } catch {
+    return jsonResponse(
+      { error: "bad_request", message: "JSON body required" },
+      400
+    );
+  }
+
+  const {
+    transcript,
+    sections,
+    materials,
+    customerSummary,
+    recommendations
+  } = payload;
+
+  if (!transcript || typeof transcript !== "string") {
+    return jsonResponse(
+      { error: "bad_request", message: "transcript string required" },
+      400
+    );
+  }
+
+  if (!Array.isArray(recommendations) || recommendations.length === 0) {
+    return jsonResponse(
+      { error: "bad_request", message: "recommendations array required" },
+      400
+    );
+  }
+
+  try {
+    const result = await generatePresentationWithAI(env, {
+      transcript,
+      sections: sections || [],
+      materials: materials || [],
+      customerSummary: customerSummary || '',
+      recommendations
+    });
+    return jsonResponse(result, 200);
+  } catch (err) {
+    console.error("handleGeneratePresentation error:", err);
+    return jsonResponse(
+      { error: "model_error", message: String(err) },
+      500
+    );
+  }
+}
+
+async function generatePresentationWithAI(env, payload) {
+  const openaiKey = env.OPENAI_API_KEY;
+  const anthropicKey = env.ANTHROPIC_API_KEY;
+
+  if (!openaiKey && !anthropicKey) {
+    throw new Error("Either OPENAI_API_KEY or ANTHROPIC_API_KEY must be configured");
+  }
+
+  const {
+    transcript,
+    sections,
+    materials,
+    customerSummary,
+    recommendations
+  } = payload;
+
+  // Fetch reference materials from database
+  const referenceMaterials = await fetchReferenceMaterials(env, transcript);
+
+  // Build a comprehensive context about the conversation
+  const conversationContext = buildConversationContext(transcript, sections, materials, customerSummary);
+
+  const systemPrompt = `You are an expert heating system advisor creating a personalized presentation for a customer based on their actual conversation with a heating engineer.
+
+You will receive:
+- The full transcript of the conversation between the customer and heating expert
+- Structured notes from the survey (depot sections)
+- Materials/parts discussed
+- System recommendations with scores
+${referenceMaterials ? '- Reference materials from the knowledge database\n' : ''}
+Your job is to create a compelling, customer-specific presentation that:
+1. References specific things the customer said during the conversation
+2. Explains why each recommended system fits THEIR specific situation
+3. Addresses any concerns or questions they raised
+4. Uses their actual property details and requirements
+5. Feels personal and conversational, not generic
+
+For each recommended system, provide:
+- **Customer-specific explanation**: Why THIS system is right for THEIR home based on what they told you (reference specific details from the conversation)
+- **Benefits for them**: How this addresses THEIR specific needs, concerns, or goals mentioned in the conversation
+- **Concerns addressed**: Any doubts or questions they raised, answered directly
+- **What happens next**: The installation process specific to their property
+- **Estimated timeline**: Based on their property type and current system
+
+IMPORTANT RULES:
+- Always reference specific details from the conversation (e.g., "You mentioned you have 3 bedrooms and often run showers simultaneously...")
+- Use conversational language, as if continuing the discussion
+- Be honest about limitations - don't oversell
+- If they expressed concerns, acknowledge and address them
+- Use their actual property details (not generic examples)
+${referenceMaterials ? '\n' + referenceMaterials + '\n' : ''}
+You MUST respond with ONLY valid JSON matching this shape:
+
+{
+  "propertyProfile": {
+    "summary": "2-3 sentence summary of their property based on the conversation",
+    "keyDetails": ["Detail 1 they mentioned", "Detail 2 they mentioned", ...]
+  },
+  "conversationHighlights": [
+    "Key point 1 from the conversation",
+    "Key point 2 from the conversation"
+  ],
+  "systemPresentations": [
+    {
+      "systemKey": "system-unvented",
+      "customerSpecificExplanation": "Multi-paragraph explanation of why this system fits their specific situation, referencing things they said...",
+      "benefitsForThem": [
+        "Specific benefit 1 based on their needs",
+        "Specific benefit 2 addressing their concerns"
+      ],
+      "concernsAddressed": [
+        {
+          "concern": "Something they were worried about",
+          "response": "How this system addresses that concern"
+        }
+      ],
+      "installationDetails": {
+        "whatHappens": "Description of installation specific to their property type and current system",
+        "timeline": "Estimated timeline with reasoning",
+        "disruption": "What disruption to expect in their specific situation"
+      },
+      "whyNotOthers": "Brief explanation of why the other options might not be as suitable for them"
+    }
+  ]
+}
+
+Do not wrap the JSON in backticks or markdown.
+Do not include any explanation outside the JSON.
+Make it personal, specific, and conversational.`.trim();
+
+  const userPayload = {
+    transcript,
+    conversationContext,
+    sections,
+    materials,
+    customerSummary,
+    recommendations: recommendations.map(rec => ({
+      systemKey: rec.systemKey,
+      systemName: rec.systemName,
+      score: rec.score,
+      reasons: rec.reasons || []
+    }))
+  };
+
+  // Try OpenAI first, fall back to Anthropic if it fails
+  let trimmedContent;
+  let lastError;
+
+  if (openaiKey) {
+    try {
+      console.log("Attempting to call OpenAI for presentation generation...");
+      const body = {
+        model: "gpt-4.1",
+        temperature: 0.7,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: JSON.stringify(userPayload) }
+        ]
+      };
+
+      const res = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${openaiKey}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(body)
+      });
+
+      const rawText = await res.text();
+
+      if (!res.ok) {
+        throw new Error(`OpenAI chat.completions ${res.status}: ${rawText}`);
+      }
+
+      let parsed;
+      try {
+        parsed = JSON.parse(rawText);
+      } catch (err) {
+        throw new Error(`OpenAI returned non-JSON response: ${String(err)} :: ${rawText}`);
+      }
+
+      const content = parsed?.choices?.[0]?.message?.content;
+      if (!content || typeof content !== "string") {
+        throw new Error("No content from OpenAI model");
+      }
+
+      trimmedContent = content.trim();
+      console.log("OpenAI call successful");
+    } catch (err) {
+      console.error("OpenAI call failed:", String(err));
+      lastError = err;
+      trimmedContent = null;
+    }
+  }
+
+  // Fall back to Anthropic if OpenAI failed or wasn't available
+  if (!trimmedContent && anthropicKey) {
+    try {
+      console.log("Falling back to Anthropic for presentation generation...");
+      trimmedContent = await callAnthropicChat(
+        anthropicKey,
+        systemPrompt,
+        JSON.stringify(userPayload),
+        0.7
+      );
+      console.log("Anthropic call successful");
+    } catch (err) {
+      console.error("Anthropic call failed:", String(err));
+      lastError = err;
+      trimmedContent = null;
+    }
+  }
+
+  if (!trimmedContent) {
+    throw new Error(`All AI providers failed. Last error: ${String(lastError)}`);
+  }
+
+  let jsonOut;
+  try {
+    jsonOut = JSON.parse(trimmedContent);
+  } catch (err) {
+    throw new Error(`Model content was not valid JSON: ${String(err)} :: ${trimmedContent}`);
+  }
+
+  // Safety defaults
+  if (!jsonOut.propertyProfile) {
+    jsonOut.propertyProfile = {
+      summary: "Property profile not available",
+      keyDetails: []
+    };
+  }
+  if (!Array.isArray(jsonOut.conversationHighlights)) {
+    jsonOut.conversationHighlights = [];
+  }
+  if (!Array.isArray(jsonOut.systemPresentations)) {
+    jsonOut.systemPresentations = [];
+  }
+
+  return jsonOut;
+}
+
+function buildConversationContext(transcript, sections, materials, customerSummary) {
+  const context = {
+    customerSummary,
+    keyFacts: []
+  };
+
+  // Extract key facts from sections
+  const importantSections = ['Needs', 'System characteristics', 'New boiler and controls', 'Future plans'];
+  sections.forEach(section => {
+    if (importantSections.includes(section.section) && section.naturalLanguage) {
+      context.keyFacts.push(`${section.section}: ${section.naturalLanguage}`);
+    }
+  });
+
+  // Add materials context
+  if (materials && materials.length > 0) {
+    const materialsSummary = materials.map(m =>
+      `${m.item}${m.notes ? ' (' + m.notes + ')' : ''}`
+    ).join(', ');
+    context.keyFacts.push(`Materials discussed: ${materialsSummary}`);
+  }
+
+  return context;
 }
 
 async function callAnthropicChat(apiKey, systemPrompt, userContent, temperature = 0.2) {

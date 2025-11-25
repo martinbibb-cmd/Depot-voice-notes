@@ -1,3 +1,4 @@
+import { extractHeatingRequirements } from './recommendationEngine.js';
 import { getProposalOptions } from './systemRecommendationShared.js';
 
 const AUTOSAVE_KEY = 'surveyBrainAutosave';
@@ -83,6 +84,40 @@ function flattenSections(notes) {
   return notes.sections
     .map((section) => section?.content || section?.text || section?.naturalLanguage || '')
     .join(' ');
+}
+
+function buildRequirementNotes(notes, transcriptText) {
+  const fragments = [];
+
+  if (transcriptText) fragments.push(transcriptText);
+
+  const flattenedSections = flattenSections(notes);
+  if (flattenedSections) fragments.push(flattenedSections);
+
+  if (notes?.customerSummary) fragments.push(String(notes.customerSummary));
+  if (notes?.currentSystem) fragments.push(`Current system: ${notes.currentSystem}`);
+  if (notes?.propertyType) fragments.push(`Property type: ${notes.propertyType}`);
+  if (notes?.hotWaterDemand) fragments.push(`Hot water demand: ${notes.hotWaterDemand}`);
+  if (notes?.renewables) fragments.push(`Renewables: ${notes.renewables}`);
+
+  if (Array.isArray(notes?.flags) && notes.flags.length) fragments.push(notes.flags.join(' '));
+  if (Array.isArray(notes?.missingInfo) && notes.missingInfo.length) fragments.push(notes.missingInfo.join(' '));
+  if (Array.isArray(notes?.checkedItems) && notes.checkedItems.length) fragments.push(notes.checkedItems.join(' '));
+
+  return fragments.length ? fragments : [''];
+}
+
+function buildRecommendationRequirements(transcriptText, notes) {
+  const sections = Array.isArray(notes?.sections)
+    ? notes.sections.map((section) => ({
+        plainText: section?.content || section?.text || section?.naturalLanguage || '',
+        naturalLanguage: section?.naturalLanguage || section?.content || section?.text || '',
+      }))
+    : [];
+
+  const noteFragments = buildRequirementNotes(notes, transcriptText);
+
+  return extractHeatingRequirements(sections, noteFragments);
 }
 
 function detectCurrentSystem(notes, transcriptText) {
@@ -242,18 +277,13 @@ function init() {
     img.alt = graphic.alt;
   }
 
-  const recommendationInput = {
-    propertyType,
-    currentSystemType: currentSystem,
-    bedrooms: notes?.bedrooms,
-    bathrooms: notes?.bathrooms,
-    wantsSmartControls: true,
-    consideringRenewables: !!notes?.renewables,
-    hotWaterDemand: notes?.hotWaterDemand,
-    spaceConstraints: notes?.spaceConstraints,
-  };
+  const requirements = buildRecommendationRequirements(transcriptText, notes || {});
 
-  const { gold, silver, bronze } = getProposalOptions(recommendationInput);
+  const { gold, silver, bronze } = getProposalOptions(requirements, [
+    'combi',
+    'system_mixergy',
+    'system_unvented',
+  ]);
   fillOption('gold', gold);
   fillOption('silver', silver);
   fillOption('bronze', bronze);

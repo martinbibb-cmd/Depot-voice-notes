@@ -84,6 +84,7 @@ const loadSessionBtn = document.getElementById("loadSessionBtn");
 const loadSessionInput = document.getElementById("loadSessionInput");
 const importAudioBtn = document.getElementById("importAudioBtn");
 const importAudioInput = document.getElementById("importAudioInput");
+const proposalBuilderBtn = document.getElementById("proposalBuilderBtn");
 const newJobBtn = document.getElementById("newJobBtn");
 const partsListEl = document.getElementById("partsList");
 const voiceErrorEl = document.getElementById("voice-error");
@@ -129,6 +130,7 @@ let CHECKLIST_ITEMS = [];
 
 // Expose state to window for save menu access
 function exposeStateToWindow() {
+  updateAppStateSnapshot();
   window.__depotLastMaterials = lastMaterials;
   window.__depotLastCheckedItems = lastCheckedItems;
   window.__depotLastMissingInfo = lastMissingInfo;
@@ -137,6 +139,34 @@ function exposeStateToWindow() {
   window.__depotLastAudioMime = lastAudioMime;
   window.__depotAppState = APP_STATE;
   window.lastSections = lastSections; // Expose for what3words and other integrations
+}
+
+function updateAppStateSnapshot() {
+  APP_STATE.sections = lastSections;
+  APP_STATE.notes = lastSections;
+  APP_STATE.materials = Array.isArray(lastMaterials) ? [...lastMaterials] : [];
+  APP_STATE.checkedItems = Array.isArray(lastCheckedItems) ? [...lastCheckedItems] : [];
+  APP_STATE.missingInfo = Array.isArray(lastMissingInfo) ? [...lastMissingInfo] : [];
+  APP_STATE.customerSummary = lastCustomerSummary || "";
+  APP_STATE.fullTranscript = (transcriptInput?.value || "").trim();
+  APP_STATE.transcriptText = APP_STATE.fullTranscript;
+}
+
+function buildProposalSnapshot() {
+  updateAppStateSnapshot();
+  const clonedSections = Array.isArray(lastSections) ? JSON.parse(JSON.stringify(lastSections)) : [];
+  return {
+    ...APP_STATE,
+    notes: clonedSections,
+    notesJson: {
+      sections: clonedSections,
+      missingInfo: Array.isArray(lastMissingInfo) ? [...lastMissingInfo] : [],
+      checkedItems: Array.isArray(lastCheckedItems) ? [...lastCheckedItems] : [],
+      customerSummary: lastCustomerSummary || ""
+    },
+    transcriptText: APP_STATE.fullTranscript,
+    fullTranscript: APP_STATE.fullTranscript
+  };
 }
 
 /**
@@ -677,6 +707,7 @@ function syncSectionsState(rawSections = lastRawSections) {
   lastSections = normalised;
   APP_STATE.sections = normalised;
   APP_STATE.notes = normalised;
+  updateAppStateSnapshot();
   updateDebugSnapshot();
 
   // Update the slide-over if it's open
@@ -1924,18 +1955,16 @@ function autoSaveSessionToLocal() {
       return;
     }
 
+    const proposalSnapshot = buildProposalSnapshot();
     const snapshot = {
       version: 1,
       savedAt: new Date().toISOString(),
-      fullTranscript,
       sections: lastRawSections,
-      materials: lastMaterials,
-      checkedItems: lastCheckedItems,
-      missingInfo: lastMissingInfo,
-      customerSummary: lastCustomerSummary
+      ...proposalSnapshot
     };
 
     localStorage.setItem(LS_AUTOSAVE_KEY, JSON.stringify(snapshot));
+    exposeStateToWindow();
   } catch (err) {
     console.warn("Auto-save failed", err);
   }
@@ -2632,6 +2661,23 @@ if (newJobBtn) {
       resetSessionState();
     }
   };
+}
+if (proposalBuilderBtn) {
+  proposalBuilderBtn.addEventListener('click', () => {
+    const proposalSnapshot = buildProposalSnapshot();
+    const savedSnapshot = {
+      version: 1,
+      savedAt: new Date().toISOString(),
+      sections: lastRawSections,
+      ...proposalSnapshot
+    };
+
+    localStorage.setItem(LS_AUTOSAVE_KEY, JSON.stringify(savedSnapshot));
+    window.__depotAppState = proposalSnapshot;
+
+    const proposalUrl = new URL('proposal.html', window.location.href);
+    window.open(proposalUrl.toString(), '_blank', 'noopener');
+  });
 }
 transcriptInput.addEventListener("input", () => {
   if (liveState !== "running") {

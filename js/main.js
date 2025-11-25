@@ -23,7 +23,6 @@ import {
 } from "./agentMode.js";
 import { showSendSectionsSlideOver, updateSendSectionsSlideOver } from "./sendSections.js";
 import { initWhat3Words } from "./what3words.js";
-import { showSummaryModal as showComprehensiveSummaryModal } from "./summaryModal.js";
 
 // --- CONFIG / STORAGE KEYS ---
 const SECTION_STORAGE_KEY = "depot.sectionSchema";
@@ -81,8 +80,6 @@ const statusBar = document.getElementById("statusBar");
 const startLiveBtn = document.getElementById("startLiveBtn");
 const pauseLiveBtn = document.getElementById("pauseLiveBtn");
 const finishLiveBtn = document.getElementById("finishLiveBtn");
-const createQuoteBtn = document.getElementById("createQuoteBtn");
-const generateSummaryBtn = document.getElementById("generateSummaryBtn");
 const loadSessionBtn = document.getElementById("loadSessionBtn");
 const loadSessionInput = document.getElementById("loadSessionInput");
 const importAudioBtn = document.getElementById("importAudioBtn");
@@ -1730,122 +1727,6 @@ async function sendAudio(blob) {
 // NOTE: Export button has been replaced by the unified Save menu
 // The old exportBtn handler has been removed - use saveMenuBtn instead
 
-// --- CREATE SUMMARY (formerly CREATE QUOTE) ---
-createQuoteBtn.onclick = async () => {
-  // Check if we have any data to create a summary
-  if ((!lastSections || lastSections.length === 0) &&
-      (!APP_STATE.notes || APP_STATE.notes.length === 0) &&
-      !transcriptInput.value.trim()) {
-    alert("No data found to create a summary. Please process a transcript first with the 'Send text' button.");
-    return;
-  }
-
-  setStatus("Preparing comprehensive summary...");
-
-  try {
-    // Collect all session data
-    const sessionData = {
-      sessionName: currentSessionName || 'Heating System Assessment',
-      sections: lastSections || [],
-      aiNotes: extractAINotes(),
-      materials: lastMaterials || [],
-      transcript: transcriptInput.value.trim(),
-      issues: extractIssues(),
-      benefits: extractBenefits()
-    };
-
-    // Show the comprehensive summary modal
-    await showComprehensiveSummaryModal(sessionData);
-
-    setStatus("Ready to generate summary");
-  } catch (error) {
-    console.error("Error showing summary modal:", error);
-    alert("Error opening summary creator: " + error.message);
-    setStatus("Error opening summary.");
-  }
-};
-
-// Helper: Extract AI notes from the UI
-function extractAINotes() {
-  const aiNotesList = document.getElementById('aiNotesList');
-  if (!aiNotesList) return '';
-
-  const notes = [];
-  aiNotesList.querySelectorAll('li').forEach(li => {
-    const text = li.textContent.trim();
-    if (text) notes.push(text);
-  });
-
-  return notes.join('\n\n');
-}
-
-// Helper: Extract identified issues from sections
-function extractIssues() {
-  const issues = [];
-
-  if (lastSections && Array.isArray(lastSections)) {
-    lastSections.forEach(section => {
-      const content = section.content || '';
-      const lowerContent = content.toLowerCase();
-
-      // Look for problem indicators
-      if (lowerContent.includes('issue') ||
-          lowerContent.includes('problem') ||
-          lowerContent.includes('fault') ||
-          lowerContent.includes('broken') ||
-          lowerContent.includes('not working') ||
-          lowerContent.includes('failed')) {
-        issues.push(content);
-      }
-    });
-  }
-
-  return issues;
-}
-
-// Helper: Extract benefits/recommendations
-function extractBenefits() {
-  const benefits = [
-    'Improved energy efficiency',
-    'Enhanced comfort and control',
-    'Reduced running costs',
-    'Modern, reliable technology',
-    'Extended warranty coverage'
-  ];
-
-  // Could be enhanced to extract from AI notes or sections
-  return benefits;
-}
-
-// Generate Summary button handler
-generateSummaryBtn.onclick = async () => {
-  // Check if we have any sections or notes
-  if ((!APP_STATE.sections || APP_STATE.sections.length === 0) &&
-      (!APP_STATE.notes || APP_STATE.notes.length === 0) &&
-      !transcriptInput.value.trim()) {
-    alert("No data found to generate recommendations. Please process a transcript first with the 'Send text' button.");
-    return;
-  }
-
-  try {
-    // Import the summary controller
-    const { showSummaryModal } = await import('./summaryController.js');
-
-    // Collect all available data
-    const sections = APP_STATE.sections || [];
-    const notes = [
-      ...(APP_STATE.notes || []),
-      transcriptInput.value.trim()
-    ].filter(n => n);
-
-    // Show the summary modal
-    showSummaryModal(sections, notes, transcriptInput.value.trim());
-  } catch (error) {
-    console.error("Error showing summary:", error);
-    alert("Error generating summary: " + error.message);
-  }
-};
-
 // Helper: Detect system details from transcript and sections
 function detectSystemDetails() {
   const transcript = transcriptInput.value.toLowerCase();
@@ -3484,13 +3365,6 @@ if (editTranscriptBtn && transcriptDisplay) {
 
 // Initialize internet speed monitoring
 startSpeedMonitoring();
-
-// Initialize summary controller
-import('./summaryController.js').then(module => {
-  module.initSummaryController();
-}).catch(error => {
-  console.error('Error initializing summary controller:', error);
-});
 
 // ============================================================================
 // AGENT MODE & SEND SECTIONS INTEGRATION

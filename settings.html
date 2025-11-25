@@ -230,6 +230,38 @@
       font-size: .65rem;
       color: var(--muted);
     }
+    .rule-rows {
+      border-radius: 12px;
+      border: 1px solid #e2e8f0;
+      display: flex;
+      flex-direction: column;
+      max-height: 50vh;
+      overflow: auto;
+    }
+    .rule-row {
+      display: grid;
+      grid-template-columns: minmax(0, 0.4fr) minmax(0, 1.6fr);
+      gap: 8px;
+      padding: 8px 10px;
+      align-items: start;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .rule-row:last-child {
+      border-bottom: none;
+    }
+    .rule-row strong {
+      font-size: .75rem;
+      color: #0f172a;
+    }
+    .rule-row textarea {
+      width: 100%;
+      font-size: .7rem;
+      padding: 6px 8px;
+      border-radius: 8px;
+      border: 1px solid #cbd5e1;
+      resize: vertical;
+      min-height: 72px;
+    }
   </style>
 </head>
 <body>
@@ -329,6 +361,29 @@
       <input type="file" id="sections-import-input" accept="application/json" style="display:none;">
     </section>
 
+    <!-- Section rules guidance -->
+    <section class="card" style="grid-column: 1 / -1;">
+      <div class="card-header">
+        <h2>Section rules</h2>
+        <span>What content belongs in each section</span>
+      </div>
+
+      <div class="toolbar">
+        <button id="section-rules-save-btn" class="secondary">Save rules to browser</button>
+        <button id="section-rules-reset-btn" class="secondary">Reset rules to defaults</button>
+      </div>
+
+      <p class="hint">
+        Use these rules to spell out what should go into each Depot section. They are editable so you can keep guidance in sync
+        with how your team captures information. Keep the “New boiler and controls” rules short and focused: what is coming out,
+        what is being installed, which controls stay or change, where everything sits, and details of any cylinders, tanks,
+        sealed system kits, and radiators.
+      </p>
+
+      <div class="rule-rows" id="section-rules-rows"></div>
+      <p class="status" id="section-rules-status">Loading section rules…</p>
+    </section>
+
     <!-- RIGHT: checklist editor -->
     <section class="card">
       <div class="card-header">
@@ -361,6 +416,7 @@
     const SECTION_STORAGE_KEY = "depot.sectionSchema";
     const LEGACY_SECTION_STORAGE_KEY = "surveybrain-schema";
     const CHECKLIST_STORAGE_KEY = "depot.checklistConfig";
+    const SECTION_RULES_STORAGE_KEY = "depot.sectionRules";
     const AI_INSTRUCTIONS_STORAGE_KEY = "depot.aiInstructions";
     const LS_AUTOSAVE_KEY = "surveyBrainAutosave";
     const WORKER_URL_STORAGE_KEYS = ["depot.workerUrl", "depot-worker-url"];
@@ -387,6 +443,7 @@
         SECTION_STORAGE_KEY,
         LEGACY_SECTION_STORAGE_KEY,
         CHECKLIST_STORAGE_KEY,
+        SECTION_RULES_STORAGE_KEY,
         LS_AUTOSAVE_KEY,
         ...WORKER_URL_STORAGE_KEYS,
         ...ADDITIONAL_STORAGE_KEYS
@@ -539,8 +596,30 @@
     const sectionsRowsEl = document.getElementById("sections-rows");
     const sectionsStatusEl = document.getElementById("sections-status");
     const sectionsCountPill = document.getElementById("sections-count-pill");
+    const sectionRulesRowsEl = document.getElementById("section-rules-rows");
+    const sectionRulesStatusEl = document.getElementById("section-rules-status");
 
     let sections = [];
+    let sectionRules = {};
+
+    function getDefaultSectionRules() {
+      return {
+        "Needs": "What the customer is asking for, priorities, budget, pain points, must-haves, and any red lines.",
+        "Working at heights": "Safe access requirements for roofs, lofts, scaffolding, and working platforms.",
+        "System characteristics": "Current heat source, system type, fuel, pipe sizes, hot water arrangement, and key locations.",
+        "Components that require assistance": "Anything heavy or awkward that needs an extra person or special handling.",
+        "Restrictions to work": "Timing, access windows, parking, permits, noisy hours, or rooms that are off limits.",
+        "External hazards": "Asbestos, fragile roofs, pets, alarms, electrics, or other site-specific risks to flag early.",
+        "Delivery notes": "Best drop-off point, contact name/number, site access codes, or parking instructions for deliveries.",
+        "Office notes": "Administrative or pricing notes that planners need but do not belong in customer-facing sections.",
+        "New boiler and controls": "Keep it simple: what appliance/controls are coming out, what is going in, which controls stay the same, which change, and where everything is being installed. Include cylinders, tanks, sealed system kits, and radiators if they are part of the job.",
+        "Flue": "Route, termination type/position, lengths, terminals, clearances, plume kits, and any making good.",
+        "Pipe work": "Upgrades, reroutes, sizes, isolation points, gas run details, and any dead legs being removed.",
+        "Disruption": "Lifting floors, making good, decoration, access panels, and anything that will disturb finishes.",
+        "Customer actions": "Tasks the customer must do before/after install: clearances, power, access, permissions, or paperwork.",
+        "Future plans": "Follow-on work, phased upgrades, or extra visits to complete outstanding items."
+      };
+    }
 
     function renderSections() {
       sectionsRowsEl.innerHTML = "";
@@ -620,6 +699,42 @@
         row.appendChild(controls);
         sectionsRowsEl.appendChild(row);
       });
+
+      renderSectionRules();
+    }
+
+    function renderSectionRules() {
+      if (!sectionRulesRowsEl) return;
+
+      sectionRulesRowsEl.innerHTML = "";
+      const names = sections.length ? sections.map((sec) => sec.name) : Object.keys(sectionRules);
+
+      if (!names.length) {
+        sectionRulesRowsEl.innerHTML = '<div class="rule-row"><span class="hint">No sections available yet.</span></div>';
+        sectionRulesStatusEl.textContent = "No section rules to show";
+        return;
+      }
+
+      names.forEach((name) => {
+        const row = document.createElement("div");
+        row.className = "rule-row";
+
+        const title = document.createElement("strong");
+        title.textContent = name || "Untitled";
+
+        const textarea = document.createElement("textarea");
+        textarea.value = sectionRules[name] || "";
+        textarea.placeholder = "Add guidance for what belongs in this section";
+        textarea.oninput = () => {
+          sectionRules[name] = textarea.value.trim();
+        };
+
+        row.appendChild(title);
+        row.appendChild(textarea);
+        sectionRulesRowsEl.appendChild(row);
+      });
+
+      sectionRulesStatusEl.textContent = `Showing rules for ${names.length} section${names.length === 1 ? "" : "s"}.`;
     }
 
     async function loadSections() {
@@ -687,6 +802,42 @@
         }
       };
       reader.readAsText(file);
+    }
+
+    // --- Section rules state / rendering ---
+    function loadSectionRules() {
+      const defaults = getDefaultSectionRules();
+      sectionRules = { ...defaults };
+
+      try {
+        const raw = localStorage.getItem(SECTION_RULES_STORAGE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+            sectionRules = { ...defaults, ...parsed };
+          }
+        }
+      } catch (err) {
+        console.warn("Failed to load section rules", err);
+      }
+
+      renderSectionRules();
+      sectionRulesStatusEl.textContent = `Loaded rules for ${Object.keys(sectionRules).length} sections.`;
+    }
+
+    function saveSectionRules() {
+      try {
+        localStorage.setItem(SECTION_RULES_STORAGE_KEY, JSON.stringify(sectionRules));
+        sectionRulesStatusEl.textContent = "Section rules saved to browser.";
+      } catch (err) {
+        alert("Unable to save section rules: " + (err?.message || err));
+      }
+    }
+
+    function resetSectionRules() {
+      sectionRules = getDefaultSectionRules();
+      renderSectionRules();
+      sectionRulesStatusEl.textContent = "Section rules reset to defaults.";
     }
 
     // --- Checklist editor state / rendering ---
@@ -984,6 +1135,9 @@
       e.target.value = "";
     };
 
+    document.getElementById("section-rules-save-btn")?.addEventListener("click", saveSectionRules);
+    document.getElementById("section-rules-reset-btn")?.addEventListener("click", resetSectionRules);
+
     document.getElementById("checklist-add-btn").onclick = () => {
       checklist.push({
         id: "",
@@ -1154,6 +1308,7 @@ Do not include any explanation outside the JSON.`
     // --- Boot ---
     (async function boot() {
       await loadSections();
+      loadSectionRules();
       await loadChecklist();
       loadExportFormat();
       renderAIInstructions();

@@ -16,7 +16,7 @@ const GRAPHIC_FALLBACK = {
   alt: 'Heating system illustration.',
 };
 
-const DEFAULT_OPTION_ORDER = ['combi', 'system_mixergy', 'system_unvented'];
+const DEFAULT_OPTION_ORDER = [];
 
 function readFromStorage(key) {
   try {
@@ -415,10 +415,18 @@ function init() {
   const transcriptText = loadTranscriptText(snapshot);
   const notes = loadNotes(snapshot);
 
+  const hasRealData = Boolean((transcriptText || '').trim()) || getSections(notes).length > 0;
+
   if (!transcriptText && !notes) {
     showWarning(
       'We couldn’t load your survey data. Please reopen this after completing the voice notes and notes sections.'
     );
+  }
+
+  if (!hasRealData) {
+    renderOptions([]);
+    renderImportantNotes({});
+    return;
   }
 
   const propertyType = detectPropertyType(notes);

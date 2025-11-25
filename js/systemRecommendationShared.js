@@ -47,7 +47,14 @@ const BASE_OPTION_DEFS = {
 
 const TIER_LABELS = ['GOLD – RECOMMENDED', 'SILVER', 'BRONZE'];
 
-function mapEngineResultToOption(recommendation, tierIdx) {
+function isExplicitRecommendation(recommendationKey, requirements) {
+  if (!Array.isArray(requirements?.expertRecommendations)) return false;
+
+  const normalisedKey = recommendationKey?.replace(/_/g, '-');
+  return requirements.expertRecommendations.some((key) => key === recommendationKey || key === normalisedKey);
+}
+
+function mapEngineResultToOption(recommendation, tierLabel, requirements) {
   const optionKey = ENGINE_TO_OPTION_KEY[recommendation.key];
   const base = BASE_OPTION_DEFS[optionKey];
 
@@ -59,13 +66,16 @@ function mapEngineResultToOption(recommendation, tierIdx) {
   }
 
   return {
-    title: `${TIER_LABELS[tierIdx] || 'OPTION'}: ${base.title}`,
+    id: optionKey,
+    label: tierLabel || 'OPTION',
+    title: base.title,
     subtitle: base.subtitle,
     benefits: benefits.slice(0, 6),
     miniSpec: base.miniSpec,
     visualTags: base.visualTags,
     engineScore: recommendation.score,
     optionKey,
+    explicitlyRecommended: isExplicitRecommendation(recommendation.key, requirements),
   };
 }
 
@@ -77,20 +87,44 @@ export function rankOptionsWithEngine(requirements = {}, allowedOptionKeys = Obj
     .sort((a, b) => b.score - a.score);
 }
 
-export function getProposalOptions(requirements = {}, allowedOptionKeys) {
+function orderRecommendations(ranked, optionOrder = []) {
+  if (!Array.isArray(optionOrder) || optionOrder.length === 0) return ranked;
+
+  const seen = new Set();
+  const ordered = [];
+
+  optionOrder.forEach((optionKey) => {
+    const match = ranked.find((rec) => rec.optionKey === optionKey || rec.key === optionKey);
+    if (match && !seen.has(match.optionKey)) {
+      ordered.push(match);
+      seen.add(match.optionKey);
+    }
+  });
+
+  ranked.forEach((rec) => {
+    if (!seen.has(rec.optionKey)) {
+      ordered.push(rec);
+      seen.add(rec.optionKey);
+    }
+  });
+
+  return ordered;
+}
+
+export function getProposalOptions(requirements = {}, optionOrder, allowedOptionKeys) {
   const ranked = rankOptionsWithEngine(
     requirements,
     allowedOptionKeys || Object.values(ENGINE_TO_OPTION_KEY)
   );
 
-  const tiered = ranked.slice(0, 3).map((rec, idx) => mapEngineResultToOption(rec, idx)).filter(Boolean);
-
-  const [gold, silver, bronze] = tiered;
+  const ordered = orderRecommendations(ranked, optionOrder);
+  const options = ordered
+    .slice(0, 3)
+    .map((rec, idx) => mapEngineResultToOption(rec, TIER_LABELS[idx], requirements))
+    .filter(Boolean);
 
   return {
-    gold,
-    silver,
-    bronze,
-    ranked,
+    options,
+    ranked: ordered,
   };
 }

@@ -194,7 +194,7 @@
     }
     .checklist-row {
       display: grid;
-      grid-template-columns: auto minmax(0, 0.9fr) minmax(0, 1fr) minmax(0, 1.4fr) minmax(0, 2fr) auto;
+      grid-template-columns: auto minmax(0, 0.9fr) minmax(0, 1fr) minmax(0, 1.4fr) minmax(0, 2fr) minmax(0, 1fr) auto auto;
       gap: 4px;
       padding: 6px 8px;
       align-items: flex-start;
@@ -263,6 +263,47 @@
       </p>
     </section>
 
+    <!-- AI Instructions Configuration -->
+    <section class="card" style="grid-column: 1 / -1;">
+      <div class="card-header">
+        <h2>AI Instructions</h2>
+        <span>Customize system prompts for AI agents</span>
+      </div>
+
+      <div class="toolbar">
+        <button id="ai-save-btn" class="secondary">Save AI Instructions</button>
+        <button id="ai-reset-btn" class="secondary">Reset to Defaults</button>
+      </div>
+
+      <p class="hint">
+        These instructions control how the AI behaves in different contexts. Edit them to customize the AI's behavior for your specific needs.
+      </p>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <label style="font-size: 0.75rem; font-weight: 600; color: var(--muted);">Agent Chat Instructions</label>
+          <textarea
+            id="ai-agent-chat-instructions"
+            style="font-family: monospace; font-size: 0.7rem; padding: 8px; border: 1px solid var(--border); border-radius: 8px; min-height: 300px; resize: vertical;"
+            placeholder="Agent chat system prompt..."
+          ></textarea>
+          <p class="hint" style="margin: 0;">Used when the AI assistant chats with you about survey details.</p>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <label style="font-size: 0.75rem; font-weight: 600; color: var(--muted);">Section Tweak Instructions</label>
+          <textarea
+            id="ai-tweak-section-instructions"
+            style="font-family: monospace; font-size: 0.7rem; padding: 8px; border: 1px solid var(--border); border-radius: 8px; min-height: 300px; resize: vertical;"
+            placeholder="Section tweak system prompt..."
+          ></textarea>
+          <p class="hint" style="margin: 0;">Used when the AI improves survey section notes based on your instructions.</p>
+        </div>
+      </div>
+
+      <p class="status" id="ai-status"></p>
+    </section>
+
     <!-- LEFT: section schema editor -->
     <section class="card">
       <div class="card-header">
@@ -304,8 +345,8 @@
       </div>
       <p class="hint">
         Each item has a stable <strong>ID</strong>, a <strong>group</strong> label, an optional
-        <strong>Depot section</strong> link, plus a visible label and hint. The worker uses the IDs; the app uses
-        group/section to display them.
+        <strong>Depot section</strong> link, plus a visible label and hint. Click <strong>⋯</strong> to expand and edit
+        <strong>AI templates</strong> (plainText & naturalLanguage). The worker uses these templates to generate section content.
       </p>
 
       <div class="checklist-rows" id="checklist-rows"></div>
@@ -320,6 +361,7 @@
     const SECTION_STORAGE_KEY = "depot.sectionSchema";
     const LEGACY_SECTION_STORAGE_KEY = "surveybrain-schema";
     const CHECKLIST_STORAGE_KEY = "depot.checklistConfig";
+    const AI_INSTRUCTIONS_STORAGE_KEY = "depot.aiInstructions";
     const LS_AUTOSAVE_KEY = "surveyBrainAutosave";
     const WORKER_URL_STORAGE_KEYS = ["depot.workerUrl", "depot-worker-url"];
     const ADDITIONAL_STORAGE_KEYS = [
@@ -711,6 +753,14 @@
           checklist[idx].hint = hintInput.value.trim();
         };
 
+        // Expand button to show plainText and naturalLanguage
+        const expandBtn = document.createElement("button");
+        expandBtn.className = "small secondary";
+        expandBtn.textContent = "⋯";
+        expandBtn.title = "Show/hide AI templates";
+        expandBtn.style.fontSize = "1.2rem";
+        expandBtn.style.padding = "2px 8px";
+
         const controls = document.createElement("div");
         controls.className = "row-controls";
 
@@ -751,13 +801,85 @@
         controls.appendChild(downBtn);
         controls.appendChild(delBtn);
 
+        // Expandable section for AI templates
+        const expandableSection = document.createElement("div");
+        expandableSection.style.gridColumn = "1 / -1";
+        expandableSection.style.display = "none";
+        expandableSection.style.padding = "12px";
+        expandableSection.style.background = "#f8fafc";
+        expandableSection.style.borderRadius = "8px";
+        expandableSection.style.marginTop = "8px";
+
+        const templatesLabel = document.createElement("div");
+        templatesLabel.style.fontSize = "0.75rem";
+        templatesLabel.style.fontWeight = "600";
+        templatesLabel.style.marginBottom = "8px";
+        templatesLabel.textContent = "AI Templates (used by worker to generate section content)";
+
+        const plainTextLabel = document.createElement("label");
+        plainTextLabel.style.display = "block";
+        plainTextLabel.style.fontSize = "0.7rem";
+        plainTextLabel.style.marginTop = "8px";
+        plainTextLabel.style.marginBottom = "4px";
+        plainTextLabel.textContent = "Plain Text Template (bullet points):";
+
+        const plainTextArea = document.createElement("textarea");
+        plainTextArea.value = item.plainText || "";
+        plainTextArea.placeholder = "Bullet-point style template for plainText...";
+        plainTextArea.rows = 3;
+        plainTextArea.style.width = "100%";
+        plainTextArea.style.fontFamily = "monospace";
+        plainTextArea.style.fontSize = "0.7rem";
+        plainTextArea.style.padding = "8px";
+        plainTextArea.style.border = "1px solid #d4dbe5";
+        plainTextArea.style.borderRadius = "6px";
+        plainTextArea.oninput = () => {
+          checklist[idx].plainText = plainTextArea.value;
+        };
+
+        const naturalLanguageLabel = document.createElement("label");
+        naturalLanguageLabel.style.display = "block";
+        naturalLanguageLabel.style.fontSize = "0.7rem";
+        naturalLanguageLabel.style.marginTop = "8px";
+        naturalLanguageLabel.style.marginBottom = "4px";
+        naturalLanguageLabel.textContent = "Natural Language Template (prose):";
+
+        const naturalLanguageArea = document.createElement("textarea");
+        naturalLanguageArea.value = item.naturalLanguage || "";
+        naturalLanguageArea.placeholder = "Prose description template for naturalLanguage...";
+        naturalLanguageArea.rows = 3;
+        naturalLanguageArea.style.width = "100%";
+        naturalLanguageArea.style.fontFamily = "monospace";
+        naturalLanguageArea.style.fontSize = "0.7rem";
+        naturalLanguageArea.style.padding = "8px";
+        naturalLanguageArea.style.border = "1px solid #d4dbe5";
+        naturalLanguageArea.style.borderRadius = "6px";
+        naturalLanguageArea.oninput = () => {
+          checklist[idx].naturalLanguage = naturalLanguageArea.value;
+        };
+
+        expandableSection.appendChild(templatesLabel);
+        expandableSection.appendChild(plainTextLabel);
+        expandableSection.appendChild(plainTextArea);
+        expandableSection.appendChild(naturalLanguageLabel);
+        expandableSection.appendChild(naturalLanguageArea);
+
+        // Toggle expand button
+        expandBtn.onclick = () => {
+          const isHidden = expandableSection.style.display === "none";
+          expandableSection.style.display = isHidden ? "block" : "none";
+          expandBtn.textContent = isHidden ? "−" : "⋯";
+        };
+
         row.appendChild(orderSpan);
         row.appendChild(idInput);
         row.appendChild(groupInput);
         row.appendChild(sectionInput);
         row.appendChild(labelInput);
         row.appendChild(hintInput);
+        row.appendChild(expandBtn);
         row.appendChild(controls);
+        row.appendChild(expandableSection);
 
         checklistRowsEl.appendChild(row);
       });
@@ -901,11 +1023,140 @@
       });
     });
 
+    // --- AI Instructions ---
+    function getDefaultAIInstructions() {
+      return {
+        agentChat: `You are an AI assistant helping with heating survey work for a British Gas style boiler installation surveyor.
+
+You have access to:
+- The current survey sections and notes
+- The transcript of conversations
+- Reference materials from the knowledge database
+
+Your job is to:
+1. Answer questions about the survey, products, pricing, or technical details
+2. Provide helpful suggestions based on the context
+3. Help fill in missing information
+4. Be concise but accurate
+
+SANITY CHECKING:
+- Actively correct obvious transcription mistakes using the context provided (e.g., if a pipe size looks wrong, normalise it to the nearest standard size).
+- Standard pipework sizes are 8/10mm (microbore), 15mm, 22mm, 28mm, and 35mm—prefer these when resolving ambiguities.
+- Prefer the most recent reference material versions (e.g., the latest pricebook such as November 2025) when multiple versions exist.
+
+IMPORTANT:
+- Use the reference materials to provide accurate product specifications and pricing
+- If you don't know something, say so
+- Keep responses brief and actionable
+- Focus on helping complete the survey accurately`,
+        tweakSection: `You are an expert heating survey assistant helping to improve survey notes.
+
+You will receive:
+- A section name (e.g., "Needs", "New boiler and controls")
+- Current plainText (bullet-point style, semicolon-separated)
+- Current naturalLanguage (prose description)
+- User instructions on how to improve the section
+
+Your job is to:
+1. Read the current section content carefully
+2. Apply the user's improvement instructions
+3. Return an improved version of the section that maintains the same format
+
+IMPORTANT RULES:
+- Keep the same section name
+- Maintain the plainText format (semicolon-separated bullet points)
+- Maintain the naturalLanguage format (clear prose)
+- Apply the user's instructions precisely
+- Only modify what the user asks to improve
+- Keep the technical accuracy and detail level
+- Do not add information that wasn't requested
+- Correct any obvious transcription errors using the context provided, especially standard pipe sizes (8/10mm, 15mm, 22mm, 28mm, 35mm) and other common measurements. Normalise improbable values to the nearest sensible standard size.
+
+You MUST respond with ONLY valid JSON matching this shape:
+
+{
+  "section": "[section name]",
+  "plainText": "Improved bullet points; separated by semicolons;",
+  "naturalLanguage": "Improved prose description."
+}
+
+Do not wrap the JSON in backticks or markdown.
+Do not include any explanation outside the JSON.`
+      };
+    }
+
+    function loadAIInstructions() {
+      const defaults = getDefaultAIInstructions();
+      try {
+        const raw = localStorage.getItem(AI_INSTRUCTIONS_STORAGE_KEY);
+        if (raw) {
+          const stored = JSON.parse(raw);
+          return {
+            agentChat: stored.agentChat || defaults.agentChat,
+            tweakSection: stored.tweakSection || defaults.tweakSection
+          };
+        }
+      } catch (err) {
+        console.warn("Failed to read AI instructions override", err);
+      }
+      return defaults;
+    }
+
+    function saveAIInstructions(instructions) {
+      try {
+        localStorage.setItem(AI_INSTRUCTIONS_STORAGE_KEY, JSON.stringify(instructions));
+        document.getElementById('ai-status').textContent = "AI instructions saved successfully";
+        setTimeout(() => {
+          document.getElementById('ai-status').textContent = "";
+        }, 3000);
+      } catch (err) {
+        alert("Unable to save AI instructions: " + (err?.message || err));
+      }
+    }
+
+    function renderAIInstructions() {
+      const instructions = loadAIInstructions();
+      const agentChatArea = document.getElementById('ai-agent-chat-instructions');
+      const tweakSectionArea = document.getElementById('ai-tweak-section-instructions');
+
+      if (agentChatArea) {
+        agentChatArea.value = instructions.agentChat;
+      }
+      if (tweakSectionArea) {
+        tweakSectionArea.value = instructions.tweakSection;
+      }
+    }
+
+    // AI Instructions event listeners
+    document.getElementById('ai-save-btn')?.addEventListener('click', () => {
+      const agentChatArea = document.getElementById('ai-agent-chat-instructions');
+      const tweakSectionArea = document.getElementById('ai-tweak-section-instructions');
+
+      const instructions = {
+        agentChat: agentChatArea?.value || getDefaultAIInstructions().agentChat,
+        tweakSection: tweakSectionArea?.value || getDefaultAIInstructions().tweakSection
+      };
+
+      saveAIInstructions(instructions);
+    });
+
+    document.getElementById('ai-reset-btn')?.addEventListener('click', () => {
+      if (!confirm('Reset AI instructions to defaults? This cannot be undone.')) return;
+
+      localStorage.removeItem(AI_INSTRUCTIONS_STORAGE_KEY);
+      renderAIInstructions();
+      document.getElementById('ai-status').textContent = "AI instructions reset to defaults";
+      setTimeout(() => {
+        document.getElementById('ai-status').textContent = "";
+      }, 3000);
+    });
+
     // --- Boot ---
     (async function boot() {
       await loadSections();
       await loadChecklist();
       loadExportFormat();
+      renderAIInstructions();
     })();
   </script>
 </body>

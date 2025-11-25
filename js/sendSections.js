@@ -690,6 +690,18 @@ function closeTweakModal(modal) {
 async function processSectionTweak(section, sectionIndex, instructions) {
   const workerUrl = window.WORKER_URL || 'https://depot-voice-notes.martinbibb.workers.dev';
 
+  // Load custom AI instructions if available
+  let customInstructions = null;
+  try {
+    const aiInstructions = localStorage.getItem('depot.aiInstructions');
+    if (aiInstructions) {
+      const parsed = JSON.parse(aiInstructions);
+      customInstructions = parsed.tweakSection;
+    }
+  } catch (err) {
+    console.warn('Failed to load custom AI instructions', err);
+  }
+
   const response = await fetch(`${workerUrl}/tweak-section`, {
     method: 'POST',
     headers: {
@@ -701,7 +713,8 @@ async function processSectionTweak(section, sectionIndex, instructions) {
         plainText: section.plainText || section.plain_text || '',
         naturalLanguage: section.naturalLanguage || section.natural_language || ''
       },
-      instructions
+      instructions,
+      customInstructions
     })
   });
 

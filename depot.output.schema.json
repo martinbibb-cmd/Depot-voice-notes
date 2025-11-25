@@ -8,7 +8,10 @@
     { "name": "External hazards", "description": "" },
     { "name": "Delivery notes", "description": "" },
     { "name": "Office notes", "description": "" },
-    { "name": "New boiler and controls", "description": "" },
+    {
+      "name": "New boiler and controls",
+      "description": "Keep it simple: what is being removed, what is being installed, which controls stay or change, where everything sits, and include cylinders, tanks, sealed system kits, and radiators when relevant."
+    },
     { "name": "Flue", "description": "" },
     { "name": "Pipe work", "description": "" },
     { "name": "Disruption", "description": "" },

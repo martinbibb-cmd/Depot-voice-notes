@@ -289,6 +289,19 @@ export async function initializeAuthTables(db) {
       )
     `).run();
 
+    // Password reset tokens table
+    await db.prepare(`
+      CREATE TABLE IF NOT EXISTS password_reset_tokens (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        token TEXT UNIQUE NOT NULL,
+        expires_at DATETIME NOT NULL,
+        used BOOLEAN DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      )
+    `).run();
+
     // Create indexes for better query performance
     await db.prepare(`
       CREATE INDEX IF NOT EXISTS idx_user_settings_user_id
@@ -303,6 +316,11 @@ export async function initializeAuthTables(db) {
     await db.prepare(`
       CREATE INDEX IF NOT EXISTS idx_users_username
       ON users(username)
+    `).run();
+
+    await db.prepare(`
+      CREATE INDEX IF NOT EXISTS idx_reset_tokens_token
+      ON password_reset_tokens(token)
     `).run();
 
     return { success: true };
@@ -459,6 +477,140 @@ export async function deleteUserSetting(db, userId, key) {
     return { success: true };
   } catch (err) {
     console.error('Failed to delete user setting:', err);
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * Generate a secure random reset token
+ */
+export function generateResetToken() {
+  const randomBytes = crypto.getRandomValues(new Uint8Array(32));
+  return btoa(String.fromCharCode(...randomBytes))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=/g, '');
+}
+
+/**
+ * Create a password reset token for a user
+ * @param {Object} db - Database instance
+ * @param {number} userId - User ID
+ * @returns {Promise<{success: boolean, token?: string, error?: string}>}
+ */
+export async function createPasswordResetToken(db, userId) {
+  try {
+    const token = generateResetToken();
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour from now
+
+    await db.prepare(`
+      INSERT INTO password_reset_tokens (user_id, token, expires_at)
+      VALUES (?, ?, ?)
+    `).bind(userId, token, expiresAt.toISOString()).run();
+
+    return { success: true, token };
+  } catch (err) {
+    console.error('Failed to create password reset token:', err);
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * Validate a password reset token
+ * @param {Object} db - Database instance
+ * @param {string} token - Reset token
+ * @returns {Promise<{valid: boolean, userId?: number, error?: string}>}
+ */
+export async function validateResetToken(db, token) {
+  try {
+    const result = await db.prepare(`
+      SELECT id, user_id, expires_at, used
+      FROM password_reset_tokens
+      WHERE token = ?
+    `).bind(token).first();
+
+    if (!result) {
+      return { valid: false, error: 'Invalid token' };
+    }
+
+    if (result.used) {
+      return { valid: false, error: 'Token has already been used' };
+    }
+
+    const now = new Date();
+    const expiresAt = new Date(result.expires_at);
+
+    if (now > expiresAt) {
+      return { valid: false, error: 'Token has expired' };
+    }
+
+    return { valid: true, userId: result.user_id, tokenId: result.id };
+  } catch (err) {
+    console.error('Failed to validate reset token:', err);
+    return { valid: false, error: err.message };
+  }
+}
+
+/**
+ * Mark a reset token as used
+ * @param {Object} db - Database instance
+ * @param {string} token - Reset token
+ * @returns {Promise<{success: boolean, error?: string}>}
+ */
+export async function markTokenAsUsed(db, token) {
+  try {
+    await db.prepare(`
+      UPDATE password_reset_tokens
+      SET used = 1
+      WHERE token = ?
+    `).bind(token).run();
+
+    return { success: true };
+  } catch (err) {
+    console.error('Failed to mark token as used:', err);
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * Reset user password
+ * @param {Object} db - Database instance
+ * @param {number} userId - User ID
+ * @param {string} newPassword - New password
+ * @returns {Promise<{success: boolean, error?: string}>}
+ */
+export async function resetUserPassword(db, userId, newPassword) {
+  try {
+    const passwordHash = await hashPassword(newPassword);
+
+    await db.prepare(`
+      UPDATE users
+      SET password_hash = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `).bind(passwordHash, userId).run();
+
+    return { success: true };
+  } catch (err) {
+    console.error('Failed to reset password:', err);
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * Clean up expired reset tokens (should be run periodically)
+ * @param {Object} db - Database instance
+ * @returns {Promise<{success: boolean, deleted?: number, error?: string}>}
+ */
+export async function cleanupExpiredTokens(db) {
+  try {
+    const result = await db.prepare(`
+      DELETE FROM password_reset_tokens
+      WHERE expires_at < datetime('now') OR used = 1
+    `).run();
+
+    return { success: true, deleted: result.meta.changes };
+  } catch (err) {
+    console.error('Failed to cleanup expired tokens:', err);
     return { success: false, error: err.message };
   }
 }

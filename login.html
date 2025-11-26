@@ -308,12 +308,62 @@
       <div class="form-group">
         <label for="loginPassword">Password</label>
         <input type="password" id="loginPassword" required autocomplete="current-password" />
+        <div class="hint"><a href="#" id="showForgotPassword" style="color: var(--accent);">Forgot password?</a></div>
       </div>
 
       <button type="submit" id="loginBtn">Sign In</button>
 
       <div class="toggle-auth">
         Don't have an account? <a href="#" id="showRegister">Create one</a>
+      </div>
+
+      <div class="skip-login">
+        <a href="index.html">Continue without signing in</a>
+      </div>
+    </form>
+
+    <!-- Forgot Password Form -->
+    <form id="forgotPasswordForm" style="display: none;">
+      <div class="form-group">
+        <label for="resetEmail">Email</label>
+        <input type="email" id="resetEmail" required autocomplete="email" />
+        <div class="hint">Enter your email to receive a password reset token</div>
+      </div>
+
+      <button type="submit" id="requestResetBtn">Request Reset Token</button>
+
+      <div class="toggle-auth">
+        Remembered your password? <a href="#" id="backToLogin">Sign in</a>
+      </div>
+
+      <div class="skip-login">
+        <a href="index.html">Continue without signing in</a>
+      </div>
+    </form>
+
+    <!-- Reset Password Form -->
+    <form id="resetPasswordForm" style="display: none;">
+      <div class="form-group">
+        <label for="resetToken">Reset Token</label>
+        <input type="text" id="resetToken" required autocomplete="off" />
+        <div class="hint">Enter the reset token you received</div>
+      </div>
+
+      <div class="form-group">
+        <label for="newPassword">New Password</label>
+        <input type="password" id="newPassword" required autocomplete="new-password" />
+        <div class="hint">Minimum 8 characters, must include letters and numbers</div>
+      </div>
+
+      <div class="form-group">
+        <label for="newPasswordConfirm">Confirm New Password</label>
+        <input type="password" id="newPasswordConfirm" required autocomplete="new-password" />
+      </div>
+
+      <button type="submit" id="resetPasswordBtn">Reset Password</button>
+
+      <div class="toggle-auth">
+        <a href="#" id="backToLogin2">Back to sign in</a>
       </div>
 
       <div class="skip-login">
@@ -358,7 +408,7 @@
   </div>
 
   <script type="module">
-    import { register, login, isAuthenticated } from './src/auth/auth-client.js';
+    import { register, login, isAuthenticated, requestPasswordReset, resetPassword } from './src/auth/auth-client.js';
 
     // Check if already authenticated, redirect to app
     if (isAuthenticated()) {
@@ -367,8 +417,13 @@
 
     const loginForm = document.getElementById('loginForm');
     const registerForm = document.getElementById('registerForm');
+    const forgotPasswordForm = document.getElementById('forgotPasswordForm');
+    const resetPasswordForm = document.getElementById('resetPasswordForm');
     const showRegisterLink = document.getElementById('showRegister');
     const showLoginLink = document.getElementById('showLogin');
+    const showForgotPassword = document.getElementById('showForgotPassword');
+    const backToLoginLink = document.getElementById('backToLogin');
+    const backToLogin2Link = document.getElementById('backToLogin2');
     const errorMessage = document.getElementById('errorMessage');
     const successMessage = document.getElementById('successMessage');
 
@@ -377,12 +432,41 @@
       e.preventDefault();
       loginForm.style.display = 'none';
       registerForm.style.display = 'block';
+      forgotPasswordForm.style.display = 'none';
+      resetPasswordForm.style.display = 'none';
       hideMessages();
     });
 
     showLoginLink.addEventListener('click', (e) => {
       e.preventDefault();
       registerForm.style.display = 'none';
+      loginForm.style.display = 'block';
+      forgotPasswordForm.style.display = 'none';
+      resetPasswordForm.style.display = 'none';
+      hideMessages();
+    });
+
+    showForgotPassword.addEventListener('click', (e) => {
+      e.preventDefault();
+      loginForm.style.display = 'none';
+      registerForm.style.display = 'none';
+      forgotPasswordForm.style.display = 'block';
+      resetPasswordForm.style.display = 'none';
+      hideMessages();
+    });
+
+    backToLoginLink.addEventListener('click', (e) => {
+      e.preventDefault();
+      forgotPasswordForm.style.display = 'none';
+      resetPasswordForm.style.display = 'none';
+      loginForm.style.display = 'block';
+      hideMessages();
+    });
+
+    backToLogin2Link.addEventListener('click', (e) => {
+      e.preventDefault();
+      resetPasswordForm.style.display = 'none';
+      forgotPasswordForm.style.display = 'none';
       loginForm.style.display = 'block';
       hideMessages();
     });
@@ -456,6 +540,81 @@
         setTimeout(() => {
           window.location.href = 'index.html';
         }, 1000);
+      } else {
+        showError(result.error);
+      }
+    });
+
+    // Handle forgot password request
+    forgotPasswordForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      hideMessages();
+
+      const email = document.getElementById('resetEmail').value.trim();
+
+      const btn = document.getElementById('requestResetBtn');
+      btn.disabled = true;
+      btn.textContent = 'Sending request...';
+
+      const result = await requestPasswordReset(email);
+
+      btn.disabled = false;
+      btn.textContent = 'Request Reset Token';
+
+      if (result.success) {
+        showSuccess(result.message || 'Reset token sent! Check your email or copy the token below.');
+        // Show the token for now (in production, this would be emailed)
+        if (result.token) {
+          document.getElementById('resetToken').value = result.token;
+          // Automatically show the reset password form
+          forgotPasswordForm.style.display = 'none';
+          resetPasswordForm.style.display = 'block';
+        }
+      } else {
+        showError(result.error);
+      }
+    });
+
+    // Handle password reset
+    resetPasswordForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      hideMessages();
+
+      const token = document.getElementById('resetToken').value.trim();
+      const newPassword = document.getElementById('newPassword').value;
+      const newPasswordConfirm = document.getElementById('newPasswordConfirm').value;
+
+      // Validate password match
+      if (newPassword !== newPasswordConfirm) {
+        showError('Passwords do not match');
+        return;
+      }
+
+      // Validate password strength
+      if (newPassword.length < 8 || !/[a-zA-Z]/.test(newPassword) || !/[0-9]/.test(newPassword)) {
+        showError('Password must be at least 8 characters and contain letters and numbers');
+        return;
+      }
+
+      const btn = document.getElementById('resetPasswordBtn');
+      btn.disabled = true;
+      btn.textContent = 'Resetting password...';
+
+      const result = await resetPassword(token, newPassword);
+
+      btn.disabled = false;
+      btn.textContent = 'Reset Password';
+
+      if (result.success) {
+        showSuccess(result.message || 'Password reset successfully! You can now sign in.');
+        setTimeout(() => {
+          resetPasswordForm.style.display = 'none';
+          loginForm.style.display = 'block';
+          // Clear the form
+          document.getElementById('resetToken').value = '';
+          document.getElementById('newPassword').value = '';
+          document.getElementById('newPasswordConfirm').value = '';
+        }, 2000);
       } else {
         showError(result.error);
       }

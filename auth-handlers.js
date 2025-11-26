@@ -16,7 +16,11 @@ import {
   getUserSetting,
   getAllUserSettings,
   deleteUserSetting,
-  initializeAuthTables
+  initializeAuthTables,
+  createPasswordResetToken,
+  validateResetToken,
+  markTokenAsUsed,
+  resetUserPassword
 } from './auth.js';
 
 /**
@@ -339,4 +343,108 @@ function jsonResponse(body, status = 200) {
       'Access-Control-Allow-Headers': 'Content-Type, Authorization'
     }
   });
+}
+
+/**
+ * Handle password reset request
+ * POST /auth/request-reset
+ * Body: { email }
+ */
+export async function handleRequestReset(request, env) {
+  let payload;
+  try {
+    payload = await request.json();
+  } catch {
+    return jsonResponse({ success: false, error: 'Invalid JSON' }, 400);
+  }
+
+  const { email } = payload;
+
+  if (!email || !isValidEmail(email)) {
+    return jsonResponse({ success: false, error: 'Valid email is required' }, 400);
+  }
+
+  try {
+    // Find user by email
+    const user = await getUserByEmail(env.DB, email);
+
+    // Always return success to prevent email enumeration
+    // Even if user doesn't exist, we return success
+    if (!user) {
+      console.log(`Password reset requested for non-existent email: ${email}`);
+      return jsonResponse({ success: true, message: 'If the email exists, a reset link will be sent' }, 200);
+    }
+
+    // Generate reset token
+    const tokenResult = await createPasswordResetToken(env.DB, user.id);
+
+    if (!tokenResult.success) {
+      return jsonResponse({ success: false, error: 'Failed to create reset token' }, 500);
+    }
+
+    // In a real application, you would send an email here
+    // For now, we'll return the token in the response
+    // TODO: Integrate with email service
+    console.log(`Password reset token for ${email}: ${tokenResult.token}`);
+
+    return jsonResponse({
+      success: true,
+      message: 'Password reset token created',
+      token: tokenResult.token  // Remove this in production
+    }, 200);
+  } catch (err) {
+    console.error('Password reset request error:', err);
+    return jsonResponse({ success: false, error: 'Server error' }, 500);
+  }
+}
+
+/**
+ * Handle password reset completion
+ * POST /auth/reset-password
+ * Body: { token, newPassword }
+ */
+export async function handleResetPassword(request, env) {
+  let payload;
+  try {
+    payload = await request.json();
+  } catch {
+    return jsonResponse({ success: false, error: 'Invalid JSON' }, 400);
+  }
+
+  const { token, newPassword } = payload;
+
+  if (!token || !newPassword) {
+    return jsonResponse({ success: false, error: 'Token and new password are required' }, 400);
+  }
+
+  if (!isValidPassword(newPassword)) {
+    return jsonResponse({ 
+      success: false, 
+      error: 'Password must be at least 8 characters with letters and numbers' 
+    }, 400);
+  }
+
+  try {
+    // Validate the reset token
+    const validation = await validateResetToken(env.DB, token);
+
+    if (!validation.valid) {
+      return jsonResponse({ success: false, error: validation.error || 'Invalid token' }, 400);
+    }
+
+    // Reset the password
+    const resetResult = await resetUserPassword(env.DB, validation.userId, newPassword);
+
+    if (!resetResult.success) {
+      return jsonResponse({ success: false, error: 'Failed to reset password' }, 500);
+    }
+
+    // Mark token as used
+    await markTokenAsUsed(env.DB, token);
+
+    return jsonResponse({ success: true, message: 'Password has been reset successfully' }, 200);
+  } catch (err) {
+    console.error('Password reset error:', err);
+    return jsonResponse({ success: false, error: 'Server error' }, 500);
+  }
 }

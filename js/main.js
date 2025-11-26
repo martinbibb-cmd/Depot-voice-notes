@@ -17,7 +17,7 @@ import {
   analyzeTranscriptForQuestions,
   resetAskedQuestions
 } from "./agentMode.js";
-import { showSendSectionsSlideOver, updateSendSectionsSlideOver } from "./sendSections.js";
+// import { showSendSectionsSlideOver, updateSendSectionsSlideOver } from "./sendSections.js";  // Removed - now using "Add to transcript" instead
 import { initWhat3Words } from "./what3words.js";
 import {
   retryWithBackoff,
@@ -3733,12 +3733,43 @@ window.addEventListener('agentModeChanged', (event) => {
   }
 });
 
-// Send Sections Button
-const sendSectionsBtn = document.getElementById('sendSectionsBtn');
-if (sendSectionsBtn) {
-  sendSectionsBtn.addEventListener('click', () => {
+// Add to Transcript Button
+const addToTranscriptBtn = document.getElementById('addToTranscriptBtn');
+if (addToTranscriptBtn) {
+  addToTranscriptBtn.addEventListener('click', () => {
     const sections = APP_STATE.sections || [];
-    showSendSectionsSlideOver(sections);
+
+    // Convert sections to text format
+    let textToAdd = '\n\n--- SECTIONS ADDED TO TRANSCRIPT ---\n\n';
+    sections.forEach((section, index) => {
+      textToAdd += `${section.title || `Section ${index + 1}`}:\n`;
+      if (section.primary) {
+        textToAdd += `${section.primary}\n`;
+      }
+      if (section.secondary) {
+        textToAdd += `Additional: ${section.secondary}\n`;
+      }
+      textToAdd += '\n';
+    });
+
+    // Add to transcript
+    const transcriptInput = document.getElementById('transcriptInput');
+    const transcriptDisplay = document.getElementById('transcriptDisplay');
+
+    if (transcriptInput && transcriptInput.style.display !== 'none') {
+      // In edit mode - add to textarea
+      transcriptInput.value += textToAdd;
+    } else if (transcriptDisplay) {
+      // In view mode - append to the current transcript
+      const timestamp = new Date().toLocaleTimeString('en-US', { hour12: false });
+      const newLine = document.createElement('div');
+      newLine.className = 'transcript-line';
+      newLine.innerHTML = `<span class="transcript-timestamp">${timestamp}</span><span class="transcript-speaker">System:</span> ${textToAdd.replace(/\n/g, '<br>')}`;
+      transcriptDisplay.appendChild(newLine);
+      transcriptDisplay.scrollTop = transcriptDisplay.scrollHeight;
+    }
+
+    alert('Sections added to transcript! Click "🤖 process" to generate new notes with this content.');
   });
 }
 

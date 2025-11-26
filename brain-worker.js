@@ -1,3 +1,11 @@
+import {
+  handleRegister,
+  handleLogin,
+  handleSaveSettings,
+  handleLoadSettings,
+  handleGetProfile
+} from './auth-handlers.js';
+
 export default {
   async fetch(request, env, ctx) {
     try {
@@ -12,6 +20,29 @@ export default {
         return jsonResponse({ status: "ok" }, 200);
       }
 
+      // Authentication endpoints
+      if (request.method === "POST" && url.pathname === "/auth/register") {
+        return handleRegister(request, env);
+      }
+
+      if (request.method === "POST" && url.pathname === "/auth/login") {
+        return handleLogin(request, env);
+      }
+
+      if (request.method === "GET" && url.pathname === "/auth/profile") {
+        return handleGetProfile(request, env);
+      }
+
+      // Settings sync endpoints
+      if (request.method === "POST" && url.pathname === "/settings/sync") {
+        return handleSaveSettings(request, env);
+      }
+
+      if (request.method === "GET" && url.pathname === "/settings/sync") {
+        return handleLoadSettings(request, env);
+      }
+
+      // Existing endpoints
       if (request.method === "POST" && url.pathname === "/text") {
         return handleText(request, env);
       }

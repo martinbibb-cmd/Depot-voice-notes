@@ -19,6 +19,22 @@ import {
 } from "./agentMode.js";
 import { showSendSectionsSlideOver, updateSendSectionsSlideOver } from "./sendSections.js";
 import { initWhat3Words } from "./what3words.js";
+import {
+  retryWithBackoff,
+  categorizeError,
+  offlineQueue,
+  requestDeduplicator,
+  networkMonitor,
+  getStorageQuota,
+  cleanupOldData,
+  estimateCost,
+  estimateTokens
+} from "./appEnhancements.js";
+import {
+  initChecklistSearch,
+  populateGroupFilter,
+  resetChecklistFilters
+} from "./checklistEnhancements.js";
 
 // --- CONFIG / STORAGE KEYS ---
 const SECTION_STORAGE_KEY = "depot.sectionSchema";
@@ -1187,12 +1203,39 @@ function requireWorkerBaseUrl() {
 async function postJSON(path, body) {
   const base = requireWorkerBaseUrl();
   const url = base + path;
-  const res = await fetch(url, {
+
+  const request = {
+    url,
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body)
+  };
+
+  // Use request deduplication and retry logic
+  return await requestDeduplicator.execute(request, async () => {
+    return await retryWithBackoff(
+      async () => {
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body)
+        });
+
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        }
+
+        return res;
+      },
+      {
+        maxRetries: 4,
+        onRetry: (info) => {
+          setStatus(`Retry ${info.attempt}/${info.maxRetries} after network error...`);
+          console.log(`Retrying request to ${path} (attempt ${info.attempt}/${info.maxRetries})`);
+        }
+      }
+    );
   });
-  return res;
 }
 
 // Internet speed measurement function
@@ -1631,12 +1674,14 @@ function renderChecklist(container, checkedIds, missingInfoFromServer) {
   [...byGroup.entries()].forEach(([groupName, items]) => {
     const header = document.createElement("div");
     header.className = "check-group-title";
+    header.dataset.group = groupName; // Tag header with group
     header.innerHTML = `<span>${groupName}</span><span>${items[0].section || ""}</span>`;
     container.appendChild(header);
 
     items.forEach(item => {
       const div = document.createElement("div");
       div.className = "clar-chip checklist-item" + (item.done ? " done" : "");
+      div.dataset.group = groupName; // Tag with group for filtering
       div.innerHTML = `
         <span class="icon">${item.done ? "✅" : "⭕"}</span>
         <span class="label">
@@ -1664,6 +1709,12 @@ function renderChecklist(container, checkedIds, missingInfoFromServer) {
       div.innerHTML = `<strong>${q.target || "expert"}:</strong> ${q.question}`;
       container.appendChild(div);
     });
+  }
+
+  // Initialize checklist search and filter UI (only once)
+  if (!container.querySelector('.checklist-filter')) {
+    initChecklistSearch(container);
+    populateGroupFilter(CHECKLIST_ITEMS);
   }
 }
 
@@ -1937,9 +1988,10 @@ async function sendText() {
     lastSentTranscript = transcript;
   } catch (err) {
     console.error(err);
+    const errorInfo = categorizeError(err);
     const message = err && err.voiceMessage
       ? err.voiceMessage
-      : "Voice AI failed: " + (err && err.message ? err.message : "Unknown error");
+      : errorInfo.userMessage || ("Voice AI failed: " + (err && err.message ? err.message : "Unknown error"));
     showVoiceError(message);
     setStatus("Text send failed.");
   }
@@ -1951,16 +2003,32 @@ async function sendAudio(blob) {
   try {
     const schemaSnapshot = await ensureSectionSchema();
     const baseUrl = requireWorkerBaseUrl();
-    const res = await fetch(baseUrl + "/audio", {
-      method: "POST",
-      headers: { "Content-Type": blob.type || "audio/webm" },
-      body: blob
-    });
+
+    // Wrap with retry logic for audio uploads
+    const res = await retryWithBackoff(
+      async () => {
+        const response = await fetch(baseUrl + "/audio", {
+          method: "POST",
+          headers: { "Content-Type": blob.type || "audio/webm" },
+          body: blob
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        return response;
+      },
+      {
+        maxRetries: 4,
+        onRetry: (info) => {
+          setStatus(`Retry ${info.attempt}/${info.maxRetries} uploading audio...`);
+          console.log(`Retrying audio upload (attempt ${info.attempt}/${info.maxRetries})`);
+        }
+      }
+    );
+
     const raw = await res.text();
-    if (!res.ok) {
-      const snippet = raw ? `: ${raw.slice(0, 200)}` : "";
-      throw new Error(`Worker error ${res.status} ${res.statusText}${snippet}`);
-    }
     let data;
     try {
       data = JSON.parse(raw);
@@ -1983,9 +2051,10 @@ async function sendAudio(blob) {
     setStatus("Audio processed.");
   } catch (err) {
     console.error(err);
+    const errorInfo = categorizeError(err);
     const message = err && err.voiceMessage
       ? err.voiceMessage
-      : "Voice AI failed: " + (err && err.message ? err.message : "Unknown error");
+      : errorInfo.userMessage || ("Voice AI failed: " + (err && err.message ? err.message : "Unknown error"));
     showVoiceError(message);
     setStatus("Audio failed.");
     throw err;
@@ -3685,3 +3754,88 @@ if (typeof refreshUiFromState === 'function') {
     }
   };
 }
+
+// ============================================================================
+// ENHANCEMENT INTEGRATIONS
+// ============================================================================
+
+// Network status monitoring
+const networkStatusEl = document.getElementById('networkStatusText');
+const storageStatusEl = document.getElementById('storageStatusText');
+
+function updateNetworkStatusUI(status) {
+  if (!networkStatusEl) return;
+
+  if (!status.isOnline) {
+    networkStatusEl.textContent = 'Offline';
+    networkStatusEl.style.color = '#ef4444';
+  } else {
+    const speedEmoji = {
+      fast: '⚡',
+      medium: '📶',
+      slow: '🐌',
+      unknown: '📡'
+    };
+    networkStatusEl.textContent = `${speedEmoji[status.speed] || '📡'} ${status.speed}`;
+    networkStatusEl.style.color = status.speed === 'slow' ? '#f59e0b' : '#10b981';
+  }
+}
+
+async function updateStorageStatusUI() {
+  if (!storageStatusEl) return;
+
+  try {
+    const quota = await getStorageQuota();
+    if (quota) {
+      const percentUsed = quota.percentUsed.toFixed(1);
+      const color = percentUsed > 80 ? '#ef4444' : percentUsed > 50 ? '#f59e0b' : '#10b981';
+      storageStatusEl.innerHTML = `<span style="color: ${color}">${percentUsed}% used</span>`;
+      storageStatusEl.title = `${(quota.usage / 1024 / 1024).toFixed(2)}MB / ${(quota.quota / 1024 / 1024).toFixed(2)}MB`;
+
+      // Warn if storage is running low
+      if (percentUsed > 90) {
+        console.warn('Storage quota critical:', percentUsed + '%');
+        showVoiceError('Storage space is running low. Consider exporting and clearing old sessions.');
+      }
+    } else {
+      storageStatusEl.textContent = 'N/A';
+    }
+  } catch (err) {
+    console.warn('Failed to check storage quota:', err);
+    storageStatusEl.textContent = 'N/A';
+  }
+}
+
+// Initialize network monitoring
+networkMonitor.addListener((status) => {
+  updateNetworkStatusUI(status);
+  console.log('Network status:', status);
+});
+
+// Initial network status update
+updateNetworkStatusUI(networkMonitor.getStatus());
+
+// Update storage status periodically
+updateStorageStatusUI();
+setInterval(updateStorageStatusUI, 30000); // Update every 30 seconds
+
+// Automatic storage cleanup on app init (remove data older than 60 days)
+(async function initStorageCleanup() {
+  try {
+    const cleaned = cleanupOldData(60); // 60 days
+    if (cleaned > 0) {
+      console.log(`Cleaned up ${cleaned} old storage items (>60 days)`);
+    }
+  } catch (err) {
+    console.warn('Storage cleanup failed:', err);
+  }
+})();
+
+// Offline queue status monitoring
+offlineQueue.addListener((status) => {
+  if (status.queueLength > 0) {
+    setStatus(`${status.isOnline ? 'Processing' : 'Queued'}: ${status.queueLength} request(s)`);
+  }
+});
+
+console.log('✅ Enhancement modules integrated successfully');

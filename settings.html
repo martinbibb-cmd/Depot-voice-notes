@@ -606,38 +606,6 @@
       <!-- AI Instructions for Notes Generation -->
       <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);">
         <h3 style="margin: 0; font-size: 0.9rem; letter-spacing: .02em;">AI Instructions for Notes Generation</h3>
-        <p class="hint" style="margin: 0;">
-          These instructions tell the AI how to turn your transcript into engineer-ready job notes. The default text includes
-          special rules for gas supply and primary pipework so it doesn't contradict itself (for example saying both that a 15mm
-          gas line is adequate and that it needs upgrading).
-        </p>
-
-        <details style="border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; background: #f8fafc; color: #0f172a; margin-top: 8px;">
-          <summary style="cursor: pointer; font-weight: 700;">How gas and primaries are handled (recommended rules)</summary>
-          <ul>
-            <li>
-              <strong>Gas supply:</strong> If you say things like "increase gas supply from the meter via the cupboards", the AI
-              will treat that as the one true instruction and <em>won't</em> also say that the existing 15mm line is adequate.
-            </li>
-            <li>
-              <strong>Primaries:</strong> When you talk about primaries being undersized (e.g. set up for 18kW but fitting a 24kW
-              boiler), the AI will:
-              <ul>
-                <li>Describe the actual route (e.g. "between loft hatches and airing cupboard"), and</li>
-                <li>Add a separate bullet to say "upgrade to 28mm to allow full 24kW output".</li>
-              </ul>
-            </li>
-            <li>
-              <strong>Typed summaries win:</strong> If you type a short summary at the end (e.g. "Increase gas supply from meter via
-              cupboards. Change to S-plan."), the AI will follow that and ignore earlier, conflicting guesses.
-            </li>
-          </ul>
-          <p style="margin: 0;">
-            You can customise the wording below if you prefer different phrases, but keep the logic: single gas decision, explicit
-            primaries route + size, and no conflicting bullets.
-          </p>
-        </details>
-
         <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 8px;">
           <label for="notes-instructions" style="font-size: 0.75rem; font-weight: 600; color: var(--muted);">
             AI instructions for notes

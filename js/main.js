@@ -226,6 +226,7 @@ const loadSessionInput = document.getElementById("loadSessionInput");
 const importAudioBtn = document.getElementById("importAudioBtn");
 const importAudioInput = document.getElementById("importAudioInput");
 const newJobBtn = document.getElementById("newJobBtn");
+const clearAllBtn = document.getElementById("clearAllBtn");
 const partsListEl = document.getElementById("partsList");
 const voiceErrorEl = document.getElementById("voice-error");
 const sleepWarningEl = document.getElementById("sleep-warning");
@@ -2938,6 +2939,15 @@ if (newJobBtn) {
     }
   };
 }
+if (clearAllBtn) {
+  clearAllBtn.onclick = () => {
+    if (confirm("Clear everything and reset the app?")) {
+      resetSessionState();
+      clearSessionName();
+      localStorage.removeItem(SESSION_TRANSCRIPTS_KEY);
+    }
+  };
+}
 transcriptInput.addEventListener("input", () => {
   if (liveState !== "running") {
     committedTranscript = transcriptInput.value.trim();
@@ -3589,6 +3599,27 @@ if (transcriptInput) {
 // Initial render
 renderTranscriptDisplay();
 
+// Allow agent responses to be appended directly to the transcript
+window.addEventListener('appendAgentTranscript', (event) => {
+  const text = event.detail?.text;
+  if (!text || !transcriptInput) return;
+
+  const timestamp = new Date().toLocaleTimeString('en-US', { hour12: false });
+  const formattedLine = `[${timestamp}] Agent: ${text.trim()}`;
+  const existing = transcriptInput.value.trim();
+
+  transcriptInput.value = existing ? `${transcriptInput.value.trim()}\n${formattedLine}` : formattedLine;
+  committedTranscript = transcriptInput.value.trim();
+  transcriptWasManuallyEdited = true;
+
+  if (transcriptEditedBadge) {
+    transcriptEditedBadge.style.display = 'inline-flex';
+  }
+
+  renderTranscriptDisplay();
+  autoSaveSessionToLocal();
+});
+
 // Transcript Editing Functionality
 const editTranscriptBtn = document.getElementById('editTranscriptBtn');
 const transcriptEditedBadge = document.getElementById('transcriptEditedBadge');
@@ -3685,92 +3716,11 @@ initWhat3Words();
 window.refreshUiFromState = refreshUiFromState;
 window.saveToLocalStorage = autoSaveSessionToLocal;
 
-// Agent Mode Toggle
-const agentModeToggle = document.getElementById('agentModeToggle');
+// Agent suggestions are always available by default
 const agentSuggestionsPanel = document.getElementById('agentSuggestionsPanel');
-const closeAgentPanel = document.getElementById('closeAgentPanel');
-
-if (agentModeToggle) {
-  agentModeToggle.addEventListener('click', () => {
-    const newState = !isAgentModeEnabled();
-    setAgentMode(newState);
-    agentModeToggle.classList.toggle('active', newState);
-
-    if (newState && agentSuggestionsPanel) {
-      agentSuggestionsPanel.style.display = 'flex';
-      // Analyze current sections if any
-      if (APP_STATE.sections && APP_STATE.sections.length > 0) {
-        analyzeTranscriptForQuestions(APP_STATE.sections);
-      }
-    }
-  });
-
-  // Set initial state
-  if (isAgentModeEnabled()) {
-    agentModeToggle.classList.add('active');
-    if (agentSuggestionsPanel) {
-      agentSuggestionsPanel.style.display = 'flex';
-    }
-  }
-}
-
-if (closeAgentPanel) {
-  closeAgentPanel.addEventListener('click', () => {
-    setAgentMode(false);
-    if (agentModeToggle) {
-      agentModeToggle.classList.remove('active');
-    }
-  });
-}
-
-// Listen for agent mode state changes
-window.addEventListener('agentModeChanged', (event) => {
-  const { enabled } = event.detail;
-  if (enabled && agentSuggestionsPanel) {
-    agentSuggestionsPanel.style.display = 'flex';
-  } else if (agentSuggestionsPanel) {
-    agentSuggestionsPanel.style.display = 'none';
-  }
-});
-
-// Add to Transcript Button
-const addToTranscriptBtn = document.getElementById('addToTranscriptBtn');
-if (addToTranscriptBtn) {
-  addToTranscriptBtn.addEventListener('click', () => {
-    const sections = APP_STATE.sections || [];
-
-    // Convert sections to text format
-    let textToAdd = '\n\n--- SECTIONS ADDED TO TRANSCRIPT ---\n\n';
-    sections.forEach((section, index) => {
-      textToAdd += `${section.title || `Section ${index + 1}`}:\n`;
-      if (section.primary) {
-        textToAdd += `${section.primary}\n`;
-      }
-      if (section.secondary) {
-        textToAdd += `Additional: ${section.secondary}\n`;
-      }
-      textToAdd += '\n';
-    });
-
-    // Add to transcript
-    const transcriptInput = document.getElementById('transcriptInput');
-    const transcriptDisplay = document.getElementById('transcriptDisplay');
-
-    if (transcriptInput && transcriptInput.style.display !== 'none') {
-      // In edit mode - add to textarea
-      transcriptInput.value += textToAdd;
-    } else if (transcriptDisplay) {
-      // In view mode - append to the current transcript
-      const timestamp = new Date().toLocaleTimeString('en-US', { hour12: false });
-      const newLine = document.createElement('div');
-      newLine.className = 'transcript-line';
-      newLine.innerHTML = `<span class="transcript-timestamp">${timestamp}</span><span class="transcript-speaker">System:</span> ${textToAdd.replace(/\n/g, '<br>')}`;
-      transcriptDisplay.appendChild(newLine);
-      transcriptDisplay.scrollTop = transcriptDisplay.scrollHeight;
-    }
-
-    alert('Sections added to transcript! Click "🤖 process" to generate new notes with this content.');
-  });
+if (agentSuggestionsPanel) {
+  agentSuggestionsPanel.style.display = 'flex';
+  setAgentMode(true);
 }
 
 // Hook into section updates to trigger agent analysis

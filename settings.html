@@ -6,23 +6,63 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
     :root {
-      --bg: #0f172a;
-      --card: #ffffff;
-      --border: #d4dbe5;
-      --accent: #0f766e;
-      --accent-soft: #14b8a6;
-      --muted: #64748b;
-      --danger: #b91c1c;
-      --radius: 16px;
+      /* Metal Control Deck Theme */
+      --bg: #1a1d24;
+      --card: linear-gradient(145deg, #2a2f3a 0%, #363c4a 50%, #2a2f3a 100%);
+      --border: #4a5568;
+      --accent: #10b981;
+      --accent-soft: #34d399;
+      --muted: #94a3b8;
+      --danger: #ef4444;
+      --radius: 4px;
+      --screen-glow: 0 0 20px rgba(16, 185, 129, 0.3);
+      --metal-shine: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.15) 50%, rgba(255,255,255,0) 100%);
+      --button-inset: inset 2px 2px 5px rgba(0,0,0,0.4), inset -2px -2px 5px rgba(255,255,255,0.1);
+      --screen-bg: linear-gradient(180deg, #0f1419 0%, #1a1f29 100%);
     }
     * { box-sizing: border-box; }
+
+    @keyframes screenFlicker {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.98; }
+    }
+
+    @keyframes ledPulse {
+      0%, 100% { box-shadow: 0 0 5px currentColor, 0 0 10px currentColor; }
+      50% { box-shadow: 0 0 10px currentColor, 0 0 20px currentColor; }
+    }
+
+    @keyframes metalShimmer {
+      0% { background-position: -200% center; }
+      100% { background-position: 200% center; }
+    }
+
     body {
       margin: 0;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: radial-gradient(circle at top, #1e293b 0, #020617 55%);
+      font-family: 'Courier New', 'Consolas', monospace;
+      background:
+        repeating-linear-gradient(0deg, rgba(0,0,0,0.1) 0px, transparent 1px, transparent 2px, rgba(0,0,0,0.1) 3px),
+        radial-gradient(circle at top, #2d3748 0%, var(--bg) 60%);
       color: #e2e8f0;
       min-height: 100vh;
       padding: 16px;
+      position: relative;
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background:
+        repeating-linear-gradient(90deg, transparent 0px, rgba(0,255,0,0.03) 1px, transparent 2px),
+        repeating-linear-gradient(0deg, transparent 0px, rgba(0,255,0,0.03) 1px, transparent 2px);
+      background-size: 2px 2px;
+      pointer-events: none;
+      z-index: 1;
+      animation: screenFlicker 3s infinite;
     }
     header {
       display: flex;
@@ -30,16 +70,42 @@
       align-items: baseline;
       gap: 8px;
       margin-bottom: 16px;
+      padding: 16px;
+      background: var(--card);
+      border: 2px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--button-inset);
+      position: relative;
+      z-index: 2;
     }
+
+    header::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, transparent, var(--accent), transparent);
+      animation: metalShimmer 3s linear infinite;
+      background-size: 200% 100%;
+    }
+
     header h1 {
       margin: 0;
       font-size: 1.1rem;
-      letter-spacing: 0.03em;
+      letter-spacing: 0.15em;
       text-transform: uppercase;
+      color: var(--accent);
+      text-shadow: 0 0 10px var(--accent), 0 0 20px var(--accent);
+      font-weight: 700;
     }
+
     header span {
       font-size: .75rem;
-      color: #94a3b8;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
     }
     a.back-link {
       margin-left: auto;
@@ -54,6 +120,8 @@
       display: grid;
       grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
       gap: 14px;
+      position: relative;
+      z-index: 2;
     }
     @media (max-width: 900px) {
       main {
@@ -63,12 +131,38 @@
     .card {
       background: var(--card);
       border-radius: var(--radius);
-      border: 1px solid var(--border);
-      padding: 12px 14px 14px;
-      color: #0f172a;
+      border: 2px solid var(--border);
+      padding: 16px 18px 18px;
+      color: #e2e8f0;
       display: flex;
       flex-direction: column;
-      gap: 10px;
+      gap: 12px;
+      box-shadow: var(--button-inset), 0 4px 12px rgba(0,0,0,0.4);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, rgba(16, 185, 129, 0.5), transparent);
+    }
+
+    .card::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: var(--metal-shine);
+      background-size: 200% 100%;
+      opacity: 0.05;
+      pointer-events: none;
     }
     .card-header {
       display: flex;
@@ -79,11 +173,16 @@
       margin: 0;
       font-size: .9rem;
       text-transform: uppercase;
-      letter-spacing: .05em;
+      letter-spacing: .1em;
+      color: var(--accent);
+      text-shadow: 0 0 5px var(--accent);
+      font-weight: 700;
     }
     .card-header span {
       font-size: .7rem;
       color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
     }
     .toolbar {
       display: flex;
@@ -92,94 +191,175 @@
       margin-bottom: 4px;
     }
     button {
-      border: none;
-      border-radius: 999px;
-      padding: 5px 12px 5px;
+      border: 2px solid var(--border);
+      border-radius: var(--radius);
+      padding: 8px 16px;
       font-size: .7rem;
-      font-weight: 600;
+      font-weight: 700;
       cursor: pointer;
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      background: #0f766e;
-      color: white;
+      background: linear-gradient(145deg, var(--accent) 0%, #059669 100%);
+      color: #fff;
       white-space: nowrap;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.2), inset 0 -1px 0 rgba(0,0,0,0.3);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      transition: all 0.2s;
+      position: relative;
+      overflow: hidden;
+      font-family: 'Courier New', 'Consolas', monospace;
     }
+
+    button::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 0;
+      height: 0;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.2);
+      transform: translate(-50%, -50%);
+      transition: width 0.3s, height 0.3s;
+    }
+
+    button:hover:not(:disabled)::before {
+      width: 300px;
+      height: 300px;
+    }
+
+    button:hover:not(:disabled) {
+      background: linear-gradient(145deg, var(--accent-soft) 0%, var(--accent) 100%);
+      box-shadow: 0 4px 8px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.3), inset 0 -1px 0 rgba(0,0,0,0.3);
+    }
+
+    button:active:not(:disabled) {
+      box-shadow: var(--button-inset);
+      transform: translateY(1px);
+    }
+
     button.secondary {
-      background: rgba(148,163,184,.16);
-      color: #0f172a;
+      background: linear-gradient(145deg, #475569 0%, #334155 100%);
+      color: #e2e8f0;
     }
+
+    button.secondary:hover:not(:disabled) {
+      background: linear-gradient(145deg, #64748b 0%, #475569 100%);
+    }
+
     button.danger {
-      background: var(--danger);
+      background: linear-gradient(145deg, var(--danger) 0%, #dc2626 100%);
       color: white;
     }
-    button.small {
-      padding: 3px 8px;
-      font-size: .65rem;
-      font-weight: 500;
+
+    button.danger:hover:not(:disabled) {
+      background: linear-gradient(145deg, #f87171 0%, var(--danger) 100%);
     }
+
+    button.small {
+      padding: 4px 10px;
+      font-size: .65rem;
+      font-weight: 600;
+    }
+
     button:disabled {
-      opacity: .55;
-      cursor: default;
+      opacity: .4;
+      cursor: not-allowed;
+      background: linear-gradient(145deg, #374151 0%, #1f2937 100%);
+      color: #6b7280;
     }
     .pill {
       display: inline-flex;
       align-items: center;
       gap: 4px;
       font-size: .65rem;
-      border-radius: 999px;
-      padding: 3px 8px;
-      background: #e2e8f0;
-      color: #0f172a;
+      border-radius: var(--radius);
+      padding: 4px 10px;
+      background: linear-gradient(145deg, #1f2937 0%, #111827 100%);
+      color: var(--accent);
+      border: 1px solid var(--border);
+      box-shadow: inset 1px 1px 2px rgba(0,0,0,0.4);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      font-weight: 600;
     }
     .pill.small {
       font-size: .6rem;
+      padding: 3px 8px;
     }
     .pill-tag {
-      background: #ecfeff;
-      border: 1px solid #e0f2fe;
-      border-radius: 999px;
-      padding: 2px 7px;
+      background: linear-gradient(145deg, #1f2937 0%, #111827 100%);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 3px 8px;
       font-size: .6rem;
-      color: #0f172a;
+      color: var(--accent);
+      box-shadow: inset 1px 1px 2px rgba(0,0,0,0.4);
     }
     .rows {
-      border-radius: 12px;
-      border: 1px solid #e2e8f0;
+      border-radius: var(--radius);
+      border: 2px solid var(--border);
       max-height: 60vh;
       overflow: auto;
+      background: var(--screen-bg);
+      box-shadow: inset 2px 2px 8px rgba(0,0,0,0.6);
     }
     .row {
       display: grid;
       grid-template-columns: auto minmax(0, 1fr) minmax(0, 2fr) auto;
       gap: 6px;
-      padding: 6px 8px;
+      padding: 8px 10px;
       align-items: flex-start;
-      border-bottom: 1px solid #e2e8f0;
+      border-bottom: 1px solid rgba(74, 85, 104, 0.3);
     }
     .row:last-child {
       border-bottom: none;
     }
     .row span.order {
       font-size: .65rem;
-      color: var(--muted);
+      color: var(--accent);
       min-width: 2rem;
+      font-weight: 700;
+      text-shadow: 0 0 5px var(--accent);
     }
     .row input[type="text"] {
       width: 100%;
       font-size: .7rem;
-      padding: 3px 5px;
-      border-radius: 6px;
-      border: 1px solid #cbd5e1;
+      padding: 6px 8px;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      background: linear-gradient(145deg, #1a1f29 0%, #0f1419 100%);
+      color: var(--accent);
+      font-family: 'Courier New', 'Consolas', monospace;
+      box-shadow: inset 1px 1px 3px rgba(0,0,0,0.5);
     }
+
+    .row input[type="text"]:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: inset 1px 1px 3px rgba(0,0,0,0.5), 0 0 8px rgba(16, 185, 129, 0.4);
+    }
+
     .row textarea {
       width: 100%;
       font-size: .7rem;
-      padding: 3px 5px;
-      border-radius: 6px;
-      border: 1px solid #cbd5e1;
+      padding: 6px 8px;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      background: linear-gradient(145deg, #1a1f29 0%, #0f1419 100%);
+      color: var(--accent);
+      font-family: 'Courier New', 'Consolas', monospace;
       resize: vertical;
-      min-height: 38px;
+      min-height: 42px;
+      box-shadow: inset 1px 1px 3px rgba(0,0,0,0.5);
+    }
+
+    .row textarea:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: inset 1px 1px 3px rgba(0,0,0,0.5), 0 0 8px rgba(16, 185, 129, 0.4);
     }
     .row-controls {
       display: flex;
@@ -219,16 +399,23 @@
       font-size: .65rem;
       color: var(--muted);
       margin-top: 4px;
+      font-family: 'Courier New', 'Consolas', monospace;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
     }
     .status strong {
-      color: #0f766e;
+      color: var(--accent);
+      text-shadow: 0 0 5px var(--accent);
     }
     .status.error strong {
       color: var(--danger);
+      text-shadow: 0 0 5px var(--danger);
     }
     .hint {
       font-size: .65rem;
       color: var(--muted);
+      font-family: 'Courier New', 'Consolas', monospace;
+      line-height: 1.4;
     }
     .rule-rows {
       border-radius: 12px;
@@ -276,11 +463,36 @@
   <header>
     <h1>Survey Brain Settings</h1>
     <span>Section schema & checklist config</span>
+    <div id="authStatus" style="margin-left: auto; display: flex; align-items: center; gap: 8px;">
+      <span id="userDisplay" style="font-size: 0.75rem; color: #7dd3fc;"></span>
+      <button id="loginBtn" class="secondary" style="font-size: 0.7rem; padding: 4px 10px;">Sign In</button>
+      <button id="logoutBtn" class="secondary" style="font-size: 0.7rem; padding: 4px 10px; display: none;">Sign Out</button>
+    </div>
     <button id="forceReloadBtn" class="danger">Force reload / reset app data</button>
     <a href="index.html" class="back-link">← Back to app</a>
   </header>
 
   <main>
+    <!-- Cloud Sync Section -->
+    <section class="card" style="grid-column: 1 / -1;" id="cloudSyncSection">
+      <div class="card-header">
+        <h2>Cloud Sync</h2>
+        <span>Sync settings across devices</span>
+      </div>
+
+      <div class="toolbar">
+        <button id="syncToCloudBtn" class="secondary">↑ Save to Cloud</button>
+        <button id="syncFromCloudBtn" class="secondary">↓ Load from Cloud</button>
+      </div>
+
+      <p class="hint">
+        Sign in to sync your settings, sections, checklist, and AI instructions across all your devices.
+        Your data is securely stored and only accessible with your account.
+      </p>
+
+      <p class="status" id="syncStatus"></p>
+    </section>
+
     <!-- Export Format Preferences -->
     <section class="card" style="grid-column: 1 / -1;">
       <div class="card-header">
@@ -341,55 +553,6 @@
         </div>
       </div>
 
-      <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 8px;">
-        <h3 style="margin: 0; font-size: 0.9rem; letter-spacing: .02em;">Notes – AI Instructions</h3>
-        <p class="hint" style="margin: 0;">
-          These instructions tell the AI how to turn your transcript into engineer-ready job notes. The default text includes
-          special rules for gas supply and primary pipework so it doesn't contradict itself (for example saying both that a 15mm
-          gas line is adequate and that it needs upgrading).
-        </p>
-
-        <details style="border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; background: #f8fafc; color: #0f172a;">
-          <summary style="cursor: pointer; font-weight: 700;">How gas and primaries are handled (recommended rules)</summary>
-          <ul>
-            <li>
-              <strong>Gas supply:</strong> If you say things like “increase gas supply from the meter via the cupboards”, the AI
-              will treat that as the one true instruction and <em>won't</em> also say that the existing 15mm line is adequate.
-            </li>
-            <li>
-              <strong>Primaries:</strong> When you talk about primaries being undersized (e.g. set up for 18kW but fitting a 24kW
-              boiler), the AI will:
-              <ul>
-                <li>Describe the actual route (e.g. “between loft hatches and airing cupboard”), and</li>
-                <li>Add a separate bullet to say “upgrade to 28mm to allow full 24kW output”.</li>
-              </ul>
-            </li>
-            <li>
-              <strong>Typed summaries win:</strong> If you type a short summary at the end (e.g. “Increase gas supply from meter via
-              cupboards. Change to S-plan.”), the AI will follow that and ignore earlier, conflicting guesses.
-            </li>
-          </ul>
-          <p style="margin: 0;">
-            You can customise the wording below if you prefer different phrases, but keep the logic: single gas decision, explicit
-            primaries route + size, and no conflicting bullets.
-          </p>
-        </details>
-
-        <div style="display: flex; flex-direction: column; gap: 6px;">
-          <label for="notes-instructions" style="font-size: 0.75rem; font-weight: 600; color: var(--muted);">
-            AI instructions for notes
-          </label>
-          <textarea
-            id="notes-instructions"
-            style="font-family: monospace; font-size: 0.7rem; padding: 8px; border: 1px solid var(--border); border-radius: 8px; min-height: 280px; resize: vertical;"
-            placeholder="Notes system prompt..."
-            spellcheck="false"
-          ></textarea>
-        </div>
-
-        <button id="notes-reset-btn" type="button" class="secondary">Reset to recommended notes rules</button>
-      </div>
-
       <p class="status" id="ai-status"></p>
     </section>
 
@@ -432,13 +595,63 @@
 
         <p class="hint">
           Use these rules to spell out what should go into each notes section. The text is shown as editable AI instructions for
-          every section, so you can keep guidance in sync with how your team captures information. Keep the “New boiler and controls” rules short and focused: what is coming out,
+          every section, so you can keep guidance in sync with how your team captures information. Keep the "New boiler and controls" rules short and focused: what is coming out,
           what is being installed, which controls stay or change, where everything sits, and details of any cylinders, tanks,
           sealed system kits, and radiators.
         </p>
 
       <div class="rule-rows" id="section-rules-rows"></div>
       <p class="status" id="section-rules-status">Loading section rules…</p>
+
+      <!-- AI Instructions for Notes Generation -->
+      <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);">
+        <h3 style="margin: 0; font-size: 0.9rem; letter-spacing: .02em;">AI Instructions for Notes Generation</h3>
+        <p class="hint" style="margin: 0;">
+          These instructions tell the AI how to turn your transcript into engineer-ready job notes. The default text includes
+          special rules for gas supply and primary pipework so it doesn't contradict itself (for example saying both that a 15mm
+          gas line is adequate and that it needs upgrading).
+        </p>
+
+        <details style="border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; background: #f8fafc; color: #0f172a; margin-top: 8px;">
+          <summary style="cursor: pointer; font-weight: 700;">How gas and primaries are handled (recommended rules)</summary>
+          <ul>
+            <li>
+              <strong>Gas supply:</strong> If you say things like "increase gas supply from the meter via the cupboards", the AI
+              will treat that as the one true instruction and <em>won't</em> also say that the existing 15mm line is adequate.
+            </li>
+            <li>
+              <strong>Primaries:</strong> When you talk about primaries being undersized (e.g. set up for 18kW but fitting a 24kW
+              boiler), the AI will:
+              <ul>
+                <li>Describe the actual route (e.g. "between loft hatches and airing cupboard"), and</li>
+                <li>Add a separate bullet to say "upgrade to 28mm to allow full 24kW output".</li>
+              </ul>
+            </li>
+            <li>
+              <strong>Typed summaries win:</strong> If you type a short summary at the end (e.g. "Increase gas supply from meter via
+              cupboards. Change to S-plan."), the AI will follow that and ignore earlier, conflicting guesses.
+            </li>
+          </ul>
+          <p style="margin: 0;">
+            You can customise the wording below if you prefer different phrases, but keep the logic: single gas decision, explicit
+            primaries route + size, and no conflicting bullets.
+          </p>
+        </details>
+
+        <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 8px;">
+          <label for="notes-instructions" style="font-size: 0.75rem; font-weight: 600; color: var(--muted);">
+            AI instructions for notes
+          </label>
+          <textarea
+            id="notes-instructions"
+            style="font-family: monospace; font-size: 0.7rem; padding: 8px; border: 1px solid var(--border); border-radius: 8px; min-height: 280px; resize: vertical;"
+            placeholder="Notes system prompt..."
+            spellcheck="false"
+          ></textarea>
+        </div>
+
+        <button id="notes-reset-btn" type="button" class="secondary">Reset to recommended notes rules</button>
+      </div>
     </section>
 
     <!-- RIGHT: checklist editor -->
@@ -1493,6 +1706,127 @@ Do not include any explanation outside the JSON.`
       }
     });
 
+    // --- Authentication and Cloud Sync ---
+    async function updateAuthUI() {
+      const loginBtn = document.getElementById('loginBtn');
+      const logoutBtn = document.getElementById('logoutBtn');
+      const userDisplay = document.getElementById('userDisplay');
+      const syncToCloudBtn = document.getElementById('syncToCloudBtn');
+      const syncFromCloudBtn = document.getElementById('syncFromCloudBtn');
+
+      // Check if auth module is loaded
+      if (typeof window.DepotAuth === 'undefined') {
+        console.warn('DepotAuth module not loaded yet');
+        return;
+      }
+
+      const isAuth = window.DepotAuth.isAuthenticated();
+
+      if (isAuth) {
+        const userInfo = window.DepotAuth.getUserInfo();
+        if (userInfo) {
+          userDisplay.textContent = `Signed in as ${userInfo.username}`;
+          loginBtn.style.display = 'none';
+          logoutBtn.style.display = 'inline-flex';
+          syncToCloudBtn.disabled = false;
+          syncFromCloudBtn.disabled = false;
+        }
+      } else {
+        userDisplay.textContent = 'Not signed in';
+        loginBtn.style.display = 'inline-flex';
+        logoutBtn.style.display = 'none';
+        syncToCloudBtn.disabled = true;
+        syncFromCloudBtn.disabled = true;
+      }
+    }
+
+    document.getElementById('loginBtn')?.addEventListener('click', () => {
+      window.location.href = 'login.html';
+    });
+
+    document.getElementById('logoutBtn')?.addEventListener('click', () => {
+      if (confirm('Sign out? Your local settings will remain on this device.')) {
+        if (typeof window.DepotAuth !== 'undefined') {
+          window.DepotAuth.logout();
+        }
+      }
+    });
+
+    document.getElementById('syncToCloudBtn')?.addEventListener('click', async () => {
+      if (typeof window.DepotAuth === 'undefined') {
+        alert('Authentication module not loaded');
+        return;
+      }
+
+      if (!window.DepotAuth.isAuthenticated()) {
+        alert('Please sign in first');
+        window.location.href = 'login.html';
+        return;
+      }
+
+      const btn = document.getElementById('syncToCloudBtn');
+      const status = document.getElementById('syncStatus');
+
+      btn.disabled = true;
+      btn.textContent = 'Syncing...';
+      status.textContent = 'Uploading settings to cloud...';
+
+      const result = await window.DepotAuth.syncAllSettingsToCloud();
+
+      btn.disabled = false;
+      btn.textContent = '↑ Save to Cloud';
+
+      if (result.success) {
+        status.innerHTML = `<strong>Success!</strong> Saved ${result.saved} settings to cloud.`;
+        status.classList.remove('error');
+      } else {
+        status.innerHTML = `<strong>Error:</strong> ${result.error}`;
+        status.classList.add('error');
+      }
+
+      setTimeout(() => {
+        status.textContent = '';
+        status.classList.remove('error');
+      }, 5000);
+    });
+
+    document.getElementById('syncFromCloudBtn')?.addEventListener('click', async () => {
+      if (typeof window.DepotAuth === 'undefined') {
+        alert('Authentication module not loaded');
+        return;
+      }
+
+      if (!window.DepotAuth.isAuthenticated()) {
+        alert('Please sign in first');
+        window.location.href = 'login.html';
+        return;
+      }
+
+      if (!confirm('Load settings from cloud? This will overwrite your current local settings.')) {
+        return;
+      }
+
+      const btn = document.getElementById('syncFromCloudBtn');
+      const status = document.getElementById('syncStatus');
+
+      btn.disabled = true;
+      btn.textContent = 'Syncing...';
+      status.textContent = 'Downloading settings from cloud...';
+
+      const result = await window.DepotAuth.syncAllSettingsFromCloud();
+
+      btn.disabled = false;
+      btn.textContent = '↓ Load from Cloud';
+
+      if (result.success) {
+        status.innerHTML = `<strong>Success!</strong> Loaded ${result.appliedCount} settings from cloud. <a href="#" onclick="location.reload()">Reload page</a> to see changes.`;
+        status.classList.remove('error');
+      } else {
+        status.innerHTML = `<strong>Error:</strong> ${result.error}`;
+        status.classList.add('error');
+      }
+    });
+
     // --- Boot ---
     (async function boot() {
       await loadSections();
@@ -1500,6 +1834,14 @@ Do not include any explanation outside the JSON.`
       await loadChecklist();
       loadExportFormat();
       renderAIInstructions();
+
+      // Load auth module dynamically
+      try {
+        await import('./src/auth/auth-client.js');
+        updateAuthUI();
+      } catch (err) {
+        console.warn('Failed to load auth module:', err);
+      }
     })();
   </script>
 </body>

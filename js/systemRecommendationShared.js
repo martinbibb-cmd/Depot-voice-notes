@@ -47,6 +47,76 @@ const BASE_OPTION_DEFS = {
 
 const TIER_LABELS = ['GOLD – RECOMMENDED', 'SILVER', 'BRONZE'];
 
+function applyGoldSafetyGate(ranked = [], features = {}) {
+  const result = [...ranked];
+  const {
+    wantsSolarPv = false,
+    futureHeatPump = false,
+    needsMultipleTaps = false,
+    existingRegularOrSystem = false,
+    wantsSpaceSaving = false,
+    lowHotWaterDemand = false,
+  } = features || {};
+
+  const goldId = result[0];
+
+  const combiGoldIsAcceptable =
+    goldId === 'combi' &&
+    !wantsSolarPv &&
+    !futureHeatPump &&
+    !needsMultipleTaps &&
+    !existingRegularOrSystem &&
+    (lowHotWaterDemand || wantsSpaceSaving);
+
+  if (goldId !== 'combi' || combiGoldIsAcceptable) {
+    return result;
+  }
+
+  const storagePreferenceOrder = ['system_mixergy', 'system_unvented'];
+
+  let idxStorage;
+  for (const id of storagePreferenceOrder) {
+    const idx = result.indexOf(id);
+    if (idx > 0) {
+      idxStorage = idx;
+      break;
+    }
+  }
+
+  if (typeof idxStorage === 'number' && idxStorage > 0) {
+    const storageId = result[idxStorage];
+    result[idxStorage] = result[0];
+    result[0] = storageId;
+  }
+
+  return result;
+}
+
+function applyGoldSafetyGateToRecommendations(orderedRecs, features) {
+  if (!features) return orderedRecs;
+
+  const gatedOrder = applyGoldSafetyGate(
+    orderedRecs.map((rec) => rec.optionKey),
+    features
+  );
+
+  const reordered = [];
+  gatedOrder.forEach((optionKey) => {
+    const match = orderedRecs.find((rec) => rec.optionKey === optionKey);
+    if (match && !reordered.includes(match)) {
+      reordered.push(match);
+    }
+  });
+
+  orderedRecs.forEach((rec) => {
+    if (!reordered.includes(rec)) {
+      reordered.push(rec);
+    }
+  });
+
+  return reordered;
+}
+
 function isExplicitRecommendation(recommendationKey, requirements) {
   if (!Array.isArray(requirements?.expertRecommendations)) return false;
 
@@ -111,13 +181,16 @@ function orderRecommendations(ranked, optionOrder = []) {
   return ordered;
 }
 
-export function getProposalOptions(requirements = {}, optionOrder, allowedOptionKeys) {
+export function getProposalOptions(requirements = {}, optionOrder, allowedOptionKeys, customerFeatures) {
   const ranked = rankOptionsWithEngine(
     requirements,
     allowedOptionKeys || Object.values(ENGINE_TO_OPTION_KEY)
   );
 
-  const ordered = orderRecommendations(ranked, optionOrder);
+  const ordered = applyGoldSafetyGateToRecommendations(
+    orderRecommendations(ranked, optionOrder),
+    customerFeatures
+  );
   const options = ordered
     .slice(0, 3)
     .map((rec, idx) => mapEngineResultToOption(rec, TIER_LABELS[idx], requirements))

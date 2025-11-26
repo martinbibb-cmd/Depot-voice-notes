@@ -185,6 +185,66 @@ function buildRequirementNotes(notes, transcriptText) {
   return fragments.length ? fragments : [''];
 }
 
+function extractFeaturesFromTranscriptAndNotes(fullTranscript, notesJson) {
+  const text = `${fullTranscript || ''} ${JSON.stringify(notesJson || {})}`.toLowerCase();
+
+  const wantsSolarPv =
+    text.includes('solar pv') ||
+    text.includes('solar panels') ||
+    text.includes('iboost') ||
+    text.includes('solar diverter');
+
+  const futureHeatPump =
+    text.includes('heat pump') ||
+    text.includes('future low carbon') ||
+    text.includes('future-proof') ||
+    text.includes('future proof');
+
+  const needsMultipleTaps =
+    text.includes('multiple taps') ||
+    text.includes('more than one tap') ||
+    text.includes('two showers') ||
+    text.includes('multiple bathrooms') ||
+    text.includes('two bathrooms') ||
+    text.includes('ensuite');
+
+  const existingRegularOrSystem =
+    text.includes('regular boiler') ||
+    text.includes('open vented') ||
+    text.includes('open-vented') ||
+    text.includes('hot water cylinder') ||
+    text.includes('feed and expansion') ||
+    text.includes('f&e tank') ||
+    text.includes('header tank');
+
+  const existingCombi =
+    text.includes('existing combi') ||
+    text.includes('combi boiler at the moment') ||
+    (text.includes('combi boiler') && !existingRegularOrSystem);
+
+  const wantsSpaceSaving =
+    text.includes('save space') ||
+    text.includes('free up space') ||
+    text.includes('remove the cylinder') ||
+    text.includes('lose the airing cupboard') ||
+    text.includes('no cupboard space');
+
+  const lowHotWaterDemand =
+    text.includes('small flat') ||
+    text.includes('one bed') ||
+    (text.includes('one bathroom') && !needsMultipleTaps);
+
+  return {
+    wantsSolarPv,
+    futureHeatPump,
+    needsMultipleTaps,
+    existingRegularOrSystem,
+    existingCombi,
+    wantsSpaceSaving,
+    lowHotWaterDemand,
+  };
+}
+
 function buildRecommendationRequirements(transcriptText, notes) {
   const sections = getSections(notes).map((section) => ({
     plainText: section?.content || section?.text || section?.naturalLanguage || '',
@@ -414,6 +474,7 @@ function init() {
   const snapshot = loadSnapshot();
   const transcriptText = loadTranscriptText(snapshot);
   const notes = loadNotes(snapshot);
+  const customerFeatures = extractFeaturesFromTranscriptAndNotes(transcriptText, notes || {});
 
   const hasRealData = Boolean((transcriptText || '').trim()) || getSections(notes).length > 0;
 
@@ -449,7 +510,12 @@ function init() {
 
   const requirements = buildRecommendationRequirements(transcriptText, notes || {});
 
-  const { options } = getProposalOptions(requirements, DEFAULT_OPTION_ORDER);
+  const { options } = getProposalOptions(
+    requirements,
+    DEFAULT_OPTION_ORDER,
+    undefined,
+    customerFeatures
+  );
   renderOptions(options);
 
   renderImportantNotes(notes || {});

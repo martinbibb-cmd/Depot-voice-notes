@@ -333,6 +333,55 @@
         </div>
       </div>
 
+      <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 8px;">
+        <h3 style="margin: 0; font-size: 0.9rem; letter-spacing: .02em;">Depot Notes – AI Instructions</h3>
+        <p class="hint" style="margin: 0;">
+          These instructions tell the AI how to turn your transcript into engineer-ready Depot Notes. The default text includes
+          special rules for gas supply and primary pipework so it doesn't contradict itself (for example saying both that a 15mm
+          gas line is adequate and that it needs upgrading).
+        </p>
+
+        <details style="border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; background: #f8fafc; color: #0f172a;">
+          <summary style="cursor: pointer; font-weight: 700;">How gas and primaries are handled (recommended rules)</summary>
+          <ul>
+            <li>
+              <strong>Gas supply:</strong> If you say things like “increase gas supply from the meter via the cupboards”, the AI
+              will treat that as the one true instruction and <em>won't</em> also say that the existing 15mm line is adequate.
+            </li>
+            <li>
+              <strong>Primaries:</strong> When you talk about primaries being undersized (e.g. set up for 18kW but fitting a 24kW
+              boiler), the AI will:
+              <ul>
+                <li>Describe the actual route (e.g. “between loft hatches and airing cupboard”), and</li>
+                <li>Add a separate bullet to say “upgrade to 28mm to allow full 24kW output”.</li>
+              </ul>
+            </li>
+            <li>
+              <strong>Typed summaries win:</strong> If you type a short summary at the end (e.g. “Increase gas supply from meter via
+              cupboards. Change to S-plan.”), the AI will follow that and ignore earlier, conflicting guesses.
+            </li>
+          </ul>
+          <p style="margin: 0;">
+            You can customise the wording below if you prefer different phrases, but keep the logic: single gas decision, explicit
+            primaries route + size, and no conflicting bullets.
+          </p>
+        </details>
+
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          <label for="depot-notes-instructions" style="font-size: 0.75rem; font-weight: 600; color: var(--muted);">
+            AI instructions for Depot Notes
+          </label>
+          <textarea
+            id="depot-notes-instructions"
+            style="font-family: monospace; font-size: 0.7rem; padding: 8px; border: 1px solid var(--border); border-radius: 8px; min-height: 280px; resize: vertical;"
+            placeholder="Depot Notes system prompt..."
+            spellcheck="false"
+          ></textarea>
+        </div>
+
+        <button id="depot-notes-reset-btn" type="button" class="secondary">Reset to recommended Depot Notes rules</button>
+      </div>
+
       <p class="status" id="ai-status"></p>
     </section>
 
@@ -418,6 +467,107 @@
     const CHECKLIST_STORAGE_KEY = "depot.checklistConfig";
     const SECTION_RULES_STORAGE_KEY = "depot.sectionRules";
     const AI_INSTRUCTIONS_STORAGE_KEY = "depot.aiInstructions";
+    const DEFAULT_DEPOT_NOTES_INSTRUCTIONS = `
+You are generating engineer-friendly "Depot Notes" from a voice transcript for a domestic heating job.
+
+General rules:
+- Prefer clear, non-duplicated bullets.
+- Avoid contradictions in the same section.
+- When there is a conflict between earlier speculative text and later, typed "summary" lines from the adviser, ALWAYS prefer the later summary lines.
+- Preserve the adviser's intent, not the raw transcription glitches.
+
+High-priority source of truth:
+- If the transcript contains a clearly typed list or short summary entered by the adviser (for example in a "Customer summary", "Engineer notes", or "typed notes" section), treat these as the final instructions.
+- When such a summary contradicts earlier spoken content, follow the summary and drop the conflicting spoken content.
+
+---
+
+### Gas supply rules (Pipe work section)
+
+When generating Pipe work bullets about the gas supply:
+
+1. If the transcript contains phrases like:
+   - "increase gas supply" OR "upgrade gas supply"
+   AND
+   - a route phrase such as "from meter", "via cupboards", "through cupboards", "along the same route", "to the boiler position"
+   then:
+   - Treat that as the authoritative gas instruction.
+   - Generate ONE clear bullet describing the upgrade and route, for example:
+
+     - "• Upgrade gas supply from meter via cupboards to new boiler position (size to suit 24kW boiler output plus diversity);"
+
+   - Do NOT also generate a bullet stating that the "existing 15mm gas supply is adequate". Avoid any wording that contradicts the upgrade.
+
+2. If the transcript only says the gas is adequate, with no "increase"/"upgrade" wording or route:
+   - Generate a simple confirmation bullet, for example:
+
+     - "• Existing gas supply confirmed adequate for new boiler;"
+
+3. Never output both "existing 15mm gas supply confirmed adequate" AND "increase gas supply" in the same job. If upgrade wording is present, the upgrade wins and the "adequate" line should not appear.
+
+---
+
+### Primary pipework (primaries) rules (Pipe work section)
+
+When generating Pipe work bullets about primaries (primary flow and return):
+
+1. Look for phrases in the transcript such as:
+   - "primaries", "primary pipework", "flow and return"
+   AND
+   - power or sizing context such as "set up for up to 18 kW", "you've got 24", "change them to 28mm", "24Ri", etc.
+
+2. When these are present, generate two distinct bullets instead of a single vague one:
+
+   - A route / location bullet tying the change to the physical path, for example:
+     - "• Replace primary flow and return between loft hatches and airing cupboard;"
+
+   - A sizing / justification bullet, for example:
+     - "• Upgrade primary pipework to 28mm to allow full 24kW boiler output without overheating;"
+
+3. Avoid vague or duplicate wording when the above bullets are used. For example, drop weaker lines like:
+   - "Pipework between loft hatches and in airing cupboard to be replaced;"
+   if they would duplicate a clearer, more explicit primaries bullet.
+
+4. If the transcript clearly states that existing primaries are undersized (e.g. "current pipework is set up for up to 18kW and you’ve got 24"), ensure the notes include the reason:
+   - Mention that the upgrade to 28mm is to match boiler output and reduce overheating / cycling.
+
+---
+
+### S-plan, pump, and open vent / cold feed assembly
+
+When the transcript mentions replacing the pump, mid-position valve, or open vent / cold feed:
+
+- Use clear, standard wording such as:
+  - "• Replace primary pump and motorised valve assembly;"
+  - "• Replace open vent and cold feed arrangement as part of system upgrade;"
+  - "• Install new S-plan with two motorised valves (one heating, one hot water) and automatic bypass;"
+
+- Normalise common mis-heard phrases:
+  - "open venting code fade" → "open vent / cold feed arrangement".
+
+---
+
+### Brand and component clean-ups
+
+Correct obvious transcription errors for well-known components:
+
+- "Ferox TF1" → "Fernox TF1"
+- Similar mis-spellings of common filters, inhibitors, and boiler models should be corrected to the standard brand spelling where unambiguous.
+
+---
+
+### General clean-up and de-duplication
+
+- Remove "noise" bullets that do not contain a clear instruction or could cause confusion.
+  - Example to drop: "possible issues with pipework in screening area;" if it has no route, size, or action.
+- Favour fewer, clearer bullets over many vague ones.
+- Where possible, make each bullet:
+  - Specific to a location or route (e.g. "between loft hatches and airing cupboard").
+  - Explicit about size or rating when changing pipework (e.g. "upgrade to 28mm").
+  - Consistent with any final typed summary from the adviser.
+
+Output concise, engineer-ready bullets in each section: no waffle, no contradictions, just what needs doing and why.
+`;
     const LS_AUTOSAVE_KEY = "surveyBrainAutosave";
     const WORKER_URL_STORAGE_KEYS = ["depot.workerUrl", "depot-worker-url"];
     const ADDITIONAL_STORAGE_KEYS = [
@@ -1236,6 +1386,8 @@ You MUST respond with ONLY valid JSON matching this shape:
 
 Do not wrap the JSON in backticks or markdown.
 Do not include any explanation outside the JSON.`
+        ,
+        depotNotes: DEFAULT_DEPOT_NOTES_INSTRUCTIONS
       };
     }
 
@@ -1247,7 +1399,8 @@ Do not include any explanation outside the JSON.`
           const stored = JSON.parse(raw);
           return {
             agentChat: stored.agentChat || defaults.agentChat,
-            tweakSection: stored.tweakSection || defaults.tweakSection
+            tweakSection: stored.tweakSection || defaults.tweakSection,
+            depotNotes: stored.depotNotes || defaults.depotNotes
           };
         }
       } catch (err) {
@@ -1272,6 +1425,7 @@ Do not include any explanation outside the JSON.`
       const instructions = loadAIInstructions();
       const agentChatArea = document.getElementById('ai-agent-chat-instructions');
       const tweakSectionArea = document.getElementById('ai-tweak-section-instructions');
+      const depotNotesArea = document.getElementById('depot-notes-instructions');
 
       if (agentChatArea) {
         agentChatArea.value = instructions.agentChat;
@@ -1279,16 +1433,21 @@ Do not include any explanation outside the JSON.`
       if (tweakSectionArea) {
         tweakSectionArea.value = instructions.tweakSection;
       }
+      if (depotNotesArea) {
+        depotNotesArea.value = instructions.depotNotes;
+      }
     }
 
     // AI Instructions event listeners
     document.getElementById('ai-save-btn')?.addEventListener('click', () => {
       const agentChatArea = document.getElementById('ai-agent-chat-instructions');
       const tweakSectionArea = document.getElementById('ai-tweak-section-instructions');
+      const depotNotesArea = document.getElementById('depot-notes-instructions');
 
       const instructions = {
         agentChat: agentChatArea?.value || getDefaultAIInstructions().agentChat,
-        tweakSection: tweakSectionArea?.value || getDefaultAIInstructions().tweakSection
+        tweakSection: tweakSectionArea?.value || getDefaultAIInstructions().tweakSection,
+        depotNotes: depotNotesArea?.value || getDefaultAIInstructions().depotNotes
       };
 
       saveAIInstructions(instructions);
@@ -1303,6 +1462,17 @@ Do not include any explanation outside the JSON.`
       setTimeout(() => {
         document.getElementById('ai-status').textContent = "";
       }, 3000);
+    });
+
+    document.getElementById('depot-notes-reset-btn')?.addEventListener('click', () => {
+      const depotNotesArea = document.getElementById('depot-notes-instructions');
+      if (depotNotesArea) {
+        depotNotesArea.value = getDefaultAIInstructions().depotNotes;
+        document.getElementById('ai-status').textContent = "Depot Notes instructions reset to recommended rules";
+        setTimeout(() => {
+          document.getElementById('ai-status').textContent = "";
+        }, 3000);
+      }
     });
 
     // --- Boot ---

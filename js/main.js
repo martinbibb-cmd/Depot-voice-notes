@@ -29,6 +29,109 @@ const SECTION_STORAGE_KEY = "depot.sectionSchema";
 const LEGACY_SECTION_STORAGE_KEY = "surveybrain-schema";
 const CHECKLIST_STORAGE_KEY = "depot.checklistConfig";
 const LS_AUTOSAVE_KEY = "surveyBrainAutosave";
+const AI_INSTRUCTIONS_STORAGE_KEY = "depot.aiInstructions";
+
+const DEFAULT_DEPOT_NOTES_INSTRUCTIONS = `
+You are generating engineer-friendly "Depot Notes" from a voice transcript for a domestic heating job.
+
+General rules:
+- Prefer clear, non-duplicated bullets.
+- Avoid contradictions in the same section.
+- When there is a conflict between earlier speculative text and later, typed "summary" lines from the adviser, ALWAYS prefer the later summary lines.
+- Preserve the adviser's intent, not the raw transcription glitches.
+
+High-priority source of truth:
+- If the transcript contains a clearly typed list or short summary entered by the adviser (for example in a "Customer summary", "Engineer notes", or "typed notes" section), treat these as the final instructions.
+- When such a summary contradicts earlier spoken content, follow the summary and drop the conflicting spoken content.
+
+---
+
+### Gas supply rules (Pipe work section)
+
+When generating Pipe work bullets about the gas supply:
+
+1. If the transcript contains phrases like:
+   - "increase gas supply" OR "upgrade gas supply"
+   AND
+   - a route phrase such as "from meter", "via cupboards", "through cupboards", "along the same route", "to the boiler position"
+   then:
+   - Treat that as the authoritative gas instruction.
+   - Generate ONE clear bullet describing the upgrade and route, for example:
+
+     - "• Upgrade gas supply from meter via cupboards to new boiler position (size to suit 24kW boiler output plus diversity);"
+
+   - Do NOT also generate a bullet stating that the "existing 15mm gas supply is adequate". Avoid any wording that contradicts the upgrade.
+
+2. If the transcript only says the gas is adequate, with no "increase"/"upgrade" wording or route:
+   - Generate a simple confirmation bullet, for example:
+
+     - "• Existing gas supply confirmed adequate for new boiler;"
+
+3. Never output both "existing 15mm gas supply confirmed adequate" AND "increase gas supply" in the same job. If upgrade wording is present, the upgrade wins and the "adequate" line should not appear.
+
+---
+
+### Primary pipework (primaries) rules (Pipe work section)
+
+When generating Pipe work bullets about primaries (primary flow and return):
+
+1. Look for phrases in the transcript such as:
+   - "primaries", "primary pipework", "flow and return"
+   AND
+   - power or sizing context such as "set up for up to 18 kW", "you've got 24", "change them to 28mm", "24Ri", etc.
+
+2. When these are present, generate two distinct bullets instead of a single vague one:
+
+   - A route / location bullet tying the change to the physical path, for example:
+     - "• Replace primary flow and return between loft hatches and airing cupboard;"
+
+   - A sizing / justification bullet, for example:
+     - "• Upgrade primary pipework to 28mm to allow full 24kW boiler output without overheating;"
+
+3. Avoid vague or duplicate wording when the above bullets are used. For example, drop weaker lines like:
+   - "Pipework between loft hatches and in airing cupboard to be replaced;"
+   if they would duplicate a clearer, more explicit primaries bullet.
+
+4. If the transcript clearly states that existing primaries are undersized (e.g. "current pipework is set up for up to 18kW and you’ve got 24"), ensure the notes include the reason:
+   - Mention that the upgrade to 28mm is to match boiler output and reduce overheating / cycling.
+
+---
+
+### S-plan, pump, and open vent / cold feed assembly
+
+When the transcript mentions replacing the pump, mid-position valve, or open vent / cold feed:
+
+- Use clear, standard wording such as:
+  - "• Replace primary pump and motorised valve assembly;"
+  - "• Replace open vent and cold feed arrangement as part of system upgrade;"
+  - "• Install new S-plan with two motorised valves (one heating, one hot water) and automatic bypass;"
+
+- Normalise common mis-heard phrases:
+  - "open venting code fade" → "open vent / cold feed arrangement".
+
+---
+
+### Brand and component clean-ups
+
+Correct obvious transcription errors for well-known components:
+
+- "Ferox TF1" → "Fernox TF1"
+- Similar mis-spellings of common filters, inhibitors, and boiler models should be corrected to the standard brand spelling where unambiguous.
+
+---
+
+### General clean-up and de-duplication
+
+- Remove "noise" bullets that do not contain a clear instruction or could cause confusion.
+  - Example to drop: "possible issues with pipework in screening area;" if it has no route, size, or action.
+- Favour fewer, clearer bullets over many vague ones.
+- Where possible, make each bullet:
+  - Specific to a location or route (e.g. "between loft hatches and airing cupboard").
+  - Explicit about size or rating when changing pipework (e.g. "upgrade to 28mm").
+  - Consistent with any final typed summary from the adviser.
+
+Output concise, engineer-ready bullets in each section: no waffle, no contradictions, just what needs doing and why.
+`;
 
 // Canonical Depot notes section order fallback
 const DEFAULT_DEPOT_SECTION_ORDER = [
@@ -66,6 +169,22 @@ async function fetchJSONNoStore(path) {
   } catch (_) {
     return null;
   }
+}
+
+function loadDepotNotesInstructions() {
+  try {
+    const raw = localStorage.getItem(AI_INSTRUCTIONS_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed.depotNotes === "string" && parsed.depotNotes.trim()) {
+        return parsed.depotNotes;
+      }
+    }
+  } catch (_) {
+    // ignore localStorage or JSON issues and fall back to defaults
+  }
+
+  return DEFAULT_DEPOT_NOTES_INSTRUCTIONS;
 }
 
 let WORKER_URL = loadWorkerEndpoint();
@@ -1298,7 +1417,8 @@ function buildVoiceRequestPayload(transcript, schema = SECTION_SCHEMA) {
     sectionHints: deriveSectionHints(),
     forceStructured: true,
     checklistItems: CHECKLIST_SOURCE,
-    depotSections: canonicalSchema
+    depotSections: canonicalSchema,
+    depotNotesInstructions: loadDepotNotesInstructions()
   };
 }
 

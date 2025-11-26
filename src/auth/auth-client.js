@@ -366,6 +366,60 @@ export async function syncAllSettingsFromCloud() {
   };
 }
 
+/**
+ * Request password reset
+ */
+export async function requestPasswordReset(email) {
+  try {
+    const workerUrl = getWorkerUrl();
+    const response = await fetch(workerUrl + '/auth/request-reset', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ email })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      return { success: false, error: data.error || 'Request failed' };
+    }
+
+    return { success: true, token: data.token, message: data.message };
+  } catch (err) {
+    console.error('Failed to request password reset:', err);
+    return { success: false, error: 'Failed to connect to server' };
+  }
+}
+
+/**
+ * Reset password with token
+ */
+export async function resetPassword(token, newPassword) {
+  try {
+    const workerUrl = getWorkerUrl();
+    const response = await fetch(workerUrl + '/auth/reset-password', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ token, newPassword })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      return { success: false, error: data.error || 'Reset failed' };
+    }
+
+    return { success: true, message: data.message };
+  } catch (err) {
+    console.error('Failed to reset password:', err);
+    return { success: false, error: 'Failed to connect to server' };
+  }
+}
+
 // Export global API for backwards compatibility
 if (typeof window !== 'undefined') {
   window.DepotAuth = {
@@ -378,6 +432,8 @@ if (typeof window !== 'undefined') {
     saveSettingsToCloud,
     loadSettingsFromCloud,
     syncAllSettingsToCloud,
-    syncAllSettingsFromCloud
+    syncAllSettingsFromCloud,
+    requestPasswordReset,
+    resetPassword
   };
 }

@@ -3,7 +3,9 @@ import {
   handleLogin,
   handleSaveSettings,
   handleLoadSettings,
-  handleGetProfile
+  handleGetProfile,
+  handleRequestReset,
+  handleResetPassword
 } from './auth-handlers.js';
 
 export default {
@@ -27,6 +29,14 @@ export default {
 
       if (request.method === "POST" && url.pathname === "/auth/login") {
         return handleLogin(request, env);
+      }
+
+      if (request.method === "POST" && url.pathname === "/auth/request-reset") {
+        return handleRequestReset(request, env);
+      }
+
+      if (request.method === "POST" && url.pathname === "/auth/reset-password") {
+        return handleResetPassword(request, env);
       }
 
       if (request.method === "GET" && url.pathname === "/auth/profile") {

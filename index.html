@@ -6,29 +6,29 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
     :root {
-      /* Metal Control Deck Theme */
-      --bg: #1a1d24;
-      --card: linear-gradient(145deg, #2a2f3a 0%, #363c4a 50%, #2a2f3a 100%);
-      --border: #4a5568;
-      --accent: #10b981;
-      --accent-hover: #059669;
-      --accent-soft: #34d399;
-      --success: #10b981;
-      --success-soft: #d1fae5;
-      --muted: #94a3b8;
-      --danger: #ef4444;
-      --warning: #f59e0b;
-      --radius: 4px;
-      --shadow-sm: 0 1px 3px rgba(0,0,0,0.2);
-      --shadow-md: 0 4px 6px rgba(0,0,0,0.3);
-      --shadow-lg: 0 10px 15px rgba(0,0,0,0.4);
-      --shadow-xl: 0 20px 25px rgba(0,0,0,0.5);
-      --screen-glow: 0 0 20px rgba(16, 185, 129, 0.3);
-      --metal-shine: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.15) 50%, rgba(255,255,255,0) 100%);
-      --button-inset: inset 2px 2px 5px rgba(0,0,0,0.4), inset -2px -2px 5px rgba(255,255,255,0.1);
-      --screen-bg: linear-gradient(180deg, #0f1419 0%, #1a1f29 100%);
-      --bg-secondary: #1f2937;
-      --text: #e2e8f0;
+      /* Silver control deck theme */
+      --bg: #e7eaef;
+      --card: linear-gradient(145deg, #f4f6f8 0%, #dde2e7 50%, #f4f6f8 100%);
+      --border: #b5bcc7;
+      --accent: #2f855a;
+      --accent-hover: #276749;
+      --accent-soft: #c9e4d4;
+      --success: #2f855a;
+      --success-soft: #e6f4ec;
+      --muted: #6b7280;
+      --danger: #d14343;
+      --warning: #b7791f;
+      --radius: 6px;
+      --shadow-sm: 0 1px 3px rgba(0,0,0,0.08);
+      --shadow-md: 0 4px 10px rgba(0,0,0,0.12);
+      --shadow-lg: 0 10px 18px rgba(0,0,0,0.16);
+      --shadow-xl: 0 18px 28px rgba(0,0,0,0.18);
+      --screen-glow: 0 0 12px rgba(79, 209, 197, 0.35);
+      --metal-shine: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.35) 50%, rgba(255,255,255,0) 100%);
+      --button-inset: inset 1px 1px 3px rgba(255,255,255,0.65), inset -3px -3px 6px rgba(0,0,0,0.08);
+      --screen-bg: linear-gradient(180deg, #eef2f7 0%, #d8dee6 100%);
+      --bg-secondary: #dfe3e8;
+      --text: #1f2937;
     }
     * { box-sizing: border-box; }
 
@@ -66,11 +66,10 @@
 
     body {
       margin: 0;
-      font-family: 'Courier New', 'Consolas', monospace;
+      font-family: 'Inter', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
       background:
-        repeating-linear-gradient(0deg, rgba(0,0,0,0.1) 0px, transparent 1px, transparent 2px, rgba(0,0,0,0.1) 3px),
-        radial-gradient(circle at top, #2d3748 0%, var(--bg) 60%);
-      color: #e2e8f0;
+        linear-gradient(180deg, #f8fafc 0%, #e1e6ee 40%, #d4d9e1 100%);
+      color: var(--text);
       min-height: 100vh;
       display: flex;
       flex-direction: column;
@@ -85,12 +84,12 @@
       right: 0;
       bottom: 0;
       background:
-        repeating-linear-gradient(90deg, transparent 0px, rgba(0,255,0,0.03) 1px, transparent 2px),
-        repeating-linear-gradient(0deg, transparent 0px, rgba(0,255,0,0.03) 1px, transparent 2px);
-      background-size: 2px 2px;
+        repeating-linear-gradient(90deg, transparent 0px, rgba(255,255,255,0.4) 2px, transparent 4px),
+        repeating-linear-gradient(0deg, transparent 0px, rgba(0,0,0,0.03) 2px, transparent 4px);
+      background-size: 4px 4px;
       pointer-events: none;
       z-index: 1;
-      animation: screenFlicker 3s infinite;
+      opacity: 0.25;
     }
     header {
       background: var(--card);
@@ -100,7 +99,7 @@
       gap: 12px;
       align-items: center;
       flex-wrap: wrap;
-      box-shadow: var(--button-inset), 0 4px 12px rgba(0,0,0,0.4);
+      box-shadow: var(--button-inset), var(--shadow-md);
       position: relative;
       overflow: hidden;
       border: 2px solid var(--border);
@@ -137,12 +136,12 @@
     }
     header h1 {
       margin: 0;
-      font-size: 1.1rem;
-      font-weight: 700;
-      letter-spacing: 0.15em;
+      font-size: 1.2rem;
+      font-weight: 800;
+      letter-spacing: 0.12em;
       text-transform: uppercase;
       color: var(--accent);
-      text-shadow: 0 0 10px var(--accent), 0 0 20px var(--accent);
+      text-shadow: 0 1px 0 rgba(255,255,255,0.6);
     }
     .toolbar-row {
       display: flex;
@@ -181,11 +180,11 @@
       border-radius: var(--radius);
       border: 2px solid var(--border);
       padding: 16px 18px 18px;
-      color: #e2e8f0;
+      color: var(--text);
       display: flex;
       flex-direction: column;
       gap: 12px;
-      box-shadow: var(--button-inset), 0 4px 12px rgba(0,0,0,0.4);
+      box-shadow: var(--button-inset), var(--shadow-md);
       position: relative;
       overflow: hidden;
     }
@@ -328,6 +327,15 @@
       flex-direction: column;
       gap: 4px;
       flex-wrap: nowrap;
+      padding: 12px 14px;
+      background:
+        repeating-linear-gradient(180deg, rgba(0,0,0,0.04) 0px, rgba(0,0,0,0.04) 1px, transparent 1px, transparent 26px),
+        linear-gradient(180deg, #fff 0%, #f7f7fa 100%);
+      border: 1px solid #cbd5e1;
+      border-radius: 10px;
+      box-shadow: 0 6px 12px rgba(0,0,0,0.08);
+      position: relative;
+      overflow: hidden;
     }
     .clar-chip {
       background: #ecfeff;
@@ -492,7 +500,8 @@
       display: flex;
       align-items: flex-start;
       gap: 6px;
-      padding: 4px 8px 5px;
+      padding: 4px 8px 8px;
+      border-bottom: 1px dashed #cbd5e1;
     }
     .checklist-item .icon {
       font-size: .8rem;
@@ -500,6 +509,7 @@
     }
     .checklist-item .label {
       font-size: .7rem;
+      text-decoration: none;
     }
     .checklist-item .hint {
       display: block;
@@ -507,8 +517,12 @@
       color: var(--muted);
     }
     .checklist-item.done {
-      background: #ecfdf3;
-      border-color: #bbf7d0;
+      background: transparent;
+      color: #4b5563;
+    }
+    .checklist-item.done .label {
+      text-decoration: line-through;
+      color: #4b5563;
     }
     #voice-error {
       display: none;
@@ -707,11 +721,12 @@
     }
     /* Audio Control Panel */
     .audio-control-panel {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      border-radius: var(--radius);
+      background: linear-gradient(145deg, #f6f7f9 0%, #d4d8df 55%, #f9fbff 100%);
+      border-radius: 14px;
       padding: 20px;
-      box-shadow: var(--shadow-lg);
-      color: white;
+      box-shadow: 0 12px 24px rgba(0,0,0,0.12), inset 0 1px 0 rgba(255,255,255,0.7);
+      color: var(--text);
+      border: 2px solid #c5cbd3;
     }
     .audio-controls-wrapper {
       display: flex;
@@ -723,16 +738,18 @@
       justify-content: space-between;
       align-items: center;
       padding: 12px 16px;
-      background: rgba(255,255,255,0.15);
+      background: linear-gradient(180deg, #c8d6c3 0%, #b4c6ac 100%);
       border-radius: 12px;
-      backdrop-filter: blur(10px);
+      border: 1px solid #9fb390;
+      box-shadow: inset 0 2px 6px rgba(0,0,0,0.08);
     }
     .audio-status-indicator {
       display: flex;
       align-items: center;
       gap: 8px;
-      font-size: .85rem;
-      font-weight: 600;
+      font-size: .9rem;
+      font-weight: 700;
+      color: #1b2a14;
     }
     .status-dot {
       width: 12px;
@@ -740,41 +757,47 @@
       border-radius: 50%;
       background: #94a3b8;
       transition: all 0.3s ease;
+      box-shadow: 0 0 6px rgba(0,0,0,0.15);
     }
     .status-dot.recording {
-      background: #ef4444;
+      background: #d14343;
       animation: pulse 1.5s ease-in-out infinite;
-      box-shadow: 0 0 0 0 rgba(239,68,68,0.7);
+      box-shadow: 0 0 0 0 rgba(209,67,67,0.5);
     }
     .status-dot.paused {
-      background: #f59e0b;
+      background: #d9a028;
     }
     .audio-timer {
-      font-family: 'Courier New', monospace;
+      font-family: 'DS-Digital', 'Courier New', monospace;
       font-size: 1.1rem;
       font-weight: 700;
       letter-spacing: 1px;
+      color: #0a0f08;
+      text-shadow: 0 1px 0 rgba(255,255,255,0.6);
     }
     .audio-waveform {
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 3px;
-      height: 40px;
+      gap: 4px;
+      height: 44px;
       padding: 8px 16px;
-      background: rgba(255,255,255,0.1);
+      background: linear-gradient(180deg, #f1f2f5 0%, #d6d9df 100%);
       border-radius: 12px;
+      border: 1px solid #c7ccd5;
+      box-shadow: inset 0 1px 4px rgba(0,0,0,0.08);
     }
     .waveform-bar {
       width: 4px;
-      height: 8px;
-      background: rgba(255,255,255,0.6);
+      height: 10px;
+      background: #9aa3b3;
       border-radius: 2px;
       transition: all 0.1s ease;
     }
     .waveform-bar.active {
       animation: waveform 0.8s ease-in-out infinite;
-      background: #fff;
+      background: #2f855a;
+      box-shadow: 0 0 8px rgba(47,133,90,0.35);
     }
     .audio-control-buttons {
       display: flex;
@@ -783,49 +806,54 @@
       flex-wrap: wrap;
     }
     .audio-btn {
-      background: rgba(255,255,255,0.95);
-      color: #667eea;
+      background: linear-gradient(180deg, #fdfefe 0%, #e3e6eb 100%);
+      color: #1f2937;
       padding: 10px 16px;
-      border-radius: 12px;
+      border-radius: 10px;
       font-weight: 700;
-      font-size: .8rem;
+      font-size: .82rem;
       min-width: auto;
       justify-content: center;
-      box-shadow: var(--shadow-md);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.8), 0 4px 10px rgba(0,0,0,0.12);
+      border: 1px solid #c4c9d2;
     }
     .audio-btn:hover:not(:disabled) {
-      background: #fff;
-      transform: translateY(-2px);
-      box-shadow: var(--shadow-lg);
+      background: linear-gradient(180deg, #ffffff 0%, #e8ebf0 100%);
+      transform: translateY(-1px);
+      box-shadow: 0 6px 12px rgba(0,0,0,0.14);
     }
     .audio-btn.recording {
-      background: #ef4444;
+      background: linear-gradient(180deg, #d14343 0%, #b73232 100%);
       color: white;
+      border-color: #a82828;
     }
     .audio-btn.recording:hover:not(:disabled) {
-      background: #dc2626;
+      background: linear-gradient(180deg, #c73a3a 0%, #a02525 100%);
     }
     .audio-btn.paused {
-      background: #f59e0b;
-      color: white;
+      background: linear-gradient(180deg, #e2b24f 0%, #c48d22 100%);
+      color: #1f1303;
+      border-color: #b07a1b;
     }
     .audio-level-meter {
       display: flex;
       align-items: center;
       gap: 8px;
       font-size: .75rem;
+      color: #1f2937;
     }
     .level-bar-container {
       flex: 1;
-      height: 6px;
-      background: rgba(255,255,255,0.2);
-      border-radius: 3px;
+      height: 8px;
+      background: #e5e7eb;
+      border-radius: 4px;
       overflow: hidden;
+      box-shadow: inset 0 1px 2px rgba(0,0,0,0.08);
     }
     .level-bar {
       height: 100%;
-      background: linear-gradient(90deg, #10b981, #f59e0b, #ef4444);
-      border-radius: 3px;
+      background: linear-gradient(90deg, #2f855a, #d9a028, #d14343);
+      border-radius: 4px;
       width: 0%;
       transition: width 0.1s ease;
     }
@@ -2069,16 +2097,10 @@
     <div id="sessionNameDisplay" style="display: none; margin-left: 12px; padding: 6px 14px; background: rgba(255,255,255,0.2); color: white; border-radius: 999px; font-size: 0.75rem; font-weight: 700; backdrop-filter: blur(10px); box-shadow: 0 2px 8px rgba(0,0,0,0.1);"></div>
     <div class="toolbar-row">
       <button id="sessionMenuBtn" class="pill-secondary">📁 Menu</button>
-      <button id="addToTranscriptBtn" class="pill-secondary">➕ Add to transcript</button>
+      <button id="clearAllBtn" class="pill-secondary">🧹 Clear all</button>
       <button id="saveMenuBtn" class="pill-secondary">💾 Save</button>
       <button id="duplicateSessionBtn" class="pill-secondary">📋 Duplicate</button>
       <button id="what3wordsBtn" class="pill-secondary">📍 what3words</button>
-      <div class="agent-mode-toggle" title="Toggle Agent Monitoring Mode">
-        <span style="font-size: 0.7rem; font-weight: 600; color: white;">🤖 Agent</span>
-        <div id="agentModeToggle" class="toggle-switch">
-          <div class="toggle-slider"></div>
-        </div>
-      </div>
       <button id="settingsBtn" class="pill-secondary">⚙️ Settings</button>
       <button id="bugReportBtn" class="pill-secondary">🐛 Report bug</button>
     </div>
@@ -2212,14 +2234,6 @@
             <span>🤖</span>
             <span>AI Agent Chat</span>
           </div>
-        </div>
-
-        <div class="agent-panel-controls">
-          <label class="agent-listen-switch">
-            <input type="checkbox" id="agentListenSwitch">
-            <span class="switch-slider"></span>
-            <span class="switch-label">Listen Mode</span>
-          </label>
         </div>
 
         <div id="agentChatContent" class="agent-panel-content agent-tab-content active" data-content="chat" style="display: flex;">
@@ -2398,8 +2412,8 @@
           <label for="saveFilename">
             <h3>Filename:</h3>
           </label>
-          <input type="text" id="saveFilename" class="save-filename-input" placeholder="depot-notes" pattern="[A-Za-z0-9-_]+" />
-          <p class="small" style="color: var(--muted); margin-top: 4px;">Extension will be added automatically</p>
+          <input type="text" id="saveFilename" class="save-filename-input" placeholder="session-reference" pattern="[A-Za-z0-9-_]+" />
+          <p class="small" style="color: var(--muted); margin-top: 4px;">Session reference followed by type will be used for filenames</p>
         </div>
 
         <div class="save-actions">

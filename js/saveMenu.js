@@ -33,6 +33,13 @@ const saveAudioMp3Checkbox = document.getElementById('saveAudioMp3');
 
 // Filename input
 const saveFilenameInput = document.getElementById('saveFilename');
+const SESSION_NAME_KEY = 'depot.currentSessionName';
+
+function getSessionReference() {
+  const stored = localStorage.getItem(SESSION_NAME_KEY);
+  if (stored && stored.trim()) return stored.trim();
+  return 'session';
+}
 
 /**
  * Show the save menu modal
@@ -41,8 +48,8 @@ export function showSaveMenu() {
   if (!saveMenuModal) return;
 
   // Set default filename
-  const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T')[0];
-  saveFilenameInput.value = `depot-notes-${timestamp}`;
+  const sessionRef = getSessionReference();
+  saveFilenameInput.value = sessionRef;
 
   // Show modal
   saveMenuModal.classList.add('active');
@@ -152,7 +159,7 @@ function getAppData() {
 async function saveSelected() {
   const options = getSelectedOptions();
   const format = getSelectedFormat();
-  const filename = (saveFilenameInput.value || 'depot-notes').replace(/[^a-z0-9_\-]+/gi, '-');
+  const filename = (saveFilenameInput.value || getSessionReference()).replace(/[^a-z0-9_\-]+/gi, '-');
 
   // Check if at least one option is selected
   if (!options.fullSession && !options.depotNotes && !options.aiNotes && !options.transcript) {
@@ -275,15 +282,15 @@ async function saveDepotNotes(appData, filename, format, timestamp) {
   if (format === 'csv') {
     const csvContent = depotNotesToCSV(data);
     blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    finalFilename = `${filename}-depot-${timestamp}.csv`;
+    finalFilename = `${filename}-auto-notes-${timestamp}.csv`;
   } else if (format === 'txt') {
     const txtContent = depotNotesToText(data);
     blob = new Blob([txtContent], { type: 'text/plain;charset=utf-8;' });
-    finalFilename = `${filename}-depot-${timestamp}.txt`;
+    finalFilename = `${filename}-auto-notes-${timestamp}.txt`;
   } else {
     const jsonStr = JSON.stringify(data, null, 2);
     blob = new Blob([jsonStr], { type: 'application/json' });
-    finalFilename = `${filename}-depot-${timestamp}.json`;
+    finalFilename = `${filename}-auto-notes-${timestamp}.json`;
   }
 
   downloadFile(blob, finalFilename);
@@ -304,15 +311,15 @@ async function saveAINotes(appData, filename, format, timestamp) {
   if (format === 'csv') {
     const csvContent = notesToCSV(data);
     blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    finalFilename = `${filename}-ai-${timestamp}.csv`;
+    finalFilename = `${filename}-natural-notes-${timestamp}.csv`;
   } else if (format === 'txt') {
     const txtContent = aiNotesToText(data);
     blob = new Blob([txtContent], { type: 'text/plain;charset=utf-8;' });
-    finalFilename = `${filename}-ai-${timestamp}.txt`;
+    finalFilename = `${filename}-natural-notes-${timestamp}.txt`;
   } else {
     const jsonStr = JSON.stringify(data, null, 2);
     blob = new Blob([jsonStr], { type: 'application/json' });
-    finalFilename = `${filename}-ai-${timestamp}.json`;
+    finalFilename = `${filename}-natural-notes-${timestamp}.json`;
   }
 
   downloadFile(blob, finalFilename);

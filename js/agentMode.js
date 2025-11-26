@@ -357,26 +357,6 @@ function initAgentUI() {
     });
   });
 
-  // Listen mode toggle
-  const listenSwitch = document.getElementById('agentListenSwitch');
-  if (listenSwitch) {
-    listenSwitch.addEventListener('change', (e) => {
-      AGENT_STATE.listenMode = e.target.checked;
-      localStorage.setItem('depot.agentListenMode', e.target.checked ? 'true' : 'false');
-
-      window.dispatchEvent(new CustomEvent('agentListenModeChanged', {
-        detail: { enabled: e.target.checked }
-      }));
-    });
-
-    // Load saved state
-    const savedListenMode = localStorage.getItem('depot.agentListenMode');
-    if (savedListenMode === 'true') {
-      listenSwitch.checked = true;
-      AGENT_STATE.listenMode = true;
-    }
-  }
-
   // Chat functionality
   const chatSend = document.getElementById('agentChatSend');
   const chatInput = document.getElementById('agentChatInput');
@@ -479,14 +459,14 @@ function addChatMessage(type, content) {
     const actions = document.createElement('div');
     actions.className = 'agent-chat-actions';
 
-    const addToSectionBtn = document.createElement('button');
-    addToSectionBtn.className = 'agent-chat-action-btn';
-    addToSectionBtn.textContent = '+ Add to Section';
-    addToSectionBtn.addEventListener('click', () => {
-      showSectionSelector(content);
+    const addToTranscriptBtn = document.createElement('button');
+    addToTranscriptBtn.className = 'agent-chat-action-btn';
+    addToTranscriptBtn.textContent = '+ Add to transcript';
+    addToTranscriptBtn.addEventListener('click', () => {
+      appendAgentTextToTranscript(content);
     });
 
-    actions.appendChild(addToSectionBtn);
+    actions.appendChild(addToTranscriptBtn);
     messageDiv.appendChild(actions);
   }
 
@@ -497,147 +477,15 @@ function addChatMessage(type, content) {
 }
 
 /**
- * Show section selector modal
+ * Append agent text directly to the transcript
  */
-function showSectionSelector(content) {
-  // Get available sections
-  const sections = getAvailableSections();
+function appendAgentTextToTranscript(content) {
+  if (!content) return;
 
-  if (sections.length === 0) {
-    alert('No sections available. Please start a survey first.');
-    return;
-  }
-
-  // Create modal
-  const modal = document.createElement('div');
-  modal.style.cssText = `
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0,0,0,0.5);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 10200;
-  `;
-
-  const modalContent = document.createElement('div');
-  modalContent.style.cssText = `
-    background: white;
-    padding: 24px;
-    border-radius: 12px;
-    max-width: 400px;
-    width: 90%;
-    max-height: 80vh;
-    overflow-y: auto;
-  `;
-
-  modalContent.innerHTML = `
-    <h3 style="margin: 0 0 16px 0; font-size: 1.1rem;">Select Section</h3>
-    <div style="display: flex; flex-direction: column; gap: 8px;">
-      ${sections.map((section, idx) => `
-        <button class="section-select-btn" data-section="${section}" style="
-          padding: 12px;
-          text-align: left;
-          background: var(--bg-secondary);
-          border: 2px solid var(--border);
-          border-radius: 8px;
-          cursor: pointer;
-          font-size: 0.9rem;
-          transition: all 0.2s;
-        ">${section}</button>
-      `).join('')}
-    </div>
-    <button id="cancelSectionSelect" style="
-      margin-top: 16px;
-      width: 100%;
-      padding: 10px;
-      background: var(--muted);
-      color: white;
-      border: none;
-      border-radius: 8px;
-      cursor: pointer;
-      font-weight: 600;
-    ">Cancel</button>
-  `;
-
-  modal.appendChild(modalContent);
-  document.body.appendChild(modal);
-
-  // Add event listeners
-  const sectionBtns = modalContent.querySelectorAll('.section-select-btn');
-  sectionBtns.forEach(btn => {
-    btn.addEventListener('click', () => {
-      const section = btn.dataset.section;
-      appendToSection(section, content);
-      document.body.removeChild(modal);
-    });
-
-    btn.addEventListener('mouseenter', (e) => {
-      e.target.style.borderColor = 'var(--accent)';
-      e.target.style.background = 'var(--bg-hover)';
-    });
-
-    btn.addEventListener('mouseleave', (e) => {
-      e.target.style.borderColor = 'var(--border)';
-      e.target.style.background = 'var(--bg-secondary)';
-    });
-  });
-
-  const cancelBtn = modalContent.querySelector('#cancelSectionSelect');
-  cancelBtn.addEventListener('click', () => {
-    document.body.removeChild(modal);
-  });
-
-  modal.addEventListener('click', (e) => {
-    if (e.target === modal) {
-      document.body.removeChild(modal);
-    }
-  });
-}
-
-/**
- * Get available sections from the current survey
- */
-function getAvailableSections() {
-  // Try to get sections from the depot schema
-  const schema = window.DEPOT?.schema || window.depotSchema;
-  if (schema && Array.isArray(schema)) {
-    return schema.map(s => s.name).filter(Boolean);
-  }
-
-  // Fallback: get from existing sections in the UI
-  const sectionElements = document.querySelectorAll('[data-section-name]');
-  if (sectionElements.length > 0) {
-    return Array.from(sectionElements).map(el => el.dataset.sectionName).filter(Boolean);
-  }
-
-  // Default sections
-  return [
-    'Needs',
-    'Existing System',
-    'Property Details',
-    'New System Recommendation',
-    'Access & Installation',
-    'Future Plans'
-  ];
-}
-
-/**
- * Append content to a specific section
- */
-function appendToSection(sectionName, content) {
-  // Dispatch event for the main app to handle
-  window.dispatchEvent(new CustomEvent('appendToSection', {
-    detail: {
-      section: sectionName,
-      content: content
-    }
+  window.dispatchEvent(new CustomEvent('appendAgentTranscript', {
+    detail: { text: content }
   }));
 
-  // Show confirmation
   const notification = document.createElement('div');
   notification.style.cssText = `
     position: fixed;
@@ -651,7 +499,7 @@ function appendToSection(sectionName, content) {
     z-index: 10201;
     animation: slideIn 0.3s ease;
   `;
-  notification.textContent = `✓ Added to ${sectionName}`;
+  notification.textContent = '✓ Added to transcript';
   document.body.appendChild(notification);
 
   setTimeout(() => {

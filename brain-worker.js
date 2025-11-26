@@ -19,7 +19,64 @@ export default {
       }
 
       if (request.method === "GET" && url.pathname === "/health") {
-        return jsonResponse({ status: "ok" }, 200);
+        return jsonResponse({
+          status: "ok",
+          timestamp: new Date().toISOString(),
+          version: "1.0.0"
+        }, 200);
+      }
+
+      // Detailed auth system health check
+      if (request.method === "GET" && url.pathname === "/auth/health") {
+        const health = {
+          status: "ok",
+          timestamp: new Date().toISOString(),
+          database: {
+            connected: false,
+            tables: []
+          },
+          jwt: {
+            configured: false
+          }
+        };
+
+        try {
+          // Check database connection
+          if (env.DB) {
+            health.database.connected = true;
+
+            // Check if auth tables exist
+            try {
+              const tables = await env.DB.prepare(`
+                SELECT name FROM sqlite_master
+                WHERE type='table'
+                AND name IN ('users', 'user_settings', 'password_reset_tokens')
+                ORDER BY name
+              `).all();
+
+              health.database.tables = tables.results.map(t => t.name);
+              health.database.tablesExist = health.database.tables.length === 3;
+            } catch (err) {
+              health.database.error = "Failed to query tables";
+            }
+          }
+
+          // Check JWT secret
+          if (env.JWT_SECRET) {
+            health.jwt.configured = true;
+          }
+
+          // Set overall status
+          if (!health.database.connected || !health.jwt.configured) {
+            health.status = "degraded";
+          }
+
+        } catch (err) {
+          health.status = "error";
+          health.error = err.message;
+        }
+
+        return jsonResponse(health, 200);
       }
 
       // Authentication endpoints

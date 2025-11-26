@@ -197,8 +197,12 @@ export function analyzeTranscriptForQuestions(sections) {
 
 /**
  * Update the suggestions UI
+ * NOTE: Suggestions feature has been disabled.
  */
 function updateSuggestionsUI() {
+  // Suggestions feature disabled - agent panel now only shows chat
+  return;
+
   const content = document.getElementById('agentSuggestionsContent');
 
   if (!content) {
@@ -299,10 +303,11 @@ function renderQuestion(question, priority) {
 
 /**
  * Clear suggestions UI
- * Note: Agent tile is always visible, this just updates the content
+ * Note: Suggestions feature has been disabled.
  */
 function clearSuggestionsUI() {
-  updateSuggestionsUI();
+  // Suggestions feature disabled
+  return;
 }
 
 /**

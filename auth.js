@@ -1,57 +1,234 @@
 /**
  * Authentication and user management utilities
  * Handles user registration, login, and JWT token generation
+ * Uses Web Crypto API (built-in to Cloudflare Workers)
  */
 
-import bcrypt from 'bcryptjs';
-import jwt from '@tsndr/cloudflare-worker-jwt';
-
-const JWT_SECRET_KEY = 'DEPOT_JWT_SECRET'; // This should be set in environment variables
-const TOKEN_EXPIRY = '7d'; // 7 days
+const TOKEN_EXPIRY_SECONDS = 7 * 24 * 60 * 60; // 7 days
 
 /**
- * Hash a password using bcrypt
+ * Hash a password using Web Crypto API (PBKDF2)
  */
 export async function hashPassword(password) {
-  const salt = await bcrypt.genSalt(10);
-  return await bcrypt.hash(password, salt);
+  const encoder = new TextEncoder();
+  const data = encoder.encode(password);
+
+  // Generate a random salt
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+
+  // Import the password as a key
+  const keyMaterial = await crypto.subtle.importKey(
+    'raw',
+    data,
+    { name: 'PBKDF2' },
+    false,
+    ['deriveBits']
+  );
+
+  // Derive a key from the password
+  const derivedBits = await crypto.subtle.deriveBits(
+    {
+      name: 'PBKDF2',
+      salt: salt,
+      iterations: 100000,
+      hash: 'SHA-256'
+    },
+    keyMaterial,
+    256
+  );
+
+  // Combine salt and hash
+  const hashArray = new Uint8Array(derivedBits);
+  const combined = new Uint8Array(salt.length + hashArray.length);
+  combined.set(salt);
+  combined.set(hashArray, salt.length);
+
+  // Convert to base64
+  return btoa(String.fromCharCode(...combined));
 }
 
 /**
  * Verify a password against a hash
  */
 export async function verifyPassword(password, hash) {
-  return await bcrypt.compare(password, hash);
+  try {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(password);
+
+    // Decode the stored hash
+    const combined = Uint8Array.from(atob(hash), c => c.charCodeAt(0));
+
+    // Extract salt and hash
+    const salt = combined.slice(0, 16);
+    const storedHash = combined.slice(16);
+
+    // Import the password as a key
+    const keyMaterial = await crypto.subtle.importKey(
+      'raw',
+      data,
+      { name: 'PBKDF2' },
+      false,
+      ['deriveBits']
+    );
+
+    // Derive a key from the password
+    const derivedBits = await crypto.subtle.deriveBits(
+      {
+        name: 'PBKDF2',
+        salt: salt,
+        iterations: 100000,
+        hash: 'SHA-256'
+      },
+      keyMaterial,
+      256
+    );
+
+    const hashArray = new Uint8Array(derivedBits);
+
+    // Compare hashes
+    if (hashArray.length !== storedHash.length) {
+      return false;
+    }
+
+    for (let i = 0; i < hashArray.length; i++) {
+      if (hashArray[i] !== storedHash[i]) {
+        return false;
+      }
+    }
+
+    return true;
+  } catch (err) {
+    console.error('Password verification failed:', err);
+    return false;
+  }
 }
 
 /**
- * Generate a JWT token for a user
+ * Generate a JWT token for a user using Web Crypto API
  */
 export async function generateToken(userId, username, secret) {
+  const header = {
+    alg: 'HS256',
+    typ: 'JWT'
+  };
+
   const payload = {
     userId,
     username,
     iat: Math.floor(Date.now() / 1000),
-    exp: Math.floor(Date.now() / 1000) + (7 * 24 * 60 * 60) // 7 days
+    exp: Math.floor(Date.now() / 1000) + TOKEN_EXPIRY_SECONDS
   };
 
-  return await jwt.sign(payload, secret);
+  const encoder = new TextEncoder();
+
+  // Encode header and payload
+  const encodedHeader = base64UrlEncode(JSON.stringify(header));
+  const encodedPayload = base64UrlEncode(JSON.stringify(payload));
+
+  // Create signature
+  const signatureInput = `${encodedHeader}.${encodedPayload}`;
+  const key = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
+
+  const signature = await crypto.subtle.sign(
+    'HMAC',
+    key,
+    encoder.encode(signatureInput)
+  );
+
+  const encodedSignature = base64UrlEncode(signature);
+
+  return `${signatureInput}.${encodedSignature}`;
 }
 
 /**
- * Verify and decode a JWT token
+ * Verify and decode a JWT token using Web Crypto API
  */
 export async function verifyToken(token, secret) {
   try {
-    const isValid = await jwt.verify(token, secret);
+    const parts = token.split('.');
+    if (parts.length !== 3) {
+      return null;
+    }
+
+    const [encodedHeader, encodedPayload, encodedSignature] = parts;
+    const signatureInput = `${encodedHeader}.${encodedPayload}`;
+
+    const encoder = new TextEncoder();
+
+    // Import the secret key
+    const key = await crypto.subtle.importKey(
+      'raw',
+      encoder.encode(secret),
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['verify']
+    );
+
+    // Decode signature
+    const signature = base64UrlDecode(encodedSignature);
+
+    // Verify signature
+    const isValid = await crypto.subtle.verify(
+      'HMAC',
+      key,
+      signature,
+      encoder.encode(signatureInput)
+    );
+
     if (!isValid) {
       return null;
     }
-    return jwt.decode(token);
+
+    // Decode payload
+    const payload = JSON.parse(atob(encodedPayload.replace(/-/g, '+').replace(/_/g, '/')));
+
+    // Check expiration
+    if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) {
+      return null;
+    }
+
+    return { payload };
   } catch (err) {
     console.error('Token verification failed:', err);
     return null;
   }
+}
+
+/**
+ * Base64 URL encode
+ */
+function base64UrlEncode(input) {
+  let str;
+  if (input instanceof ArrayBuffer) {
+    str = String.fromCharCode(...new Uint8Array(input));
+  } else {
+    str = input;
+  }
+
+  return btoa(str)
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=/g, '');
+}
+
+/**
+ * Base64 URL decode
+ */
+function base64UrlDecode(input) {
+  const base64 = input.replace(/-/g, '+').replace(/_/g, '/');
+  const padded = base64 + '='.repeat((4 - base64.length % 4) % 4);
+  const binary = atob(padded);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes.buffer;
 }
 
 /**

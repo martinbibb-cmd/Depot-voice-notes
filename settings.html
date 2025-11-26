@@ -262,6 +262,14 @@
       resize: vertical;
       min-height: 72px;
     }
+    .rule-instructions {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .rule-instructions .hint {
+      margin: 0;
+    }
   </style>
 </head>
 <body>
@@ -290,7 +298,7 @@
         </label>
       </div>
       <p class="hint">
-        This setting controls the format used when exporting depot notes, sessions, and automatic/AI notes.
+        This setting controls the format used when exporting notes, sessions, and automatic/AI notes.
         JSON exports include all data in a structured format, while CSV exports are optimized for spreadsheet applications.
       </p>
     </section>
@@ -334,9 +342,9 @@
       </div>
 
       <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 8px;">
-        <h3 style="margin: 0; font-size: 0.9rem; letter-spacing: .02em;">Depot Notes – AI Instructions</h3>
+        <h3 style="margin: 0; font-size: 0.9rem; letter-spacing: .02em;">Notes – AI Instructions</h3>
         <p class="hint" style="margin: 0;">
-          These instructions tell the AI how to turn your transcript into engineer-ready Depot Notes. The default text includes
+          These instructions tell the AI how to turn your transcript into engineer-ready job notes. The default text includes
           special rules for gas supply and primary pipework so it doesn't contradict itself (for example saying both that a 15mm
           gas line is adequate and that it needs upgrading).
         </p>
@@ -368,18 +376,18 @@
         </details>
 
         <div style="display: flex; flex-direction: column; gap: 6px;">
-          <label for="depot-notes-instructions" style="font-size: 0.75rem; font-weight: 600; color: var(--muted);">
-            AI instructions for Depot Notes
+          <label for="notes-instructions" style="font-size: 0.75rem; font-weight: 600; color: var(--muted);">
+            AI instructions for notes
           </label>
           <textarea
-            id="depot-notes-instructions"
+            id="notes-instructions"
             style="font-family: monospace; font-size: 0.7rem; padding: 8px; border: 1px solid var(--border); border-radius: 8px; min-height: 280px; resize: vertical;"
-            placeholder="Depot Notes system prompt..."
+            placeholder="Notes system prompt..."
             spellcheck="false"
           ></textarea>
         </div>
 
-        <button id="depot-notes-reset-btn" type="button" class="secondary">Reset to recommended Depot Notes rules</button>
+        <button id="notes-reset-btn" type="button" class="secondary">Reset to recommended notes rules</button>
       </div>
 
       <p class="status" id="ai-status"></p>
@@ -388,7 +396,7 @@
     <!-- LEFT: section schema editor -->
     <section class="card">
       <div class="card-header">
-        <h2>Depot sections</h2>
+        <h2>Notes sections</h2>
         <span>Edit the section list & order</span>
         <span class="pill small" id="sections-count-pill">0 sections</span>
       </div>
@@ -413,7 +421,7 @@
     <!-- Section rules guidance -->
     <section class="card" style="grid-column: 1 / -1;">
       <div class="card-header">
-        <h2>Section rules</h2>
+        <h2>Notes section rules</h2>
         <span>What content belongs in each section</span>
       </div>
 
@@ -422,12 +430,12 @@
         <button id="section-rules-reset-btn" class="secondary">Reset rules to defaults</button>
       </div>
 
-      <p class="hint">
-        Use these rules to spell out what should go into each Depot section. They are editable so you can keep guidance in sync
-        with how your team captures information. Keep the “New boiler and controls” rules short and focused: what is coming out,
-        what is being installed, which controls stay or change, where everything sits, and details of any cylinders, tanks,
-        sealed system kits, and radiators.
-      </p>
+        <p class="hint">
+          Use these rules to spell out what should go into each notes section. The text is shown as editable AI instructions for
+          every section, so you can keep guidance in sync with how your team captures information. Keep the “New boiler and controls” rules short and focused: what is coming out,
+          what is being installed, which controls stay or change, where everything sits, and details of any cylinders, tanks,
+          sealed system kits, and radiators.
+        </p>
 
       <div class="rule-rows" id="section-rules-rows"></div>
       <p class="status" id="section-rules-status">Loading section rules…</p>
@@ -447,11 +455,11 @@
         <button id="checklist-export-btn" class="secondary">Export JSON</button>
         <button id="checklist-import-btn" class="secondary">Import JSON</button>
       </div>
-      <p class="hint">
-        Each item has a stable <strong>ID</strong>, a <strong>group</strong> label, an optional
-        <strong>Depot section</strong> link, plus a visible label and hint. Click <strong>⋯</strong> to expand and edit
-        <strong>AI templates</strong> (plainText & naturalLanguage). The worker uses these templates to generate section content.
-      </p>
+        <p class="hint">
+          Each item has a stable <strong>ID</strong>, a <strong>group</strong> label, an optional
+          <strong>section link</strong>, plus a visible label and hint. Click <strong>⋯</strong> to expand and edit
+          <strong>AI templates</strong> (plainText & naturalLanguage). The worker uses these templates to generate section content.
+        </p>
 
       <div class="checklist-rows" id="checklist-rows"></div>
 
@@ -467,8 +475,8 @@
     const CHECKLIST_STORAGE_KEY = "depot.checklistConfig";
     const SECTION_RULES_STORAGE_KEY = "depot.sectionRules";
     const AI_INSTRUCTIONS_STORAGE_KEY = "depot.aiInstructions";
-    const DEFAULT_DEPOT_NOTES_INSTRUCTIONS = `
-You are generating engineer-friendly "Depot Notes" from a voice transcript for a domestic heating job.
+    const DEFAULT_NOTES_INSTRUCTIONS = `
+You are generating engineer-friendly "job notes" from a voice transcript for a domestic heating job.
 
 General rules:
 - Prefer clear, non-duplicated bullets.
@@ -865,24 +873,34 @@ Output concise, engineer-ready bullets in each section: no waffle, no contradict
         return;
       }
 
-      names.forEach((name) => {
-        const row = document.createElement("div");
-        row.className = "rule-row";
+        names.forEach((name) => {
+          const row = document.createElement("div");
+          row.className = "rule-row";
 
-        const title = document.createElement("strong");
-        title.textContent = name || "Untitled";
+          const title = document.createElement("strong");
+          title.textContent = name || "Untitled";
 
-        const textarea = document.createElement("textarea");
-        textarea.value = sectionRules[name] || "";
-        textarea.placeholder = "Add guidance for what belongs in this section";
-        textarea.oninput = () => {
-          sectionRules[name] = textarea.value.trim();
-        };
+          const instructionsWrapper = document.createElement("div");
+          instructionsWrapper.className = "rule-instructions";
 
-        row.appendChild(title);
-        row.appendChild(textarea);
-        sectionRulesRowsEl.appendChild(row);
-      });
+          const instructionsLabel = document.createElement("span");
+          instructionsLabel.className = "hint";
+          instructionsLabel.textContent = "AI instructions for this section";
+
+          const textarea = document.createElement("textarea");
+          textarea.value = sectionRules[name] || "";
+          textarea.placeholder = "Add guidance for what belongs in this section";
+          textarea.oninput = () => {
+            sectionRules[name] = textarea.value.trim();
+          };
+
+          instructionsWrapper.appendChild(instructionsLabel);
+          instructionsWrapper.appendChild(textarea);
+
+          row.appendChild(title);
+          row.appendChild(instructionsWrapper);
+          sectionRulesRowsEl.appendChild(row);
+        });
 
       sectionRulesStatusEl.textContent = `Showing rules for ${names.length} section${names.length === 1 ? "" : "s"}.`;
     }
@@ -898,7 +916,7 @@ Output concise, engineer-ready bullets in each section: no waffle, no contradict
       let local = overrideNew || overrideLegacy;
       let defaults = null;
 
-      // 2) Fetch defaults from depot.output.schema.json
+      // 2) Fetch defaults from the bundled output schema
       defaults = await fetchJSON("depot.output.schema.json");
 
       const candidate = sanitiseSectionSchema(
@@ -906,7 +924,7 @@ Output concise, engineer-ready bullets in each section: no waffle, no contradict
       );
 
       sections = candidate;
-      sectionsStatusEl.innerHTML = `Loaded <strong>${sections.length}</strong> sections (${overrideNew || overrideLegacy ? "from browser storage" : "from depot.output.schema.json"}).`;
+      sectionsStatusEl.innerHTML = `Loaded <strong>${sections.length}</strong> sections (${overrideNew || overrideLegacy ? "from browser storage" : "from bundled schema file"}).`;
       renderSections();
     }
 
@@ -923,7 +941,7 @@ Output concise, engineer-ready bullets in each section: no waffle, no contradict
       const payload = { sections: cleaned };
       const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
       const ts = new Date().toISOString().replace(/[:.]/g, "-");
-      const filename = `depot.sections.schema-${ts}.json`;
+      const filename = `notes.sections.schema-${ts}.json`;
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -1033,7 +1051,7 @@ Output concise, engineer-ready bullets in each section: no waffle, no contradict
         const sectionInput = document.createElement("input");
         sectionInput.type = "text";
         sectionInput.value = item.section || "";
-        sectionInput.placeholder = "Depot section (optional)";
+        sectionInput.placeholder = "Section link (optional)";
         sectionInput.oninput = () => {
           checklist[idx].section = sectionInput.value.trim();
         };
@@ -1213,7 +1231,7 @@ Output concise, engineer-ready bullets in each section: no waffle, no contradict
       const payload = { items: cleaned };
       const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
       const ts = new Date().toISOString().replace(/[:.]/g, "-");
-      const filename = `depot.checklist-${ts}.json`;
+      const filename = `notes.checklist-${ts}.json`;
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -1387,7 +1405,7 @@ You MUST respond with ONLY valid JSON matching this shape:
 Do not wrap the JSON in backticks or markdown.
 Do not include any explanation outside the JSON.`
         ,
-        depotNotes: DEFAULT_DEPOT_NOTES_INSTRUCTIONS
+        depotNotes: DEFAULT_NOTES_INSTRUCTIONS
       };
     }
 
@@ -1425,7 +1443,7 @@ Do not include any explanation outside the JSON.`
       const instructions = loadAIInstructions();
       const agentChatArea = document.getElementById('ai-agent-chat-instructions');
       const tweakSectionArea = document.getElementById('ai-tweak-section-instructions');
-      const depotNotesArea = document.getElementById('depot-notes-instructions');
+      const depotNotesArea = document.getElementById('notes-instructions');
 
       if (agentChatArea) {
         agentChatArea.value = instructions.agentChat;
@@ -1442,7 +1460,7 @@ Do not include any explanation outside the JSON.`
     document.getElementById('ai-save-btn')?.addEventListener('click', () => {
       const agentChatArea = document.getElementById('ai-agent-chat-instructions');
       const tweakSectionArea = document.getElementById('ai-tweak-section-instructions');
-      const depotNotesArea = document.getElementById('depot-notes-instructions');
+      const depotNotesArea = document.getElementById('notes-instructions');
 
       const instructions = {
         agentChat: agentChatArea?.value || getDefaultAIInstructions().agentChat,
@@ -1464,11 +1482,11 @@ Do not include any explanation outside the JSON.`
       }, 3000);
     });
 
-    document.getElementById('depot-notes-reset-btn')?.addEventListener('click', () => {
-      const depotNotesArea = document.getElementById('depot-notes-instructions');
+    document.getElementById('notes-reset-btn')?.addEventListener('click', () => {
+      const depotNotesArea = document.getElementById('notes-instructions');
       if (depotNotesArea) {
         depotNotesArea.value = getDefaultAIInstructions().depotNotes;
-        document.getElementById('ai-status').textContent = "Depot Notes instructions reset to recommended rules";
+        document.getElementById('ai-status').textContent = "Notes instructions reset to recommended rules";
         setTimeout(() => {
           document.getElementById('ai-status').textContent = "";
         }, 3000);

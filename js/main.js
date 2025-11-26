@@ -3,10 +3,6 @@ import {
   isWorkerEndpointStorageKey
 } from "../src/app/worker-config.js";
 import { loadSchema } from "./schema.js";
-import { loadPricebook, matchMaterialsToPricebook, findCorePack } from "./pricebook.js";
-import { showQuoteBuilderModal } from "./quoteBuilder.js";
-import { showPackSelectorModal } from "./packSelector.js";
-import { generateMultipleQuotePDFs, downloadPDF } from "./quotePDF.js";
 import { logError, showBugReportModal } from "./bugReport.js";
 import {
   depotNotesToCSV,
@@ -151,6 +147,16 @@ const DEFAULT_DEPOT_SECTION_ORDER = [
   "Future plans"
 ];
 
+// --- Utility functions ---
+// Debounce helper function
+function debounce(func, delay) {
+  let timeoutId;
+  return function(...args) {
+    clearTimeout(timeoutId);
+    timeoutId = setTimeout(() => func.apply(this, args), delay);
+  };
+}
+
 // --- Small helpers shared by config loaders ---
 function safeParseJSON(raw, fallback = null) {
   try {
@@ -203,7 +209,6 @@ const loadSessionBtn = document.getElementById("loadSessionBtn");
 const loadSessionInput = document.getElementById("loadSessionInput");
 const importAudioBtn = document.getElementById("importAudioBtn");
 const importAudioInput = document.getElementById("importAudioInput");
-const proposalBuilderBtn = document.getElementById("proposalBuilderBtn");
 const newJobBtn = document.getElementById("newJobBtn");
 const partsListEl = document.getElementById("partsList");
 const voiceErrorEl = document.getElementById("voice-error");
@@ -271,7 +276,7 @@ function updateAppStateSnapshot() {
   APP_STATE.transcriptText = APP_STATE.fullTranscript;
 }
 
-function buildProposalSnapshot() {
+function buildStateSnapshot() {
   updateAppStateSnapshot();
   const clonedSections = Array.isArray(lastSections) ? JSON.parse(JSON.stringify(lastSections)) : [];
   return {
@@ -287,6 +292,41 @@ function buildProposalSnapshot() {
     fullTranscript: APP_STATE.fullTranscript
   };
 }
+
+// Auto-save function (will be called via debounced wrapper)
+function autoSaveSessionToLocal() {
+  try {
+    const fullTranscript = (transcriptInput?.value || "").trim();
+    const hasContent =
+      fullTranscript ||
+      (Array.isArray(lastRawSections) && lastRawSections.length) ||
+      (Array.isArray(lastMaterials) && lastMaterials.length) ||
+      (Array.isArray(lastCheckedItems) && lastCheckedItems.length) ||
+      (Array.isArray(lastMissingInfo) && lastMissingInfo.length) ||
+      (lastCustomerSummary && lastCustomerSummary.trim());
+
+    if (!hasContent) {
+      localStorage.removeItem(LS_AUTOSAVE_KEY);
+      return;
+    }
+
+    const stateSnapshot = buildStateSnapshot();
+    const snapshot = {
+      version: 1,
+      savedAt: new Date().toISOString(),
+      sections: lastRawSections,
+      ...stateSnapshot
+    };
+
+    localStorage.setItem(LS_AUTOSAVE_KEY, JSON.stringify(snapshot));
+    exposeStateToWindow();
+  } catch (err) {
+    console.warn("Auto-save failed", err);
+  }
+}
+
+// Create debounced version with 500ms delay for performance
+const debouncedAutoSave = debounce(autoSaveSessionToLocal, 500);
 
 /**
  * Update a section from the tweak modal
@@ -321,8 +361,8 @@ window.updateSectionFromTweak = function(sectionIndex, improvedSection) {
   // Refresh UI to show updated content
   refreshUiFromState();
 
-  // Save to localStorage
-  saveToLocalStorage();
+  // Save to localStorage (debounced)
+  debouncedAutoSave();
 
   console.log('Section updated from tweak:', improvedSection.section);
 };
@@ -1676,18 +1716,96 @@ function refreshUiFromState() {
     div.innerHTML = `
       <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
         <h4 style="margin: 0;">${sec.section}</h4>
-        <button class="tweak-section-btn-main" data-section-index="${index}" title="Tweak this section with AI">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-          </svg>
-          Tweak
-        </button>
+        <div class="section-actions" style="display: flex; gap: 6px;">
+          <button class="edit-section-btn-inline" data-section-index="${index}" title="Edit this section inline">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 20h9"></path>
+              <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+            </svg>
+            Edit
+          </button>
+          <button class="tweak-section-btn-main" data-section-index="${index}" title="Tweak this section with AI">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+            </svg>
+            Tweak
+          </button>
+        </div>
       </div>
-      <pre${preClassAttr}>${formattedPlain || "No bullets yet."}</pre>
-      ${naturalMarkup}
+      <div class="section-content-view">
+        <pre${preClassAttr}>${formattedPlain || "No bullets yet."}</pre>
+        ${naturalMarkup}
+      </div>
+      <div class="section-content-edit" style="display: none;">
+        <label style="display: block; margin-bottom: 4px; font-size: 0.7rem; font-weight: 600; color: #475569;">Plain Text (bullets):</label>
+        <textarea class="edit-plaintext" style="width: 100%; min-height: 80px; margin-bottom: 8px; font-size: 0.7rem; font-family: monospace;">${plainTextRaw}</textarea>
+        <label style="display: block; margin-bottom: 4px; font-size: 0.7rem; font-weight: 600; color: #475569;">Natural Language:</label>
+        <textarea class="edit-naturallang" style="width: 100%; min-height: 60px; margin-bottom: 8px; font-size: 0.7rem;">${naturalLanguage}</textarea>
+        <div style="display: flex; gap: 6px;">
+          <button class="save-edit-btn" style="background: #10b981; padding: 6px 12px; font-size: 0.7rem;">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle; margin-right: 4px;">
+              <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+            Save
+          </button>
+          <button class="cancel-edit-btn" class="pill-secondary" style="background: #94a3b8; padding: 6px 12px; font-size: 0.7rem;">Cancel</button>
+        </div>
+      </div>
     `;
     sectionsListEl.appendChild(div);
+  });
+
+  // Attach event listeners to edit buttons
+  const editBtns = sectionsListEl.querySelectorAll('.edit-section-btn-inline');
+  editBtns.forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const sectionItem = e.currentTarget.closest('.section-item');
+      const viewDiv = sectionItem.querySelector('.section-content-view');
+      const editDiv = sectionItem.querySelector('.section-content-edit');
+      const actionsDiv = sectionItem.querySelector('.section-actions');
+
+      viewDiv.style.display = 'none';
+      editDiv.style.display = 'block';
+      actionsDiv.style.display = 'none';
+    });
+  });
+
+  // Attach event listeners to save/cancel buttons
+  const saveBtns = sectionsListEl.querySelectorAll('.save-edit-btn');
+  saveBtns.forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const sectionItem = e.currentTarget.closest('.section-item');
+      const index = parseInt(sectionItem.dataset.sectionIndex, 10);
+      const plainTextArea = sectionItem.querySelector('.edit-plaintext');
+      const naturalLangArea = sectionItem.querySelector('.edit-naturallang');
+
+      // Update the section
+      if (sectionsToRender[index]) {
+        sectionsToRender[index].plainText = plainTextArea.value;
+        sectionsToRender[index].naturalLanguage = naturalLangArea.value;
+        lastSections[index] = sectionsToRender[index];
+        lastRawSections[index] = sectionsToRender[index];
+
+        // Save and refresh
+        debouncedAutoSave();
+        refreshUiFromState();
+      }
+    });
+  });
+
+  const cancelBtns = sectionsListEl.querySelectorAll('.cancel-edit-btn');
+  cancelBtns.forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const sectionItem = e.currentTarget.closest('.section-item');
+      const viewDiv = sectionItem.querySelector('.section-content-view');
+      const editDiv = sectionItem.querySelector('.section-content-edit');
+      const actionsDiv = sectionItem.querySelector('.section-actions');
+
+      viewDiv.style.display = 'block';
+      editDiv.style.display = 'none';
+      actionsDiv.style.display = 'flex';
+    });
   });
 
   // Attach event listeners to tweak buttons
@@ -2058,37 +2176,6 @@ async function saveSessionToFile() {
 
 // NOTE: saveSessionBtn has been replaced by the unified Save menu
 // The old saveSessionBtn.onclick handler has been removed - use saveMenuBtn instead
-
-function autoSaveSessionToLocal() {
-  try {
-    const fullTranscript = (transcriptInput.value || "").trim();
-    const hasContent =
-      fullTranscript ||
-      (Array.isArray(lastRawSections) && lastRawSections.length) ||
-      (Array.isArray(lastMaterials) && lastMaterials.length) ||
-      (Array.isArray(lastCheckedItems) && lastCheckedItems.length) ||
-      (Array.isArray(lastMissingInfo) && lastMissingInfo.length) ||
-      (lastCustomerSummary && lastCustomerSummary.trim());
-
-    if (!hasContent) {
-      localStorage.removeItem(LS_AUTOSAVE_KEY);
-      return;
-    }
-
-    const proposalSnapshot = buildProposalSnapshot();
-    const snapshot = {
-      version: 1,
-      savedAt: new Date().toISOString(),
-      sections: lastRawSections,
-      ...proposalSnapshot
-    };
-
-    localStorage.setItem(LS_AUTOSAVE_KEY, JSON.stringify(snapshot));
-    exposeStateToWindow();
-  } catch (err) {
-    console.warn("Auto-save failed", err);
-  }
-}
 
 importAudioBtn.onclick = () => importAudioInput.click();
 importAudioInput.onchange = async (e) => {
@@ -2781,23 +2868,6 @@ if (newJobBtn) {
       resetSessionState();
     }
   };
-}
-if (proposalBuilderBtn) {
-  proposalBuilderBtn.addEventListener('click', () => {
-    const proposalSnapshot = buildProposalSnapshot();
-    const savedSnapshot = {
-      version: 1,
-      savedAt: new Date().toISOString(),
-      sections: lastRawSections,
-      ...proposalSnapshot
-    };
-
-    localStorage.setItem(LS_AUTOSAVE_KEY, JSON.stringify(savedSnapshot));
-    window.__depotAppState = proposalSnapshot;
-
-    const proposalUrl = new URL('proposal.html', window.location.href);
-    window.open(proposalUrl.toString(), '_blank', 'noopener');
-  });
 }
 transcriptInput.addEventListener("input", () => {
   if (liveState !== "running") {

@@ -536,6 +536,40 @@
       </p>
     </section>
 
+    <!-- Voice Notes 2.0 Settings -->
+    <section class="card" style="grid-column: 1 / -1;">
+      <div class="card-header">
+        <h2>Voice Notes 2.0 Features</h2>
+        <span>Configure new Voice Notes 2.0 features</span>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 16px;">
+        <div style="padding: 12px; background: var(--screen-bg); border-radius: var(--radius); border: 1px solid var(--border);">
+          <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+            <input type="checkbox" id="skipClarificationModal" style="cursor: pointer; width: 18px; height: 18px;">
+            <div>
+              <span style="font-size: 0.75rem; font-weight: 600; display: block;">Skip Clarification Modal</span>
+              <span class="hint" style="display: block; margin-top: 4px;">When enabled, the pre-processing clarification modal will be skipped and notes will generate immediately.</span>
+            </div>
+          </label>
+        </div>
+
+        <div style="padding: 12px; background: var(--screen-bg); border-radius: var(--radius); border: 1px solid var(--border);">
+          <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+            <input type="checkbox" id="enableMultipleQuotesDetection" checked style="cursor: pointer; width: 18px; height: 18px;">
+            <div>
+              <span style="font-size: 0.75rem; font-weight: 600; display: block;">Auto-detect Multiple Quotes</span>
+              <span class="hint" style="display: block; margin-top: 4px;">Automatically detect when the transcript discusses multiple quote options and generate separate quote variants.</span>
+            </div>
+          </label>
+        </div>
+      </div>
+
+      <p class="hint" style="margin-top: 12px;">
+        <strong>New in Voice Notes 2.0:</strong> Pre-processing clarification modal helps prevent AI assumptions by letting you review and add context before generating notes. Multiple quotes detection automatically generates separate quote variants when you discuss options like "Option 1" or "Quote A/B".
+      </p>
+    </section>
+
     <!-- Colour Theme Preferences -->
     <section class="card" style="grid-column: 1 / -1;">
       <div class="card-header">
@@ -1911,6 +1945,29 @@ Do not include any explanation outside the JSON.`
       }
     });
 
+    // --- Voice Notes 2.0 Settings ---
+    function loadVoiceNotes2Settings() {
+      const skipClarification = localStorage.getItem('depot.skipClarificationModal') === 'true';
+      const enableMultipleQuotes = localStorage.getItem('depot.enableMultipleQuotesDetection') !== 'false'; // Default to true
+
+      const skipCheckbox = document.getElementById('skipClarificationModal');
+      const multipleQuotesCheckbox = document.getElementById('enableMultipleQuotesDetection');
+
+      if (skipCheckbox) {
+        skipCheckbox.checked = skipClarification;
+        skipCheckbox.addEventListener('change', (e) => {
+          localStorage.setItem('depot.skipClarificationModal', e.target.checked ? 'true' : 'false');
+        });
+      }
+
+      if (multipleQuotesCheckbox) {
+        multipleQuotesCheckbox.checked = enableMultipleQuotes;
+        multipleQuotesCheckbox.addEventListener('change', (e) => {
+          localStorage.setItem('depot.enableMultipleQuotesDetection', e.target.checked ? 'true' : 'false');
+        });
+      }
+    }
+
     // --- Boot ---
     (async function boot() {
       await loadSections();
@@ -1918,6 +1975,7 @@ Do not include any explanation outside the JSON.`
       await loadChecklist();
       loadExportFormat();
       renderAIInstructions();
+      loadVoiceNotes2Settings();
 
       // Load auth module dynamically
       try {

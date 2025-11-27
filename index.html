@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>voice-notes – Live Depot Notes</title>
+  <title>Voice Notes 2.0 – Live Depot Notes</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <script>
     (function () {
@@ -2120,7 +2120,7 @@
 </head>
 <body>
   <header>
-    <h1>🎙️ voice-notes</h1>
+    <h1>🎙️ Voice Notes 2.0</h1>
     <div id="sessionNameDisplay" style="display: none; margin-left: 12px; padding: 6px 14px; background: rgba(255,255,255,0.2); color: white; border-radius: 999px; font-size: 0.75rem; font-weight: 700; backdrop-filter: blur(10px); box-shadow: 0 2px 8px rgba(0,0,0,0.1);"></div>
     <div class="toolbar-row">
       <button id="sessionMenuBtn" class="pill-secondary">📁 Menu</button>
@@ -2527,6 +2527,57 @@
           <button id="copyEverythingBtn">Copy Everything</button>
           <button id="exportJSONBtn" class="pill-secondary">Export JSON</button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pre-Processing Clarification Modal -->
+  <div id="clarificationModal" class="modal-overlay">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Review Before Processing</h2>
+        <button id="closeClarificationBtn" class="modal-close">Skip</button>
+      </div>
+
+      <div class="modal-section" id="multipleQuotesSection" style="display: none;">
+        <h3>⚠️ Multiple Quotes Detected</h3>
+        <p class="small">The transcript mentions multiple quote options. How many separate quotes would you like to generate?</p>
+        <div style="display: flex; gap: 8px; margin-top: 8px;">
+          <button class="pill-secondary quote-count-btn" data-count="2">2 Quotes</button>
+          <button class="pill-secondary quote-count-btn" data-count="3">3 Quotes</button>
+          <button class="pill-secondary quote-count-btn active" data-count="auto">Auto-detect</button>
+        </div>
+      </div>
+
+      <div class="modal-section">
+        <h3>Additional Context (Optional)</h3>
+        <p class="small">Add any clarifications or specific requirements before generating notes:</p>
+        <textarea id="clarificationContext" placeholder="e.g., Focus on boiler options, customer prefers system boiler, etc."
+                  style="width: 100%; min-height: 80px; padding: 10px; border: 1px solid var(--border); border-radius: var(--radius); font-family: inherit; resize: vertical;"></textarea>
+      </div>
+
+      <div class="modal-section">
+        <h3>Quick Checks</h3>
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+            <input type="checkbox" id="checkBoilerDetails" style="cursor: pointer;">
+            <span class="small">Boiler make/model confirmed</span>
+          </label>
+          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+            <input type="checkbox" id="checkPipework" style="cursor: pointer;">
+            <span class="small">Pipework routes discussed</span>
+          </label>
+          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+            <input type="checkbox" id="checkCustomerRequirements" style="cursor: pointer;">
+            <span class="small">Customer requirements captured</span>
+          </label>
+        </div>
+        <p class="small" style="color: var(--muted); margin-top: 8px;">These are just reminders - AI will still ask about missing information</p>
+      </div>
+
+      <div class="button-group" style="margin-top: 20px;">
+        <button id="skipClarificationBtn" class="pill-secondary">Skip & Generate</button>
+        <button id="proceedWithClarificationBtn">Generate Notes</button>
       </div>
     </div>
   </div>

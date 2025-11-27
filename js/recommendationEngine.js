@@ -450,7 +450,11 @@ export function extractHeatingRequirements(sections, notes) {
   requirements.hasSpaceConstraints = allTextLower.includes('no loft') ||
                                      allTextLower.includes('limited space') ||
                                      allTextLower.includes('small property') ||
-                                     allTextLower.includes('no room for cylinder');
+                                     allTextLower.includes('no room for cylinder') ||
+                                     allTextLower.includes('loft conversion') ||
+                                     allTextLower.includes('convert the loft') ||
+                                     allTextLower.includes('converting loft') ||
+                                     allTextLower.includes('need loft space');
 
   // Smart tech interest
   requirements.wantsSmartTech = allTextLower.includes('smart') ||

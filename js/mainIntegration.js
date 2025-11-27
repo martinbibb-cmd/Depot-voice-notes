@@ -4,6 +4,7 @@
  */
 
 import { initPresentationButton } from './presentationGenerator.js';
+import { initCustomerProposalButton } from './customerProposalGenerator.js';
 
 // Wait for both main.js and uiEnhancements.js to load
 function initIntegration() {
@@ -91,8 +92,9 @@ function initIntegration() {
     };
   }
 
-  // Initialize presentation button
+  // Initialize presentation buttons
   initPresentationButton();
+  initCustomerProposalButton();
 
   // Hook into worker responses to update processed transcript and AI notes
   interceptWorkerResponses();

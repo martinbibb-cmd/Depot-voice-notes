@@ -67,47 +67,10 @@
         <div>
           <p class="eyebrow">Section 3</p>
           <h2 id="options-title">Your heating &amp; hot water options</h2>
-          <p class="muted">Three clear choices based on our system recommendation engine.</p>
+          <p class="muted">Three clear choices from your imported System Recommendation JSON.</p>
         </div>
       </div>
-      <div id="options-warning" class="warning" hidden></div>
-      <div class="options-grid" id="proposal-options-container">
-        <article class="option-card gold" aria-labelledby="gold-title">
-          <div class="option-header">
-            <h3 id="gold-title">Gold</h3><span class="badge recommended">Recommended</span>
-            <p id="gold-subtitle" class="muted"></p>
-          </div>
-          <div class="option-graphic">
-            <img id="gold-image" alt="System graphic" src="" />
-          </div>
-          <ul id="gold-benefits"></ul>
-          <p id="gold-mini-spec" class="mini-spec"></p>
-        </article>
-
-        <article class="option-card silver" aria-labelledby="silver-title">
-          <div class="option-header">
-            <h3 id="silver-title">Silver</h3>
-            <p id="silver-subtitle" class="muted"></p>
-          </div>
-          <div class="option-graphic">
-            <img id="silver-image" alt="System graphic" src="" />
-          </div>
-          <ul id="silver-benefits"></ul>
-          <p id="silver-mini-spec" class="mini-spec"></p>
-        </article>
-
-        <article class="option-card bronze" aria-labelledby="bronze-title">
-          <div class="option-header">
-            <h3 id="bronze-title">Bronze</h3>
-            <p id="bronze-subtitle" class="muted"></p>
-          </div>
-          <div class="option-graphic">
-            <img id="bronze-image" alt="System graphic" src="" />
-          </div>
-          <ul id="bronze-benefits"></ul>
-          <p id="bronze-mini-spec" class="mini-spec"></p>
-        </article>
-      </div>
+      <div class="proposal-options-grid" id="proposal-options-container"></div>
     </section>
 
     <section class="card" aria-labelledby="next-steps-title">
@@ -143,6 +106,7 @@
     </section>
   </div>
 
+  <script type="module" src="js/systemRecommendationImport.js"></script>
   <script type="module" src="js/proposal.js"></script>
 </body>
 </html>

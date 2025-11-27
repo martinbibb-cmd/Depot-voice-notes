@@ -4,21 +4,37 @@
   <meta charset="UTF-8" />
   <title>Survey Brain – Settings</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <script type="module" src="./js/themeSettings.js"></script>
+  <script>
+    (function () {
+      const key = "depot.themePreference";
+      const saved = localStorage.getItem(key);
+      const validThemes = ["blue", "green"];
+      const theme = validThemes.includes(saved) ? saved : "blue";
+      document.documentElement.dataset.theme = theme;
+    })();
+  </script>
   <style>
     :root {
       /* Metal Control Deck Theme */
       --bg: #1a1d24;
       --card: linear-gradient(145deg, #2a2f3a 0%, #363c4a 50%, #2a2f3a 100%);
       --border: #4a5568;
-      --accent: #10b981;
-      --accent-soft: #34d399;
+      --accent: #2563eb;
+      --accent-soft: #dbeafe;
       --muted: #94a3b8;
       --danger: #ef4444;
       --radius: 4px;
-      --screen-glow: 0 0 20px rgba(16, 185, 129, 0.3);
+      --screen-glow: 0 0 20px rgba(37, 99, 235, 0.25);
       --metal-shine: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.15) 50%, rgba(255,255,255,0) 100%);
       --button-inset: inset 2px 2px 5px rgba(0,0,0,0.4), inset -2px -2px 5px rgba(255,255,255,0.1);
       --screen-bg: linear-gradient(180deg, #0f1419 0%, #1a1f29 100%);
+    }
+
+    :root[data-theme="green"] {
+      --accent: #10b981;
+      --accent-soft: #34d399;
+      --screen-glow: 0 0 20px rgba(16, 185, 129, 0.3);
     }
     * { box-sizing: border-box; }
 
@@ -513,6 +529,24 @@
         This setting controls the format used when exporting notes, sessions, and automatic/AI notes.
         JSON exports include all data in a structured format, while CSV exports are optimized for spreadsheet applications.
       </p>
+    </section>
+
+    <!-- Colour Theme Preferences -->
+    <section class="card" style="grid-column: 1 / -1;">
+      <div class="card-header">
+        <h2>Colour theme</h2>
+        <span>Pick an accent colour for the app</span>
+      </div>
+
+      <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+        <label for="colorThemeSelect" style="font-size: 0.75rem; font-weight: 600; color: var(--muted);">Accent colour</label>
+        <select id="colorThemeSelect" style="padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--card); color: #e2e8f0; box-shadow: var(--button-inset);">
+          <option value="blue">Blue (default)</option>
+          <option value="green">Green</option>
+        </select>
+      </div>
+
+      <p class="hint">Changing the accent colour updates buttons, highlights, and other green elements throughout the app.</p>
     </section>
 
     <!-- AI Instructions Configuration -->

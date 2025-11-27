@@ -3,6 +3,8 @@
  * This file bridges the existing functionality with new UI elements
  */
 
+import { initPresentationButton } from './presentationGenerator.js';
+
 // Wait for both main.js and uiEnhancements.js to load
 function initIntegration() {
   const ui = window.uiEnhancements;
@@ -88,6 +90,9 @@ function initIntegration() {
       return result;
     };
   }
+
+  // Initialize presentation button
+  initPresentationButton();
 
   // Hook into worker responses to update processed transcript and AI notes
   interceptWorkerResponses();

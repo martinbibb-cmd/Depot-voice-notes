@@ -129,19 +129,41 @@ function estimateDailyDraws(occupants, dailyDraws) {
 }
 
 /**
- * Provides default values for missing pressure/flow data
+ * Validates and normalizes pressure/flow data
+ * Returns null if data is missing or invalid
  *
  * @param {number} pressure - Mains pressure in bar
  * @param {number} flow - Flow rate in L/min
- * @returns {{pressure: number, flow: number}} Normalized values
+ * @returns {{pressure: number, flow: number}|null} Normalized values or null if invalid
  */
 function normalizeWaterSupply(pressure, flow) {
-  // TODO: These are conservative defaults. Consider prompting user if values are missing.
-  // For now, assume moderate mains supply if not specified.
+  // Don't apply defaults - return null if data is missing
+  // This prevents generating recommendations for fictional customers
+  if (!pressure || pressure <= 0 || !flow || flow <= 0) {
+    return null;
+  }
+
   return {
-    pressure: pressure && pressure > 0 ? pressure : 1.8,  // 1.8 bar = typical UK mains
-    flow: flow && flow > 0 ? flow : 15  // 15 L/min = reasonable flow rate
+    pressure,
+    flow
   };
+}
+
+/**
+ * Validates that we have sufficient real customer data
+ *
+ * @param {DepotRequirements} requirements - Depot survey requirements
+ * @returns {boolean} True if we have enough real data to generate recommendations
+ */
+function hasSufficientData(requirements) {
+  // Check for critical customer data
+  const hasOccupants = requirements.occupants && requirements.occupants > 0;
+  const hasBathrooms = requirements.bathrooms && requirements.bathrooms > 0;
+  const hasPressure = requirements.mainsPressure && requirements.mainsPressure > 0;
+  const hasFlow = requirements.flowRate && requirements.flowRate > 0;
+
+  // We need at least occupants/bathrooms AND water supply data
+  return hasOccupants && hasBathrooms && hasPressure && hasFlow;
 }
 
 /**
@@ -152,13 +174,41 @@ function normalizeWaterSupply(pressure, flow) {
  */
 export async function buildRecommendationsFromDepotSurvey(requirements) {
   try {
-    // Map depot data to system-recommendation input format
+    // CRITICAL: Check if we have sufficient real customer data
+    // Do NOT generate recommendations for missing/fictional data
+    if (!hasSufficientData(requirements)) {
+      console.warn('⚠️ Insufficient survey data for recommendations:', {
+        occupants: requirements.occupants,
+        bathrooms: requirements.bathrooms,
+        mainsPressure: requirements.mainsPressure,
+        flowRate: requirements.flowRate
+      });
+
+      return {
+        options: [],
+        reasoningSummary: 'Insufficient survey data. Please complete the property survey first.',
+        inputs: {},
+        error: 'Missing required customer data (occupants, bathrooms, water pressure/flow)'
+      };
+    }
+
+    // Validate and normalize water supply data
     const waterSupply = normalizeWaterSupply(requirements.mainsPressure, requirements.flowRate);
+
+    if (!waterSupply) {
+      console.warn('⚠️ Invalid water supply data');
+      return {
+        options: [],
+        reasoningSummary: 'Invalid water supply data. Please complete the water pressure test.',
+        inputs: {},
+        error: 'Invalid water pressure or flow rate data'
+      };
+    }
 
     const input = {
       houseType: mapHouseType(requirements.houseType),
-      occupants: requirements.occupants || 2,  // Default to 2 if not specified
-      bathrooms: requirements.bathrooms || 1,   // Default to 1 if not specified
+      occupants: requirements.occupants,  // No defaults - use real data only
+      bathrooms: requirements.bathrooms,  // No defaults - use real data only
       drawsPerDay: estimateDailyDraws(requirements.occupants, requirements.dailyDraws),
       currentBoiler: mapBoilerType(requirements.currentBoilerType),
       currentWater: mapWaterSystem(requirements.currentWaterSystem, requirements.currentBoilerType),

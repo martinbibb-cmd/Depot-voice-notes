@@ -54,12 +54,34 @@ export function hasMeaningfulRequirements(req) {
   // Treat debug/meta-only objects as "empty"
   const ignoreKeys = new Set(['meta', 'debug', 'expertRecommendations']);
 
-  const meaningfulKeys = Object.keys(req).filter(
-    (key) => !ignoreKeys.has(key) && typeof req[key] !== 'undefined' && req[key] !== null
-  );
+  // Check for keys that have REAL, NON-ZERO, NON-EMPTY values
+  const meaningfulKeys = Object.keys(req).filter((key) => {
+    if (ignoreKeys.has(key)) return false;
 
-  // If there are literally no meaningful keys, we have no survey/session.
-  return meaningfulKeys.length > 0;
+    const value = req[key];
+
+    // Reject undefined, null
+    if (typeof value === 'undefined' || value === null) return false;
+
+    // Reject zero numbers (occupants: 0, bathrooms: 0, etc.)
+    if (typeof value === 'number' && value === 0) return false;
+
+    // Reject empty strings
+    if (typeof value === 'string' && value.trim() === '') return false;
+
+    // Accept everything else (positive numbers, non-empty strings, booleans, objects)
+    return true;
+  });
+
+  // We need at least some meaningful data to show a proposal
+  // Check for critical fields: occupants, bathrooms, mainsPressure, flowRate
+  const hasCriticalData =
+    meaningfulKeys.includes('occupants') &&
+    meaningfulKeys.includes('bathrooms') &&
+    meaningfulKeys.includes('mainsPressure') &&
+    meaningfulKeys.includes('flowRate');
+
+  return hasCriticalData;
 }
 
 /**

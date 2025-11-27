@@ -48,6 +48,20 @@ const BASE_OPTION_DEFS = {
 
 const TIER_LABELS = ['GOLD – RECOMMENDED', 'SILVER', 'BRONZE'];
 
+export function hasMeaningfulRequirements(req) {
+  if (!req || typeof req !== 'object') return false;
+
+  // Treat debug/meta-only objects as "empty"
+  const ignoreKeys = new Set(['meta', 'debug', 'expertRecommendations']);
+
+  const meaningfulKeys = Object.keys(req).filter(
+    (key) => !ignoreKeys.has(key) && typeof req[key] !== 'undefined' && req[key] !== null
+  );
+
+  // If there are literally no meaningful keys, we have no survey/session.
+  return meaningfulKeys.length > 0;
+}
+
 /**
  * GOLD SAFETY GATE – COMBI
  *
@@ -277,10 +291,29 @@ export function getProposalOptions(
   allowedOptionKeys,
   customerFeatures
 ) {
+  // 🔒 HARD GATE: if we don't have any meaningful survey data,
+  // DO NOT call generateRecommendations at all.
+  if (!hasMeaningfulRequirements(requirements)) {
+    return {
+      options: [],
+      ranked: [],
+      empty: true, // handy flag for the UI
+    };
+  }
+
   const ranked = rankOptionsWithEngine(
     requirements,
     allowedOptionKeys || Object.values(ENGINE_TO_OPTION_KEY)
   );
+
+  // If for some reason the engine still returns nothing, bail out cleanly.
+  if (!Array.isArray(ranked) || ranked.length === 0) {
+    return {
+      options: [],
+      ranked: [],
+      empty: true,
+    };
+  }
 
   // Apply any explicit ordering first.
   const ordered = orderRecommendations(ranked, optionOrder);
@@ -307,5 +340,6 @@ export function getProposalOptions(
   return {
     options,
     ranked: fullySafe,
+    empty: options.length === 0,
   };
 }

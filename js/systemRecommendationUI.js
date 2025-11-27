@@ -11,6 +11,7 @@ import {
 } from '../src/services/systemRecommendationService.js';
 
 import { extractHeatingRequirements } from './recommendationEngine.js';
+import { hasMeaningfulRequirements } from './systemRecommendationShared.js';
 import { loadChecklistState } from '../src/app/state.js';
 import { buildDepotOutputFromChecklist } from '../src/notes/notesEngine.js';
 
@@ -91,6 +92,12 @@ export async function showSystemRecommendationPanel() {
 
     // Extract requirements from current session
     const requirements = extractHeatingRequirements(sections, notes);
+
+    if (!hasMeaningfulRequirements(requirements)) {
+      closeLoadingModal();
+      renderEmptySystemRecommendations();
+      return;
+    }
 
     // Get recommendations
     const result = await buildRecommendationsFromDepotSurvey(requirements);
@@ -427,6 +434,23 @@ function showLoadingModal(message = 'Generating Recommendations...') {
 function closeLoadingModal() {
   const modal = document.getElementById('system-rec-loading-modal');
   if (modal) modal.remove();
+}
+
+function renderEmptySystemRecommendations() {
+  let container = document.querySelector('#system-recommendations-container');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'system-recommendations-container';
+    container.style.padding = '20px';
+    document.body.appendChild(container);
+  }
+
+  container.innerHTML = `
+    <div class="no-data-message">
+      <p>We couldn’t find a completed survey for this property.</p>
+      <p>Please finish the voice notes and survey first, then reopen System Recommendations.</p>
+    </div>
+  `;
 }
 
 /**

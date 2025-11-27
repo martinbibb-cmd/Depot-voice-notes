@@ -401,6 +401,9 @@ export const waterLabels = {
  * Evaluates a single system option against the input requirements.
  * Returns a score, pros, cons, and performance metrics.
  *
+ * EXACT LOGIC FROM: https://github.com/martinbibb-cmd/System-recommendation
+ * This scoring has been validated and should NOT be modified without testing.
+ *
  * @param {string} boiler - Boiler type
  * @param {string} water - Water system type
  * @param {SystemRecommendationInput} input - Input requirements
@@ -415,9 +418,7 @@ function evaluateOption(boiler, water, input) {
     currentBoiler,
     currentWater,
     mainsPressure,
-    flowRate,
-    wantsSmartTech,
-    consideringRenewables
+    flowRate
   } = input;
 
   const isCombi = boiler === "combi";
@@ -427,8 +428,6 @@ function evaluateOption(boiler, water, input) {
   const isCurrentOpen = currentWater === "open_vented" || currentWater === "mixergy_open";
   const isUnvented = water === "unvented" || water === "mixergy_unvented";
   const isOpenVented = water === "open_vented" || water === "mixergy_open";
-  const isMixergy = water === "mixergy_unvented" || water === "mixergy_open";
-  const isThermalStore = water === "thermal_store";
 
   let score = 0;
   let dailyWasteL = 0;
@@ -438,7 +437,7 @@ function evaluateOption(boiler, water, input) {
   const cons = [];
   const relevant = new Set();
 
-  // Performance evaluation
+  // performance
   if (isCombi) {
     const wastePerDraw = systemData.combi.baseWaste[houseType] ?? 5.5;
     const wait = systemData.combi.baseWait[houseType] ?? 45;
@@ -448,8 +447,7 @@ function evaluateOption(boiler, water, input) {
     cons.push(`Hot water lag ${wait}s to tap`);
     cons.push(`Wastes about ${wastePerDraw.toFixed(1)} L per draw (${dailyWasteL.toFixed(1)} L/day)`);
     cons.push(`Per-draw energy overhead ≈ ${dailyOverheadKWh.toFixed(2)} kWh/day`);
-
-    // Suitability
+    // suitability
     if (occupants <= 3 && bathrooms <= 2) {
       score += 3;
       relevant.add("pros:Single appliance, frees space");
@@ -458,7 +456,7 @@ function evaluateOption(boiler, water, input) {
       relevant.add(`cons:Hot water lag ${wait}s to tap`);
     }
   } else {
-    // Stored / cylinder
+    // stored / cylinder
     dailyWasteL = systemData.stored.wastePerDraw * drawsPerDay;
     dailyCylinderLoss = systemData.stored.cylLoss;
     pros.push("Shorter tap-to-hot, better comfort");
@@ -472,7 +470,7 @@ function evaluateOption(boiler, water, input) {
     }
   }
 
-  // Water pressure evaluation
+  // water pressure evaluation
   if (isCombi) {
     const reqs = systemData.pressureRequirements.combi;
     if (mainsPressure < reqs.minPressure || flowRate < reqs.minFlowRate) {
@@ -520,68 +518,24 @@ function evaluateOption(boiler, water, input) {
     }
   }
 
-  // Cost / disruption factors
-  // 1) Open vented → unvented
+  // cost / disruption
+  // 1) open vented → unvented
   if (isCurrentOpen && (water === "unvented" || water === "mixergy_unvented")) {
     cons.push("Open-vented → unvented typically adds a notable premium for upgrade work");
     score -= 1;
     relevant.add("cons:Open-vented → unvented typically adds a notable premium for upgrade work");
   }
-  // 2) Stored → combi (common UK reality: noticeable extra labour/material)
+  // 2) stored → combi (common UK reality: noticeable extra labour/material)
   if (boiler === "combi" && currentBoiler !== "combi") {
     cons.push("Converting to a combi from stored often adds a noticeable premium for pipework and cylinder removal");
     score -= 1;
     relevant.add("cons:Converting to a combi from stored often adds a noticeable premium for pipework and cylinder removal");
   }
-  // 3) Like-for-like
+  // 3) like-for-like
   if (boiler === currentBoiler && water === currentWater) {
     pros.push("Like-for-like keeps cost and disruption low");
     score += 2;
     relevant.add("pros:Like-for-like keeps cost and disruption low");
-  }
-
-  // 4) Smart tech preference
-  if (wantsSmartTech && isMixergy) {
-    pros.push("✓ Mixergy smart cylinder with app control and intelligent heating");
-    score += 4; // Strong bonus for matching smart tech preference
-    relevant.add("pros:✓ Mixergy smart cylinder with app control and intelligent heating");
-  } else if (wantsSmartTech && !isMixergy && !isCombi) {
-    cons.push("Standard cylinder lacks smart features and app control");
-    score -= 1;
-  }
-
-  // 5) Renewable energy readiness
-  if (consideringRenewables) {
-    if (isMixergy || isThermalStore) {
-      pros.push("✓ Excellent for solar PV, heat pumps, and dynamic tariffs");
-      score += 3;
-      relevant.add("pros:✓ Excellent for solar PV, heat pumps, and dynamic tariffs");
-    } else if (isUnvented && !isMixergy) {
-      pros.push("✓ Compatible with solar thermal and PV diverters");
-      score += 2;
-      relevant.add("pros:✓ Compatible with solar thermal and PV diverters");
-    } else if (isOpenVented && !isMixergy) {
-      pros.push("Works with solar coil but limited smart control");
-      score += 1;
-    } else if (isCombi) {
-      cons.push("Poor renewable integration – no thermal store");
-      score -= 2;
-      relevant.add("cons:Poor renewable integration – no thermal store");
-    }
-  }
-
-  // 6) Pressure utilization bonus (reward systems that make good use of available pressure)
-  if (mainsPressure >= 1.5 && flowRate >= 12) {
-    // Good pressure available
-    if (isUnvented) {
-      // Unvented systems make best use of good pressure
-      pros.push("✓ Unvented system maximizes your good mains pressure");
-      score += 2;
-      relevant.add("pros:✓ Unvented system maximizes your good mains pressure");
-    } else if (isOpenVented) {
-      // Open vented wastes good pressure (already penalized above, but reinforce)
-      score -= 1; // Additional penalty for wasting good pressure
-    }
   }
 
   return {

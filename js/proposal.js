@@ -1,8 +1,5 @@
-import { getSystemRecommendations } from '../src/lib/systemRecommendationEngine.js';
-import {
-  buildSystemInputFromNotes,
-  getProposalOptionsFromSystemRec
-} from './systemProposalAdapter.js';
+import { getProposalOptions, hasMeaningfulRequirements } from './systemRecommendationShared.js';
+import { buildSystemInputFromNotes } from './systemProposalAdapter.js';
 
 const AUTOSAVE_KEY = 'surveyBrainAutosave';
 
@@ -127,6 +124,31 @@ function getGraphicForOption(option) {
   return 'assets/system-graphics/System-boiler.png';
 }
 
+function deriveOptionFromKey(optionKey) {
+  switch (optionKey) {
+    case 'combi':
+      return { boiler: 'combi' };
+    case 'system_mixergy':
+      return { boiler: 'system', water: 'mixergy' };
+    case 'system_unvented':
+      return { boiler: 'system', water: 'unvented' };
+    default:
+      return null;
+  }
+}
+
+function renderNoProposalDataMessage() {
+  const optionsContainer = document.getElementById('proposal-options-container');
+  if (optionsContainer) {
+    optionsContainer.innerHTML = `
+      <div class="no-data-message">
+        <p>No survey data found.</p>
+        <p>Please complete the Depot Voice Notes survey for this customer, then regenerate the proposal.</p>
+      </div>
+    `;
+  }
+}
+
 function renderOption(targetPrefix, optionData) {
   if (!optionData) return;
   setText(`${targetPrefix}-title`, optionData.title);
@@ -147,7 +169,9 @@ function renderOption(targetPrefix, optionData) {
 
   const imgEl = document.getElementById(`${targetPrefix}-image`);
   if (imgEl) {
-    const graphic = getGraphicForOption(optionData.option);
+    const graphic = getGraphicForOption(
+      optionData.option || deriveOptionFromKey(optionData.optionKey)
+    );
     if (graphic) {
       imgEl.src = graphic;
       imgEl.alt = optionData.option && optionData.option.water?.includes('mixergy')
@@ -188,9 +212,20 @@ async function populateProposal() {
   const summaryBullet = snapshot.customerSummary || '';
   buildBulletList(transcriptText, summaryBullet);
 
+  if (!hasMeaningfulRequirements(requirements)) {
+    renderNoProposalDataMessage();
+    return;
+  }
+
   try {
-    const systemRecResult = getSystemRecommendations(requirements);
-    const { gold, silver, bronze } = getProposalOptionsFromSystemRec(systemRecResult);
+    const { options, empty } = getProposalOptions(requirements);
+
+    if (empty || !options || options.length === 0) {
+      renderNoProposalDataMessage();
+      return;
+    }
+
+    const [gold, silver, bronze] = options;
 
     renderOption('gold', gold);
     renderOption('silver', silver);

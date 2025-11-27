@@ -1833,6 +1833,7 @@ function renderChecklist(container, checkedIds, missingInfoFromServer) {
     items.forEach(item => {
       const div = document.createElement("div");
       div.className = "clar-chip checklist-item" + (item.done ? " done" : "");
+      div.dataset.itemId = String(item.id);
       div.dataset.group = groupName; // Tag with group for filtering
       div.innerHTML = `
         <span class="icon">${item.done ? "✅" : "⭕"}</span>
@@ -2129,7 +2130,18 @@ function applyVoiceResult(result) {
   }
 
   if (Array.isArray(result.checkedItems)) {
-    lastCheckedItems = result.checkedItems.slice();
+    const knownIds = new Set((CHECKLIST_ITEMS || []).map(item => String(item.id)));
+    const filtered = result.checkedItems
+      .map(id => String(id))
+      .filter(id => knownIds.size === 0 || knownIds.has(id));
+
+    if (filtered.length && knownIds.size && filtered.length >= knownIds.size) {
+      lastCheckedItems = prevChecked;
+    } else if (filtered.length) {
+      lastCheckedItems = filtered;
+    } else {
+      lastCheckedItems = prevChecked;
+    }
   } else if (result.checkedItems === undefined) {
     lastCheckedItems = prevChecked;
   }
@@ -3153,6 +3165,7 @@ function resetSessionState() {
   updateLiveControls();
   setStatus("Ready for new job.");
   transcriptInput.focus?.();
+  renderTranscriptDisplay();
 }
 
 // ============================================================================
@@ -3938,6 +3951,38 @@ if (transcriptInput) {
 
 // Initial render
 renderTranscriptDisplay();
+
+// Checklist interactions (manual toggling)
+if (clarificationsEl) {
+  clarificationsEl.addEventListener('click', (event) => {
+    const target = event.target.closest('.checklist-item');
+    if (!target || !clarificationsEl.contains(target)) return;
+
+    const itemId = target.dataset.itemId;
+    if (!itemId) return;
+
+    const isDone = target.classList.contains('done');
+    const icon = target.querySelector('.icon');
+    const updatedSet = new Set(lastCheckedItems.map(String));
+
+    if (isDone) {
+      updatedSet.delete(itemId);
+      target.classList.remove('done');
+      if (icon) icon.textContent = '⭕';
+    } else {
+      updatedSet.add(itemId);
+      target.classList.add('done');
+      if (icon) icon.textContent = '✅';
+    }
+
+    lastCheckedItems = Array.from(updatedSet);
+    const checklistSearchInput = document.getElementById('checklistSearchInput');
+    if (checklistSearchInput) {
+      checklistSearchInput.dispatchEvent(new Event('input'));
+    }
+    exposeStateToWindow();
+  });
+}
 
 // Allow agent responses to be appended directly to the transcript
 window.addEventListener('appendAgentTranscript', (event) => {

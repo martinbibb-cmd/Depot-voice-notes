@@ -1602,10 +1602,18 @@ function buildVoiceRequestPayload(transcript, schema = SECTION_SCHEMA) {
     .map(sec => (sec && sec.name ? String(sec.name).trim() : ""))
     .filter(Boolean);
 
-  const multipleQuotesHint = detectMultipleQuotesInTranscript();
+  // Check if multiple quotes detection is enabled (Voice Notes 2.0)
+  const multipleQuotesEnabled = localStorage.getItem('depot.enableMultipleQuotesDetection') !== 'false'; // Default to true
+  const multipleQuotesHint = multipleQuotesEnabled && detectMultipleQuotesInTranscript();
 
-  return {
-    transcript,
+  // Include clarification context if provided (Voice Notes 2.0)
+  let enhancedTranscript = transcript;
+  if (window.__clarificationContext) {
+    enhancedTranscript = `${transcript}\n\n[Additional context from surveyor: ${window.__clarificationContext}]`;
+  }
+
+  const payload = {
+    transcript: enhancedTranscript,
     alreadyCaptured: existingSections,
     expectedSections,
     sectionHints: deriveSectionHints(),
@@ -1615,6 +1623,13 @@ function buildVoiceRequestPayload(transcript, schema = SECTION_SCHEMA) {
     depotSections: canonicalSchema,
     depotNotesInstructions: loadDepotNotesInstructions()
   };
+
+  // Add requested quote count if specified
+  if (window.__requestedQuoteCount && window.__requestedQuoteCount !== 'auto') {
+    payload.requestedQuoteCount = parseInt(window.__requestedQuoteCount);
+  }
+
+  return payload;
 }
 
 function normaliseSectionsFromResponse(data, _schema = SECTION_SCHEMA) {
@@ -3140,7 +3155,119 @@ function resetSessionState() {
   transcriptInput.focus?.();
 }
 
-sendTextBtn.onclick = sendText;
+// ============================================================================
+// CLARIFICATION MODAL (Voice Notes 2.0)
+// ============================================================================
+
+let clarificationModalActive = false;
+let clarificationData = {
+  quoteCount: 'auto',
+  additionalContext: '',
+  skipModal: false
+};
+
+function showClarificationModal() {
+  return new Promise((resolve) => {
+    // Check if modal should be skipped (from settings)
+    const skipClarification = localStorage.getItem('depot.skipClarificationModal');
+    if (skipClarification === 'true') {
+      resolve({ proceed: true, context: '', quoteCount: 'auto' });
+      return;
+    }
+
+    const modal = document.getElementById('clarificationModal');
+    const multipleQuotesSection = document.getElementById('multipleQuotesSection');
+    const clarificationContext = document.getElementById('clarificationContext');
+    const quoteCountBtns = document.querySelectorAll('.quote-count-btn');
+
+    // Detect if multiple quotes are mentioned
+    const hasMultipleQuotes = detectMultipleQuotesInTranscript();
+    if (hasMultipleQuotes) {
+      multipleQuotesSection.style.display = 'block';
+    } else {
+      multipleQuotesSection.style.display = 'none';
+    }
+
+    // Reset form
+    clarificationContext.value = '';
+    clarificationData.quoteCount = 'auto';
+
+    // Update active button
+    quoteCountBtns.forEach(btn => {
+      btn.classList.remove('active');
+      if (btn.dataset.count === 'auto') {
+        btn.classList.add('active');
+      }
+    });
+
+    modal.style.display = 'flex';
+    clarificationModalActive = true;
+
+    // Handle quote count button clicks
+    const handleQuoteCountClick = (e) => {
+      if (e.target.classList.contains('quote-count-btn')) {
+        quoteCountBtns.forEach(btn => btn.classList.remove('active'));
+        e.target.classList.add('active');
+        clarificationData.quoteCount = e.target.dataset.count;
+      }
+    };
+
+    // Close/Skip handlers
+    const closeModal = (proceed) => {
+      modal.style.display = 'none';
+      clarificationModalActive = false;
+
+      // Clean up event listeners
+      multipleQuotesSection.removeEventListener('click', handleQuoteCountClick);
+
+      resolve({
+        proceed,
+        context: clarificationContext.value.trim(),
+        quoteCount: clarificationData.quoteCount
+      });
+    };
+
+    // Attach event listeners
+    multipleQuotesSection.addEventListener('click', handleQuoteCountClick);
+
+    document.getElementById('closeClarificationBtn').onclick = () => closeModal(false);
+    document.getElementById('skipClarificationBtn').onclick = () => closeModal(true);
+    document.getElementById('proceedWithClarificationBtn').onclick = () => closeModal(true);
+
+    // Close on background click
+    modal.onclick = (e) => {
+      if (e.target === modal) {
+        closeModal(false);
+      }
+    };
+  });
+}
+
+async function sendTextWithClarification() {
+  const result = await showClarificationModal();
+
+  if (!result.proceed) {
+    console.log('User cancelled clarification modal');
+    return;
+  }
+
+  // Store clarification context for the request
+  if (result.context) {
+    window.__clarificationContext = result.context;
+  }
+  if (result.quoteCount && result.quoteCount !== 'auto') {
+    window.__requestedQuoteCount = result.quoteCount;
+  }
+
+  // Proceed with original sendText
+  await sendText();
+
+  // Clean up
+  delete window.__clarificationContext;
+  delete window.__requestedQuoteCount;
+}
+
+sendTextBtn.onclick = sendTextWithClarification;
 if (startLiveBtn) startLiveBtn.onclick = startLiveSession;
 if (pauseLiveBtn) pauseLiveBtn.onclick = () => togglePauseResumeLive();
 if (finishLiveBtn) finishLiveBtn.onclick = () => { finishLiveSession(); };

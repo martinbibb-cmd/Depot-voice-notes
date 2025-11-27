@@ -1517,7 +1517,8 @@ async function callNotesModel(env, payload) {
     sectionHints = {},
     forceStructured = false,
     sanityNotes = [],
-    customInstructions = ""
+    customInstructions = "",
+    multipleQuotesHint = false
   } = payload || {};
 
   const checklistFromPayload = sanitiseChecklistConfig(rawChecklistItems);
@@ -1535,6 +1536,20 @@ async function callNotesModel(env, payload) {
 
   // IMPORTANT: we do NOT use response_format here.
   // Instead we *ask* for JSON and parse it ourselves.
+
+  const multipleQuotesInstructions = multipleQuotesHint ? `
+
+MULTIPLE QUOTE OPTIONS DETECTED:
+- The transcript discusses multiple quote options or alternatives (e.g., "Option 1", "Quote 2", "alternatively").
+- You MUST generate separate quote variants using the "quoteVariants" field.
+- Each quote variant should have:
+  - A descriptive label (e.g., "Quote A", "Quote B", "Option 1", "Option 2")
+  - Complete sections with all depot notes specific to that option
+- Common information should go in the main "sections" field.
+- Quote-specific information (different boilers, alternative approaches, etc.) should go in "quoteVariants".
+- Each variant should be self-contained and complete enough for the engineer to understand what's different about that option.
+` : '';
+
   const systemPrompt = `
 ${buildDepotNotesInstructions(customInstructions, referenceMaterials)}
 
@@ -1551,7 +1566,7 @@ Your job is to:
 5. ACTIVELY ANALYZE the live transcript and ASK QUESTIONS about missing or unclear information.
 6. SANITY CHECK transcription details and correct obvious errors using context and standard dimensions (pipework sizes should be 8/10mm, 15mm, 22mm, 28mm, or 35mm; avoid improbable sizes by normalising to the nearest standard size).
 7. Prefer the most recent reference material versions (e.g., the latest pricebook, such as November 2025) if multiple versions are available.
-
+${multipleQuotesInstructions}
 CRITICAL DEDUPLICATION RULES:
 - If alreadyCaptured contains information for a section, DO NOT repeat that information.
 - Only add NEW information from the current transcript that isn't already captured.
@@ -1592,7 +1607,19 @@ You MUST respond with ONLY valid JSON matching this shape:
   "missingInfo": [
     { "target": "expert | customer", "question": "Short question if anything important is unclear." }
   ],
-  "customerSummary": "2–4 sentence summary suitable to show the customer."
+  "customerSummary": "2–4 sentence summary suitable to show the customer."${multipleQuotesHint ? `,
+  "quoteVariants": [
+    {
+      "label": "Quote A | Quote B | Option 1 | etc.",
+      "sections": [
+        {
+          "section": "<one of the depot section names>",
+          "plainText": "Quote-specific notes for this variant;",
+          "naturalLanguage": "Quote-specific description for this variant."
+        }
+      ]
+    }
+  ]` : ''}
 }
 
 Do not wrap the JSON in backticks or markdown.

@@ -489,6 +489,7 @@
       <button id="loginBtn" class="secondary" style="font-size: 0.7rem; padding: 4px 10px;">Sign In</button>
       <button id="logoutBtn" class="secondary" style="font-size: 0.7rem; padding: 4px 10px; display: none;">Sign Out</button>
     </div>
+    <button id="openSetupWizardBtn" style="background: linear-gradient(145deg, #10b981 0%, #059669 100%);">🧙‍♂️ Setup Wizard</button>
     <button id="forceReloadBtn" class="danger">Force reload / reset app data</button>
     <a href="index.html" class="back-link">← Back to app</a>
   </header>
@@ -1983,6 +1984,18 @@ Do not include any explanation outside the JSON.`
         updateAuthUI();
       } catch (err) {
         console.warn('Failed to load auth module:', err);
+      }
+
+      // Load setup wizard module
+      try {
+        const wizardModule = await import('./js/setupWizard.js');
+
+        // Setup wizard button click handler
+        document.getElementById('openSetupWizardBtn')?.addEventListener('click', () => {
+          wizardModule.showSetupWizard();
+        });
+      } catch (err) {
+        console.warn('Failed to load setup wizard module:', err);
       }
     })();
   </script>

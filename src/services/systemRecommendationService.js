@@ -163,9 +163,7 @@ export async function buildRecommendationsFromDepotSurvey(requirements) {
       currentBoiler: mapBoilerType(requirements.currentBoilerType),
       currentWater: mapWaterSystem(requirements.currentWaterSystem, requirements.currentBoilerType),
       mainsPressure: waterSupply.pressure,
-      flowRate: waterSupply.flow,
-      wantsSmartTech: requirements.wantsSmartTech || false,
-      consideringRenewables: requirements.consideringRenewables || false
+      flowRate: waterSupply.flow
     };
 
     // Call the recommendation engine

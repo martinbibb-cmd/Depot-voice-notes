@@ -319,6 +319,31 @@
       box-shadow: 0 4px 8px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.3), inset 0 -1px 0 rgba(0,0,0,0.3);
     }
 
+    .toolbar-link {
+      border: 2px solid var(--border);
+      border-radius: var(--radius);
+      padding: 8px 16px;
+      font-size: .7rem;
+      font-weight: 700;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      text-decoration: none;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.2), inset 0 -1px 0 rgba(0,0,0,0.3);
+      transition: all 0.2s;
+      position: relative;
+      overflow: hidden;
+      font-family: 'Courier New', 'Consolas', monospace;
+      color: #fff;
+    }
+
+    .toolbar-link:hover {
+      box-shadow: 0 4px 8px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.3), inset 0 -1px 0 rgba(0,0,0,0.3);
+    }
+
     button:active:not(:disabled) {
       box-shadow: var(--button-inset);
       transform: translateY(1px);
@@ -2129,6 +2154,15 @@
       <button id="duplicateSessionBtn" class="pill-secondary">📋 Duplicate</button>
       <button id="what3wordsBtn" class="pill-secondary">📍 what3words</button>
       <button id="settingsBtn" class="pill-secondary">⚙️ Settings</button>
+      <a
+        id="systemRecommendationLink"
+        class="pill-secondary toolbar-link"
+        href="https://martinbibb-cmd.github.io/System-recommendation/"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        🎯 System Rec
+      </a>
       <button id="bugReportBtn" class="pill-secondary">🐛 Report bug</button>
     </div>
   </header>
@@ -2599,17 +2633,5 @@
   <script type="module" src="./js/uiEnhancements.js"></script>
   <script type="module" src="./js/main.js"></script>
   <script type="module" src="./js/mainIntegration.js"></script>
-
-  <!-- System Recommendation Integration -->
-  <script type="module">
-    import { initSystemRecommendationUI } from './js/systemRecommendationUI.js';
-
-    // Initialize when DOM is ready
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', initSystemRecommendationUI);
-    } else {
-      initSystemRecommendationUI();
-    }
-  </script>
 </body>
 </html>

@@ -26,6 +26,8 @@
  * @property {string} currentWater - 'on_demand'|'open_vented'|'unvented'|'mixergy_open'|'mixergy_unvented'
  * @property {number} mainsPressure - Mains water pressure in bar
  * @property {number} flowRate - Mains flow rate in L/min
+ * @property {boolean} [wantsSmartTech] - Customer interested in smart controls/app
+ * @property {boolean} [consideringRenewables] - Customer considering solar/heat pump/renewables
  */
 
 /**
@@ -413,7 +415,9 @@ function evaluateOption(boiler, water, input) {
     currentBoiler,
     currentWater,
     mainsPressure,
-    flowRate
+    flowRate,
+    wantsSmartTech,
+    consideringRenewables
   } = input;
 
   const isCombi = boiler === "combi";
@@ -423,6 +427,8 @@ function evaluateOption(boiler, water, input) {
   const isCurrentOpen = currentWater === "open_vented" || currentWater === "mixergy_open";
   const isUnvented = water === "unvented" || water === "mixergy_unvented";
   const isOpenVented = water === "open_vented" || water === "mixergy_open";
+  const isMixergy = water === "mixergy_unvented" || water === "mixergy_open";
+  const isThermalStore = water === "thermal_store";
 
   let score = 0;
   let dailyWasteL = 0;
@@ -532,6 +538,50 @@ function evaluateOption(boiler, water, input) {
     pros.push("Like-for-like keeps cost and disruption low");
     score += 2;
     relevant.add("pros:Like-for-like keeps cost and disruption low");
+  }
+
+  // 4) Smart tech preference
+  if (wantsSmartTech && isMixergy) {
+    pros.push("✓ Mixergy smart cylinder with app control and intelligent heating");
+    score += 4; // Strong bonus for matching smart tech preference
+    relevant.add("pros:✓ Mixergy smart cylinder with app control and intelligent heating");
+  } else if (wantsSmartTech && !isMixergy && !isCombi) {
+    cons.push("Standard cylinder lacks smart features and app control");
+    score -= 1;
+  }
+
+  // 5) Renewable energy readiness
+  if (consideringRenewables) {
+    if (isMixergy || isThermalStore) {
+      pros.push("✓ Excellent for solar PV, heat pumps, and dynamic tariffs");
+      score += 3;
+      relevant.add("pros:✓ Excellent for solar PV, heat pumps, and dynamic tariffs");
+    } else if (isUnvented && !isMixergy) {
+      pros.push("✓ Compatible with solar thermal and PV diverters");
+      score += 2;
+      relevant.add("pros:✓ Compatible with solar thermal and PV diverters");
+    } else if (isOpenVented && !isMixergy) {
+      pros.push("Works with solar coil but limited smart control");
+      score += 1;
+    } else if (isCombi) {
+      cons.push("Poor renewable integration – no thermal store");
+      score -= 2;
+      relevant.add("cons:Poor renewable integration – no thermal store");
+    }
+  }
+
+  // 6) Pressure utilization bonus (reward systems that make good use of available pressure)
+  if (mainsPressure >= 1.5 && flowRate >= 12) {
+    // Good pressure available
+    if (isUnvented) {
+      // Unvented systems make best use of good pressure
+      pros.push("✓ Unvented system maximizes your good mains pressure");
+      score += 2;
+      relevant.add("pros:✓ Unvented system maximizes your good mains pressure");
+    } else if (isOpenVented) {
+      // Open vented wastes good pressure (already penalized above, but reinforce)
+      score -= 1; // Additional penalty for wasting good pressure
+    }
   }
 
   return {

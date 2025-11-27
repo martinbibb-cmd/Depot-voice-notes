@@ -19,20 +19,42 @@ import { buildDepotOutputFromChecklist } from '../src/notes/notesEngine.js';
  * @returns {{sections: Array, notes: Array, hasData: boolean}}
  */
 function getCurrentSessionData() {
-  // Load checklist state from localStorage
-  const checklistState = loadChecklistState();
+  // First try to get data from global app state (used during active sessions)
+  const appState = window.__depotAppState || {};
 
-  // Build depot output from checklist
+  if (appState.sections && appState.sections.length > 0) {
+    // We have active session data
+    const formattedSections = appState.sections.map(s => ({
+      section: s.name || s.section || '',
+      plainText: s.plain || s.plainText || '',
+      naturalLanguage: s.nl || s.naturalLanguage || ''
+    }));
+
+    const notes = appState.sections.flatMap(s => {
+      const result = [];
+      if (s.plain || s.plainText) result.push(s.plain || s.plainText);
+      if (s.nl || s.naturalLanguage) result.push(s.nl || s.naturalLanguage);
+      return result;
+    }).filter(Boolean);
+
+    return {
+      sections: formattedSections,
+      notes,
+      materials: appState.materials || [],
+      hasData: formattedSections.length > 0 || notes.length > 0
+    };
+  }
+
+  // Fall back to checklist state from localStorage
+  const checklistState = loadChecklistState();
   const { sections, materials } = buildDepotOutputFromChecklist(checklistState);
 
-  // Convert sections to the format expected by extractHeatingRequirements
   const formattedSections = sections.map(s => ({
     section: s.name,
     plainText: s.plain,
     naturalLanguage: s.nl
   }));
 
-  // Extract notes from sections (combine plain and natural language)
   const notes = sections.flatMap(s => {
     const result = [];
     if (s.plain) result.push(s.plain);
@@ -169,56 +191,52 @@ function showNoDataDialog() {
  * Loads a session from cloud storage
  */
 async function loadSessionFromCloud() {
-  // Show modal with session list
   showLoadingModal('Loading sessions from cloud...');
 
   try {
-    // TODO: Implement cloud session loading
-    // For now, show a placeholder
-    closeLoadingModal();
+    // Check authentication
+    const authModule = window.DepotAuth;
+    if (!authModule || !authModule.isAuthenticated || !authModule.isAuthenticated()) {
+      closeLoadingModal();
+      if (confirm('You need to sign in to access cloud sessions. Sign in now?')) {
+        window.location.href = 'login.html';
+      }
+      return;
+    }
 
-    const modal = document.createElement('div');
-    modal.id = 'cloud-session-modal';
-    modal.style.cssText = `
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background: rgba(0, 0, 0, 0.8);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 10000;
-      overflow-y: auto;
-      padding: 20px;
-    `;
+    // Get worker URL
+    const workerUrl = localStorage.getItem('depot.workerUrl') ||
+                      localStorage.getItem('depot-worker-url') ||
+                      'https://depot-voice-notes.martinbibb.workers.dev';
 
-    modal.innerHTML = `
-      <div style="background: white; padding: 40px; border-radius: 16px; max-width: 800px; width: 100%; box-shadow: 0 10px 40px rgba(0,0,0,0.3);">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px;">
-          <h2 style="margin: 0; font-size: 24px; font-weight: 700; color: #333;">Load Session from Cloud</h2>
-          <button onclick="this.closest('#cloud-session-modal').remove()" style="background: #e2e8f0; border: none; color: #64748b; font-size: 24px; width: 40px; height: 40px; border-radius: 50%; cursor: pointer;">×</button>
-        </div>
+    const userInfo = authModule.getUserInfo ? authModule.getUserInfo() : null;
 
-        <div id="cloudSessionList" style="min-height: 200px;">
-          <div style="text-align: center; padding: 60px 20px; color: #999;">
-            <div style="font-size: 48px; margin-bottom: 20px;">☁️</div>
-            <p style="font-size: 16px; margin: 0;">Cloud session loading coming soon!</p>
-            <p style="font-size: 14px; margin: 10px 0 0 0;">For now, please use "Load Session from File" or start a new recording.</p>
-          </div>
-        </div>
-      </div>
-    `;
+    if (!userInfo || !userInfo.token) {
+      closeLoadingModal();
+      alert('Authentication token not found. Please sign in again.');
+      window.location.href = 'login.html';
+      return;
+    }
 
-    document.body.appendChild(modal);
-
-    // Close on backdrop click
-    modal.addEventListener('click', (e) => {
-      if (e.target === modal) {
-        modal.remove();
+    // Fetch sessions from cloud
+    const response = await fetch(`${workerUrl}/cloud-session`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${userInfo.token}`,
+        'Content-Type': 'application/json'
       }
     });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch sessions: ${response.status} ${response.statusText}`);
+    }
+
+    const sessions = await response.json();
+
+    closeLoadingModal();
+
+    // Display session list
+    displayCloudSessionList(sessions, workerUrl, userInfo.token);
 
   } catch (error) {
     closeLoadingModal();
@@ -228,9 +246,155 @@ async function loadSessionFromCloud() {
 }
 
 /**
+ * Displays the cloud session list modal
+ */
+function displayCloudSessionList(sessions, workerUrl, token) {
+  const modal = document.createElement('div');
+  modal.id = 'cloud-session-modal';
+  modal.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    overflow-y: auto;
+    padding: 20px;
+  `;
+
+  const sessionItems = Array.isArray(sessions) && sessions.length > 0
+    ? sessions.map(session => `
+        <div class="cloud-session-item" data-session-id="${session.id || ''}" style="padding: 16px; border: 1px solid #e2e8f0; border-radius: 8px; cursor: pointer; transition: all 0.2s; margin-bottom: 12px;">
+          <div style="font-weight: 600; font-size: 16px; color: #333; margin-bottom: 6px;">${session.sessionName || 'Unnamed Session'}</div>
+          <div style="font-size: 13px; color: #666;">
+            ${session.createdAt ? new Date(session.createdAt).toLocaleString() : 'Unknown date'}
+            ${session.sessionData ? ` • ${(JSON.stringify(session.sessionData).length / 1024).toFixed(1)} KB` : ''}
+          </div>
+        </div>
+      `).join('')
+    : `<div style="text-align: center; padding: 60px 20px; color: #999;">
+         <div style="font-size: 48px; margin-bottom: 20px;">☁️</div>
+         <p style="font-size: 16px; margin: 0;">No saved sessions found</p>
+         <p style="font-size: 14px; margin: 10px 0 0 0;">Start a new recording or use "Save to Cloud" after creating a session.</p>
+       </div>`;
+
+  modal.innerHTML = `
+    <div style="background: white; padding: 40px; border-radius: 16px; max-width: 800px; width: 100%; box-shadow: 0 10px 40px rgba(0,0,0,0.3);">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px;">
+        <h2 style="margin: 0; font-size: 24px; font-weight: 700; color: #333;">Load Session from Cloud</h2>
+        <button id="closeCloudSessionModal" style="background: #e2e8f0; border: none; color: #64748b; font-size: 24px; width: 40px; height: 40px; border-radius: 50%; cursor: pointer;">×</button>
+      </div>
+
+      <div id="cloudSessionList" style="max-height: 500px; overflow-y: auto;">
+        ${sessionItems}
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+
+  // Add event listeners
+  document.getElementById('closeCloudSessionModal').addEventListener('click', () => {
+    modal.remove();
+  });
+
+  // Close on backdrop click
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) {
+      modal.remove();
+    }
+  });
+
+  // Add click handlers to session items
+  document.querySelectorAll('.cloud-session-item').forEach(item => {
+    item.addEventListener('click', async () => {
+      const sessionId = item.dataset.sessionId;
+      modal.remove();
+      await loadAndApplyCloudSession(sessionId, workerUrl, token);
+    });
+
+    // Hover effect
+    item.addEventListener('mouseenter', () => {
+      item.style.backgroundColor = '#f8f9fa';
+      item.style.borderColor = '#667eea';
+    });
+    item.addEventListener('mouseleave', () => {
+      item.style.backgroundColor = 'transparent';
+      item.style.borderColor = '#e2e8f0';
+    });
+  });
+}
+
+/**
+ * Loads and applies a specific cloud session
+ */
+async function loadAndApplyCloudSession(sessionId, workerUrl, token) {
+  showLoadingModal('Loading session...');
+
+  try {
+    // Fetch the specific session
+    const response = await fetch(`${workerUrl}/cloud-session/${sessionId}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to load session: ${response.status} ${response.statusText}`);
+    }
+
+    const session = await response.json();
+    const sessionData = session.sessionData || session;
+
+    // Apply session data to the app
+    window.__depotAppState = {
+      sections: sessionData.sections || [],
+      materials: sessionData.materials || [],
+      checkedItems: sessionData.checkedItems || [],
+      missingInfo: sessionData.missingInfo || [],
+      customerSummary: sessionData.customerSummary || '',
+      quoteNotes: sessionData.quoteNotes || []
+    };
+
+    // Update transcript if present
+    const transcriptInput = document.getElementById('transcriptInput');
+    if (transcriptInput && sessionData.fullTranscript) {
+      transcriptInput.value = sessionData.fullTranscript;
+    }
+
+    // Store session name
+    if (sessionData.sessionName) {
+      localStorage.setItem('depot.currentSessionName', sessionData.sessionName);
+    }
+
+    closeLoadingModal();
+
+    // Show success message and offer to generate recommendations
+    const proceed = confirm('Session loaded successfully! Generate system recommendations now?');
+    if (proceed) {
+      showSystemRecommendationPanel();
+    }
+
+  } catch (error) {
+    closeLoadingModal();
+    console.error('❌ Failed to load session:', error);
+    alert(`Failed to load session: ${error.message}`);
+  }
+}
+
+/**
  * Shows a loading modal while recommendations are being generated
  */
 function showLoadingModal(message = 'Generating Recommendations...') {
+  // Remove existing modal if present
+  closeLoadingModal();
+
   const modal = document.createElement('div');
   modal.id = 'system-rec-loading-modal';
   modal.style.cssText = `
@@ -250,7 +414,7 @@ function showLoadingModal(message = 'Generating Recommendations...') {
     <div style="background: white; padding: 40px; border-radius: 12px; text-align: center; box-shadow: 0 10px 40px rgba(0,0,0,0.3);">
       <div style="font-size: 48px; margin-bottom: 20px;">⚙️</div>
       <div style="font-size: 18px; font-weight: 600; color: #333;">${message}</div>
-      <div style="font-size: 14px; color: #666; margin-top: 10px;">Analyzing your survey data</div>
+      <div style="font-size: 14px; color: #666; margin-top: 10px;">Please wait...</div>
     </div>
   `;
 

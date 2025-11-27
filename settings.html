@@ -16,25 +16,28 @@
   </script>
   <style>
     :root {
-      /* Metal Control Deck Theme */
-      --bg: #1a1d24;
-      --card: linear-gradient(145deg, #2a2f3a 0%, #363c4a 50%, #2a2f3a 100%);
-      --border: #4a5568;
+      /* Silver control deck theme (matches main app) */
+      --bg: #e7eaef;
+      --card: linear-gradient(145deg, #f4f6f8 0%, #dde2e7 50%, #f4f6f8 100%);
+      --border: #b5bcc7;
       --accent: #2563eb;
+      --accent-hover: #1d4ed8;
       --accent-soft: #dbeafe;
-      --muted: #94a3b8;
-      --danger: #ef4444;
-      --radius: 4px;
-      --screen-glow: 0 0 20px rgba(37, 99, 235, 0.25);
-      --metal-shine: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.15) 50%, rgba(255,255,255,0) 100%);
-      --button-inset: inset 2px 2px 5px rgba(0,0,0,0.4), inset -2px -2px 5px rgba(255,255,255,0.1);
-      --screen-bg: linear-gradient(180deg, #0f1419 0%, #1a1f29 100%);
+      --muted: #4b5563;
+      --danger: #d14343;
+      --radius: 6px;
+      --screen-glow: 0 0 12px rgba(37, 99, 235, 0.35);
+      --metal-shine: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.35) 50%, rgba(255,255,255,0) 100%);
+      --button-inset: inset 1px 1px 3px rgba(255,255,255,0.65), inset -3px -3px 6px rgba(0,0,0,0.08);
+      --screen-bg: linear-gradient(180deg, #eef2f7 0%, #d8dee6 100%);
+      --text: #1f2937;
     }
 
     :root[data-theme="green"] {
-      --accent: #10b981;
-      --accent-soft: #34d399;
-      --screen-glow: 0 0 20px rgba(16, 185, 129, 0.3);
+      --accent: #2f855a;
+      --accent-hover: #276749;
+      --accent-soft: #c9e4d4;
+      --screen-glow: 0 0 12px rgba(79, 209, 197, 0.35);
     }
     * { box-sizing: border-box; }
 
@@ -55,11 +58,10 @@
 
     body {
       margin: 0;
-      font-family: 'Courier New', 'Consolas', monospace;
+      font-family: 'Inter', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
       background:
-        repeating-linear-gradient(0deg, rgba(0,0,0,0.1) 0px, transparent 1px, transparent 2px, rgba(0,0,0,0.1) 3px),
-        radial-gradient(circle at top, #2d3748 0%, var(--bg) 60%);
-      color: #e2e8f0;
+        linear-gradient(180deg, #f8fafc 0%, #e1e6ee 40%, #d4d9e1 100%);
+      color: var(--text);
       min-height: 100vh;
       padding: 16px;
       position: relative;
@@ -73,9 +75,9 @@
       right: 0;
       bottom: 0;
       background:
-        repeating-linear-gradient(90deg, transparent 0px, rgba(0,255,0,0.03) 1px, transparent 2px),
-        repeating-linear-gradient(0deg, transparent 0px, rgba(0,255,0,0.03) 1px, transparent 2px);
-      background-size: 2px 2px;
+        repeating-linear-gradient(90deg, transparent 0px, rgba(255,255,255,0.25) 2px, transparent 4px),
+        repeating-linear-gradient(0deg, transparent 0px, rgba(0,0,0,0.04) 2px, transparent 4px);
+      background-size: 4px 4px;
       pointer-events: none;
       z-index: 1;
       animation: screenFlicker 3s infinite;
@@ -88,9 +90,9 @@
       margin-bottom: 16px;
       padding: 16px;
       background: var(--card);
-      border: 2px solid var(--border);
+      border: 1px solid var(--border);
       border-radius: var(--radius);
-      box-shadow: var(--button-inset);
+      box-shadow: var(--button-inset), 0 6px 12px rgba(0,0,0,0.08);
       position: relative;
       z-index: 2;
     }
@@ -110,10 +112,10 @@
     header h1 {
       margin: 0;
       font-size: 1.1rem;
-      letter-spacing: 0.15em;
+      letter-spacing: 0.08em;
       text-transform: uppercase;
       color: var(--accent);
-      text-shadow: 0 0 10px var(--accent), 0 0 20px var(--accent);
+      text-shadow: 0 0 6px var(--accent);
       font-weight: 700;
     }
 
@@ -147,13 +149,13 @@
     .card {
       background: var(--card);
       border-radius: var(--radius);
-      border: 2px solid var(--border);
+      border: 1px solid var(--border);
       padding: 16px 18px 18px;
-      color: #e2e8f0;
+      color: var(--text);
       display: flex;
       flex-direction: column;
       gap: 12px;
-      box-shadow: var(--button-inset), 0 4px 12px rgba(0,0,0,0.4);
+      box-shadow: var(--button-inset), 0 10px 18px rgba(0,0,0,0.12);
       position: relative;
       overflow: hidden;
     }
@@ -189,7 +191,7 @@
       margin: 0;
       font-size: .9rem;
       text-transform: uppercase;
-      letter-spacing: .1em;
+      letter-spacing: .08em;
       color: var(--accent);
       text-shadow: 0 0 5px var(--accent);
       font-weight: 700;
@@ -216,7 +218,7 @@
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      background: linear-gradient(145deg, var(--accent) 0%, #059669 100%);
+      background: linear-gradient(145deg, var(--accent) 0%, var(--accent-hover, #1d4ed8) 100%);
       color: #fff;
       white-space: nowrap;
       box-shadow: 0 2px 4px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.2), inset 0 -1px 0 rgba(0,0,0,0.3);
@@ -248,7 +250,7 @@
 
     button:hover:not(:disabled) {
       background: linear-gradient(145deg, var(--accent-soft) 0%, var(--accent) 100%);
-      box-shadow: 0 4px 8px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.3), inset 0 -1px 0 rgba(0,0,0,0.3);
+      box-shadow: 0 4px 8px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.3), inset 0 -1px 0 rgba(0,0,0,0.16);
     }
 
     button:active:not(:disabled) {
@@ -257,12 +259,12 @@
     }
 
     button.secondary {
-      background: linear-gradient(145deg, #475569 0%, #334155 100%);
-      color: #e2e8f0;
+      background: linear-gradient(145deg, #e2e8f0 0%, #cbd5e1 100%);
+      color: var(--text);
     }
 
     button.secondary:hover:not(:disabled) {
-      background: linear-gradient(145deg, #64748b 0%, #475569 100%);
+      background: linear-gradient(145deg, #cbd5e1 0%, #94a3b8 100%);
     }
 
     button.danger {
@@ -283,7 +285,7 @@
     button:disabled {
       opacity: .4;
       cursor: not-allowed;
-      background: linear-gradient(145deg, #374151 0%, #1f2937 100%);
+      background: linear-gradient(145deg, #e5e7eb 0%, #d1d5db 100%);
       color: #6b7280;
     }
     .pill {
@@ -293,7 +295,7 @@
       font-size: .65rem;
       border-radius: var(--radius);
       padding: 4px 10px;
-      background: linear-gradient(145deg, #1f2937 0%, #111827 100%);
+      background: linear-gradient(145deg, #eef2f7 0%, #e2e8f0 100%);
       color: var(--accent);
       border: 1px solid var(--border);
       box-shadow: inset 1px 1px 2px rgba(0,0,0,0.4);
@@ -306,21 +308,21 @@
       padding: 3px 8px;
     }
     .pill-tag {
-      background: linear-gradient(145deg, #1f2937 0%, #111827 100%);
+      background: linear-gradient(145deg, #eef2f7 0%, #e2e8f0 100%);
       border: 1px solid var(--border);
       border-radius: var(--radius);
       padding: 3px 8px;
       font-size: .6rem;
       color: var(--accent);
-      box-shadow: inset 1px 1px 2px rgba(0,0,0,0.4);
+      box-shadow: inset 1px 1px 2px rgba(255,255,255,0.6);
     }
     .rows {
       border-radius: var(--radius);
-      border: 2px solid var(--border);
+      border: 1px solid var(--border);
       max-height: 60vh;
       overflow: auto;
       background: var(--screen-bg);
-      box-shadow: inset 2px 2px 8px rgba(0,0,0,0.6);
+      box-shadow: inset 2px 2px 6px rgba(0,0,0,0.06);
     }
     .row {
       display: grid;
@@ -346,16 +348,16 @@
       padding: 6px 8px;
       border-radius: var(--radius);
       border: 1px solid var(--border);
-      background: linear-gradient(145deg, #1a1f29 0%, #0f1419 100%);
-      color: var(--accent);
-      font-family: 'Courier New', 'Consolas', monospace;
-      box-shadow: inset 1px 1px 3px rgba(0,0,0,0.5);
+      background: linear-gradient(145deg, #f8fafc 0%, #e5e9ef 100%);
+      color: var(--text);
+      font-family: 'Inter', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+      box-shadow: inset 1px 1px 3px rgba(0,0,0,0.08);
     }
 
     .row input[type="text"]:focus {
       outline: none;
       border-color: var(--accent);
-      box-shadow: inset 1px 1px 3px rgba(0,0,0,0.5), 0 0 8px rgba(16, 185, 129, 0.4);
+      box-shadow: inset 1px 1px 3px rgba(0,0,0,0.08), 0 0 8px rgba(37, 99, 235, 0.25);
     }
 
     .row textarea {
@@ -364,12 +366,12 @@
       padding: 6px 8px;
       border-radius: var(--radius);
       border: 1px solid var(--border);
-      background: linear-gradient(145deg, #1a1f29 0%, #0f1419 100%);
-      color: var(--accent);
-      font-family: 'Courier New', 'Consolas', monospace;
+      background: linear-gradient(145deg, #f8fafc 0%, #e5e9ef 100%);
+      color: var(--text);
+      font-family: 'Inter', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
       resize: vertical;
       min-height: 42px;
-      box-shadow: inset 1px 1px 3px rgba(0,0,0,0.5);
+      box-shadow: inset 1px 1px 3px rgba(0,0,0,0.08);
     }
 
     .row textarea:focus {
@@ -384,9 +386,10 @@
     }
     .checklist-rows {
       border-radius: 12px;
-      border: 1px solid #e2e8f0;
+      border: 1px solid var(--border);
       max-height: 60vh;
       overflow: auto;
+      background: #f8fafc;
     }
     .checklist-row {
       display: grid;
@@ -404,12 +407,14 @@
       color: var(--muted);
       min-width: 1.5rem;
     }
-    .checklist-row input[type="text"] {
+    .checklist-row input[type="text"],
+    .checklist-row select {
       width: 100%;
       font-size: .65rem;
-      padding: 3px 4px;
+      padding: 6px 8px;
       border-radius: 6px;
       border: 1px solid #cbd5e1;
+      background: #fff;
     }
     .status {
       font-size: .65rem;
@@ -435,7 +440,7 @@
     }
     .rule-rows {
       border-radius: 12px;
-      border: 1px solid #e2e8f0;
+      border: 1px solid var(--border);
       display: flex;
       flex-direction: column;
       max-height: 50vh;
@@ -454,7 +459,7 @@
     }
     .rule-row strong {
       font-size: .75rem;
-      color: #0f172a;
+      color: var(--text);
     }
     .rule-row textarea {
       width: 100%;
@@ -600,7 +605,7 @@
 
       <div class="toolbar">
         <button id="sections-add-btn">+ Add section</button>
-        <button id="sections-save-btn" class="secondary">Save to browser</button>
+        <button id="sections-save-btn" class="secondary">Save to your profile</button>
         <button id="sections-export-btn" class="secondary">Export JSON</button>
         <button id="sections-import-btn" class="secondary">Import JSON</button>
       </div>
@@ -623,7 +628,7 @@
       </div>
 
       <div class="toolbar">
-        <button id="section-rules-save-btn" class="secondary">Save rules to browser</button>
+        <button id="section-rules-save-btn" class="secondary">Save rules to your profile</button>
         <button id="section-rules-reset-btn" class="secondary">Reset rules to defaults</button>
       </div>
 
@@ -666,14 +671,14 @@
 
       <div class="toolbar">
         <button id="checklist-add-btn">+ Add item</button>
-        <button id="checklist-save-btn" class="secondary">Save to browser</button>
+        <button id="checklist-save-btn" class="secondary">Save to your profile</button>
         <button id="checklist-export-btn" class="secondary">Export JSON</button>
         <button id="checklist-import-btn" class="secondary">Import JSON</button>
       </div>
         <p class="hint">
-          Each item has a stable <strong>ID</strong>, a <strong>group</strong> label, an optional
-          <strong>section link</strong>, plus a visible label and hint. Click <strong>⋯</strong> to expand and edit
-          <strong>AI templates</strong> (plainText & naturalLanguage). The worker uses these templates to generate section content.
+          Click <strong>+ Add item</strong>, set a stable <strong>ID</strong>, then choose a <strong>section</strong> from the dropdown to
+          avoid typos. Add a <strong>group</strong>, <strong>label</strong>, and optional <strong>hint</strong>. Click <strong>⋯</strong> to expand and edit
+          <strong>AI templates</strong> (plainText &amp; naturalLanguage). The worker uses these templates to generate section content.
         </p>
 
       <div class="checklist-rows" id="checklist-rows"></div>
@@ -801,13 +806,65 @@ Output concise, engineer-ready bullets in each section: no waffle, no contradict
     const FUTURE_PLANS_NAME = "Future plans";
 
     // --- Helpers ---
-    function readJSONSafe(key) {
+    function getActiveUserId() {
       try {
-        const raw = localStorage.getItem(key);
+        const raw = localStorage.getItem('depot.userInfo');
         if (!raw) return null;
-        return JSON.parse(raw);
+        const parsed = JSON.parse(raw);
+        return parsed?.id || parsed?._id || parsed?.userId || parsed?.email || parsed?.username || null;
       } catch (_) {
         return null;
+      }
+    }
+
+    function getUserScopedKey(baseKey) {
+      const userId = getActiveUserId();
+      return userId ? `${baseKey}::user:${userId}` : null;
+    }
+
+    function readJSONSafe(key) {
+      const scopedKey = getUserScopedKey(key);
+      const keysToTry = scopedKey ? [scopedKey, key] : [key];
+      for (const candidate of keysToTry) {
+        try {
+          const raw = localStorage.getItem(candidate);
+          if (!raw) continue;
+          return JSON.parse(raw);
+        } catch (_) {
+          // ignore and try fallback
+        }
+      }
+      return null;
+    }
+
+    function writeJSONSafe(key, value) {
+      const payload = JSON.stringify(value);
+      const scopedKey = getUserScopedKey(key);
+      try { localStorage.setItem(key, payload); } catch (_) { /* ignore */ }
+      if (scopedKey) {
+        try { localStorage.setItem(scopedKey, payload); } catch (_) { /* ignore */ }
+      }
+    }
+
+    function readStringSafe(key) {
+      const scopedKey = getUserScopedKey(key);
+      const keysToTry = scopedKey ? [scopedKey, key] : [key];
+      for (const candidate of keysToTry) {
+        try {
+          const raw = localStorage.getItem(candidate);
+          if (raw != null) return raw;
+        } catch (_) {
+          // ignore and try fallback
+        }
+      }
+      return null;
+    }
+
+    function writeStringSafe(key, value) {
+      const scopedKey = getUserScopedKey(key);
+      try { localStorage.setItem(key, value); } catch (_) { /* ignore */ }
+      if (scopedKey) {
+        try { localStorage.setItem(scopedKey, value); } catch (_) { /* ignore */ }
       }
     }
 
@@ -821,6 +878,17 @@ Output concise, engineer-ready bullets in each section: no waffle, no contradict
         ...WORKER_URL_STORAGE_KEYS,
         ...ADDITIONAL_STORAGE_KEYS
       ]);
+
+      const userScopedKeys = [
+        SECTION_STORAGE_KEY,
+        LEGACY_SECTION_STORAGE_KEY,
+        CHECKLIST_STORAGE_KEY,
+        SECTION_RULES_STORAGE_KEY,
+        AI_INSTRUCTIONS_STORAGE_KEY,
+        LS_AUTOSAVE_KEY,
+        ...WORKER_URL_STORAGE_KEYS
+      ].map(getUserScopedKey).filter(Boolean);
+      userScopedKeys.forEach((key) => keys.add(key));
 
       try {
         for (let i = 0; i < localStorage.length; i += 1) {
@@ -1074,6 +1142,7 @@ Output concise, engineer-ready bullets in each section: no waffle, no contradict
       });
 
       renderSectionRules();
+      renderChecklistEditor();
     }
 
     function renderSectionRules() {
@@ -1139,7 +1208,7 @@ Output concise, engineer-ready bullets in each section: no waffle, no contradict
       );
 
       sections = candidate;
-      sectionsStatusEl.innerHTML = `Loaded <strong>${sections.length}</strong> sections (${overrideNew || overrideLegacy ? "from browser storage" : "from bundled schema file"}).`;
+      sectionsStatusEl.innerHTML = `Loaded <strong>${sections.length}</strong> sections (${overrideNew || overrideLegacy ? "from your profile" : "from bundled schema file"}).`;
       renderSections();
     }
 
@@ -1147,8 +1216,9 @@ Output concise, engineer-ready bullets in each section: no waffle, no contradict
       const cleaned = sanitiseSectionSchema(sections);
       // Store as { sections: [...] } for clarity
       const payload = { sections: cleaned };
-      localStorage.setItem(SECTION_STORAGE_KEY, JSON.stringify(payload));
-      sectionsStatusEl.innerHTML = `Saved <strong>${cleaned.length}</strong> sections to browser. Main app will pick these up on next load.`;
+      writeJSONSafe(SECTION_STORAGE_KEY, payload);
+      sectionsStatusEl.innerHTML = `Saved <strong>${cleaned.length}</strong> sections to your profile. Main app will pick these up on next load.`;
+      renderChecklistEditor();
     }
 
     function exportSectionsJSON() {
@@ -1175,9 +1245,9 @@ Output concise, engineer-ready bullets in each section: no waffle, no contradict
           const data = JSON.parse(e.target.result);
           const cleaned = sanitiseSectionSchema(data);
           sections = cleaned;
-          localStorage.setItem(SECTION_STORAGE_KEY, JSON.stringify({ sections: cleaned }));
+          writeJSONSafe(SECTION_STORAGE_KEY, { sections: cleaned });
           renderSections();
-          sectionsStatusEl.innerHTML = `Imported <strong>${cleaned.length}</strong> sections and saved to browser.`;
+          sectionsStatusEl.innerHTML = `Imported <strong>${cleaned.length}</strong> sections and saved to your profile.`;
         } catch (err) {
           console.error(err);
           sectionsStatusEl.classList.add("error");
@@ -1192,16 +1262,9 @@ Output concise, engineer-ready bullets in each section: no waffle, no contradict
       const defaults = getDefaultSectionRules();
       sectionRules = { ...defaults };
 
-      try {
-        const raw = localStorage.getItem(SECTION_RULES_STORAGE_KEY);
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-            sectionRules = { ...defaults, ...parsed };
-          }
-        }
-      } catch (err) {
-        console.warn("Failed to load section rules", err);
+      const stored = readJSONSafe(SECTION_RULES_STORAGE_KEY);
+      if (stored && typeof stored === "object" && !Array.isArray(stored)) {
+        sectionRules = { ...defaults, ...stored };
       }
 
       renderSectionRules();
@@ -1210,8 +1273,8 @@ Output concise, engineer-ready bullets in each section: no waffle, no contradict
 
     function saveSectionRules() {
       try {
-        localStorage.setItem(SECTION_RULES_STORAGE_KEY, JSON.stringify(sectionRules));
-        sectionRulesStatusEl.textContent = "Section rules saved to browser.";
+        writeJSONSafe(SECTION_RULES_STORAGE_KEY, sectionRules);
+        sectionRulesStatusEl.textContent = "Section rules saved to your profile.";
       } catch (err) {
         alert("Unable to save section rules: " + (err?.message || err));
       }
@@ -1263,11 +1326,29 @@ Output concise, engineer-ready bullets in each section: no waffle, no contradict
           checklist[idx].group = groupInput.value.trim();
         };
 
-        const sectionInput = document.createElement("input");
-        sectionInput.type = "text";
+        const sectionInput = document.createElement("select");
+        const placeholderOption = document.createElement("option");
+        placeholderOption.value = "";
+        placeholderOption.textContent = "Choose section (optional)";
+        sectionInput.appendChild(placeholderOption);
+
+        const availableSections = (sections || []).map((sec) => sec.name).filter(Boolean);
+        availableSections.forEach((name) => {
+          const opt = document.createElement("option");
+          opt.value = name;
+          opt.textContent = name;
+          sectionInput.appendChild(opt);
+        });
+
+        if (item.section && !availableSections.includes(item.section)) {
+          const customOpt = document.createElement("option");
+          customOpt.value = item.section;
+          customOpt.textContent = `${item.section} (custom)`;
+          sectionInput.appendChild(customOpt);
+        }
+
         sectionInput.value = item.section || "";
-        sectionInput.placeholder = "Section link (optional)";
-        sectionInput.oninput = () => {
+        sectionInput.onchange = () => {
           checklist[idx].section = sectionInput.value.trim();
         };
 
@@ -1429,7 +1510,7 @@ Output concise, engineer-ready bullets in each section: no waffle, no contradict
       const candidate = override.length ? override : defaults;
       checklist = candidate;
 
-      const source = override.length ? "browser storage" : "checklist.config.json";
+      const source = override.length ? "your profile" : "checklist.config.json";
       checklistStatusEl.innerHTML = `Loaded <strong>${checklist.length}</strong> items (${source}).`;
       renderChecklistEditor();
     }
@@ -1437,8 +1518,8 @@ Output concise, engineer-ready bullets in each section: no waffle, no contradict
     function saveChecklistToLocal() {
       const cleaned = sanitiseChecklistConfig(checklist);
       const payload = { items: cleaned };
-      localStorage.setItem(CHECKLIST_STORAGE_KEY, JSON.stringify(payload));
-      checklistStatusEl.innerHTML = `Saved <strong>${cleaned.length}</strong> checklist items to browser.`;
+      writeJSONSafe(CHECKLIST_STORAGE_KEY, payload);
+      checklistStatusEl.innerHTML = `Saved <strong>${cleaned.length}</strong> checklist items to your profile.`;
     }
 
     function exportChecklistJSON() {
@@ -1465,9 +1546,9 @@ Output concise, engineer-ready bullets in each section: no waffle, no contradict
           const data = JSON.parse(e.target.result);
           const cleaned = sanitiseChecklistConfig(data);
           checklist = cleaned;
-          localStorage.setItem(CHECKLIST_STORAGE_KEY, JSON.stringify({ items: cleaned }));
+          writeJSONSafe(CHECKLIST_STORAGE_KEY, { items: cleaned });
           renderChecklistEditor();
-          checklistStatusEl.innerHTML = `Imported <strong>${cleaned.length}</strong> checklist items and saved to browser.`;
+          checklistStatusEl.innerHTML = `Imported <strong>${cleaned.length}</strong> checklist items and saved to your profile.`;
         } catch (err) {
           console.error(err);
           checklistStatusEl.classList.add("error");
@@ -1545,13 +1626,14 @@ Output concise, engineer-ready bullets in each section: no waffle, no contradict
 
     // --- Export Format Preferences ---
     function loadExportFormat() {
-      const format = localStorage.getItem('exportFormat') || 'json';
+      const stored = readStringSafe('exportFormat');
+      const format = stored || 'json';
       const radioBtn = document.getElementById(format === 'csv' ? 'formatCSV' : 'formatJSON');
       if (radioBtn) radioBtn.checked = true;
     }
 
     function saveExportFormat(format) {
-      localStorage.setItem('exportFormat', format);
+      writeStringSafe('exportFormat', format);
     }
 
     document.querySelectorAll('input[name="exportFormat"]').forEach(radio => {
@@ -1626,26 +1708,22 @@ Do not include any explanation outside the JSON.`
 
     function loadAIInstructions() {
       const defaults = getDefaultAIInstructions();
-      try {
-        const raw = localStorage.getItem(AI_INSTRUCTIONS_STORAGE_KEY);
-        if (raw) {
-          const stored = JSON.parse(raw);
-          return {
-            agentChat: stored.agentChat || defaults.agentChat,
-            tweakSection: stored.tweakSection || defaults.tweakSection,
-            depotNotes: stored.depotNotes || defaults.depotNotes
-          };
-        }
-      } catch (err) {
-        console.warn("Failed to read AI instructions override", err);
+      const stored = readJSONSafe(AI_INSTRUCTIONS_STORAGE_KEY);
+      if (stored) {
+        return {
+          agentChat: stored.agentChat || defaults.agentChat,
+          tweakSection: stored.tweakSection || defaults.tweakSection,
+          depotNotes: stored.depotNotes || defaults.depotNotes
+        };
       }
+
       return defaults;
     }
 
     function saveAIInstructions(instructions) {
       try {
-        localStorage.setItem(AI_INSTRUCTIONS_STORAGE_KEY, JSON.stringify(instructions));
-        document.getElementById('ai-status').textContent = "AI instructions saved successfully";
+        writeJSONSafe(AI_INSTRUCTIONS_STORAGE_KEY, instructions);
+        document.getElementById('ai-status').textContent = "AI instructions saved to your profile";
         setTimeout(() => {
           document.getElementById('ai-status').textContent = "";
         }, 3000);
@@ -1690,6 +1768,10 @@ Do not include any explanation outside the JSON.`
       if (!confirm('Reset AI instructions to defaults? This cannot be undone.')) return;
 
       localStorage.removeItem(AI_INSTRUCTIONS_STORAGE_KEY);
+      const scopedAIKey = getUserScopedKey(AI_INSTRUCTIONS_STORAGE_KEY);
+      if (scopedAIKey) {
+        localStorage.removeItem(scopedAIKey);
+      }
       renderAIInstructions();
       document.getElementById('ai-status').textContent = "AI instructions reset to defaults";
       setTimeout(() => {

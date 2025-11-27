@@ -153,6 +153,20 @@ function getAppData() {
   };
 }
 
+async function ensureAuthModule() {
+  if (typeof window.DepotAuth !== 'undefined') {
+    return window.DepotAuth;
+  }
+
+  try {
+    await import('../src/auth/auth-client.js');
+    return window.DepotAuth;
+  } catch (err) {
+    console.error('Failed to load auth module:', err);
+    return undefined;
+  }
+}
+
 /**
  * Save the selected options
  */
@@ -171,30 +185,65 @@ async function saveSelected() {
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
 
   try {
+    const saveTasks = [];
+
     // Handle different save options
     if (options.fullSession) {
-      await saveFullSession(appData, filename, format, timestamp);
+      saveTasks.push(
+        saveFullSession(appData, filename, format, timestamp)
+          .then(() => ({ label: 'Full session', success: true }))
+          .catch(error => ({ label: 'Full session', success: false, error }))
+      );
     }
 
     if (options.depotNotes) {
-      await saveDepotNotes(appData, filename, format, timestamp);
+      saveTasks.push(
+        saveDepotNotes(appData, filename, format, timestamp)
+          .then(() => ({ label: 'Depot notes', success: true }))
+          .catch(error => ({ label: 'Depot notes', success: false, error }))
+      );
     }
 
     if (options.aiNotes) {
-      await saveAINotes(appData, filename, format, timestamp);
+      saveTasks.push(
+        saveAINotes(appData, filename, format, timestamp)
+          .then(() => ({ label: 'AI notes', success: true }))
+          .catch(error => ({ label: 'AI notes', success: false, error }))
+      );
     }
 
     if (options.transcript) {
-      await saveTranscript(appData, filename, format, timestamp);
+      saveTasks.push(
+        saveTranscript(appData, filename, format, timestamp)
+          .then(() => ({ label: 'Transcript', success: true }))
+          .catch(error => ({ label: 'Transcript', success: false, error }))
+      );
     }
 
     // Handle audio export options
     if (options.audioWav) {
-      await saveAudioWav(appData, filename, timestamp);
+      saveTasks.push(
+        saveAudioWav(appData, filename, timestamp)
+          .then(() => ({ label: 'Audio WAV', success: true }))
+          .catch(error => ({ label: 'Audio WAV', success: false, error }))
+      );
     }
 
     if (options.audioMp3) {
-      await saveAudioNative(appData, filename, timestamp);
+      saveTasks.push(
+        saveAudioNative(appData, filename, timestamp)
+          .then(() => ({ label: 'Audio MP3/WebM', success: true }))
+          .catch(error => ({ label: 'Audio MP3/WebM', success: false, error }))
+      );
+    }
+
+    const results = await Promise.all(saveTasks);
+    const successCount = results.filter(r => r.success).length;
+    const failures = results.filter(r => !r.success);
+
+    if (!successCount) {
+      const firstError = failures[0]?.error;
+      throw firstError || new Error('No files were saved');
     }
 
     // Hide modal and show success
@@ -203,11 +252,14 @@ async function saveSelected() {
     // Show feedback
     const statusBar = document.getElementById('statusBar');
     if (statusBar) {
-      const count = [options.fullSession, options.depotNotes, options.aiNotes, options.transcript, options.audioWav, options.audioMp3].filter(Boolean).length;
-      statusBar.textContent = `Saved ${count} file(s) successfully`;
+      statusBar.textContent = `Saved ${successCount} file(s) successfully`;
       setTimeout(() => {
         statusBar.textContent = 'Idle (Online • Manual)';
       }, 3000);
+    }
+
+    if (failures.length) {
+      alert(`Saved ${successCount} item(s), but some failed: ${failures.map(f => f.label).join(', ')}`);
     }
   } catch (error) {
     console.error('Save error:', error);
@@ -633,8 +685,10 @@ async function saveSessionToCloud() {
   const cloudSaveBtnText = document.getElementById('cloudSaveBtnText');
   const cloudSaveStatus = document.getElementById('cloudSaveStatus');
 
+  const authModule = await ensureAuthModule();
+
   // Check authentication
-  if (typeof window.DepotAuth === 'undefined' || !window.DepotAuth.isAuthenticated()) {
+  if (!authModule || !authModule.isAuthenticated()) {
     cloudSaveStatus.style.color = 'var(--danger)';
     cloudSaveStatus.textContent = '⚠️ Please sign in to save to cloud';
     setTimeout(() => {
@@ -686,7 +740,7 @@ async function saveSessionToCloud() {
   try {
     // Get worker URL
     const workerUrl = localStorage.getItem('depot.workerUrl') || '/api';
-    const userInfo = window.DepotAuth.getUserInfo();
+    const userInfo = authModule?.getUserInfo();
 
     // Send to cloud
     const response = await fetch(`${workerUrl}/cloud-session`, {

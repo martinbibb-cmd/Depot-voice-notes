@@ -626,6 +626,114 @@ function downloadFile(blob, filename) {
 }
 
 /**
+ * Save session to cloud (Voice Notes 2.0)
+ */
+async function saveSessionToCloud() {
+  const cloudSaveBtn = document.getElementById('saveToCloudBtn');
+  const cloudSaveBtnText = document.getElementById('cloudSaveBtnText');
+  const cloudSaveStatus = document.getElementById('cloudSaveStatus');
+
+  // Check authentication
+  if (typeof window.DepotAuth === 'undefined' || !window.DepotAuth.isAuthenticated()) {
+    cloudSaveStatus.style.color = 'var(--danger)';
+    cloudSaveStatus.textContent = '⚠️ Please sign in to save to cloud';
+    setTimeout(() => {
+      if (confirm('Sign in to save sessions to the cloud?')) {
+        window.location.href = 'login.html';
+      }
+    }, 500);
+    return;
+  }
+
+  // Get session data
+  const sessionData = window.__depotAppState || {};
+  const transcript = document.getElementById('transcriptInput')?.value || '';
+  const audioChunks = window.__depotSessionAudioChunks || [];
+  const audioMime = window.__depotLastAudioMime || '';
+
+  // Build session object
+  const session = {
+    version: 1,
+    createdAt: new Date().toISOString(),
+    sessionName: getSessionReference(),
+    fullTranscript: transcript,
+    sections: sessionData.sections || [],
+    materials: sessionData.materials || [],
+    checkedItems: sessionData.checkedItems || [],
+    missingInfo: sessionData.missingInfo || [],
+    customerSummary: sessionData.customerSummary || '',
+    quoteNotes: sessionData.quoteNotes || []
+  };
+
+  // Include audio if present
+  if (audioChunks && audioChunks.length > 0) {
+    try {
+      const audioBlob = new Blob(audioChunks, { type: audioMime || 'audio/webm' });
+      const base64 = await blobToBase64(audioBlob);
+      session.audioMime = audioMime;
+      session.audioBase64 = base64;
+    } catch (err) {
+      console.warn('Could not encode audio for cloud save:', err);
+    }
+  }
+
+  // Disable button during save
+  cloudSaveBtn.disabled = true;
+  cloudSaveBtnText.textContent = '☁️ Saving...';
+  cloudSaveStatus.style.color = 'var(--muted)';
+  cloudSaveStatus.textContent = 'Uploading session to cloud...';
+
+  try {
+    // Get worker URL
+    const workerUrl = localStorage.getItem('depot.workerUrl') || '/api';
+    const userInfo = window.DepotAuth.getUserInfo();
+
+    // Send to cloud
+    const response = await fetch(`${workerUrl}/cloud-session`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${userInfo?.token || ''}`
+      },
+      body: JSON.stringify({
+        sessionName: session.sessionName,
+        sessionData: session,
+        userId: userInfo?.id || userInfo?.email
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`Cloud save failed: ${response.status} ${response.statusText}`);
+    }
+
+    const result = await response.json();
+
+    // Success
+    cloudSaveBtn.disabled = false;
+    cloudSaveBtnText.textContent = '✅ Saved to Cloud';
+    cloudSaveStatus.style.color = 'var(--success)';
+    cloudSaveStatus.textContent = `✅ Session saved successfully! (${(JSON.stringify(session).length / 1024).toFixed(1)} KB)`;
+
+    // Reset button text after 3 seconds
+    setTimeout(() => {
+      cloudSaveBtnText.textContent = '☁️ Save Session to Cloud';
+    }, 3000);
+
+  } catch (error) {
+    console.error('Cloud save error:', error);
+    cloudSaveBtn.disabled = false;
+    cloudSaveBtnText.textContent = '❌ Save Failed';
+    cloudSaveStatus.style.color = 'var(--danger)';
+    cloudSaveStatus.textContent = `❌ Error: ${error.message || 'Could not save to cloud'}`;
+
+    // Reset button text after 5 seconds
+    setTimeout(() => {
+      cloudSaveBtnText.textContent = '☁️ Save Session to Cloud';
+    }, 5000);
+  }
+}
+
+/**
  * Initialize save menu event listeners
  */
 export function initSaveMenu() {
@@ -645,6 +753,12 @@ export function initSaveMenu() {
 
   if (confirmSaveMenuBtn) {
     confirmSaveMenuBtn.addEventListener('click', saveSelected);
+  }
+
+  // Cloud save button (Voice Notes 2.0)
+  const saveToCloudBtn = document.getElementById('saveToCloudBtn');
+  if (saveToCloudBtn) {
+    saveToCloudBtn.addEventListener('click', saveSessionToCloud);
   }
 
   // Close modal when clicking outside

@@ -2599,5 +2599,17 @@
   <script type="module" src="./js/uiEnhancements.js"></script>
   <script type="module" src="./js/main.js"></script>
   <script type="module" src="./js/mainIntegration.js"></script>
+
+  <!-- System Recommendation Integration -->
+  <script type="module">
+    import { initSystemRecommendationUI } from './js/systemRecommendationUI.js';
+
+    // Initialize when DOM is ready
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initSystemRecommendationUI);
+    } else {
+      initSystemRecommendationUI();
+    }
+  </script>
 </body>
 </html>

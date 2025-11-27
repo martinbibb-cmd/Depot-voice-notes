@@ -20,6 +20,7 @@ const waveformBars = audioWaveform?.querySelectorAll('.waveform-bar');
 const processedTranscriptDisplay = document.getElementById('processedTranscriptDisplay');
 const aiNotesList = document.getElementById('aiNotesList');
 const liveTranscriptBadge = document.getElementById('liveTranscriptBadge');
+let lastAiNotes = [];
 
 // Audio Timer Functions
 export function startAudioTimer() {
@@ -188,15 +189,25 @@ export function updateProcessedTranscript(text) {
 export function updateAINotes(notes) {
   if (!aiNotesList) return;
 
-  if (!notes || notes.length === 0) {
+  const normalised = Array.isArray(notes)
+    ? notes.map(note => ({
+      title: note.title || note.section || 'Note',
+      content: note.content || note.text || note.value || ''
+    })).filter(note => note.content)
+    : [];
+
+  lastAiNotes = normalised;
+
+  if (!normalised.length) {
     aiNotesList.innerHTML = '<span class="small">No AI notes yet.</span>';
+    window.dispatchEvent(new CustomEvent('aiNotesUpdated', { detail: { notes: [] } }));
     return;
   }
 
   // Format notes as narrative sections
-  const html = notes.map(note => {
-    const title = note.title || note.section || 'Note';
-    const content = note.content || note.text || note.value || '';
+  const html = normalised.map(note => {
+    const title = note.title || 'Note';
+    const content = note.content || '';
 
     return `
       <div class="section-item">
@@ -207,6 +218,12 @@ export function updateAINotes(notes) {
   }).join('');
 
   aiNotesList.innerHTML = html;
+
+  window.dispatchEvent(new CustomEvent('aiNotesUpdated', { detail: { notes: lastAiNotes.slice() } }));
+}
+
+export function getAiNotes() {
+  return lastAiNotes.slice();
 }
 
 // Live Transcript Badge Animation

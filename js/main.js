@@ -17,7 +17,7 @@ import {
   analyzeTranscriptForQuestions,
   resetAskedQuestions
 } from "./agentMode.js";
-// import { showSendSectionsSlideOver, updateSendSectionsSlideOver } from "./sendSections.js";  // Removed - now using "Add to transcript" instead
+import { showSendSectionsSlideOver, updateSendSectionsSlideOver } from "./sendSections.js";
 import { initWhat3Words } from "./what3words.js";
 import {
   retryWithBackoff,
@@ -35,6 +35,7 @@ import {
   populateGroupFilter,
   resetChecklistFilters
 } from "./checklistEnhancements.js";
+import { getAiNotes } from "./uiEnhancements.js";
 
 // --- CONFIG / STORAGE KEYS ---
 const SECTION_STORAGE_KEY = "depot.sectionSchema";
@@ -232,6 +233,7 @@ const voiceErrorEl = document.getElementById("voice-error");
 const sleepWarningEl = document.getElementById("sleep-warning");
 const settingsBtn = document.getElementById("settingsBtn");
 const bugReportBtn = document.getElementById("bugReportBtn");
+const sendSectionsBtn = document.getElementById("sendSectionsBtn");
 const workerDebugEl = document.getElementById("workerDebug");
 const debugSectionsPre = document.getElementById("debugSectionsJson");
 const debugSectionsDetails = document.getElementById("debugSections");
@@ -424,6 +426,19 @@ function sanitiseChecklistArray(value) {
   return cleaned;
 }
 
+function normaliseChecklistConfigSource(raw) {
+  const base = { sectionsOrder: [], items: [] };
+
+  if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+    base.sectionsOrder = Array.isArray(raw.sectionsOrder) ? raw.sectionsOrder.slice() : [];
+    base.items = sanitiseChecklistArray(raw.items);
+    return base;
+  }
+
+  base.items = sanitiseChecklistArray(raw);
+  return base;
+}
+
 async function loadChecklistConfig() {
   // 1) Try local override from browser storage
   const localRaw = safeParseJSON(localStorage.getItem(CHECKLIST_STORAGE_KEY), null);
@@ -431,17 +446,17 @@ async function loadChecklistConfig() {
   // 2) Try defaults from checklist.config.json
   const defaultsRaw = await fetchJSONNoStore("checklist.config.json");
 
-  const localClean = sanitiseChecklistArray(localRaw);
-  const defaultsClean = sanitiseChecklistArray(defaultsRaw);
+  const localConfig = normaliseChecklistConfigSource(localRaw);
+  const defaultsConfig = normaliseChecklistConfigSource(defaultsRaw);
 
   // 3) Prefer local override if it has content
-  const candidate = localClean.length ? localClean : defaultsClean;
+  const candidate = localConfig.items.length ? localConfig : defaultsConfig;
 
-  if (!candidate.length) {
+  if (!candidate.items.length) {
     console.warn("Checklist config: no items from localStorage or checklist.config.json");
   } else {
-    const sourceLabel = localClean.length ? "browser override" : "checklist.config.json";
-    console.log(`Checklist config: loaded ${candidate.length} items (${sourceLabel})`);
+    const sourceLabel = localConfig.items.length ? "browser override" : "checklist.config.json";
+    console.log(`Checklist config: loaded ${candidate.items.length} items (${sourceLabel})`);
   }
 
   return candidate;
@@ -887,7 +902,10 @@ function syncSectionsState(rawSections = lastRawSections) {
   updateDebugSnapshot();
 
   // Update the slide-over if it's open
-  updateSendSectionsSlideOver(normalised);
+  updateSendSectionsSlideOver({
+    autoSections: normalised,
+    aiSections: getAiNotes()
+  });
 }
 
 function firstDefined(...values) {
@@ -2812,6 +2830,21 @@ if (settingsBtn) {
     window.location.href = "settings.html";
   });
 }
+
+if (sendSectionsBtn) {
+  sendSectionsBtn.addEventListener("click", () => {
+    const autoSections = Array.isArray(lastSections) ? lastSections : [];
+    const aiSections = getAiNotes();
+    showSendSectionsSlideOver({ autoSections, aiSections });
+  });
+}
+
+window.addEventListener("aiNotesUpdated", (event) => {
+  updateSendSectionsSlideOver({
+    autoSections: lastSections,
+    aiSections: (event?.detail?.notes && Array.isArray(event.detail.notes)) ? event.detail.notes : getAiNotes()
+  });
+});
 
 if (bugReportBtn) {
   bugReportBtn.addEventListener("click", () => {

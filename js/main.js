@@ -52,6 +52,12 @@ General rules:
 - Avoid contradictions in the same section.
 - When there is a conflict between earlier speculative text and later, typed "summary" lines from the adviser, ALWAYS prefer the later summary lines.
 - Preserve the adviser's intent, not the raw transcription glitches.
+- Never invent requirements that are not explicitly mentioned (for example, do not add a Powerflush unless the transcript clearly says it).
+
+Multiple quotes / A-B options:
+- If the transcript clearly discusses multiple quote options (A/B/C or first/second/third quote), generate a separate set of notes for each quote, labelled "Quote A", "Quote B", etc.
+- Each quote's notes should follow the same section headings; only include sections where the transcript provides detail for that quote.
+- If only one quote is present, keep a single set of notes.
 
 High-priority source of truth:
 - If the transcript contains a clearly typed list or short summary entered by the adviser (for example in a "Customer summary", "Engineer notes", or "typed notes" section), treat these as the final instructions.
@@ -252,7 +258,8 @@ if (typeof window !== "undefined") {
 // --- STATE ---
 const APP_STATE = {
   sections: [],
-  notes: []
+  notes: [],
+  quoteNotes: []
 };
 let lastMaterials = [];
 let lastRawSections = [];
@@ -260,6 +267,7 @@ let lastSections = [];
 let lastCheckedItems = [];
 let lastMissingInfo = [];
 let lastCustomerSummary = "";
+let lastQuoteNotes = [];
 let wasBackgroundedDuringSession = false;
 let pauseReason = null;
 let lastWorkerPayload = null;
@@ -281,6 +289,7 @@ function exposeStateToWindow() {
   window.__depotSessionAudioChunks = sessionAudioChunks;
   window.__depotLastAudioMime = lastAudioMime;
   window.__depotAppState = APP_STATE;
+  window.__depotQuoteNotes = lastQuoteNotes;
   window.lastSections = lastSections; // Expose for what3words and other integrations
 }
 
@@ -291,6 +300,10 @@ function updateAppStateSnapshot() {
   APP_STATE.checkedItems = Array.isArray(lastCheckedItems) ? [...lastCheckedItems] : [];
   APP_STATE.missingInfo = Array.isArray(lastMissingInfo) ? [...lastMissingInfo] : [];
   APP_STATE.customerSummary = lastCustomerSummary || "";
+  APP_STATE.quoteNotes = Array.isArray(lastQuoteNotes) ? lastQuoteNotes.map((variant) => ({
+    label: variant.label,
+    sections: Array.isArray(variant.sections) ? variant.sections.map((sec) => ({ ...sec })) : []
+  })) : [];
   APP_STATE.fullTranscript = (transcriptInput?.value || "").trim();
   APP_STATE.transcriptText = APP_STATE.fullTranscript;
 }
@@ -307,6 +320,12 @@ function buildStateSnapshot() {
       checkedItems: Array.isArray(lastCheckedItems) ? [...lastCheckedItems] : [],
       customerSummary: lastCustomerSummary || ""
     },
+    quoteNotes: Array.isArray(lastQuoteNotes)
+      ? lastQuoteNotes.map((variant) => ({
+        label: variant.label,
+        sections: Array.isArray(variant.sections) ? variant.sections.map((sec) => ({ ...sec })) : []
+      }))
+      : [],
     transcriptText: APP_STATE.fullTranscript,
     fullTranscript: APP_STATE.fullTranscript
   };
@@ -322,6 +341,7 @@ function autoSaveSessionToLocal() {
       (Array.isArray(lastMaterials) && lastMaterials.length) ||
       (Array.isArray(lastCheckedItems) && lastCheckedItems.length) ||
       (Array.isArray(lastMissingInfo) && lastMissingInfo.length) ||
+      (Array.isArray(lastQuoteNotes) && lastQuoteNotes.length) ||
       (lastCustomerSummary && lastCustomerSummary.trim());
 
     if (!hasContent) {
@@ -699,6 +719,45 @@ function normaliseDepotSections(rawSections) {
   return ordered;
 }
 
+function normaliseQuoteVariants(rawVariants) {
+  if (!Array.isArray(rawVariants) || !rawVariants.length) return [];
+
+  return rawVariants
+    .map((variant, idx) => {
+      if (!variant || typeof variant !== "object") return null;
+
+      const label = String(
+        variant.label ||
+        variant.title ||
+        variant.name ||
+        variant.quoteName ||
+        variant.option ||
+        ""
+      ).trim();
+
+      const sections = normaliseDepotSections(
+        Array.isArray(variant.sections)
+          ? variant.sections
+          : Array.isArray(variant.notes)
+            ? variant.notes
+            : []
+      );
+
+      const hasContent = sections.some((sec) =>
+        (sec.plainText && sec.plainText.trim()) ||
+        (sec.naturalLanguage && sec.naturalLanguage.trim())
+      );
+
+      if (!hasContent) return null;
+
+      return {
+        label: label || `Quote ${String.fromCharCode(65 + idx)}`,
+        sections
+      };
+    })
+    .filter(Boolean);
+}
+
 // --- Semantic Deduplication Helpers ---
 function normalizeTextForComparison(text) {
   if (!text || typeof text !== "string") return "";
@@ -835,6 +894,31 @@ function cleanSectionsList(sections) {
   return sections.map((section) => cleanSectionContent(section));
 }
 
+function mergeSectionsAndQuoteVariants(baseSections, quoteVariants) {
+  const merged = Array.isArray(baseSections)
+    ? baseSections.map((sec) => ({ ...sec }))
+    : [];
+
+  if (!Array.isArray(quoteVariants) || !quoteVariants.length) {
+    return merged;
+  }
+
+  quoteVariants.forEach((variant) => {
+    if (!variant || !Array.isArray(variant.sections)) return;
+    const label = variant.label || "Quote option";
+    variant.sections.forEach((sec) => {
+      if (!sec || typeof sec !== "object") return;
+      merged.push({
+        section: `${label} — ${sec.section || "Section"}`,
+        plainText: sec.plainText || "",
+        naturalLanguage: sec.naturalLanguage || ""
+      });
+    });
+  });
+
+  return merged;
+}
+
 function getCanonicalSectionNames(schemaOverride) {
   if (Array.isArray(schemaOverride) && schemaOverride.length) {
     return schemaOverride
@@ -901,11 +985,17 @@ function syncSectionsState(rawSections = lastRawSections) {
   updateAppStateSnapshot();
   updateDebugSnapshot();
 
+  const combinedSections = mergeSectionsAndQuoteVariants(normalised, lastQuoteNotes);
+
   // Update the slide-over if it's open
   updateSendSectionsSlideOver({
-    autoSections: normalised,
+    autoSections: combinedSections,
     aiSections: getAiNotes()
   });
+}
+
+function getSectionsForSharing() {
+  return mergeSectionsAndQuoteVariants(lastSections, lastQuoteNotes);
 }
 
 function firstDefined(...values) {
@@ -1512,11 +1602,14 @@ function buildVoiceRequestPayload(transcript, schema = SECTION_SCHEMA) {
     .map(sec => (sec && sec.name ? String(sec.name).trim() : ""))
     .filter(Boolean);
 
+  const multipleQuotesHint = detectMultipleQuotesInTranscript();
+
   return {
     transcript,
     alreadyCaptured: existingSections,
     expectedSections,
     sectionHints: deriveSectionHints(),
+    multipleQuotesHint,
     forceStructured: true,
     checklistItems: CHECKLIST_SOURCE,
     depotSections: canonicalSchema,
@@ -1538,6 +1631,31 @@ function normaliseSectionsFromResponse(data, _schema = SECTION_SCHEMA) {
   const normalised = normaliseDepotSections(rawSections);
   data.sections = normalised;
   return normalised;
+}
+
+function extractQuoteVariants(data) {
+  if (!data || typeof data !== "object") return [];
+
+  const fromTopLevel = Array.isArray(data.quoteNotes)
+    ? data.quoteNotes
+    : Array.isArray(data.quoteVariants)
+      ? data.quoteVariants
+      : Array.isArray(data.quoteOptions)
+        ? data.quoteOptions
+        : null;
+
+  const fromDepotNotes = data.depotNotes && typeof data.depotNotes === "object"
+    ? (Array.isArray(data.depotNotes.quoteNotes)
+      ? data.depotNotes.quoteNotes
+      : Array.isArray(data.depotNotes.quoteVariants)
+        ? data.depotNotes.quoteVariants
+        : Array.isArray(data.depotNotes.quotes)
+          ? data.depotNotes.quotes
+          : null)
+    : null;
+
+  const candidate = fromTopLevel || fromDepotNotes || [];
+  return normaliseQuoteVariants(candidate);
 }
 
 // Plaintext shaping helpers
@@ -1826,6 +1944,49 @@ function refreshUiFromState() {
     sectionsListEl.appendChild(div);
   });
 
+  if (Array.isArray(lastQuoteNotes) && lastQuoteNotes.length) {
+    const divider = document.createElement("div");
+    divider.className = "quote-variant-divider";
+    divider.innerHTML = `
+      <h3 style="margin: 12px 0 4px 0;">Additional quote options</h3>
+      <p class="small" style="margin: 0 0 8px 0; color: var(--muted);">Separate notes for alternative quotes (read-only).</p>
+    `;
+    sectionsListEl.appendChild(divider);
+
+    lastQuoteNotes.forEach((variant) => {
+      const header = document.createElement("div");
+      header.className = "quote-variant-header";
+      header.innerHTML = `<h4 style="margin: 6px 0;">${variant.label || "Alternate quote"}</h4>`;
+      sectionsListEl.appendChild(header);
+
+      const variantSections = Array.isArray(variant.sections) ? variant.sections : [];
+      variantSections.forEach((variantSection) => {
+        const div = document.createElement("div");
+        div.className = "section-item quote-variant";
+        const plainTextRaw = typeof variantSection.plainText === "string" ? variantSection.plainText : "";
+        const formattedPlain = plainTextRaw
+          ? formatPlainTextForSection(variantSection.section, plainTextRaw).trim()
+          : "";
+        const naturalLanguage = typeof variantSection.naturalLanguage === "string" ? variantSection.naturalLanguage.trim() : "";
+        const preClassAttr = formattedPlain ? "" : " class=\"placeholder\"";
+        const naturalMarkup = naturalLanguage
+          ? `<p class="small" style="margin-top:3px;">${naturalLanguage}</p>`
+          : "";
+        div.innerHTML = `
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+            <h4 style="margin: 0;">${variantSection.section || "Section"}</h4>
+            <span class="small" style="color: var(--muted);">${variant.label || "Quote option"}</span>
+          </div>
+          <div class="section-content-view">
+            <pre${preClassAttr}>${formattedPlain || "No bullets yet."}</pre>
+            ${naturalMarkup}
+          </div>
+        `;
+        sectionsListEl.appendChild(div);
+      });
+    });
+  }
+
   // Attach event listeners to edit buttons
   const editBtns = sectionsListEl.querySelectorAll('.edit-section-btn-inline');
   editBtns.forEach(btn => {
@@ -1909,6 +2070,7 @@ function applyVoiceResult(result) {
   const prevSummary = lastCustomerSummary;
   const prevChecked = Array.isArray(lastCheckedItems) ? lastCheckedItems.slice() : [];
   const prevMissing = Array.isArray(lastMissingInfo) ? lastMissingInfo.slice() : [];
+  const prevQuoteNotes = Array.isArray(lastQuoteNotes) ? lastQuoteNotes.slice() : [];
 
   let updated = false;
 
@@ -1928,6 +2090,19 @@ function applyVoiceResult(result) {
   }
   lastRawSections = cloneDeep(mergedSections);
   syncSectionsState(lastRawSections);
+
+  const quoteVariants = extractQuoteVariants(result);
+  const prevQuoteJson = JSON.stringify(prevQuoteNotes);
+  const nextQuoteJson = JSON.stringify(quoteVariants);
+  if (prevQuoteJson !== nextQuoteJson) {
+    updated = true;
+  }
+  lastQuoteNotes = quoteVariants;
+  updateAppStateSnapshot();
+  updateSendSectionsSlideOver({
+    autoSections: getSectionsForSharing(),
+    aiSections: getAiNotes()
+  });
 
   if (Array.isArray(result.materials) && result.materials.length) {
     lastMaterials = result.materials.slice();
@@ -2211,7 +2386,8 @@ async function saveSessionToFile() {
     materials: lastMaterials,
     checkedItems: lastCheckedItems,
     missingInfo: lastMissingInfo,
-    customerSummary: lastCustomerSummary
+    customerSummary: lastCustomerSummary,
+    quoteNotes: lastQuoteNotes
   };
 
   if (sessionAudioChunks && sessionAudioChunks.length > 0) {
@@ -2308,6 +2484,7 @@ loadSessionInput.onchange = async (e) => {
     mediaStream = null;
     mediaRecorder = null;
     await ensureSectionSchema();
+    lastQuoteNotes = extractQuoteVariants(session);
     const normalisedFromSession = normaliseSectionsFromResponse({ sections: lastRawSections }, SECTION_SCHEMA);
     lastRawSections = Array.isArray(normalisedFromSession) ? normalisedFromSession : [];
     syncSectionsState(lastRawSections);
@@ -2833,7 +3010,7 @@ if (settingsBtn) {
 
 if (sendSectionsBtn) {
   sendSectionsBtn.addEventListener("click", () => {
-    const autoSections = Array.isArray(lastSections) ? lastSections : [];
+    const autoSections = getSectionsForSharing();
     const aiSections = getAiNotes();
     showSendSectionsSlideOver({ autoSections, aiSections });
   });
@@ -2841,7 +3018,7 @@ if (sendSectionsBtn) {
 
 window.addEventListener("aiNotesUpdated", (event) => {
   updateSendSectionsSlideOver({
-    autoSections: lastSections,
+    autoSections: getSectionsForSharing(),
     aiSections: (event?.detail?.notes && Array.isArray(event.detail.notes)) ? event.detail.notes : getAiNotes()
   });
 });
@@ -2900,6 +3077,7 @@ document.addEventListener("visibilitychange", () => {
             lastCheckedItems = Array.isArray(snap.checkedItems) ? snap.checkedItems : [];
             lastMissingInfo = Array.isArray(snap.missingInfo) ? snap.missingInfo : [];
             lastCustomerSummary = snap.customerSummary || "";
+            lastQuoteNotes = Array.isArray(snap.quoteNotes) ? normaliseQuoteVariants(snap.quoteNotes) : [];
             syncSectionsState(lastRawSections);
             refreshUiFromState();
           }
@@ -2950,6 +3128,7 @@ function resetSessionState() {
   lastCheckedItems = [];
   lastMissingInfo = [];
   lastCustomerSummary = "";
+  lastQuoteNotes = [];
   localStorage.removeItem(LS_AUTOSAVE_KEY);
   clearVoiceError();
   clearSleepWarning();
@@ -3588,6 +3767,7 @@ if (newJobBtn) {
     lastCheckedItems = Array.isArray(snap.checkedItems) ? snap.checkedItems : [];
     lastMissingInfo = Array.isArray(snap.missingInfo) ? snap.missingInfo : [];
     lastCustomerSummary = snap.customerSummary || "";
+    lastQuoteNotes = Array.isArray(snap.quoteNotes) ? normaliseQuoteVariants(snap.quoteNotes) : [];
 
     await ensureSectionSchema();
     const normalisedFromAutosave = normaliseSectionsFromResponse({ sections: lastRawSections }, SECTION_SCHEMA);

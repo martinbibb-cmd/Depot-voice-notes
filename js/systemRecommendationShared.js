@@ -6,6 +6,7 @@ const ENGINE_TO_OPTION_KEY = {
   'system-unvented': 'system_unvented',
 };
 
+// Base descriptions used to turn an engine result into a customer-facing option.
 const BASE_OPTION_DEFS = {
   combi: {
     title: 'High-efficiency combi with smart controls',
@@ -47,8 +48,18 @@ const BASE_OPTION_DEFS = {
 
 const TIER_LABELS = ['GOLD – RECOMMENDED', 'SILVER', 'BRONZE'];
 
-function applyGoldSafetyGate(ranked = [], features = {}) {
-  const result = [...ranked];
+/**
+ * GOLD SAFETY GATE – COMBI
+ *
+ * Make sure a combi only sits as GOLD when it is genuinely appropriate.
+ * Otherwise, if a storage option (Mixergy or unvented) is available,
+ * promote that into GOLD and demote combi.
+ */
+function applyGoldSafetyGate(rankedIds = [], features = {}) {
+  const result = [...rankedIds];
+
+  if (result.length === 0) return result;
+
   const {
     wantsSolarPv = false,
     futureHeatPump = false,
@@ -68,10 +79,12 @@ function applyGoldSafetyGate(ranked = [], features = {}) {
     !existingRegularOrSystem &&
     (lowHotWaterDemand || wantsSpaceSaving);
 
+  // If GOLD is not a combi, or it is clearly acceptable, do nothing.
   if (goldId !== 'combi' || combiGoldIsAcceptable) {
     return result;
   }
 
+  // Otherwise, try to promote a storage option into GOLD.
   const storagePreferenceOrder = ['system_mixergy', 'system_unvented'];
 
   let idxStorage;
@@ -93,7 +106,7 @@ function applyGoldSafetyGate(ranked = [], features = {}) {
 }
 
 function applyGoldSafetyGateToRecommendations(orderedRecs, features) {
-  if (!features) return orderedRecs;
+  if (!features || !Array.isArray(orderedRecs) || orderedRecs.length === 0) return orderedRecs;
 
   const gatedOrder = applyGoldSafetyGate(
     orderedRecs.map((rec) => rec.optionKey),
@@ -108,6 +121,7 @@ function applyGoldSafetyGateToRecommendations(orderedRecs, features) {
     }
   });
 
+  // Add any records not covered by the gate back on the end.
   orderedRecs.forEach((rec) => {
     if (!reordered.includes(rec)) {
       reordered.push(rec);
@@ -117,13 +131,68 @@ function applyGoldSafetyGateToRecommendations(orderedRecs, features) {
   return reordered;
 }
 
+/**
+ * Helper to check when something has been explicitly recommended in the requirements.
+ */
 function isExplicitRecommendation(recommendationKey, requirements) {
   if (!Array.isArray(requirements?.expertRecommendations)) return false;
 
   const normalisedKey = recommendationKey?.replace(/_/g, '-');
-  return requirements.expertRecommendations.some((key) => key === recommendationKey || key === normalisedKey);
+
+  return requirements.expertRecommendations.some(
+    (key) => key === recommendationKey || key === normalisedKey
+  );
 }
 
+/**
+ * MIXERGY SAFETY GATE
+ *
+ * Stop Mixergy from being "default GOLD" unless:
+ *  - PV / EV / future HP is relevant, or
+ *  - the expertRecommendations explicitly call out Mixergy.
+ *
+ * If Mixergy is GOLD and those conditions are NOT met,
+ * try to swap GOLD with an unvented system instead.
+ */
+function applyMixergySafetyGateToRecommendations(orderedRecs, requirements = {}, features = {}) {
+  if (!Array.isArray(orderedRecs) || orderedRecs.length === 0) return orderedRecs;
+
+  const first = orderedRecs[0];
+  if (!first || first.optionKey !== 'system_mixergy') return orderedRecs;
+
+  const wantsSolarPv =
+    features.wantsSolarPv ?? requirements.wantsSolarPv ?? false;
+  const futureHeatPump =
+    features.futureHeatPump ?? requirements.futureHeatPump ?? false;
+
+  const explicitlyWantsMixergy =
+    isExplicitRecommendation('system-mixergy', requirements) ||
+    isExplicitRecommendation('system_mixergy', requirements);
+
+  // If there is a clear reason to keep Mixergy as GOLD, leave it alone.
+  if (explicitlyWantsMixergy || wantsSolarPv || futureHeatPump) {
+    return orderedRecs;
+  }
+
+  // Otherwise, try to promote unvented storage to GOLD instead.
+  const copy = [...orderedRecs];
+  const idxUnvented = copy.findIndex((rec) => rec.optionKey === 'system_unvented');
+
+  if (idxUnvented > 0) {
+    const tmp = copy[0];
+    copy[0] = copy[idxUnvented];
+    copy[idxUnvented] = tmp;
+    return copy;
+  }
+
+  // If there is no unvented candidate, we leave Mixergy as GOLD –
+  // the engine simply hasn't offered a plain-unvented option.
+  return orderedRecs;
+}
+
+/**
+ * Turn a single engine recommendation into a customer-facing option object.
+ */
 function mapEngineResultToOption(recommendation, tierLabel, requirements) {
   const optionKey = ENGINE_TO_OPTION_KEY[recommendation.key];
   const base = BASE_OPTION_DEFS[optionKey];
@@ -131,6 +200,7 @@ function mapEngineResultToOption(recommendation, tierLabel, requirements) {
   if (!base) return null;
 
   const benefits = [...base.baseBenefits];
+
   if (Array.isArray(recommendation.reasons)) {
     recommendation.reasons.slice(0, 3).forEach((reason) => benefits.push(reason));
   }
@@ -149,14 +219,24 @@ function mapEngineResultToOption(recommendation, tierLabel, requirements) {
   };
 }
 
-export function rankOptionsWithEngine(requirements = {}, allowedOptionKeys = Object.values(ENGINE_TO_OPTION_KEY)) {
+/**
+ * Get raw ranked engine results restricted to mapped option keys.
+ */
+export function rankOptionsWithEngine(
+  requirements = {},
+  allowedOptionKeys = Object.values(ENGINE_TO_OPTION_KEY)
+) {
   const { recommendations = [] } = generateRecommendations(requirements);
+
   return recommendations
     .filter((rec) => allowedOptionKeys.includes(ENGINE_TO_OPTION_KEY[rec.key]))
     .map((rec) => ({ ...rec, optionKey: ENGINE_TO_OPTION_KEY[rec.key] }))
     .sort((a, b) => b.score - a.score);
 }
 
+/**
+ * Optional explicit ordering (e.g. force storage to appear above combi in the list).
+ */
 function orderRecommendations(ranked, optionOrder = []) {
   if (!Array.isArray(optionOrder) || optionOrder.length === 0) return ranked;
 
@@ -164,7 +244,9 @@ function orderRecommendations(ranked, optionOrder = []) {
   const ordered = [];
 
   optionOrder.forEach((optionKey) => {
-    const match = ranked.find((rec) => rec.optionKey === optionKey || rec.key === optionKey);
+    const match = ranked.find(
+      (rec) => rec.optionKey === optionKey || rec.key === optionKey
+    );
     if (match && !seen.has(match.optionKey)) {
       ordered.push(match);
       seen.add(match.optionKey);
@@ -181,23 +263,49 @@ function orderRecommendations(ranked, optionOrder = []) {
   return ordered;
 }
 
-export function getProposalOptions(requirements = {}, optionOrder, allowedOptionKeys, customerFeatures) {
+/**
+ * Main entry: build proposal options + keep the underlying ranked list.
+ *
+ * - requirements: full requirements object passed into the engine
+ * - optionOrder: optional explicit ordering of option keys
+ * - allowedOptionKeys: restrict which keys are even allowed (e.g. ban combis)
+ * - customerFeatures: simple boolean flags used for the safety gates
+ */
+export function getProposalOptions(
+  requirements = {},
+  optionOrder,
+  allowedOptionKeys,
+  customerFeatures
+) {
   const ranked = rankOptionsWithEngine(
     requirements,
     allowedOptionKeys || Object.values(ENGINE_TO_OPTION_KEY)
   );
 
-  const ordered = applyGoldSafetyGateToRecommendations(
-    orderRecommendations(ranked, optionOrder),
+  // Apply any explicit ordering first.
+  const ordered = orderRecommendations(ranked, optionOrder);
+
+  // 1) Make sure combi isn't GOLD when obviously wrong.
+  const combiSafe = applyGoldSafetyGateToRecommendations(
+    ordered,
     customerFeatures
   );
-  const options = ordered
+
+  // 2) Make sure Mixergy isn't default GOLD without PV / HP / explicit rec.
+  const fullySafe = applyMixergySafetyGateToRecommendations(
+    combiSafe,
+    requirements,
+    customerFeatures || {}
+  );
+
+  // Map top 3 to proposal options.
+  const options = fullySafe
     .slice(0, 3)
     .map((rec, idx) => mapEngineResultToOption(rec, TIER_LABELS[idx], requirements))
     .filter(Boolean);
 
   return {
     options,
-    ranked: ordered,
+    ranked: fullySafe,
   };
 }

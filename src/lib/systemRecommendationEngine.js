@@ -26,6 +26,7 @@
  * @property {string} currentWater - 'on_demand'|'open_vented'|'unvented'|'mixergy_open'|'mixergy_unvented'
  * @property {number} mainsPressure - Mains water pressure in bar
  * @property {number} flowRate - Mains flow rate in L/min
+ * @property {boolean} [hasSpaceConstraints] - Whether space/loft conversion limits cylinders
  * @property {boolean} [wantsSmartTech] - Customer interested in smart controls/app
  * @property {boolean} [consideringRenewables] - Customer considering solar/heat pump/renewables
  */
@@ -410,7 +411,7 @@ export const waterLabels = {
  * @returns {Object} Evaluation result with score, pros, cons, metrics
  */
 function evaluateOption(boiler, water, input) {
-  const {
+ const {
     houseType,
     occupants,
     bathrooms,
@@ -418,7 +419,10 @@ function evaluateOption(boiler, water, input) {
     currentBoiler,
     currentWater,
     mainsPressure,
-    flowRate
+    flowRate,
+    hasSpaceConstraints,
+    wantsSmartTech,
+    consideringRenewables
   } = input;
 
   const isCombi = boiler === "combi";
@@ -452,7 +456,9 @@ function evaluateOption(boiler, water, input) {
       score += 3;
       relevant.add("pros:Single appliance, frees space");
     } else {
-      score -= 2;
+      score -= 3;
+      cons.push(`Combi output can struggle for ${occupants} people / ${bathrooms} bathrooms`);
+      relevant.add(`cons:Combi output can struggle for ${occupants} people / ${bathrooms} bathrooms`);
       relevant.add(`cons:Hot water lag ${wait}s to tap`);
     }
   } else {
@@ -515,6 +521,59 @@ function evaluateOption(boiler, water, input) {
       pros.push(`✓ Open vented system works with your pressure (${mainsPressure} bar / ${flowRate} L/min)`);
       score += 1;
       relevant.add(`pros:✓ Open vented system works with your pressure (${mainsPressure} bar / ${flowRate} L/min)`);
+    }
+  }
+
+  // future-proofing and renewables
+  if (consideringRenewables) {
+    if (water === "mixergy_unvented" || water === "mixergy_open") {
+      pros.push("Best match for solar/heat pump with smart stratified cylinder");
+      score += 4;
+      relevant.add("pros:Best match for solar/heat pump with smart stratified cylinder");
+    } else if (isUnvented || isOpenVented) {
+      pros.push("Stored hot water gives capacity for solar diverters/heat pumps");
+      score += 2;
+      relevant.add("pros:Stored hot water gives capacity for solar diverters/heat pumps");
+    }
+
+    if (isCombi) {
+      cons.push("Limited renewable storage – combi has no cylinder for solar gains");
+      score -= 3;
+      relevant.add("cons:Limited renewable storage – combi has no cylinder for solar gains");
+    }
+  }
+
+  // smart technology appetite
+  if (wantsSmartTech) {
+    if (water === "mixergy_unvented" || water === "mixergy_open") {
+      pros.push("Mixergy smart cylinder matches smart/APP expectations");
+      score += 3;
+      relevant.add("pros:Mixergy smart cylinder matches smart/APP expectations");
+    } else {
+      cons.push("No dedicated smart cylinder controls highlighted");
+      score -= 1;
+      relevant.add("cons:No dedicated smart cylinder controls highlighted");
+    }
+  }
+
+  // space/loft constraints and future loft conversions
+  if (hasSpaceConstraints) {
+    if (isCombi) {
+      pros.push("Space constrained – combi frees loft and cupboard space");
+      score += 3;
+      relevant.add("pros:Space constrained – combi frees loft and cupboard space");
+    }
+
+    if (isUnvented || water === "mixergy_unvented") {
+      cons.push("Cylinder footprint may clash with space/loft plans");
+      score -= 3;
+      relevant.add("cons:Cylinder footprint may clash with space/loft plans");
+    }
+
+    if (isOpenVented) {
+      cons.push("Loft tanks conflict with loft conversion/space constraints");
+      score -= 2;
+      relevant.add("cons:Loft tanks conflict with loft conversion/space constraints");
     }
   }
 

@@ -163,7 +163,10 @@ export async function buildRecommendationsFromDepotSurvey(requirements) {
       currentBoiler: mapBoilerType(requirements.currentBoilerType),
       currentWater: mapWaterSystem(requirements.currentWaterSystem, requirements.currentBoilerType),
       mainsPressure: waterSupply.pressure,
-      flowRate: waterSupply.flow
+      flowRate: waterSupply.flow,
+      hasSpaceConstraints: Boolean(requirements.hasSpaceConstraints),
+      wantsSmartTech: Boolean(requirements.wantsSmartTech),
+      consideringRenewables: Boolean(requirements.consideringRenewables)
     };
 
     // Call the recommendation engine

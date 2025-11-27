@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Heating Proposal</title>
+  <link rel="stylesheet" href="css/proposal.css">
+</head>
+<body>
+  <div class="proposal-shell">
+    <header class="proposal-header">
+      <div class="branding">
+        <div class="brand-mark">BG</div>
+        <div class="brand-text">
+          <p class="eyebrow">British Gas</p>
+          <h1>Heating Proposal</h1>
+          <p class="muted">Tailored options based on your survey</p>
+        </div>
+      </div>
+      <div class="proposal-meta">
+        <p><span class="label">Customer:</span> <span id="customer-name">Not specified</span></p>
+        <p><span class="label">Address:</span> <span id="customer-address">Not specified</span></p>
+        <p><span class="label">Date:</span> <span id="proposal-date"></span></p>
+      </div>
+    </header>
+
+    <section class="card" aria-labelledby="home-glance-title">
+      <div class="card-header">
+        <div>
+          <p class="eyebrow">Section 1</p>
+          <h2 id="home-glance-title">Your home at a glance</h2>
+        </div>
+      </div>
+      <div class="home-grid">
+        <div>
+          <p class="label">Property type</p>
+          <p id="property-type" class="value">Not specified</p>
+        </div>
+        <div>
+          <p class="label">Bedrooms &amp; bathrooms</p>
+          <p id="property-summary" class="value">Not specified</p>
+        </div>
+        <div>
+          <p class="label">Current heating &amp; hot water</p>
+          <p id="current-system" class="value">Not specified</p>
+        </div>
+        <div>
+          <p class="label">Special notes</p>
+          <p id="special-notes" class="value">Not specified</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="told-us-title">
+      <div class="card-header">
+        <div>
+          <p class="eyebrow">Section 2</p>
+          <h2 id="told-us-title">What you told us</h2>
+          <p class="muted">Your adviser captured these key points from our conversation.</p>
+        </div>
+      </div>
+      <ul id="what-you-told-us-list" class="bullet-list"></ul>
+    </section>
+
+    <section class="card" aria-labelledby="options-title">
+      <div class="card-header">
+        <div>
+          <p class="eyebrow">Section 3</p>
+          <h2 id="options-title">Your heating &amp; hot water options</h2>
+          <p class="muted">Three clear choices based on our system recommendation engine.</p>
+        </div>
+      </div>
+      <div id="options-warning" class="warning" hidden></div>
+      <div class="options-grid">
+        <article class="option-card gold" aria-labelledby="gold-title">
+          <div class="option-header">
+            <h3 id="gold-title">Gold</h3><span class="badge recommended">Recommended</span>
+            <p id="gold-subtitle" class="muted"></p>
+          </div>
+          <div class="option-graphic">
+            <img id="gold-image" alt="System graphic" src="" />
+          </div>
+          <ul id="gold-benefits"></ul>
+          <p id="gold-mini-spec" class="mini-spec"></p>
+        </article>
+
+        <article class="option-card silver" aria-labelledby="silver-title">
+          <div class="option-header">
+            <h3 id="silver-title">Silver</h3>
+            <p id="silver-subtitle" class="muted"></p>
+          </div>
+          <div class="option-graphic">
+            <img id="silver-image" alt="System graphic" src="" />
+          </div>
+          <ul id="silver-benefits"></ul>
+          <p id="silver-mini-spec" class="mini-spec"></p>
+        </article>
+
+        <article class="option-card bronze" aria-labelledby="bronze-title">
+          <div class="option-header">
+            <h3 id="bronze-title">Bronze</h3>
+            <p id="bronze-subtitle" class="muted"></p>
+          </div>
+          <div class="option-graphic">
+            <img id="bronze-image" alt="System graphic" src="" />
+          </div>
+          <ul id="bronze-benefits"></ul>
+          <p id="bronze-mini-spec" class="mini-spec"></p>
+        </article>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="next-steps-title">
+      <div class="card-header">
+        <div>
+          <p class="eyebrow">Section 4</p>
+          <h2 id="next-steps-title">What happens next</h2>
+        </div>
+      </div>
+      <div class="next-steps">
+        <div>
+          <h3>1) Confirm your choice</h3>
+          <p>Select Gold, Silver, or Bronze – we will tailor the paperwork accordingly.</p>
+        </div>
+        <div>
+          <h3>2) Final checks</h3>
+          <p>We confirm access, safety, and any parts needed before booking.</p>
+        </div>
+        <div>
+          <h3>3) Schedule installation</h3>
+          <p>Pick a date that works for you. We’ll confirm timings and engineer details.</p>
+        </div>
+        <div>
+          <h3>4) Aftercare</h3>
+          <p>We walk you through controls, warranties, and service options.</p>
+        </div>
+      </div>
+      <div class="important-notes">
+        <h3>Important notes</h3>
+        <p>Quotes assume standard installation conditions and access. Final price may change if we uncover safety issues or extra works.</p>
+        <p id="important-notes-extra" class="muted"></p>
+      </div>
+    </section>
+  </div>
+
+  <script type="module" src="js/proposal.js"></script>
+</body>
+</html>

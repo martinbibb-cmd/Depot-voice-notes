@@ -11,6 +11,44 @@ import {
 } from '../src/services/systemRecommendationService.js';
 
 import { extractHeatingRequirements } from './recommendationEngine.js';
+import { loadChecklistState } from '../src/app/state.js';
+import { buildDepotOutputFromChecklist } from '../src/notes/notesEngine.js';
+
+/**
+ * Gets current session data from the application state
+ * @returns {{sections: Array, notes: Array, hasData: boolean}}
+ */
+function getCurrentSessionData() {
+  // Load checklist state from localStorage
+  const checklistState = loadChecklistState();
+
+  // Build depot output from checklist
+  const { sections, materials } = buildDepotOutputFromChecklist(checklistState);
+
+  // Convert sections to the format expected by extractHeatingRequirements
+  const formattedSections = sections.map(s => ({
+    section: s.name,
+    plainText: s.plain,
+    naturalLanguage: s.nl
+  }));
+
+  // Extract notes from sections (combine plain and natural language)
+  const notes = sections.flatMap(s => {
+    const result = [];
+    if (s.plain) result.push(s.plain);
+    if (s.nl) result.push(s.nl);
+    return result;
+  }).filter(Boolean);
+
+  const hasData = formattedSections.length > 0 || notes.length > 0;
+
+  return {
+    sections: formattedSections,
+    notes,
+    materials,
+    hasData
+  };
+}
 
 /**
  * Shows the system recommendation panel with Gold/Silver/Bronze options
@@ -18,19 +56,19 @@ import { extractHeatingRequirements } from './recommendationEngine.js';
 export async function showSystemRecommendationPanel() {
   try {
     // Get current session data
-    const sections = window.depotSections || [];
-    const notes = window.depotNotes || [];
+    const { sections, notes, materials, hasData } = getCurrentSessionData();
 
-    if (sections.length === 0 && notes.length === 0) {
-      alert('⚠️ No survey data available. Please record or import a session first.');
+    if (!hasData) {
+      // Show dialog with option to load session
+      showNoDataDialog();
       return;
     }
 
-    // Extract requirements from current session
-    const requirements = extractHeatingRequirements(sections, notes);
-
     // Show loading state
     showLoadingModal();
+
+    // Extract requirements from current session
+    const requirements = extractHeatingRequirements(sections, notes);
 
     // Get recommendations
     const result = await buildRecommendationsFromDepotSurvey(requirements);
@@ -49,9 +87,150 @@ export async function showSystemRecommendationPanel() {
 }
 
 /**
+ * Shows a dialog when no session data is available
+ */
+function showNoDataDialog() {
+  const modal = document.createElement('div');
+  modal.id = 'system-rec-no-data-modal';
+  modal.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+  `;
+
+  modal.innerHTML = `
+    <div style="background: white; padding: 40px; border-radius: 16px; text-align: center; max-width: 500px; box-shadow: 0 10px 40px rgba(0,0,0,0.3);">
+      <div style="font-size: 64px; margin-bottom: 20px;">📋</div>
+      <h2 style="margin: 0 0 15px 0; font-size: 24px; font-weight: 700; color: #333;">No Survey Data Available</h2>
+      <p style="margin: 0 0 30px 0; color: #666; font-size: 15px; line-height: 1.6;">
+        To generate system recommendations, you need survey data. You can either:
+      </p>
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <button id="loadSessionFromCloudBtn" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; padding: 16px 24px; border-radius: 12px; font-size: 16px; font-weight: 600; cursor: pointer; transition: all 0.3s;">
+          📁 Load Session from Cloud
+        </button>
+        <button id="loadSessionFromFileBtn" style="background: #48bb78; color: white; border: none; padding: 16px 24px; border-radius: 12px; font-size: 16px; font-weight: 600; cursor: pointer; transition: all 0.3s;">
+          💾 Load Session from File
+        </button>
+        <button id="startNewRecordingBtn" style="background: #f6ad55; color: white; border: none; padding: 16px 24px; border-radius: 12px; font-size: 16px; font-weight: 600; cursor: pointer; transition: all 0.3s;">
+          🎙️ Start New Recording
+        </button>
+        <button onclick="this.closest('#system-rec-no-data-modal').remove()" style="background: #e2e8f0; color: #64748b; border: none; padding: 12px 24px; border-radius: 12px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.3s;">
+          Cancel
+        </button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+
+  // Add event listeners
+  document.getElementById('loadSessionFromCloudBtn').addEventListener('click', () => {
+    modal.remove();
+    loadSessionFromCloud();
+  });
+
+  document.getElementById('loadSessionFromFileBtn').addEventListener('click', () => {
+    modal.remove();
+    const loadSessionInput = document.getElementById('loadSessionInput');
+    if (loadSessionInput) {
+      loadSessionInput.click();
+      // Wait a bit and try again after file is loaded
+      setTimeout(() => {
+        showSystemRecommendationPanel();
+      }, 1000);
+    }
+  });
+
+  document.getElementById('startNewRecordingBtn').addEventListener('click', () => {
+    modal.remove();
+    const startLiveBtn = document.getElementById('startLiveBtn');
+    if (startLiveBtn) {
+      startLiveBtn.click();
+    }
+  });
+
+  // Close on backdrop click
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) {
+      modal.remove();
+    }
+  });
+}
+
+/**
+ * Loads a session from cloud storage
+ */
+async function loadSessionFromCloud() {
+  // Show modal with session list
+  showLoadingModal('Loading sessions from cloud...');
+
+  try {
+    // TODO: Implement cloud session loading
+    // For now, show a placeholder
+    closeLoadingModal();
+
+    const modal = document.createElement('div');
+    modal.id = 'cloud-session-modal';
+    modal.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10000;
+      overflow-y: auto;
+      padding: 20px;
+    `;
+
+    modal.innerHTML = `
+      <div style="background: white; padding: 40px; border-radius: 16px; max-width: 800px; width: 100%; box-shadow: 0 10px 40px rgba(0,0,0,0.3);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px;">
+          <h2 style="margin: 0; font-size: 24px; font-weight: 700; color: #333;">Load Session from Cloud</h2>
+          <button onclick="this.closest('#cloud-session-modal').remove()" style="background: #e2e8f0; border: none; color: #64748b; font-size: 24px; width: 40px; height: 40px; border-radius: 50%; cursor: pointer;">×</button>
+        </div>
+
+        <div id="cloudSessionList" style="min-height: 200px;">
+          <div style="text-align: center; padding: 60px 20px; color: #999;">
+            <div style="font-size: 48px; margin-bottom: 20px;">☁️</div>
+            <p style="font-size: 16px; margin: 0;">Cloud session loading coming soon!</p>
+            <p style="font-size: 14px; margin: 10px 0 0 0;">For now, please use "Load Session from File" or start a new recording.</p>
+          </div>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    // Close on backdrop click
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) {
+        modal.remove();
+      }
+    });
+
+  } catch (error) {
+    closeLoadingModal();
+    console.error('❌ Failed to load sessions from cloud:', error);
+    alert(`Failed to load sessions: ${error.message}`);
+  }
+}
+
+/**
  * Shows a loading modal while recommendations are being generated
  */
-function showLoadingModal() {
+function showLoadingModal(message = 'Generating Recommendations...') {
   const modal = document.createElement('div');
   modal.id = 'system-rec-loading-modal';
   modal.style.cssText = `
@@ -70,7 +249,7 @@ function showLoadingModal() {
   modal.innerHTML = `
     <div style="background: white; padding: 40px; border-radius: 12px; text-align: center; box-shadow: 0 10px 40px rgba(0,0,0,0.3);">
       <div style="font-size: 48px; margin-bottom: 20px;">⚙️</div>
-      <div style="font-size: 18px; font-weight: 600; color: #333;">Generating Recommendations...</div>
+      <div style="font-size: 18px; font-weight: 600; color: #333;">${message}</div>
       <div style="font-size: 14px; color: #666; margin-top: 10px;">Analyzing your survey data</div>
     </div>
   `;

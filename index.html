@@ -168,6 +168,11 @@
       align-items: center;
       margin-left: auto;
     }
+    .toolbar-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
     main {
       padding: 0 16px 16px;
       display: grid;
@@ -2163,6 +2168,17 @@
       >
         🎯 System Rec
       </a>
+      <div class="toolbar-group">
+        <button id="btn-import-system-rec" type="button" class="pill-secondary">
+          Import System Recommendation
+        </button>
+        <input
+          id="input-system-rec-file"
+          type="file"
+          accept="application/json"
+          style="display:none"
+        />
+      </div>
       <button id="bugReportBtn" class="pill-secondary">🐛 Report bug</button>
     </div>
   </header>
@@ -2629,6 +2645,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
   <!-- UI Enhancements -->
+  <script type="module" src="./js/systemRecommendationImport.js"></script>
   <script type="module" src="./js/saveMenu.js"></script>
   <script type="module" src="./js/uiEnhancements.js"></script>
   <script type="module" src="./js/main.js"></script>

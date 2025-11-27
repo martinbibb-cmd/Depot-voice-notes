@@ -142,6 +142,81 @@ body {
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
 }
 
+.proposal-options-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.proposal-option {
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  background: linear-gradient(180deg, #fff, #f8fafc);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.04);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.proposal-option-header {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 8px;
+}
+
+.proposal-option-label {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #3730a3;
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+}
+
+.proposal-option-title {
+  margin: 6px 0 4px;
+}
+
+.proposal-option-subtitle {
+  margin: 0;
+  color: var(--muted);
+}
+
+.proposal-option-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  font-size: 14px;
+}
+
+.proposal-option-body h3 {
+  margin: 0 0 6px;
+}
+
+.proposal-option-factors {
+  padding-left: 18px;
+  display: grid;
+  gap: 6px;
+  margin: 0;
+}
+
+.proposal-option-bestfor {
+  margin: 10px 0 0;
+  background: #f8fafc;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.no-data-message {
+  background: #f8fafc;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  padding: 14px;
+}
+
 .option-card {
   border: 2px solid var(--border);
   border-radius: var(--radius);

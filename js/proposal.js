@@ -1,243 +1,260 @@
-import { getProposalOptions, hasMeaningfulRequirements } from './systemRecommendationShared.js';
-import { buildSystemInputFromNotes } from './systemProposalAdapter.js';
+import { loadSystemRecommendationJson } from './systemRecommendationImport.js';
 
-const AUTOSAVE_KEY = 'surveyBrainAutosave';
+// Adjusted to match current storage: prefer live app state, fall back to autosave keys
+const TRANSCRIPT_STORAGE_KEYS = ['dvn_transcript', 'surveyBrainAutosave'];
 
-function setText(id, text) {
-  const el = document.getElementById(id);
-  if (el) el.textContent = text || 'Not specified';
-}
-
-function todayUK() {
-  return new Date().toLocaleDateString('en-GB', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric'
-  });
-}
-
-function loadSavedSnapshot() {
+function loadTranscriptJson() {
   try {
-    // Prefer active session state if present
     if (window.__depotAppState) {
-      const { sections = [], notes = [], customerSummary = '', fullTranscript = '' } = window.__depotAppState;
-      return {
-        sections,
-        notes,
-        customerSummary,
-        fullTranscript
-      };
+      return window.__depotAppState;
     }
 
-    const raw = localStorage.getItem(AUTOSAVE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    return parsed || null;
+    for (const key of TRANSCRIPT_STORAGE_KEYS) {
+      const raw = localStorage.getItem(key);
+      if (!raw) continue;
+      const parsed = JSON.parse(raw);
+      if (parsed) return parsed;
+    }
+
+    return null;
   } catch (err) {
-    console.warn('Unable to load saved snapshot', err);
+    console.error('[Proposal] Failed to load transcript JSON', err);
     return null;
   }
 }
 
-function derivePropertySummary(requirements = {}) {
-  const parts = [];
-  if (requirements.bedrooms) parts.push(`${requirements.bedrooms}-bed`);
-  if (requirements.houseType) parts.push(requirements.houseType.toLowerCase());
-  return parts.length ? parts.join(' ') : 'Not specified';
-}
-
-function deriveBedBath(requirements = {}) {
-  const bits = [];
-  if (requirements.bedrooms) bits.push(`${requirements.bedrooms} bedroom${requirements.bedrooms > 1 ? 's' : ''}`);
-  if (requirements.bathrooms) bits.push(`${requirements.bathrooms} bathroom${requirements.bathrooms > 1 ? 's' : ''}`);
-  return bits.length ? bits.join(' · ') : 'Not specified';
-}
-
-function describeCurrentSystem(requirements = {}) {
-  const boiler = requirements.currentBoilerType;
-  const water = requirements.currentWaterSystem;
-  if (!boiler && !water) return 'Not specified';
-  if (boiler && water) return `${boiler} with ${water}`;
-  return boiler || water || 'Not specified';
-}
-
-function deriveSpecialNotes(snapshot = {}) {
-  const notes = [];
-  if (snapshot.customerSummary) notes.push(snapshot.customerSummary);
-  if (Array.isArray(snapshot.missingInfo) && snapshot.missingInfo.length) {
-    notes.push(`Missing details: ${snapshot.missingInfo.join(', ')}`);
-  }
-  return notes.join(' ') || 'Not specified';
-}
-
-function buildBulletList(rawText = '', fallbackSummary = '') {
-  const listEl = document.getElementById('what-you-told-us-list');
-  if (!listEl) return;
-
-  const bullets = [];
-  if (fallbackSummary) bullets.push(fallbackSummary);
-
-  const sentences = rawText
-    .replace(/\n+/g, ' ')
-    .split(/[.!?]/)
-    .map((s) => s.trim())
-    .filter(Boolean);
-
-  const keywords = ['radiator', 'pressure', 'water', 'cold', 'bills', 'control', 'future', 'upgrade', 'comfort', 'hot'];
-
-  for (const sentence of sentences) {
-    const lower = sentence.toLowerCase();
-    if (keywords.some((k) => lower.includes(k))) {
-      bullets.push(sentence.length > 120 ? `${sentence.slice(0, 117)}...` : sentence);
-    }
-    if (bullets.length >= 6) break;
-  }
-
-  if (!bullets.length && rawText) {
-    bullets.push(rawText.slice(0, 120));
-  }
-
-  listEl.innerHTML = '';
-  const finalBullets = bullets.slice(0, 6);
-  finalBullets.forEach((b) => {
-    const li = document.createElement('li');
-    li.textContent = b;
-    listEl.appendChild(li);
+function getTodayDisplayDate() {
+  return new Date().toLocaleDateString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric'
   });
 }
 
-function getGraphicForOption(option) {
-  if (!option) return '';
-  const { boiler, water } = option;
-  if (boiler === 'combi') return 'assets/system-graphics/Combination.png';
-  if (water && water.includes('mixergy')) return 'assets/system-graphics/unvented-cylinder.JPG';
-  if (boiler === 'system') {
-    return water && water.includes('open')
-      ? 'assets/system-graphics/vented-cylinder.PNG'
-      : 'assets/system-graphics/unvented-cylinder.JPG';
-  }
-  if (boiler === 'regular') {
-    return water && water.includes('open')
-      ? 'assets/system-graphics/open-vented-schematic.JPG'
-      : 'assets/system-graphics/vented-cylinder.PNG';
-  }
-  return 'assets/system-graphics/System-boiler.png';
-}
-
-function deriveOptionFromKey(optionKey) {
-  switch (optionKey) {
-    case 'combi':
-      return { boiler: 'combi' };
-    case 'system_mixergy':
-      return { boiler: 'system', water: 'mixergy' };
-    case 'system_unvented':
-      return { boiler: 'system', water: 'unvented' };
-    default:
-      return null;
+function setText(id, value) {
+  const el = document.getElementById(id);
+  if (el && value) {
+    el.textContent = value;
   }
 }
 
-function renderNoProposalDataMessage() {
-  const optionsContainer = document.getElementById('proposal-options-container');
-  if (optionsContainer) {
-    optionsContainer.innerHTML = `
-      <div class="no-data-message">
-        <p>No survey data found.</p>
-        <p>Please complete the Depot Voice Notes survey for this customer, then regenerate the proposal.</p>
+function renderNoData() {
+  const container = document.getElementById('proposal-options-container');
+  if (!container) return;
+  container.innerHTML = `
+    <div class="no-data-message">
+      <p>We couldn’t find both a System Recommendation JSON and a transcript for this property.</p>
+      <p>Please export the JSON from the System Recommendation app and import it here, then regenerate the proposal after running Depot Voice Notes.</p>
+    </div>
+  `;
+}
+
+function buildWhatYouToldUsBullets(transcriptJson) {
+  const list = document.getElementById('what-you-told-us-list');
+  if (!list) return;
+
+  list.innerHTML = '';
+
+  if (!transcriptJson) return;
+
+  const raw =
+    transcriptJson.fullTranscript ||
+    transcriptJson.text ||
+    transcriptJson.transcript ||
+    '';
+
+  if (!raw || typeof raw !== 'string') return;
+
+  // Very simple sentence split
+  const sentences = raw
+    .split(/[\.\?\!]\s+/)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+
+  const keywords = [
+    'radiator',
+    'radiators',
+    'hot water',
+    'pressure',
+    'shower',
+    'bath',
+    'bill',
+    'bills',
+    'cold',
+    'leak',
+    'noise',
+    'future',
+    'control',
+    'comfort',
+    'space'
+  ];
+
+  const bullets = [];
+  for (const s of sentences) {
+    if (bullets.length >= 6) break;
+    const lower = s.toLowerCase();
+    const hit = keywords.some((k) => lower.includes(k));
+    if (hit) {
+      bullets.push(s.length > 140 ? s.slice(0, 137) + '…' : s);
+    }
+  }
+
+  // Fallback: first 3 sentences if keyword filter gave nothing
+  if (bullets.length === 0) {
+    bullets.push(...sentences.slice(0, 3));
+  }
+
+  bullets.forEach((text) => {
+    const li = document.createElement('li');
+    li.textContent = text;
+    list.appendChild(li);
+  });
+}
+
+// Map system-rec JSON into Gold/Silver/Bronze
+function renderOptionsFromSystemRec(systemJson) {
+  const container = document.getElementById('proposal-options-container');
+  if (!container) return;
+
+  // Clear any placeholder content
+  container.innerHTML = '';
+
+  if (!systemJson) {
+    renderNoData();
+    return;
+  }
+
+  // We expect something like:
+  // {
+  //   summary: "...",
+  //   recommendations: [ { title, variantLabel, key, score, keyFactors, bestFor, ... }, ... ]
+  // }
+  // Let’s be defensive and try to adapt to what’s actually there.
+
+  const recs =
+    systemJson.topRecommendations ||
+    systemJson.recommendations ||
+    systemJson.options ||
+    [];
+
+  if (!Array.isArray(recs) || recs.length === 0) {
+    renderNoData();
+    return;
+  }
+
+  const labels = ['GOLD – RECOMMENDED', 'SILVER', 'BRONZE'];
+
+  recs.slice(0, 3).forEach((rec, idx) => {
+    const label = labels[idx] || 'OPTION';
+
+    const title =
+      rec.title ||
+      rec.name ||
+      rec.displayName ||
+      'Recommended option';
+
+    const subtitle =
+      rec.variantLabel ||
+      rec.type ||
+      rec.subtitle ||
+      '';
+
+    const score = typeof rec.score === 'number' ? rec.score : null;
+    const efficiency = rec.efficiency || rec.efficiencyRange;
+    const lifespan = rec.lifespan || rec.lifespanRange;
+
+    const keyFactors =
+      rec.keyFactors ||
+      rec.factors ||
+      rec.reasons ||
+      [];
+
+    const bestFor =
+      rec.bestFor ||
+      rec.best_for ||
+      '';
+
+    // Build a simple box for each option
+    const card = document.createElement('section');
+    card.className = `proposal-option proposal-option-${idx}`;
+
+    card.innerHTML = `
+      <header class="proposal-option-header">
+        <div class="proposal-option-label">${label}</div>
+        <h2 class="proposal-option-title">${title}</h2>
+        ${
+          subtitle
+            ? `<p class="proposal-option-subtitle">${subtitle}</p>`
+            : ''
+        }
+      </header>
+      <div class="proposal-option-meta">
+        ${
+          score !== null
+            ? `<span><strong>Score:</strong> ${score}</span>`
+            : ''
+        }
+        ${
+          efficiency
+            ? `<span><strong>Efficiency:</strong> ${efficiency}</span>`
+            : ''
+        }
+        ${
+          lifespan
+            ? `<span><strong>Lifespan:</strong> ${lifespan}</span>`
+            : ''
+        }
+      </div>
+      <div class="proposal-option-body">
+        ${
+          Array.isArray(keyFactors) && keyFactors.length
+            ? `<h3>Key factors</h3>
+               <ul class="proposal-option-factors">
+                 ${keyFactors
+                   .slice(0, 5)
+                   .map((f) => `<li>${f}</li>`)
+                   .join('')}
+               </ul>`
+            : ''
+        }
+        ${
+          bestFor
+            ? `<p class="proposal-option-bestfor"><strong>Best for:</strong> ${bestFor}</p>`
+            : ''
+        }
       </div>
     `;
-  }
+
+    container.appendChild(card);
+  });
 }
 
-function renderOption(targetPrefix, optionData) {
-  if (!optionData) return;
-  setText(`${targetPrefix}-title`, optionData.title);
-  setText(`${targetPrefix}-subtitle`, optionData.subtitle);
+function initProposal() {
+  // Date
+  setText('proposal-date', getTodayDisplayDate());
 
-  const listId = `${targetPrefix}-benefits`;
-  const listEl = document.getElementById(listId);
-  if (listEl) {
-    listEl.innerHTML = '';
-    (optionData.benefits || ['Not specified']).forEach((benefit) => {
-      const li = document.createElement('li');
-      li.textContent = benefit;
-      listEl.appendChild(li);
-    });
-  }
+  const transcriptJson = loadTranscriptJson();
+  const systemJson = loadSystemRecommendationJson();
 
-  setText(`${targetPrefix}-mini-spec`, optionData.miniSpec);
-
-  const imgEl = document.getElementById(`${targetPrefix}-image`);
-  if (imgEl) {
-    const graphic = getGraphicForOption(
-      optionData.option || deriveOptionFromKey(optionData.optionKey)
-    );
-    if (graphic) {
-      imgEl.src = graphic;
-      imgEl.alt = optionData.option && optionData.option.water?.includes('mixergy')
-        ? 'Smart hot water cylinder'
-        : 'System graphic';
-    }
-  }
-}
-
-async function populateProposal() {
-  setText('proposal-date', todayUK());
-  const snapshot = loadSavedSnapshot();
-
-  if (!snapshot) {
-    const warning = document.getElementById('options-warning');
-    if (warning) {
-      warning.hidden = false;
-      warning.textContent = 'We couldn\'t load your survey data. Please complete your voice notes and reopen this proposal.';
-    }
+  if (!systemJson || !transcriptJson) {
+    renderNoData();
     return;
   }
 
-  const notesJson = {
-    sections: snapshot.sections || snapshot.notes || [],
-    customerSummary: snapshot.customerSummary || '',
-    missingInfo: snapshot.missingInfo || [],
-    fullTranscript: snapshot.fullTranscript || snapshot.transcriptText || ''
-  };
+  // "What you told us" from transcript
+  buildWhatYouToldUsBullets(transcriptJson);
 
-  const requirements = await buildSystemInputFromNotes(notesJson);
+  // Fill anything else you want from transcriptJson (property type, etc.)
+  // Example (adapt to your JSON):
+  setText('customer-name', transcriptJson.customerName);
+  setText('customer-address', transcriptJson.customerAddress);
+  setText('property-type', transcriptJson.propertyType || transcriptJson.houseType);
+  setText('property-summary', transcriptJson.propertySummary);
+  setText('current-system', transcriptJson.currentSystem);
+  setText('special-notes', transcriptJson.customerSummary);
 
-  setText('property-type', derivePropertySummary(requirements));
-  setText('property-summary', deriveBedBath(requirements));
-  setText('current-system', describeCurrentSystem(requirements));
-  setText('special-notes', deriveSpecialNotes(snapshot));
-
-  const transcriptText = snapshot.fullTranscript || snapshot.transcriptText || '';
-  const summaryBullet = snapshot.customerSummary || '';
-  buildBulletList(transcriptText, summaryBullet);
-
-  if (!hasMeaningfulRequirements(requirements)) {
-    renderNoProposalDataMessage();
-    return;
-  }
-
-  try {
-    const { options, empty } = getProposalOptions(requirements);
-
-    if (empty || !options || options.length === 0) {
-      renderNoProposalDataMessage();
-      return;
-    }
-
-    const [gold, silver, bronze] = options;
-
-    renderOption('gold', gold);
-    renderOption('silver', silver);
-    renderOption('bronze', bronze);
-  } catch (error) {
-    console.error('Failed to generate proposal options', error);
-    const warning = document.getElementById('options-warning');
-    if (warning) {
-      warning.hidden = false;
-      warning.textContent = 'We couldn\'t generate detailed options from your survey. Please check the system recommendation screen for details.';
-    }
-  }
+  // Options from system-rec JSON
+  renderOptionsFromSystemRec(systemJson);
 }
 
-document.addEventListener('DOMContentLoaded', populateProposal);
+document.addEventListener('DOMContentLoaded', initProposal);

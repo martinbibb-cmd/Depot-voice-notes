@@ -4,30 +4,67 @@
  */
 
 // State for the view mode
-let viewMode = 'natural'; // 'natural' or 'automatic'
+let viewMode = 'auto'; // 'auto' (structured) or 'ai' (natural language)
 
 // Track the active slide-over and its sections
 let activeSlideOver = null;
-let activeSections = null;
+let activeAutoSections = [];
+let activeAiSections = [];
 let speechSynthesis = window.speechSynthesis;
 let currentUtterance = null;
 let isSpeaking = false;
 
+function normaliseSectionEntry(section) {
+  if (!section) return null;
+  const title = section.section || section.title || section.name || 'Untitled Section';
+  const description = typeof section.description === 'string' ? section.description : '';
+  const plainSource = section.plainText || section.plain_text || section.text || section.content || '';
+  const naturalSource = section.naturalLanguage || section.natural_language || section.summary || section.notes || section.content || '';
+  return {
+    section: title,
+    description,
+    plainText: typeof plainSource === 'string' ? plainSource : String(plainSource || ''),
+    naturalLanguage: typeof naturalSource === 'string' ? naturalSource : String(naturalSource || '')
+  };
+}
+
+function normaliseSections(list) {
+  if (!Array.isArray(list)) return [];
+  return list.map(normaliseSectionEntry).filter(Boolean);
+}
+
+function setActiveSections({ autoSections = activeAutoSections, aiSections = activeAiSections } = {}) {
+  activeAutoSections = normaliseSections(autoSections);
+  activeAiSections = normaliseSections(aiSections);
+}
+
+function getActiveSections() {
+  if (viewMode === 'ai') {
+    return Array.isArray(activeAiSections) ? activeAiSections : [];
+  }
+  return Array.isArray(activeAutoSections) ? activeAutoSections : [];
+}
+
 /**
  * Show the send sections slide-over
  */
-export function showSendSectionsSlideOver(sections) {
+export function showSendSectionsSlideOver({ autoSections = [], aiSections = [] } = {}) {
   // Close existing slide-over if any
   if (activeSlideOver) {
     closeSlideOver(activeSlideOver);
   }
 
-  const slideOver = createSlideOverElement(sections);
+  viewMode = autoSections && autoSections.length ? 'auto' : 'ai';
+  if (viewMode === 'ai' && (!aiSections || !aiSections.length)) {
+    viewMode = 'auto';
+  }
+  setActiveSections({ autoSections, aiSections });
+
+  const slideOver = createSlideOverElement(getActiveSections());
   document.body.appendChild(slideOver);
 
   // Store references
   activeSlideOver = slideOver;
-  activeSections = sections;
 
   // Trigger animation
   setTimeout(() => {
@@ -35,27 +72,34 @@ export function showSendSectionsSlideOver(sections) {
   }, 10);
 
   // Setup event listeners
-  setupSlideOverEvents(slideOver, sections);
+  setupSlideOverEvents(slideOver);
 }
 
 /**
  * Update the active slide-over with new sections
  */
-export function updateSendSectionsSlideOver(sections) {
+export function updateSendSectionsSlideOver(nextSections) {
   if (!activeSlideOver) {
     return; // No active slide-over to update
   }
 
-  // Update stored sections
-  activeSections = sections;
+  if (Array.isArray(nextSections)) {
+    setActiveSections({ autoSections: nextSections });
+  } else if (nextSections && typeof nextSections === 'object') {
+    setActiveSections({
+      autoSections: nextSections.autoSections,
+      aiSections: nextSections.aiSections
+    });
+  }
 
   // Re-render the content
   const contentEl = activeSlideOver.querySelector('#sectionsContent');
   if (contentEl) {
-    contentEl.innerHTML = renderSectionsList(sections);
+    const sectionsToRender = getActiveSections();
+    contentEl.innerHTML = renderSectionsList(sectionsToRender);
 
     // Re-attach event listeners
-    attachSectionEventListeners(contentEl, sections);
+    attachSectionEventListeners(contentEl, sectionsToRender);
   }
 }
 
@@ -129,11 +173,11 @@ function createSlideOverElement(sections) {
             <span id="readAloudText">Read Aloud</span>
           </button>
           <div class="view-mode-toggle" style="display: flex; align-items: center; gap: 8px; margin-left: auto; margin-right: 40px;">
-            <span style="font-size: 0.75rem; font-weight: 600; color: white; opacity: ${viewMode === 'automatic' ? '1' : '0.6'};">Automatic</span>
-            <div id="viewModeToggle" class="toggle-switch ${viewMode === 'natural' ? 'active' : ''}">
+            <span style="font-size: 0.75rem; font-weight: 600; color: white; opacity: ${viewMode === 'auto' ? '1' : '0.6'};">Auto notes</span>
+            <div id="viewModeToggle" class="toggle-switch ${viewMode === 'ai' ? 'active' : ''}">
               <div class="toggle-slider"></div>
             </div>
-            <span style="font-size: 0.75rem; font-weight: 600; color: white; opacity: ${viewMode === 'natural' ? '1' : '0.6'};">Natural</span>
+            <span style="font-size: 0.75rem; font-weight: 600; color: white; opacity: ${viewMode === 'ai' ? '1' : '0.6'};">AI notes</span>
           </div>
         </div>
         <button class="close-slide-over-btn" aria-label="Close">
@@ -154,11 +198,12 @@ function createSlideOverElement(sections) {
  */
 function renderSectionsList(sections) {
   if (!sections || sections.length === 0) {
+    const emptyLabel = viewMode === 'ai' ? 'AI notes' : 'automatic notes';
     return `
       <div style="text-align: center; padding: 40px; color: var(--muted);">
         <div style="font-size: 2rem; margin-bottom: 12px;">📝</div>
-        <div style="font-size: 0.9rem;">No sections available yet</div>
-        <div style="font-size: 0.75rem; margin-top: 8px;">Sections will appear here as the transcript is processed</div>
+        <div style="font-size: 0.9rem;">No ${emptyLabel} available yet</div>
+        <div style="font-size: 0.75rem; margin-top: 8px;">Notes will appear here as the transcript is processed</div>
       </div>
     `;
   }
@@ -198,7 +243,7 @@ function renderSectionsList(sections) {
           </div>
         </div>
         <div class="section-card-content">
-          ${viewMode === 'natural' ?
+          ${viewMode === 'ai' ?
             formatDetailedContent(naturalLanguage, plainText, naturalLanguageWords, plainTextWords) :
             formatDetailedContent(plainText, naturalLanguage, plainTextWords, naturalLanguageWords)
           }
@@ -219,8 +264,8 @@ function formatDetailedContent(primaryContent, secondaryContent, primaryWords, s
     return '<div style="color: var(--muted); font-style: italic;">No content</div>';
   }
 
-  const primaryLabel = viewMode === 'natural' ? 'Natural Language' : 'Structured Format';
-  const secondaryLabel = viewMode === 'natural' ? 'Structured Format' : 'Natural Language';
+  const primaryLabel = viewMode === 'ai' ? 'AI notes' : 'Automatic notes';
+  const secondaryLabel = viewMode === 'ai' ? 'Automatic notes' : 'AI notes';
 
   let html = '';
 
@@ -283,7 +328,7 @@ function formatSectionContent(content) {
 /**
  * Setup event listeners for the slide-over
  */
-function setupSlideOverEvents(slideOver, sections) {
+function setupSlideOverEvents(slideOver) {
   // Close button
   const closeBtn = slideOver.querySelector('.close-slide-over-btn');
   closeBtn.addEventListener('click', () => {
@@ -300,7 +345,7 @@ function setupSlideOverEvents(slideOver, sections) {
   const readAloudBtn = slideOver.querySelector('#readAloudBtn');
   if (readAloudBtn) {
     readAloudBtn.addEventListener('click', () => {
-      toggleReadAloud(readAloudBtn, sections);
+      toggleReadAloud(readAloudBtn, getActiveSections());
     });
   }
 
@@ -315,22 +360,23 @@ function setupSlideOverEvents(slideOver, sections) {
       }
 
       // Toggle view mode
-      viewMode = viewMode === 'natural' ? 'automatic' : 'natural';
+      viewMode = viewMode === 'ai' ? 'auto' : 'ai';
 
       // Update toggle visual state
-      viewModeToggle.classList.toggle('active', viewMode === 'natural');
+      viewModeToggle.classList.toggle('active', viewMode === 'ai');
 
       // Update label opacity
       const toggleContainer = slideOver.querySelector('.view-mode-toggle');
       const labels = toggleContainer.querySelectorAll('span');
-      labels[0].style.opacity = viewMode === 'automatic' ? '1' : '0.6';
-      labels[1].style.opacity = viewMode === 'natural' ? '1' : '0.6';
+      labels[0].style.opacity = viewMode === 'auto' ? '1' : '0.6';
+      labels[1].style.opacity = viewMode === 'ai' ? '1' : '0.6';
 
       // Re-render sections with new mode
       const contentEl = slideOver.querySelector('#sectionsContent');
       if (contentEl) {
-        contentEl.innerHTML = renderSectionsList(sections);
-        attachSectionEventListeners(contentEl, sections);
+        const sectionsToRender = getActiveSections();
+        contentEl.innerHTML = renderSectionsList(sectionsToRender);
+        attachSectionEventListeners(contentEl, sectionsToRender);
       }
     });
   }
@@ -338,7 +384,7 @@ function setupSlideOverEvents(slideOver, sections) {
   // Initial event listeners for sections
   const contentEl = slideOver.querySelector('#sectionsContent');
   if (contentEl) {
-    attachSectionEventListeners(contentEl, sections);
+    attachSectionEventListeners(contentEl, getActiveSections());
   }
 
   // Escape key to close
@@ -378,7 +424,7 @@ function startReadAloud(sections, buttonElement) {
   const textToRead = sections.map(section => {
     const title = section.section || section.title || 'Untitled Section';
     let content;
-    if (viewMode === 'natural') {
+    if (viewMode === 'ai') {
       content = section.naturalLanguage || section.natural_language || section.summary || section.notes || section.content || '';
     } else {
       content = section.plainText || section.plain_text || section.text || section.content || '';
@@ -482,7 +528,7 @@ async function copySectionToClipboard(section, buttonElement) {
 function formatSectionForClipboard(section) {
   // Use the content based on current view mode
   let content;
-  if (viewMode === 'natural') {
+  if (viewMode === 'ai') {
     content = section.naturalLanguage || section.natural_language || section.summary || section.notes || section.content || '';
   } else {
     content = section.plainText || section.plain_text || section.text || section.content || '';
@@ -501,7 +547,8 @@ function closeSlideOver(slideOver) {
   // Clear references
   if (slideOver === activeSlideOver) {
     activeSlideOver = null;
-    activeSections = null;
+    activeAutoSections = [];
+    activeAiSections = [];
   }
 
   slideOver.classList.remove('active');
@@ -526,11 +573,13 @@ function escapeHtml(text) {
  * Copy all sections as a single text block
  */
 export function copyAllSections(sections) {
-  if (!sections || sections.length === 0) {
+  const toCopy = sections && sections.length ? sections : getActiveSections();
+
+  if (!toCopy || toCopy.length === 0) {
     return;
   }
 
-  const allText = sections.map(section => formatSectionForClipboard(section)).join('\n\n---\n\n');
+  const allText = toCopy.map(section => formatSectionForClipboard(section)).join('\n\n---\n\n');
 
   navigator.clipboard.writeText(allText)
     .then(() => {
@@ -725,17 +774,20 @@ async function processSectionTweak(section, sectionIndex, instructions) {
 
   const improvedSection = await response.json();
 
-  // Update the section in activeSections
-  if (activeSections && activeSections[sectionIndex]) {
-    activeSections[sectionIndex] = {
-      ...activeSections[sectionIndex],
+  // Update the section in the tracked lists
+  if (activeAutoSections && activeAutoSections[sectionIndex]) {
+    activeAutoSections[sectionIndex] = {
+      ...activeAutoSections[sectionIndex],
       plainText: improvedSection.plainText,
       naturalLanguage: improvedSection.naturalLanguage,
       section: improvedSection.section
     };
 
     // Re-render the slide-over with updated sections
-    updateSendSectionsSlideOver(activeSections);
+    updateSendSectionsSlideOver({
+      autoSections: activeAutoSections,
+      aiSections: activeAiSections
+    });
 
     // Notify the main app to update its state
     if (window.updateSectionFromTweak) {

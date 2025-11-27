@@ -175,6 +175,14 @@
       position: relative;
       z-index: 2;
     }
+    .results-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin: 0 0 10px;
+      padding: 0 2px;
+      flex-wrap: wrap;
+    }
     .card {
       background: var(--card);
       border-radius: var(--radius);
@@ -2272,6 +2280,9 @@
   </main>
 
   <section class="results-row">
+    <div class="results-actions">
+      <button id="sendSectionsBtn" class="pill-secondary">📨 Send over sections</button>
+    </div>
     <!-- Side-by-side Notes Sections -->
     <div class="notes-grid">
       <div class="card">

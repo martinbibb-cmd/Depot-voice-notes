@@ -36,6 +36,7 @@ import {
   resetChecklistFilters
 } from "./checklistEnhancements.js";
 import { getAiNotes } from "./uiEnhancements.js";
+import { loadSessionFromCloud } from "./systemRecommendationUI.js";
 
 // --- CONFIG / STORAGE KEYS ---
 const SECTION_STORAGE_KEY = "depot.sectionSchema";
@@ -229,6 +230,7 @@ const startLiveBtn = document.getElementById("startLiveBtn");
 const pauseLiveBtn = document.getElementById("pauseLiveBtn");
 const finishLiveBtn = document.getElementById("finishLiveBtn");
 const loadSessionBtn = document.getElementById("loadSessionBtn");
+const loadCloudSessionBtn = document.getElementById("loadCloudSessionBtn");
 const loadSessionInput = document.getElementById("loadSessionInput");
 const importAudioBtn = document.getElementById("importAudioBtn");
 const importAudioInput = document.getElementById("importAudioInput");
@@ -2479,6 +2481,11 @@ importAudioInput.onchange = async (e) => {
 };
 
 loadSessionBtn.onclick = () => loadSessionInput.click();
+if (loadCloudSessionBtn) {
+  loadCloudSessionBtn.onclick = async () => {
+    await loadSessionFromCloud();
+  };
+}
 loadSessionInput.onchange = async (e) => {
   const file = e.target.files && e.target.files[0];
   if (!file) return;

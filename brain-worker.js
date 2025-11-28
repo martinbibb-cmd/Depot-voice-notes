@@ -1013,21 +1013,76 @@ Your goals:
 
 4. Use the following enum values EXACTLY as written when filling fields:
    - YesNoNone: "yes" | "no" | "none"
-   - Urgency: "standard" | "urgent" | "none"
-   - SystemType: "conventional" | "system" | "combi" | "unknown"
-   - JobType: "boiler_replacement" | "full_system"
-   - HomecareStatus: "none" | "boiler_warranty" | "multi_prem_homecare"
-   - FuelType: "natural_gas" | "lpg" | "electric" | "unknown"
+   - Urgency: "asap" | "soon" | "flexible" | "unknown"
+   - SystemType: "conventional" | "system" | "combi" | "back_boiler" | "unknown"
+   - JobType: "boiler_replacement" | "full_system" | "conversion" | "new_install" | "unknown"
+   - HomecareStatus: "none" | "boiler_warranty" | "multiprem_homecare" | "unknown"
+   - FuelType: "natural_gas" | "lpg" | "oil" | "electric" | "unknown"
+   - HSAInstallationRating: "normal" | "urgent"
+   - PriorityInstallationRating: "none" | "standard" | "urgent"
+   - EarthSystemType: "TT" | "TN" | "TN-S" | "TN-C-S" | "unknown"
+   - PowerflushStatus: "required" | "not_required" | "recommended"
+   - MagneticFilterType: "22mm" | "28mm" | "none"
+   - BathroomZone: "outside" | "zone_1" | "zone_2" | "zone_3"
+   - CondensateRoute: "internal_drain" | "external_soakaway" | "pumped" | "other"
 
-5. High-level mapping hints:
+5. High-level mapping hints (CloudSense-aligned):
+
+   SECTION 1 - Customer Status & Vulnerability:
+   - "Boiler not working", "no heating" -> vulnerability.boilerWorking = "no", hsaInstallationRating = "urgent"
+   - "No hot water" -> vulnerability.hotWaterAvailable = "no"
+   - "Over 75", "elderly", "disabled" -> vulnerability.vulnerabilityReason = "75 and over" | "Disability"
+   - "Boiler breakdown", "failed boiler" -> vulnerability.reasonForQuotation = "Boiler failure"
+   - Safety concerns -> vulnerability.safetyIssuesAtProperty = "yes", vulnerability.safetyIssuesNotes
+
+   SECTION 2 - Existing System:
    - "conventional / regular" boiler -> existingSystem.existingSystemType = "conventional"
-   - "system boiler with cylinder" (pressurised or unvented) -> "system"
-   - "combi" boiler -> "combi"
-   - Mentions of A2 / Conv-Conv / same room same location -> boilerJob.systemTypeA, boilerJob.locationTypeB
-   - Vulnerability due to age, disability etc -> vulnerability.vulnerabilityReason
-   - "Urgent install", "no heating", "no hot water" -> vulnerability.hsaInstallRating / priorityInstallRating = "urgent"
-   - "Ladder to first floor", "no scaffolding" -> workingAtHeight.safeAccessRequired = "no" and workingAtHeight.safeAccessWorkDescription
-   - "No asbestos identified", "ASB3" -> asbestos.suspectMaterialPresent="no"
+   - "system boiler with cylinder" -> existingSystem.existingSystemType = "system"
+   - "combi" -> existingSystem.existingSystemType = "combi"
+   - "like-for-like swap" -> existingSystem.jobTypeRequired = "boiler_replacement"
+   - "full system upgrade" -> existingSystem.jobTypeRequired = "full_system"
+   - "homecare customer" -> existingSystem.homecareStatus = "multiprem_homecare"
+
+   SECTION 3 - Electrical:
+   - "TT system", "TN-S earth" -> electrical.earthSystemType
+   - "RCD fitted", "consumer unit has RCD" -> electrical.rcdPresent = "yes"
+   - "Socket test passed", "<1 ohm" -> electrical.socketAndSeeReading = "<1 ohm"
+
+   SECTION 4 - Working at Height:
+   - "Scaffolding needed", "tower required" -> workingAtHeight.safeAccessAtHeightRequired = "yes"
+   - "Loft access difficult" -> workingAtHeight.restrictionsToWorkAreas
+
+   SECTION 5 - Asbestos:
+   - "Artex ceiling", "suspect asbestos" -> asbestos.anyArtexOrSuspectAsbestos = "yes"
+   - "No asbestos", "clear" -> asbestos.anyArtexOrSuspectAsbestos = "no"
+
+   SECTION 6 - Water System:
+   - "Mains pressure 2.5 bar" -> waterSystem.pressure = 2.5
+   - "Flow rate 15 litres per minute" -> waterSystem.flowRate = 15
+
+   SECTION 7 - Boiler Job:
+   - "A2 Conv-Conv", "same room same location" -> boilerJob.systemTypeA, boilerJob.locationTypeB
+   - Natural gas / LPG -> boilerJob.fuelType
+   - "Kitchen install", "loft location" -> boilerJob.installationLocation
+
+   SECTION 8 - Cleansing & Controls:
+   - "Powerflush needed" -> cleansing.powerflushRequired = "required"
+   - "Mag filter 22mm" -> cleansing.magneticFilterType = "22mm"
+   - "Hive installed" -> cleansing.smartStatAlreadyInstalled = "yes"
+   - "Internal condensate" -> cleansing.condensateRoute = "internal_drain"
+
+   SECTION 9 - Heat Loss:
+   - "Total heat loss 18kW" -> heatLoss.totalHeatLossKw = 18
+   - "Detached house" -> heatLoss.propertyType = "Detached"
+
+   SECTION 10 - Installer Notes (map voice notes to specific fields):
+   - Delivery instructions -> installerNotes.deliveryLocation, installerNotes.additionalDeliveryNotes
+   - Boiler/controls work -> installerNotes.boilerControlsNotes
+   - Flue work details -> installerNotes.flueNotes
+   - Gas/water work -> installerNotes.gasWaterNotes
+   - Making good / decoration -> installerNotes.disruptionNotes
+   - Customer to clear cupboard -> installerNotes.customerAgreedActions
+   - Future plans / extensions -> installerNotes.specialRequirements
 
 6. Use installer-focused paragraphs from the transcript to populate the
    installerNotes fields. For example, any clear instructions about:

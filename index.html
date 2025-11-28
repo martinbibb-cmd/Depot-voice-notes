@@ -2412,6 +2412,9 @@
     }
   </style>
 
+  <!-- CloudSense Survey CSS -->
+  <link rel="stylesheet" href="/css/cloudSenseSurvey.css">
+
   <!-- PWA Manifest -->
   <link rel="manifest" href="/manifest.json">
 
@@ -2437,6 +2440,7 @@
       <button id="duplicateSessionBtn" class="pill-secondary">📋 Duplicate</button>
       <button id="what3wordsBtn" class="pill-secondary">📍 what3words</button>
       <button id="enableSurveyFormBtn" class="pill-secondary">📋 Survey Form</button>
+      <button id="enableCloudSenseFormBtn" class="pill-secondary">☁️ CloudSense Survey</button>
       <button id="settingsBtn" class="pill-secondary">⚙️ Settings</button>
       <a
         id="systemRecommendationLink"
@@ -2615,6 +2619,18 @@
         </div>
         <div id="structuredFormContainer" class="structured-form">
           <!-- Form sections will be rendered here by JavaScript -->
+        </div>
+      </div>
+
+      <!-- CloudSense Survey Form -->
+      <div class="card" id="cloudSenseFormCard" style="display: none;">
+        <div class="card-title">
+          ☁️ CloudSense Survey (13 Sections)
+          <span class="small">Complete, CloudSense-aligned survey sections</span>
+          <button id="toggleCloudSenseFormBtn" class="pill-secondary" style="float: right; padding: 4px 12px; font-size: 0.8rem;">Hide Survey</button>
+        </div>
+        <div id="cloudSenseFormContainer">
+          <!-- CloudSense form sections will be rendered here by JavaScript -->
         </div>
       </div>
 
@@ -3073,6 +3089,7 @@
   <script type="module" src="./js/customerProposalGenerator.js"></script>
   <script type="module" src="./js/saveMenu.js"></script>
   <script type="module" src="./js/uiEnhancements.js"></script>
+  <script type="module" src="./js/cloudSenseSurveyForm.js"></script>
   <script type="module" src="./js/main.js"></script>
   <script type="module" src="./js/mainIntegration.js"></script>
 

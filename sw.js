@@ -3,7 +3,7 @@
  * Provides offline capability and performance optimization
  */
 
-const CACHE_VERSION = 'depot-v1.2.1';
+const CACHE_VERSION = 'depot-v1.3.0';
 const CACHE_STATIC = `${CACHE_VERSION}-static`;
 const CACHE_DYNAMIC = `${CACHE_VERSION}-dynamic`;
 const CACHE_API = `${CACHE_VERSION}-api`;
@@ -15,12 +15,14 @@ const PRECACHE_URLS = [
   '/settings.html',
   '/login.html',
   '/css/proposal.css',
+  '/css/cloudSenseSurvey.css',
   '/js/main.js',
   '/js/mainIntegration.js',
   '/js/saveMenu.js',
   '/js/systemRecommendationUI.js',
   '/js/customerProposalGenerator.js',
   '/js/presentationGenerator.js',
+  '/js/cloudSenseSurveyForm.js',
   '/js/settingsPage.js',
   '/js/themeSettings.js',
   '/js/proposal.js',

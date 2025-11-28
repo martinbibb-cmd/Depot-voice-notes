@@ -216,9 +216,9 @@ export async function loadSessionFromCloud() {
                       localStorage.getItem('depot-worker-url') ||
                       'https://depot-voice-notes.martinbibb.workers.dev';
 
-    const userInfo = authModule.getUserInfo ? authModule.getUserInfo() : null;
+    const token = authModule.getAuthToken ? authModule.getAuthToken() : null;
 
-    if (!userInfo || !userInfo.token) {
+    if (!token) {
       closeLoadingModal();
       alert('Authentication token not found. Please sign in again.');
       window.location.href = 'login.html';
@@ -229,7 +229,7 @@ export async function loadSessionFromCloud() {
     const response = await fetch(`${workerUrl}/cloud-session`, {
       method: 'GET',
       headers: {
-        'Authorization': `Bearer ${userInfo.token}`,
+        'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
       }
     });
@@ -243,7 +243,7 @@ export async function loadSessionFromCloud() {
     closeLoadingModal();
 
     // Display session list
-    displayCloudSessionList(sessions, workerUrl, userInfo.token);
+    displayCloudSessionList(sessions, workerUrl, token);
 
   } catch (error) {
     closeLoadingModal();

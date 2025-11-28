@@ -739,7 +739,9 @@ async function saveSessionToCloud() {
 
   try {
     // Get worker URL
-    const workerUrl = localStorage.getItem('depot.workerUrl') || '/api';
+    const workerUrl = localStorage.getItem('depot.workerUrl') ||
+                      localStorage.getItem('depot-worker-url') ||
+                      'https://depot-voice-notes.martinbibb.workers.dev';
     const userInfo = authModule?.getUserInfo();
 
     // Send to cloud

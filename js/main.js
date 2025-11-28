@@ -2638,16 +2638,52 @@ function drawPhotoAnnotations(canvas, photo) {
     });
   }
 
-  // Draw annotations (lines, etc.)
+  // Draw annotations (lines, arrows, rectangles, etc.)
   if (photo.annotations && photo.annotations.length > 0) {
     photo.annotations.forEach((annotation) => {
+      ctx.strokeStyle = annotation.color || "red";
+      ctx.fillStyle = annotation.color || "red";
+      ctx.lineWidth = annotation.width || 3;
+
       if (annotation.type === "line") {
-        ctx.strokeStyle = annotation.color || "red";
-        ctx.lineWidth = annotation.width || 3;
         ctx.beginPath();
         ctx.moveTo(annotation.x1 * canvas.width, annotation.y1 * canvas.height);
         ctx.lineTo(annotation.x2 * canvas.width, annotation.y2 * canvas.height);
         ctx.stroke();
+      } else if (annotation.type === "arrow") {
+        const x1 = annotation.x1 * canvas.width;
+        const y1 = annotation.y1 * canvas.height;
+        const x2 = annotation.x2 * canvas.width;
+        const y2 = annotation.y2 * canvas.height;
+
+        // Draw line
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
+
+        // Draw arrowhead
+        const angle = Math.atan2(y2 - y1, x2 - x1);
+        const arrowLength = 15;
+        ctx.beginPath();
+        ctx.moveTo(x2, y2);
+        ctx.lineTo(
+          x2 - arrowLength * Math.cos(angle - Math.PI / 6),
+          y2 - arrowLength * Math.sin(angle - Math.PI / 6)
+        );
+        ctx.moveTo(x2, y2);
+        ctx.lineTo(
+          x2 - arrowLength * Math.cos(angle + Math.PI / 6),
+          y2 - arrowLength * Math.sin(angle + Math.PI / 6)
+        );
+        ctx.stroke();
+      } else if (annotation.type === "rectangle") {
+        const x = Math.min(annotation.x1, annotation.x2) * canvas.width;
+        const y = Math.min(annotation.y1, annotation.y2) * canvas.height;
+        const width = Math.abs(annotation.x2 - annotation.x1) * canvas.width;
+        const height = Math.abs(annotation.y2 - annotation.y1) * canvas.height;
+
+        ctx.strokeRect(x, y, width, height);
       }
     });
   }
@@ -4170,6 +4206,8 @@ const savePhotoBtn = document.getElementById("savePhotoBtn");
 const deletePhotoBtn = document.getElementById("deletePhotoBtn");
 const addMarkerBtn = document.getElementById("addMarkerBtn");
 const drawLineBtn = document.getElementById("drawLineBtn");
+const drawArrowBtn = document.getElementById("drawArrowBtn");
+const drawRectBtn = document.getElementById("drawRectBtn");
 const clearAnnotationsBtn = document.getElementById("clearAnnotationsBtn");
 
 // Close modal
@@ -4288,6 +4326,324 @@ if (addMarkerBtn) {
     canvas.style.cursor = 'crosshair';
     setStatus("Click on the photo to place the marker");
     canvas.addEventListener('click', handleClick, { once: true });
+  });
+}
+
+// Draw Line button
+if (drawLineBtn) {
+  drawLineBtn.addEventListener('click', () => {
+    const canvas = document.getElementById("photoCanvas");
+    const photoId = photoModal?.dataset.photoId;
+    if (!canvas || !photoId) return;
+
+    const photo = sessionPhotos.find(p => p.id === photoId);
+    if (!photo) return;
+
+    let startPoint = null;
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = canvas.width;
+    tempCanvas.height = canvas.height;
+    tempCanvas.style.position = 'absolute';
+    tempCanvas.style.top = '0';
+    tempCanvas.style.left = '0';
+    tempCanvas.style.pointerEvents = 'none';
+    canvas.parentElement.style.position = 'relative';
+    canvas.parentElement.appendChild(tempCanvas);
+
+    // First click: set start point
+    const handleFirstClick = (e) => {
+      const rect = canvas.getBoundingClientRect();
+      startPoint = {
+        x: (e.clientX - rect.left) / canvas.width,
+        y: (e.clientY - rect.top) / canvas.height
+      };
+      canvas.style.cursor = 'crosshair';
+      setStatus("Click where the line should end");
+      canvas.removeEventListener('click', handleFirstClick);
+      canvas.addEventListener('click', handleSecondClick);
+      canvas.addEventListener('mousemove', handleMouseMove);
+    };
+
+    // Mouse move: show preview line
+    const handleMouseMove = (e) => {
+      if (!startPoint) return;
+      const rect = canvas.getBoundingClientRect();
+      const currentX = e.clientX - rect.left;
+      const currentY = e.clientY - rect.top;
+
+      const tempCtx = tempCanvas.getContext('2d');
+      tempCtx.clearRect(0, 0, tempCanvas.width, tempCanvas.height);
+      tempCtx.strokeStyle = 'rgba(255, 0, 0, 0.7)';
+      tempCtx.lineWidth = 3;
+      tempCtx.setLineDash([5, 5]);
+      tempCtx.beginPath();
+      tempCtx.moveTo(startPoint.x * canvas.width, startPoint.y * canvas.height);
+      tempCtx.lineTo(currentX, currentY);
+      tempCtx.stroke();
+      tempCtx.setLineDash([]);
+    };
+
+    // Second click: complete the line
+    const handleSecondClick = (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const endPoint = {
+        x: (e.clientX - rect.left) / canvas.width,
+        y: (e.clientY - rect.top) / canvas.height
+      };
+
+      // Add annotation
+      if (!photo.annotations) photo.annotations = [];
+      photo.annotations.push({
+        id: `line-${Date.now()}`,
+        type: 'line',
+        x1: startPoint.x,
+        y1: startPoint.y,
+        x2: endPoint.x,
+        y2: endPoint.y,
+        color: 'red',
+        width: 3
+      });
+
+      // Cleanup
+      canvas.removeEventListener('click', handleSecondClick);
+      canvas.removeEventListener('mousemove', handleMouseMove);
+      canvas.style.cursor = 'default';
+      if (tempCanvas.parentElement) {
+        tempCanvas.parentElement.removeChild(tempCanvas);
+      }
+
+      // Redraw canvas with new annotation
+      const img = new Image();
+      img.onload = () => {
+        const ctx = canvas.getContext("2d");
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0);
+        drawPhotoAnnotations(canvas, photo);
+      };
+      img.src = photo.base64;
+
+      setStatus("Line added");
+    };
+
+    canvas.style.cursor = 'crosshair';
+    setStatus("Click where the line should start");
+    canvas.addEventListener('click', handleFirstClick);
+  });
+}
+
+// Draw Arrow button
+if (drawArrowBtn) {
+  drawArrowBtn.addEventListener('click', () => {
+    const canvas = document.getElementById("photoCanvas");
+    const photoId = photoModal?.dataset.photoId;
+    if (!canvas || !photoId) return;
+
+    const photo = sessionPhotos.find(p => p.id === photoId);
+    if (!photo) return;
+
+    let startPoint = null;
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = canvas.width;
+    tempCanvas.height = canvas.height;
+    tempCanvas.style.position = 'absolute';
+    tempCanvas.style.top = '0';
+    tempCanvas.style.left = '0';
+    tempCanvas.style.pointerEvents = 'none';
+    canvas.parentElement.style.position = 'relative';
+    canvas.parentElement.appendChild(tempCanvas);
+
+    const handleFirstClick = (e) => {
+      const rect = canvas.getBoundingClientRect();
+      startPoint = {
+        x: (e.clientX - rect.left) / canvas.width,
+        y: (e.clientY - rect.top) / canvas.height
+      };
+      canvas.style.cursor = 'crosshair';
+      setStatus("Click where the arrow should point");
+      canvas.removeEventListener('click', handleFirstClick);
+      canvas.addEventListener('click', handleSecondClick);
+      canvas.addEventListener('mousemove', handleMouseMove);
+    };
+
+    const handleMouseMove = (e) => {
+      if (!startPoint) return;
+      const rect = canvas.getBoundingClientRect();
+      const currentX = e.clientX - rect.left;
+      const currentY = e.clientY - rect.top;
+
+      const tempCtx = tempCanvas.getContext('2d');
+      tempCtx.clearRect(0, 0, tempCanvas.width, tempCanvas.height);
+      tempCtx.strokeStyle = 'rgba(255, 0, 0, 0.7)';
+      tempCtx.lineWidth = 3;
+      tempCtx.setLineDash([5, 5]);
+
+      const x1 = startPoint.x * canvas.width;
+      const y1 = startPoint.y * canvas.height;
+
+      // Draw line
+      tempCtx.beginPath();
+      tempCtx.moveTo(x1, y1);
+      tempCtx.lineTo(currentX, currentY);
+      tempCtx.stroke();
+
+      // Draw arrowhead preview
+      const angle = Math.atan2(currentY - y1, currentX - x1);
+      const arrowLength = 15;
+      tempCtx.beginPath();
+      tempCtx.moveTo(currentX, currentY);
+      tempCtx.lineTo(
+        currentX - arrowLength * Math.cos(angle - Math.PI / 6),
+        currentY - arrowLength * Math.sin(angle - Math.PI / 6)
+      );
+      tempCtx.moveTo(currentX, currentY);
+      tempCtx.lineTo(
+        currentX - arrowLength * Math.cos(angle + Math.PI / 6),
+        currentY - arrowLength * Math.sin(angle + Math.PI / 6)
+      );
+      tempCtx.stroke();
+      tempCtx.setLineDash([]);
+    };
+
+    const handleSecondClick = (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const endPoint = {
+        x: (e.clientX - rect.left) / canvas.width,
+        y: (e.clientY - rect.top) / canvas.height
+      };
+
+      if (!photo.annotations) photo.annotations = [];
+      photo.annotations.push({
+        id: `arrow-${Date.now()}`,
+        type: 'arrow',
+        x1: startPoint.x,
+        y1: startPoint.y,
+        x2: endPoint.x,
+        y2: endPoint.y,
+        color: 'red',
+        width: 3
+      });
+
+      canvas.removeEventListener('click', handleSecondClick);
+      canvas.removeEventListener('mousemove', handleMouseMove);
+      canvas.style.cursor = 'default';
+      if (tempCanvas.parentElement) {
+        tempCanvas.parentElement.removeChild(tempCanvas);
+      }
+
+      const img = new Image();
+      img.onload = () => {
+        const ctx = canvas.getContext("2d");
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0);
+        drawPhotoAnnotations(canvas, photo);
+      };
+      img.src = photo.base64;
+
+      setStatus("Arrow added");
+    };
+
+    canvas.style.cursor = 'crosshair';
+    setStatus("Click where the arrow should start");
+    canvas.addEventListener('click', handleFirstClick);
+  });
+}
+
+// Draw Rectangle button
+if (drawRectBtn) {
+  drawRectBtn.addEventListener('click', () => {
+    const canvas = document.getElementById("photoCanvas");
+    const photoId = photoModal?.dataset.photoId;
+    if (!canvas || !photoId) return;
+
+    const photo = sessionPhotos.find(p => p.id === photoId);
+    if (!photo) return;
+
+    let startPoint = null;
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = canvas.width;
+    tempCanvas.height = canvas.height;
+    tempCanvas.style.position = 'absolute';
+    tempCanvas.style.top = '0';
+    tempCanvas.style.left = '0';
+    tempCanvas.style.pointerEvents = 'none';
+    canvas.parentElement.style.position = 'relative';
+    canvas.parentElement.appendChild(tempCanvas);
+
+    const handleFirstClick = (e) => {
+      const rect = canvas.getBoundingClientRect();
+      startPoint = {
+        x: (e.clientX - rect.left) / canvas.width,
+        y: (e.clientY - rect.top) / canvas.height
+      };
+      canvas.style.cursor = 'crosshair';
+      setStatus("Click opposite corner of rectangle");
+      canvas.removeEventListener('click', handleFirstClick);
+      canvas.addEventListener('click', handleSecondClick);
+      canvas.addEventListener('mousemove', handleMouseMove);
+    };
+
+    const handleMouseMove = (e) => {
+      if (!startPoint) return;
+      const rect = canvas.getBoundingClientRect();
+      const currentX = e.clientX - rect.left;
+      const currentY = e.clientY - rect.top;
+
+      const tempCtx = tempCanvas.getContext('2d');
+      tempCtx.clearRect(0, 0, tempCanvas.width, tempCanvas.height);
+      tempCtx.strokeStyle = 'rgba(255, 0, 0, 0.7)';
+      tempCtx.lineWidth = 3;
+      tempCtx.setLineDash([5, 5]);
+
+      const x = Math.min(startPoint.x * canvas.width, currentX);
+      const y = Math.min(startPoint.y * canvas.height, currentY);
+      const width = Math.abs(currentX - startPoint.x * canvas.width);
+      const height = Math.abs(currentY - startPoint.y * canvas.height);
+
+      tempCtx.strokeRect(x, y, width, height);
+      tempCtx.setLineDash([]);
+    };
+
+    const handleSecondClick = (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const endPoint = {
+        x: (e.clientX - rect.left) / canvas.width,
+        y: (e.clientY - rect.top) / canvas.height
+      };
+
+      if (!photo.annotations) photo.annotations = [];
+      photo.annotations.push({
+        id: `rect-${Date.now()}`,
+        type: 'rectangle',
+        x1: startPoint.x,
+        y1: startPoint.y,
+        x2: endPoint.x,
+        y2: endPoint.y,
+        color: 'red',
+        width: 3
+      });
+
+      canvas.removeEventListener('click', handleSecondClick);
+      canvas.removeEventListener('mousemove', handleMouseMove);
+      canvas.style.cursor = 'default';
+      if (tempCanvas.parentElement) {
+        tempCanvas.parentElement.removeChild(tempCanvas);
+      }
+
+      const img = new Image();
+      img.onload = () => {
+        const ctx = canvas.getContext("2d");
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0);
+        drawPhotoAnnotations(canvas, photo);
+      };
+      img.src = photo.base64;
+
+      setStatus("Rectangle added");
+    };
+
+    canvas.style.cursor = 'crosshair';
+    setStatus("Click first corner of rectangle");
+    canvas.addEventListener('click', handleFirstClick);
   });
 }
 

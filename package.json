@@ -1,6 +1,6 @@
 {
   "name": "depot-voice-notes",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "type": "module",
   "dependencies": {
     "@tsndr/cloudflare-worker-jwt": "^2.2.1",

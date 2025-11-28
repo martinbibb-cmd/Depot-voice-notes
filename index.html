@@ -2213,6 +2213,9 @@
       border: 2px solid var(--border);
       border-radius: var(--radius);
       background: #000;
+      touch-action: none; /* Prevent scrolling on touch devices when drawing */
+      -webkit-user-select: none; /* Prevent text selection while drawing */
+      user-select: none;
     }
 
     #photoMetadata {
@@ -3006,15 +3009,15 @@
 
   <!-- Photo Viewer/Annotation Modal -->
   <div id="photoModal" class="modal-overlay">
-    <div class="session-prompt-modal" style="max-width: 90vw; max-height: 90vh;">
+    <div class="session-prompt-modal" style="max-width: 90vw; max-height: 90vh; display: flex; flex-direction: column;">
       <div class="modal-header">
         <h2 id="photoModalTitle">Photo Details</h2>
         <button id="closePhotoModalBtn" class="modal-close">Close</button>
       </div>
-      <div style="display: flex; flex-direction: column; gap: 12px; margin-top: 16px; max-height: 75vh; overflow-y: auto;">
+      <div style="display: flex; flex-direction: column; gap: 12px; margin-top: 16px; max-height: 75vh; overflow-y: auto; overflow-x: hidden;">
         <!-- Photo display with canvas for annotations -->
-        <div style="position: relative; text-align: center; background: #000;">
-          <canvas id="photoCanvas" style="max-width: 100%; max-height: 40vh; cursor: crosshair;"></canvas>
+        <div style="position: relative; text-align: center; background: #000; overflow: visible;">
+          <canvas id="photoCanvas" style="max-width: 100%; max-height: 40vh; cursor: crosshair; display: block; margin: 0 auto;"></canvas>
         </div>
 
         <!-- Photo metadata -->

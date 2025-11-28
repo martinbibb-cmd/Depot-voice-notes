@@ -2558,13 +2558,26 @@ function openPhotoModal(photo) {
   // Store current photo ID for editing
   modal.dataset.photoId = photo.id;
 
-  // Populate section dropdown
+  // Populate section dropdown - use actual sections from the app, not just schema
   sectionSelect.innerHTML = '<option value="">Not assigned</option>';
-  SECTION_SCHEMA.forEach((section) => {
+
+  // Get sections that are actually being displayed in the app
+  const sectionsToShow = Array.isArray(lastSections) && lastSections.length
+    ? lastSections
+    : (Array.isArray(SECTION_SCHEMA) ? SECTION_SCHEMA : []);
+
+  // Create a Set to track unique section names (avoid duplicates)
+  const addedSections = new Set();
+
+  sectionsToShow.forEach((section) => {
+    const sectionName = section.section || section.name;
+    if (!sectionName || addedSections.has(sectionName)) return;
+
+    addedSections.add(sectionName);
     const option = document.createElement("option");
-    option.value = section.name;
-    option.textContent = section.name;
-    if (section.name === photo.section) {
+    option.value = sectionName;
+    option.textContent = sectionName;
+    if (sectionName === photo.section) {
       option.selected = true;
     }
     sectionSelect.appendChild(option);

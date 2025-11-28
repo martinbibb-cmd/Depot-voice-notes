@@ -5,6 +5,20 @@ import {
 import { loadSchema } from "./schema.js";
 import { logError, showBugReportModal } from "./bugReport.js";
 import {
+  processPhoto,
+  generatePhotoId,
+  validatePhoto,
+  createThumbnail
+} from "./photoUtils.js";
+import {
+  calculateDistance,
+  formatDistanceAsCrowFlies,
+  buildLocationsFromPhotos,
+  calculateJobDistances,
+  applyGPSPrivacy,
+  getCurrentPosition
+} from "./gpsUtils.js";
+import {
   depotNotesToCSV,
   sessionToSingleCSV,
   downloadCSV,
@@ -270,6 +284,11 @@ let lastCheckedItems = [];
 let lastMissingInfo = [];
 let lastCustomerSummary = "";
 let lastQuoteNotes = [];
+// Photo, GPS, and structured form state
+let sessionPhotos = [];
+let sessionFormData = {};
+let sessionLocations = {};
+let sessionDistances = {};
 let wasBackgroundedDuringSession = false;
 let pauseReason = null;
 let lastWorkerPayload = null;
@@ -292,6 +311,10 @@ function exposeStateToWindow() {
   window.__depotLastAudioMime = lastAudioMime;
   window.__depotAppState = APP_STATE;
   window.__depotQuoteNotes = lastQuoteNotes;
+  window.__depotSessionPhotos = sessionPhotos;
+  window.__depotSessionFormData = sessionFormData;
+  window.__depotSessionLocations = sessionLocations;
+  window.__depotSessionDistances = sessionDistances;
   window.lastSections = lastSections; // Expose for what3words and other integrations
 }
 
@@ -308,6 +331,11 @@ function updateAppStateSnapshot() {
   })) : [];
   APP_STATE.fullTranscript = (transcriptInput?.value || "").trim();
   APP_STATE.transcriptText = APP_STATE.fullTranscript;
+  // Add new photo, form, and location data
+  APP_STATE.photos = Array.isArray(sessionPhotos) ? [...sessionPhotos] : [];
+  APP_STATE.formData = sessionFormData ? { ...sessionFormData } : {};
+  APP_STATE.locations = sessionLocations ? { ...sessionLocations } : {};
+  APP_STATE.distances = sessionDistances ? { ...sessionDistances } : {};
 }
 
 function buildStateSnapshot() {
@@ -2408,7 +2436,7 @@ function base64ToBlob(b64, mime) {
 async function saveSessionToFile() {
   const fullTranscript = transcriptInput.value.trim() || committedTranscript || "";
   const session = {
-    version: 1,
+    version: 2, // Incremented for new photo/form/location features
     createdAt: new Date().toISOString(),
     fullTranscript,
     sections: lastRawSections,
@@ -2416,7 +2444,12 @@ async function saveSessionToFile() {
     checkedItems: lastCheckedItems,
     missingInfo: lastMissingInfo,
     customerSummary: lastCustomerSummary,
-    quoteNotes: lastQuoteNotes
+    quoteNotes: lastQuoteNotes,
+    // New fields for photo, GPS, and structured form support
+    photos: sessionPhotos,
+    formData: sessionFormData,
+    locations: sessionLocations,
+    distances: sessionDistances
   };
 
   if (sessionAudioChunks && sessionAudioChunks.length > 0) {
@@ -2501,6 +2534,11 @@ loadSessionInput.onchange = async (e) => {
     lastCheckedItems = Array.isArray(session.checkedItems) ? session.checkedItems : [];
     lastMissingInfo = Array.isArray(session.missingInfo) ? session.missingInfo : [];
     lastCustomerSummary = session.customerSummary || "";
+    // Load new photo, form, and location data (backward compatible)
+    sessionPhotos = Array.isArray(session.photos) ? session.photos : [];
+    sessionFormData = session.formData && typeof session.formData === 'object' ? session.formData : {};
+    sessionLocations = session.locations && typeof session.locations === 'object' ? session.locations : {};
+    sessionDistances = session.distances && typeof session.distances === 'object' ? session.distances : {};
     if (session.audioBase64) {
       try {
         const mime = session.audioMime || "audio/webm";

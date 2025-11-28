@@ -34,6 +34,12 @@ import {
 import { showSendSectionsSlideOver, updateSendSectionsSlideOver } from "./sendSections.js";
 import { initWhat3Words } from "./what3words.js";
 import {
+  initStructuredForm,
+  getFormData,
+  isFormModeActive,
+  clearFormData
+} from "./structuredForm.js";
+import {
   retryWithBackoff,
   categorizeError,
   offlineQueue,
@@ -4581,6 +4587,9 @@ initAgentMode();
 
 // Initialize what3words
 initWhat3Words();
+
+// Initialize structured form
+initStructuredForm();
 
 // Expose functions for external integrations
 window.refreshUiFromState = refreshUiFromState;

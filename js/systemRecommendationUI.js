@@ -375,6 +375,32 @@ async function loadAndApplyCloudSession(sessionId, workerUrl, token) {
       transcriptInput.value = sessionData.fullTranscript;
     }
 
+    // Restore audio data if present
+    if (sessionData.audioBase64 && sessionData.audioMime) {
+      try {
+        // Convert base64 back to blob
+        const byteCharacters = atob(sessionData.audioBase64);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        const audioBlob = new Blob([byteArray], { type: sessionData.audioMime });
+
+        // Store audio data globally for playback
+        if (window.audioChunks) {
+          window.audioChunks = [audioBlob];
+        }
+        if (window.audioMime) {
+          window.audioMime = sessionData.audioMime;
+        }
+
+        console.log('✅ Audio data restored from cloud session');
+      } catch (error) {
+        console.warn('⚠️ Could not restore audio data:', error);
+      }
+    }
+
     // Store session name
     if (sessionData.sessionName) {
       localStorage.setItem('depot.currentSessionName', sessionData.sessionName);

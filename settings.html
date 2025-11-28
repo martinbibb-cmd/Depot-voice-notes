@@ -479,6 +479,20 @@
       margin: 0;
     }
   </style>
+
+  <!-- PWA Manifest -->
+  <link rel="manifest" href="/manifest.json">
+
+  <!-- PWA Meta Tags -->
+  <meta name="theme-color" content="#2563eb">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Depot Notes">
+
+  <!-- Icons -->
+  <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">
+  <link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png">
+  <link rel="apple-touch-icon" href="/icon-192.png">
 </head>
 <body>
   <header>
@@ -513,6 +527,30 @@
       </p>
 
       <p class="status" id="syncStatus"></p>
+    </section>
+
+    <!-- PWA & Updates Section -->
+    <section class="card" style="grid-column: 1 / -1;">
+      <div class="card-header">
+        <h2>App Updates & Installation</h2>
+        <span>Manage PWA features and updates</span>
+      </div>
+
+      <div class="toolbar">
+        <button id="checkUpdatesBtn" class="secondary">🔄 Check for Updates</button>
+        <button id="installAppBtn" class="secondary" style="display: none;">📱 Install App</button>
+        <button id="clearCacheBtn" class="secondary">🧹 Clear Cache</button>
+      </div>
+
+      <p class="hint">
+        <strong>Check for Updates:</strong> Manually check if a new version of the app is available.<br>
+        <strong>Install App:</strong> Install Depot Voice Notes as a standalone app on your device (available when supported).<br>
+        <strong>Clear Cache:</strong> Clear cached files to free up space or resolve issues.
+      </p>
+
+      <div id="pwaStatus" style="margin-top: 12px; padding: 10px; background: var(--screen-bg); border-radius: var(--radius); font-size: 0.75rem; color: var(--muted);">
+        Service Worker: <span id="swStatus">Checking...</span>
+      </div>
     </section>
 
     <!-- Export Format Preferences -->
@@ -1946,6 +1984,88 @@ Do not include any explanation outside the JSON.`
       }
     });
 
+    // --- PWA Features ---
+    function setupPWAFeatures() {
+      const checkUpdatesBtn = document.getElementById('checkUpdatesBtn');
+      const installAppBtn = document.getElementById('installAppBtn');
+      const clearCacheBtn = document.getElementById('clearCacheBtn');
+      const swStatus = document.getElementById('swStatus');
+
+      // Check service worker status
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistration().then(registration => {
+          if (registration) {
+            swStatus.textContent = '✅ Active';
+            swStatus.style.color = 'var(--success)';
+          } else {
+            swStatus.textContent = '❌ Not registered';
+            swStatus.style.color = 'var(--danger)';
+          }
+        });
+      } else {
+        swStatus.textContent = '❌ Not supported';
+        swStatus.style.color = 'var(--danger)';
+      }
+
+      // Check for updates button
+      if (checkUpdatesBtn) {
+        checkUpdatesBtn.addEventListener('click', () => {
+          if (typeof window.checkForUpdates === 'function') {
+            window.checkForUpdates();
+          } else if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+            navigator.serviceWorker.controller.postMessage({ type: 'CHECK_UPDATE' });
+            alert('✅ Checking for updates...\n\nIf a new version is found, you\'ll be prompted to reload.');
+          } else {
+            alert('❌ Service worker not available.\n\nPlease reload the page to register the service worker.');
+          }
+        });
+      }
+
+      // Install app button
+      if (installAppBtn) {
+        // Show button if install prompt is available
+        window.addEventListener('beforeinstallprompt', (e) => {
+          e.preventDefault();
+          installAppBtn.style.display = 'inline-block';
+
+          installAppBtn.addEventListener('click', async () => {
+            if (typeof window.triggerInstallPrompt === 'function') {
+              window.triggerInstallPrompt();
+            } else {
+              e.prompt();
+              const { outcome } = await e.userChoice;
+              if (outcome === 'accepted') {
+                installAppBtn.style.display = 'none';
+              }
+            }
+          });
+        });
+
+        // Check if already installed
+        if (window.matchMedia('(display-mode: standalone)').matches) {
+          installAppBtn.textContent = '✅ App Installed';
+          installAppBtn.disabled = true;
+        }
+      }
+
+      // Clear cache button
+      if (clearCacheBtn) {
+        clearCacheBtn.addEventListener('click', () => {
+          if (typeof window.clearAppCache === 'function') {
+            window.clearAppCache();
+          } else if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+            if (confirm('🧹 Clear all cached data?\n\nThis will free up space but may slow down the app temporarily.')) {
+              navigator.serviceWorker.controller.postMessage({ type: 'CLEAR_CACHE' });
+              alert('✅ Cache cleared! The app will reload...');
+              setTimeout(() => window.location.reload(), 1000);
+            }
+          } else {
+            alert('❌ Service worker not available.\n\nPlease reload the page to register the service worker.');
+          }
+        });
+      }
+    }
+
     // --- Voice Notes 2.0 Settings ---
     function loadVoiceNotes2Settings() {
       const skipClarification = localStorage.getItem('depot.skipClarificationModal') === 'true';
@@ -1986,6 +2106,9 @@ Do not include any explanation outside the JSON.`
         console.warn('Failed to load auth module:', err);
       }
 
+      // PWA features setup
+      setupPWAFeatures();
+
       // Load setup wizard module
       try {
         const wizardModule = await import('./js/setupWizard.js');
@@ -1998,6 +2121,21 @@ Do not include any explanation outside the JSON.`
         console.warn('Failed to load setup wizard module:', err);
       }
     })();
+  </script>
+
+  <!-- Service Worker Registration (shared with main app) -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js')
+          .then(registration => {
+            console.log('✅ Service Worker registered:', registration.scope);
+          })
+          .catch(error => {
+            console.error('❌ Service Worker registration failed:', error);
+          });
+      });
+    }
   </script>
 </body>
 </html>

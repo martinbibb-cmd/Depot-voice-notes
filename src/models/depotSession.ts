@@ -4,6 +4,25 @@ export type SystemType = "combi" | "system" | "regular" | "back_boiler" | "unkno
 export type JobType = "swap" | "conversion" | "new_install" | "unknown";
 export type HomecareStatus = "active" | "lapsed" | "none" | "unknown";
 export type FuelType = "gas" | "lpg" | "oil" | "electric" | "unknown";
+export interface MissingInfoItem {
+  path?: string;
+  label?: string;
+  detail?: string;
+}
+export interface QuoteLine {
+  sku: string;
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  totalPrice: number;
+  category: string;
+}
+export interface QuoteResult {
+  lines: QuoteLine[];
+  grossPriceIncVat: number;
+  totalDiscountIncVat: number;
+  totalPricePayableIncVat: number;
+}
 
 export interface DepotSurveySessionMeta {
   sessionName?: string;
@@ -26,6 +45,7 @@ export interface VulnerabilityInfo {
 
 export interface ExistingSystemInfo {
   systemType?: SystemType;
+  existingSystemType?: string;
   jobType?: JobType;
   boilerLocation?: string;
   controls?: string;
@@ -75,6 +95,7 @@ export interface BoilerJobType {
   boilerLocation?: string;
   flueType?: string;
   controls?: string;
+  systemTypeA?: string;
   notes?: string;
 }
 
@@ -82,6 +103,7 @@ export interface CleansingAndProtection {
   cleansingRequired?: YesNoNone;
   inhibitorRequired?: YesNoNone;
   magneticFilter?: YesNoNone;
+  magneticFilterType?: string;
   notes?: string;
 }
 
@@ -170,7 +192,7 @@ export interface DepotSurveySession {
   materials?: MaterialItem[];
   ai?: AINotes;
   sections?: any[];
-  missingInfo?: string[];
+  missingInfo?: Array<string | MissingInfoItem>;
   fullTranscript?: string;
   photos?: any[];
   checkedItems?: any;
@@ -180,6 +202,7 @@ export interface DepotSurveySession {
   distances?: any;
   audioBase64?: string;
   audioMime?: string;
+  quote?: QuoteResult;
 }
 
 export default DepotSurveySession;

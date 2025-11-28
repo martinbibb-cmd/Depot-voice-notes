@@ -482,8 +482,8 @@
 
   <script>
     window.DepotBuildInfo = {
-      appVersion: '1.1.0',
-      cacheVersion: 'depot-v1.1.0'
+      appVersion: '1.2.0',
+      cacheVersion: 'depot-v1.2.0'
     };
   </script>
 
@@ -2148,8 +2148,8 @@ Do not include any explanation outside the JSON.`
       const workerEndpointValue = document.getElementById('workerEndpointValue');
 
       const buildInfo = window.DepotBuildInfo || {};
-      const appVersion = buildInfo.appVersion || '1.1.0';
-      const cacheVersion = buildInfo.cacheVersion || 'depot-v1.1.0';
+      const appVersion = buildInfo.appVersion || '1.2.0';
+      const cacheVersion = buildInfo.cacheVersion || 'depot-v1.2.0';
       const workerUrl = (window.DepotWorkerConfig?.getWorkerUrl?.())
         || localStorage.getItem('depot.workerUrl')
         || localStorage.getItem('depot-worker-url')

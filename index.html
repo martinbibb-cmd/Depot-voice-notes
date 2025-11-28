@@ -2316,6 +2316,97 @@
       font-size: 0.8rem;
       margin-left: 12px;
     }
+
+    .session-field-list {
+      display: grid;
+      gap: 8px;
+    }
+
+    .session-field-row {
+      display: grid;
+      grid-template-columns: 18px 180px 1fr;
+      gap: 8px;
+      align-items: center;
+      padding: 8px 10px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--bg-secondary);
+    }
+
+    .session-field-label {
+      font-weight: 600;
+      color: var(--text);
+      font-size: 0.9rem;
+    }
+
+    .session-field-value {
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .ai-indicator {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      border: 1px solid var(--border);
+      background: #fff;
+      display: inline-block;
+    }
+
+    .ai-indicator.active {
+      background: #3b82f6;
+      box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+      border-color: #1d4ed8;
+    }
+
+    .missing-info-block {
+      margin-top: 12px;
+      padding: 10px;
+      border: 1px dashed var(--border);
+      border-radius: 6px;
+      background: #f8fafc;
+    }
+
+    .missing-info-list {
+      margin: 6px 0 0 16px;
+      padding: 0;
+      color: var(--muted);
+    }
+
+    .missing-info-list li {
+      margin-bottom: 4px;
+      line-height: 1.4;
+    }
+
+    .quote-table-wrapper {
+      overflow-x: auto;
+      margin-top: 8px;
+    }
+
+    .quote-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .quote-table th,
+    .quote-table td {
+      padding: 6px 8px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.9rem;
+    }
+
+    .quote-table th {
+      background: var(--bg-secondary);
+      font-weight: 700;
+    }
+
+    .quote-totals {
+      margin-top: 10px;
+      display: grid;
+      gap: 4px;
+      font-weight: 600;
+    }
   </style>
 
   <!-- PWA Manifest -->
@@ -2549,6 +2640,8 @@
   <section class="results-row">
     <div class="results-actions">
       <button id="sendSectionsBtn" class="pill-secondary">📨 Send over sections</button>
+      <button id="autoFillSessionBtn" class="pill-secondary">✨ Auto-fill from transcript</button>
+      <button id="buildQuoteBtn" class="pill-secondary">💷 Build quote</button>
     </div>
     <!-- Side-by-side Notes Sections -->
     <div class="notes-grid">
@@ -2571,6 +2664,53 @@
           <span class="small">No AI notes yet.</span>
         </div>
       </div>
+    </div>
+
+    <div class="card" id="sessionDataCard">
+      <div class="card-title">
+        Survey session data
+        <span class="small">AI-filled fields highlighted</span>
+      </div>
+      <div id="sessionFieldList" class="session-field-list">
+        <span class="small" style="color: var(--muted);">No session data yet. Capture transcript or auto-fill to populate.</span>
+      </div>
+      <div class="missing-info-block">
+        <div class="card-title" style="font-size: 0.85rem;">
+          Missing info
+          <span class="small">Outstanding follow-ups</span>
+        </div>
+        <ul id="sessionMissingInfo" class="missing-info-list">
+          <li class="small" style="color: var(--muted); list-style: none;">No missing info captured.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="card" id="quoteBuilderCard">
+      <div class="card-title">
+        Quote builder
+        <span class="small">Deterministic pricebook lookup</span>
+      </div>
+      <div id="quoteStatus" class="small" style="color: var(--muted);">No quote built yet.</div>
+      <div id="quoteTokens" class="small" style="margin: 6px 0 10px; color: var(--muted);"></div>
+      <div class="quote-table-wrapper">
+        <table id="quoteLinesTable" class="quote-table" aria-label="Quote lines">
+          <thead>
+            <tr>
+              <th>SKU</th>
+              <th>Description</th>
+              <th>Qty</th>
+              <th>Unit</th>
+              <th>Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td colspan="5" class="small" style="text-align: center; color: var(--muted);">No quote lines yet.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div id="quoteTotals" class="quote-totals"></div>
     </div>
 
     <!-- Photos Section -->

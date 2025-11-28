@@ -21,7 +21,8 @@ export function createEmptyDepotSurveySession() {
     ai: {},
     sections: [],
     missingInfo: [],
-    photos: []
+    photos: [],
+    quote: undefined
   };
 }
 

@@ -39,6 +39,9 @@ import {
   isFormModeActive,
   clearFormData
 } from "./structuredForm.js";
+import { createEmptyDepotSurveySession, buildSessionFromAppState } from "../src/state/sessionStore.js";
+import { autoFillSession } from "../src/api/autoFillSession.js";
+import { deriveTokensFromSession, buildQuoteFromTokens } from "../src/quote/quoteEngine.js";
 import {
   retryWithBackoff,
   categorizeError,
@@ -262,9 +265,17 @@ const sleepWarningEl = document.getElementById("sleep-warning");
 const settingsBtn = document.getElementById("settingsBtn");
 const bugReportBtn = document.getElementById("bugReportBtn");
 const sendSectionsBtn = document.getElementById("sendSectionsBtn");
+const autoFillSessionBtn = document.getElementById("autoFillSessionBtn");
+const buildQuoteBtn = document.getElementById("buildQuoteBtn");
 const workerDebugEl = document.getElementById("workerDebug");
 const debugSectionsPre = document.getElementById("debugSectionsJson");
 const debugSectionsDetails = document.getElementById("debugSections");
+const sessionFieldListEl = document.getElementById("sessionFieldList");
+const sessionMissingInfoEl = document.getElementById("sessionMissingInfo");
+const quoteLinesTable = document.getElementById("quoteLinesTable");
+const quoteTotalsEl = document.getElementById("quoteTotals");
+const quoteStatusEl = document.getElementById("quoteStatus");
+const quoteTokensEl = document.getElementById("quoteTokens");
 
 if (typeof window !== "undefined") {
   window.__depotVoiceNotesDebug = window.__depotVoiceNotesDebug || {
@@ -290,11 +301,15 @@ let lastCheckedItems = [];
 let lastMissingInfo = [];
 let lastCustomerSummary = "";
 let lastQuoteNotes = [];
+let lastQuoteTokens = [];
 // Photo, GPS, and structured form state
 let sessionPhotos = [];
 let sessionFormData = {};
 let sessionLocations = {};
 let sessionDistances = {};
+let currentSession = createEmptyDepotSurveySession();
+let aiFilledPaths = new Set();
+let currentQuoteResult = null;
 let wasBackgroundedDuringSession = false;
 let pauseReason = null;
 let lastWorkerPayload = null;
@@ -321,6 +336,8 @@ function exposeStateToWindow() {
   window.__depotSessionFormData = sessionFormData;
   window.__depotSessionLocations = sessionLocations;
   window.__depotSessionDistances = sessionDistances;
+  window.__depotCurrentSession = currentSession;
+  window.__depotQuoteResult = currentQuoteResult;
   window.lastSections = lastSections; // Expose for what3words and other integrations
 }
 
@@ -342,6 +359,8 @@ function updateAppStateSnapshot() {
   APP_STATE.formData = sessionFormData ? { ...sessionFormData } : {};
   APP_STATE.locations = sessionLocations ? { ...sessionLocations } : {};
   APP_STATE.distances = sessionDistances ? { ...sessionDistances } : {};
+  APP_STATE.quote = currentSession.quote || currentQuoteResult || undefined;
+  APP_STATE.session = currentSession;
 }
 
 function buildStateSnapshot() {
@@ -365,6 +384,256 @@ function buildStateSnapshot() {
     transcriptText: APP_STATE.fullTranscript,
     fullTranscript: APP_STATE.fullTranscript
   };
+}
+
+const SESSION_FIELD_CONFIG = [
+  { label: "Customer name", path: "meta.customerName" },
+  { label: "Job type", path: "meta.jobType" },
+  { label: "Existing system", path: "existingSystem.systemType" },
+  { label: "Existing fuel", path: "existingSystem.fuelType" },
+  { label: "Boiler job", path: "boilerJob.type" },
+  { label: "Heat loss (kW)", path: "heatLoss.totalHeatLossKw" },
+  { label: "Magnetic filter", path: "cleansing.magneticFilterType" },
+  { label: "Installer notes", path: "installerNotes.otherNotes" }
+];
+
+function refreshCurrentSessionSnapshot() {
+  updateAppStateSnapshot();
+  currentSession = buildSessionFromAppState(APP_STATE, {
+    transcript: APP_STATE.fullTranscript,
+    sessionName: APP_STATE.meta?.sessionName
+  });
+  currentSession.missingInfo = Array.isArray(currentSession.missingInfo)
+    ? currentSession.missingInfo
+    : [];
+  currentSession.quote = currentSession.quote || currentQuoteResult || undefined;
+}
+
+function getValueAtPath(obj, path) {
+  return path.split(".").reduce((acc, key) => (acc && acc[key] !== undefined ? acc[key] : undefined), obj);
+}
+
+function mergeSessionPatch(target, patch, prefix = []) {
+  if (!patch || typeof patch !== "object") return;
+  Object.entries(patch).forEach(([key, value]) => {
+    const currentPath = [...prefix, key].join(".");
+    const existing = target[key];
+
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      if (existing === undefined || existing === null) {
+        target[key] = {};
+      }
+      mergeSessionPatch(target[key], value, [...prefix, key]);
+      return;
+    }
+
+    if (Array.isArray(value)) {
+      if (existing === undefined || existing === null) {
+        target[key] = value;
+        aiFilledPaths.add(currentPath);
+      }
+      return;
+    }
+
+    if (existing === undefined || existing === null) {
+      target[key] = value;
+      aiFilledPaths.add(currentPath);
+    }
+  });
+}
+
+function renderSessionFields() {
+  if (!sessionFieldListEl) return;
+  sessionFieldListEl.innerHTML = "";
+
+  const fragments = document.createDocumentFragment();
+
+  SESSION_FIELD_CONFIG.forEach((field) => {
+    const value = getValueAtPath(currentSession, field.path);
+    const row = document.createElement("div");
+    row.className = "session-field-row";
+
+    const indicator = document.createElement("span");
+    indicator.className = `ai-indicator ${aiFilledPaths.has(field.path) ? "active" : ""}`.trim();
+    row.appendChild(indicator);
+
+    const label = document.createElement("div");
+    label.className = "session-field-label";
+    label.textContent = field.label;
+    row.appendChild(label);
+
+    const valueEl = document.createElement("div");
+    valueEl.className = "session-field-value";
+    valueEl.textContent = value === undefined || value === null || value === ""
+      ? "—"
+      : String(value);
+    row.appendChild(valueEl);
+
+    fragments.appendChild(row);
+  });
+
+  if (!fragments.childNodes.length) {
+    const empty = document.createElement("span");
+    empty.className = "small";
+    empty.style.color = "var(--muted)";
+    empty.textContent = "No session data yet.";
+    sessionFieldListEl.appendChild(empty);
+    return;
+  }
+
+  sessionFieldListEl.appendChild(fragments);
+}
+
+function syncMissingInfoState() {
+  const infoItems = Array.isArray(currentSession.missingInfo)
+    ? currentSession.missingInfo
+    : [];
+  lastMissingInfo = infoItems.map((item) => {
+    if (typeof item === "string") return item;
+    return item.detail || item.label || item.path || "Follow up item";
+  });
+}
+
+function renderMissingInfo() {
+  if (!sessionMissingInfoEl) return;
+  sessionMissingInfoEl.innerHTML = "";
+  const infoItems = Array.isArray(currentSession.missingInfo) ? currentSession.missingInfo : [];
+
+  if (!infoItems.length) {
+    const li = document.createElement("li");
+    li.className = "small";
+    li.style.color = "var(--muted)";
+    li.style.listStyle = "none";
+    li.textContent = "No missing info captured.";
+    sessionMissingInfoEl.appendChild(li);
+    return;
+  }
+
+  infoItems.forEach((item) => {
+    const li = document.createElement("li");
+    const label = typeof item === "string" ? item : item.label || item.detail || item.path || "Follow up";
+    const detail = typeof item === "string" ? "" : item.detail;
+    li.textContent = detail ? `${label}: ${detail}` : label;
+    sessionMissingInfoEl.appendChild(li);
+  });
+}
+
+function renderQuoteResult(tokens = lastQuoteTokens) {
+  if (!quoteLinesTable || !quoteTotalsEl || !quoteStatusEl) return;
+  const tbody = quoteLinesTable.querySelector("tbody");
+  tbody.innerHTML = "";
+
+  const lines = currentQuoteResult?.lines || [];
+  if (!lines.length) {
+    const row = document.createElement("tr");
+    const cell = document.createElement("td");
+    cell.colSpan = 5;
+    cell.className = "small";
+    cell.style.textAlign = "center";
+    cell.style.color = "var(--muted)";
+    cell.textContent = "No quote lines yet.";
+    row.appendChild(cell);
+    tbody.appendChild(row);
+  } else {
+    lines.forEach((line) => {
+      const row = document.createElement("tr");
+      row.innerHTML = `
+        <td>${line.sku || ""}</td>
+        <td>${line.description || ""}</td>
+        <td>${line.quantity ?? ""}</td>
+        <td>£${(line.unitPrice || 0).toFixed(2)}</td>
+        <td>£${(line.totalPrice || 0).toFixed(2)}</td>
+      `;
+      tbody.appendChild(row);
+    });
+  }
+
+  quoteTotalsEl.innerHTML = "";
+  if (currentQuoteResult) {
+    const gross = document.createElement("div");
+    gross.textContent = `Gross (inc. VAT): £${(currentQuoteResult.grossPriceIncVat || 0).toFixed(2)}`;
+    const discount = document.createElement("div");
+    discount.textContent = `Discounts: £${(currentQuoteResult.totalDiscountIncVat || 0).toFixed(2)}`;
+    const total = document.createElement("div");
+    total.textContent = `Total payable (inc. VAT): £${(currentQuoteResult.totalPricePayableIncVat || 0).toFixed(2)}`;
+    quoteTotalsEl.appendChild(gross);
+    quoteTotalsEl.appendChild(discount);
+    quoteTotalsEl.appendChild(total);
+  }
+
+  if (quoteTokensEl) {
+    quoteTokensEl.textContent = tokens.length ? `Tokens: ${tokens.join(", ")}` : "";
+  }
+
+  quoteStatusEl.textContent = lines.length
+    ? "Quote ready"
+    : quoteStatusEl.textContent || "No quote built yet.";
+}
+
+async function handleAutoFillFromTranscript() {
+  if (!autoFillSessionBtn) return;
+  autoFillSessionBtn.disabled = true;
+  autoFillSessionBtn.textContent = "Working...";
+
+  try {
+    refreshCurrentSessionSnapshot();
+    aiFilledPaths.clear();
+    if (!currentSession.fullTranscript || !currentSession.fullTranscript.trim()) {
+      alert("No transcript available yet.");
+      return;
+    }
+
+    const { sessionPatch, missingInfo } = await autoFillSession(
+      currentSession.fullTranscript,
+      currentSession
+    );
+
+    mergeSessionPatch(currentSession, sessionPatch);
+    if (Array.isArray(missingInfo) && missingInfo.length) {
+      currentSession.missingInfo = currentSession.missingInfo || [];
+      currentSession.missingInfo.push(...missingInfo);
+    }
+
+    syncMissingInfoState();
+    updateAppStateSnapshot();
+    renderSessionFields();
+    renderMissingInfo();
+  } catch (err) {
+    console.error("Auto-fill failed", err);
+    alert(err.message || "Failed to auto-fill session");
+  } finally {
+    autoFillSessionBtn.disabled = false;
+    autoFillSessionBtn.textContent = "✨ Auto-fill from transcript";
+    exposeStateToWindow();
+  }
+}
+
+async function handleBuildQuote() {
+  if (!buildQuoteBtn) return;
+  buildQuoteBtn.disabled = true;
+  buildQuoteBtn.textContent = "Building...";
+  if (quoteStatusEl) {
+    quoteStatusEl.textContent = "Building quote from pricebook...";
+  }
+
+  try {
+    refreshCurrentSessionSnapshot();
+    const tokens = deriveTokensFromSession(currentSession);
+    lastQuoteTokens = tokens;
+    currentQuoteResult = await buildQuoteFromTokens(tokens);
+    currentSession.quote = currentQuoteResult;
+    updateAppStateSnapshot();
+    renderQuoteResult(tokens);
+  } catch (err) {
+    console.error("Quote build failed", err);
+    if (quoteStatusEl) {
+      quoteStatusEl.textContent = err.message || "Failed to build quote.";
+    }
+  } finally {
+    buildQuoteBtn.disabled = false;
+    buildQuoteBtn.textContent = "💷 Build quote";
+    exposeStateToWindow();
+  }
 }
 
 // Auto-save function (will be called via debounced wrapper)
@@ -2108,6 +2377,10 @@ function refreshUiFromState() {
   renderChecklist(clarificationsEl, lastCheckedItems, lastMissingInfo);
 
   // 4) Expose state to window for save menu
+  refreshCurrentSessionSnapshot();
+  renderSessionFields();
+  renderMissingInfo();
+  renderQuoteResult();
   exposeStateToWindow();
 }
 
@@ -3420,6 +3693,14 @@ if (sendSectionsBtn) {
   });
 }
 
+if (autoFillSessionBtn) {
+  autoFillSessionBtn.addEventListener("click", handleAutoFillFromTranscript);
+}
+
+if (buildQuoteBtn) {
+  buildQuoteBtn.addEventListener("click", handleBuildQuote);
+}
+
 window.addEventListener("aiNotesUpdated", (event) => {
   updateSendSectionsSlideOver({
     autoSections: getSectionsForSharing(),
@@ -3533,6 +3814,10 @@ function resetSessionState() {
   lastMissingInfo = [];
   lastCustomerSummary = "";
   lastQuoteNotes = [];
+  lastQuoteTokens = [];
+  currentSession = createEmptyDepotSurveySession();
+  aiFilledPaths.clear();
+  currentQuoteResult = null;
   localStorage.removeItem(LS_AUTOSAVE_KEY);
   clearVoiceError();
   clearSleepWarning();

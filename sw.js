@@ -3,7 +3,7 @@
  * Provides offline capability and performance optimization
  */
 
-const CACHE_VERSION = 'depot-v1.0.0';
+const CACHE_VERSION = 'depot-v1.1.0';
 const CACHE_STATIC = `${CACHE_VERSION}-static`;
 const CACHE_DYNAMIC = `${CACHE_VERSION}-dynamic`;
 const CACHE_API = `${CACHE_VERSION}-api`;
@@ -106,6 +106,12 @@ self.addEventListener('fetch', (event) => {
 
   // Skip caching for chrome-extension and other non-http(s) requests
   if (!request.url.startsWith('http')) {
+    return;
+  }
+
+  // Always use network-first for navigation and HTML requests so new versions ship immediately
+  if (request.mode === 'navigate' || request.headers.get('accept')?.includes('text/html')) {
+    event.respondWith(networkFirstStrategy(request, CACHE_STATIC, MAX_DYNAMIC_CACHE_SIZE));
     return;
   }
 

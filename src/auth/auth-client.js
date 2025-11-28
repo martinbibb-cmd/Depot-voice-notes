@@ -427,6 +427,7 @@ if (typeof window !== 'undefined') {
     register,
     login,
     logout,
+    getAuthToken,
     getProfile,
     getUserInfo,
     saveSettingsToCloud,

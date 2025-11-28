@@ -2935,53 +2935,37 @@
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        // Try to register the service worker
-        const swPath = '/sw.js';
+        // Try to register the service worker (works when hosted in a subdirectory)
+        const swPath = new URL('sw.js', window.location.href).pathname;
 
-        // First check if sw.js exists before registering
-        fetch(swPath, { method: 'HEAD' })
-          .then(response => {
-            if (!response.ok) {
-              console.warn('⚠️ Service Worker file not found at ' + swPath);
-              console.info('ℹ️ Offline mode unavailable. The app will work but won\'t cache for offline use.');
-              console.info('ℹ️ Deploy sw.js at the root of your domain to enable offline support.');
-              return;
-            }
+        navigator.serviceWorker.register(swPath)
+          .then(registration => {
+            console.log('✅ Service Worker registered:', registration.scope);
 
-            // sw.js exists, register it
-            return navigator.serviceWorker.register(swPath)
-              .then(registration => {
-                console.log('✅ Service Worker registered:', registration.scope);
+            // Check for updates periodically
+            setInterval(() => {
+              registration.update();
+            }, 60000); // Check every minute
 
-                // Check for updates periodically
-                setInterval(() => {
-                  registration.update();
-                }, 60000); // Check every minute
-
-                // Listen for updates
-                registration.addEventListener('updatefound', () => {
-                  const newWorker = registration.installing;
-                  if (newWorker) {
-                    newWorker.addEventListener('statechange', () => {
-                      if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                        // New service worker available
-                        console.log('🔄 New version available! Reload to update.');
-                        if (confirm('A new version is available! Reload to update?')) {
-                          newWorker.postMessage({ type: 'SKIP_WAITING' });
-                          window.location.reload();
-                        }
-                      }
-                    });
+            // Listen for updates
+            registration.addEventListener('updatefound', () => {
+              const newWorker = registration.installing;
+              if (newWorker) {
+                newWorker.addEventListener('statechange', () => {
+                  if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                    // New service worker available
+                    console.log('🔄 New version available! Reload to update.');
+                    if (confirm('A new version is available! Reload to update?')) {
+                      newWorker.postMessage({ type: 'SKIP_WAITING' });
+                      window.location.reload();
+                    }
                   }
                 });
-              })
-              .catch(error => {
-                console.error('❌ Service Worker registration failed:', error);
-                console.info('ℹ️ The app will work without offline support.');
-              });
+              }
+            });
           })
           .catch(error => {
-            console.warn('⚠️ Could not check for Service Worker file:', error);
+            console.error(`❌ Service Worker registration failed at ${swPath}:`, error);
             console.info('ℹ️ The app will work without offline support.');
           });
 

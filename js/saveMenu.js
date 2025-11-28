@@ -753,13 +753,18 @@ async function saveSessionToCloud() {
                       localStorage.getItem('depot-worker-url') ||
                       'https://depot-voice-notes.martinbibb.workers.dev';
     const userInfo = authModule?.getUserInfo();
+    const token = authModule?.getAuthToken ? authModule.getAuthToken() : null;
+
+    if (!token) {
+      throw new Error('Authentication required: missing token');
+    }
 
     // Send to cloud
     const response = await fetch(`${workerUrl}/cloud-session`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${userInfo?.token || ''}`
+        'Authorization': `Bearer ${token}`
       },
       body: JSON.stringify({
         sessionName: session.sessionName,

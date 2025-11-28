@@ -197,7 +197,7 @@ function showNoDataDialog() {
 /**
  * Loads a session from cloud storage
  */
-async function loadSessionFromCloud() {
+export async function loadSessionFromCloud() {
   showLoadingModal('Loading sessions from cloud...');
 
   try {

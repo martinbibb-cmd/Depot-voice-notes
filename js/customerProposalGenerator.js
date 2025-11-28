@@ -774,24 +774,33 @@ export function initCustomerProposalButton() {
     return;
   }
 
-  // Check if button already exists
-  if (document.getElementById('customerProposalBtn')) {
-    return;
+  let btn = document.getElementById('customerProposalBtn');
+
+  // If the button already exists in the DOM, ensure it is styled and wired up
+  if (!btn) {
+    btn = document.createElement('button');
+    btn.id = 'customerProposalBtn';
+    btn.className = 'pill-secondary';
+    btn.innerHTML = '📄 Customer Proposal';
+  } else {
+    btn.classList.add('pill-secondary');
+    btn.innerHTML = '📄 Customer Proposal';
   }
 
-  const btn = document.createElement('button');
-  btn.id = 'customerProposalBtn';
-  btn.className = 'pill-secondary';
-  btn.innerHTML = '📄 Customer Proposal';
   btn.title = 'Generate 4-page customer-facing proposal (requires system recommendation)';
 
-  btn.addEventListener('click', () => {
-    generateCustomerProposal();
-  });
+  if (!btn.dataset.proposalReady) {
+    btn.addEventListener('click', () => {
+      generateCustomerProposal();
+    });
+    btn.dataset.proposalReady = 'true';
+  }
 
   // Insert after the regular presentation button, or after system recommendation button
   const presentationBtn = document.getElementById('generatePresentationBtn');
-  if (presentationBtn) {
+  if (presentationBtn && presentationBtn.parentNode === btn.parentNode) {
+    presentationBtn.parentNode.insertBefore(btn, presentationBtn.nextSibling);
+  } else if (presentationBtn) {
     presentationBtn.parentNode.insertBefore(btn, presentationBtn.nextSibling);
   } else {
     const sysRecBtn = document.getElementById('systemRecommendationBtn');
@@ -801,7 +810,7 @@ export function initCustomerProposalButton() {
       const settingsBtn = document.getElementById('settingsBtn');
       if (settingsBtn) {
         settingsBtn.parentNode.insertBefore(btn, settingsBtn.nextSibling);
-      } else {
+      } else if (!btn.parentNode) {
         toolbar.appendChild(btn);
       }
     }

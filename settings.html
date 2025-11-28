@@ -480,6 +480,13 @@
     }
   </style>
 
+  <script>
+    window.DepotBuildInfo = {
+      appVersion: '1.1.0',
+      cacheVersion: 'depot-v1.1.0'
+    };
+  </script>
+
   <!-- PWA Manifest -->
   <link rel="manifest" href="/manifest.json">
 
@@ -527,6 +534,52 @@
       </p>
 
       <p class="status" id="syncStatus"></p>
+    </section>
+
+    <!-- Build / Variation info -->
+    <section class="card" style="grid-column: 1 / -1;">
+      <div class="card-header">
+        <h2>Build & Variation Numbers</h2>
+        <span>Identify the exact version currently loaded</span>
+      </div>
+
+      <div class="rows">
+        <div class="row">
+          <span class="order">#1</span>
+          <div>
+            <strong>App variation</strong>
+            <div class="hint">Tracks the main build/version number for this release.</div>
+          </div>
+          <div>
+            <span class="pill" id="appVariationValue">Loading…</span>
+          </div>
+          <div class="row-controls"></div>
+        </div>
+
+        <div class="row">
+          <span class="order">#2</span>
+          <div>
+            <strong>Cache variation</strong>
+            <div class="hint">Matches the service worker cache key to confirm updates shipped.</div>
+          </div>
+          <div>
+            <span class="pill" id="cacheVariationValue">Loading…</span>
+          </div>
+          <div class="row-controls"></div>
+        </div>
+
+        <div class="row">
+          <span class="order">#3</span>
+          <div>
+            <strong>Worker endpoint in use</strong>
+            <div class="hint">Confirms which backend is receiving cloud saves and updates.</div>
+          </div>
+          <div>
+            <span class="pill" id="workerEndpointValue">Loading…</span>
+          </div>
+          <div class="row-controls"></div>
+        </div>
+      </div>
     </section>
 
     <!-- PWA & Updates Section -->
@@ -2089,6 +2142,31 @@ Do not include any explanation outside the JSON.`
       }
     }
 
+    function renderBuildMeta() {
+      const appVariationValue = document.getElementById('appVariationValue');
+      const cacheVariationValue = document.getElementById('cacheVariationValue');
+      const workerEndpointValue = document.getElementById('workerEndpointValue');
+
+      const buildInfo = window.DepotBuildInfo || {};
+      const appVersion = buildInfo.appVersion || '1.1.0';
+      const cacheVersion = buildInfo.cacheVersion || 'depot-v1.1.0';
+      const workerUrl = (window.DepotWorkerConfig?.getWorkerUrl?.())
+        || localStorage.getItem('depot.workerUrl')
+        || localStorage.getItem('depot-worker-url')
+        || 'https://depot-voice-notes.martinbibb.workers.dev';
+
+      if (appVariationValue) {
+        appVariationValue.textContent = appVersion;
+      }
+      if (cacheVariationValue) {
+        cacheVariationValue.textContent = cacheVersion;
+      }
+      if (workerEndpointValue) {
+        workerEndpointValue.textContent = workerUrl.replace(/^https?:\/\//, '');
+        workerEndpointValue.title = workerUrl;
+      }
+    }
+
     // --- Boot ---
     (async function boot() {
       await loadSections();
@@ -2097,6 +2175,7 @@ Do not include any explanation outside the JSON.`
       loadExportFormat();
       renderAIInstructions();
       loadVoiceNotes2Settings();
+      renderBuildMeta();
 
       // Load auth module dynamically
       try {

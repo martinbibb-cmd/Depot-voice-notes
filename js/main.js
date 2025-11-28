@@ -4508,6 +4508,16 @@ const drawArrowBtn = document.getElementById("drawArrowBtn");
 const drawRectBtn = document.getElementById("drawRectBtn");
 const clearAnnotationsBtn = document.getElementById("clearAnnotationsBtn");
 
+// Helper function to get coordinates from mouse or touch event
+function getEventCoords(e, rect) {
+  const clientX = e.clientX !== undefined ? e.clientX : (e.touches?.[0]?.clientX || e.changedTouches?.[0]?.clientX);
+  const clientY = e.clientY !== undefined ? e.clientY : (e.touches?.[0]?.clientY || e.changedTouches?.[0]?.clientY);
+  return {
+    x: clientX - rect.left,
+    y: clientY - rect.top
+  };
+}
+
 // Close modal
 if (closePhotoModalBtn) {
   closePhotoModalBtn.addEventListener('click', () => {
@@ -4590,11 +4600,13 @@ if (addMarkerBtn) {
     const label = prompt("Enter marker label (e.g., 'Boiler', 'Gas meter', 'Flue terminal'):");
     if (!label) return;
 
-    // Set up one-time click handler on canvas
+    // Set up one-time click/touch handler on canvas
     const handleClick = (e) => {
+      e.preventDefault(); // Prevent default touch behavior
       const rect = canvas.getBoundingClientRect();
-      const x = (e.clientX - rect.left) / canvas.width;
-      const y = (e.clientY - rect.top) / canvas.height;
+      const coords = getEventCoords(e, rect);
+      const x = coords.x / canvas.width;
+      const y = coords.y / canvas.height;
 
       // Add marker
       if (!photo.markers) photo.markers = [];
@@ -4615,8 +4627,9 @@ if (addMarkerBtn) {
       };
       img.src = photo.base64;
 
-      // Remove click handler
+      // Remove click/touch handlers
       canvas.removeEventListener('click', handleClick);
+      canvas.removeEventListener('touchend', handleClick);
       canvas.style.cursor = 'crosshair';
       setStatus("Marker added");
     };
@@ -4624,6 +4637,7 @@ if (addMarkerBtn) {
     canvas.style.cursor = 'crosshair';
     setStatus("Click on the photo to place the marker");
     canvas.addEventListener('click', handleClick, { once: true });
+    canvas.addEventListener('touchend', handleClick, { once: true });
   });
 }
 
@@ -4650,19 +4664,24 @@ if (drawLineBtn) {
 
     // First click: set start point
     const handleFirstClick = (e) => {
+      e.preventDefault();
       const rect = canvas.getBoundingClientRect();
+      const coords = getEventCoords(e, rect);
       startPoint = {
-        x: (e.clientX - rect.left) / canvas.width,
-        y: (e.clientY - rect.top) / canvas.height
+        x: coords.x / canvas.width,
+        y: coords.y / canvas.height
       };
       canvas.style.cursor = 'crosshair';
       setStatus("Click where the line should end");
       canvas.removeEventListener('click', handleFirstClick);
+      canvas.removeEventListener('touchend', handleFirstClick);
       canvas.addEventListener('click', handleSecondClick);
+      canvas.addEventListener('touchend', handleSecondClick);
       canvas.addEventListener('mousemove', handleMouseMove);
+      canvas.addEventListener('touchmove', handleTouchMove);
     };
 
-    // Mouse move: show preview line
+    // Mouse/touch move: show preview line
     const handleMouseMove = (e) => {
       if (!startPoint) return;
       const rect = canvas.getBoundingClientRect();
@@ -4681,12 +4700,32 @@ if (drawLineBtn) {
       tempCtx.setLineDash([]);
     };
 
+    const handleTouchMove = (e) => {
+      if (!startPoint) return;
+      e.preventDefault();
+      const rect = canvas.getBoundingClientRect();
+      const coords = getEventCoords(e, rect);
+
+      const tempCtx = tempCanvas.getContext('2d');
+      tempCtx.clearRect(0, 0, tempCanvas.width, tempCanvas.height);
+      tempCtx.strokeStyle = 'rgba(255, 0, 0, 0.7)';
+      tempCtx.lineWidth = 3;
+      tempCtx.setLineDash([5, 5]);
+      tempCtx.beginPath();
+      tempCtx.moveTo(startPoint.x * canvas.width, startPoint.y * canvas.height);
+      tempCtx.lineTo(coords.x, coords.y);
+      tempCtx.stroke();
+      tempCtx.setLineDash([]);
+    };
+
     // Second click: complete the line
     const handleSecondClick = (e) => {
+      e.preventDefault();
       const rect = canvas.getBoundingClientRect();
+      const coords = getEventCoords(e, rect);
       const endPoint = {
-        x: (e.clientX - rect.left) / canvas.width,
-        y: (e.clientY - rect.top) / canvas.height
+        x: coords.x / canvas.width,
+        y: coords.y / canvas.height
       };
 
       // Add annotation
@@ -4704,7 +4743,9 @@ if (drawLineBtn) {
 
       // Cleanup
       canvas.removeEventListener('click', handleSecondClick);
+      canvas.removeEventListener('touchend', handleSecondClick);
       canvas.removeEventListener('mousemove', handleMouseMove);
+      canvas.removeEventListener('touchmove', handleTouchMove);
       canvas.style.cursor = 'default';
       if (tempCanvas.parentElement) {
         tempCanvas.parentElement.removeChild(tempCanvas);
@@ -4726,6 +4767,7 @@ if (drawLineBtn) {
     canvas.style.cursor = 'crosshair';
     setStatus("Click where the line should start");
     canvas.addEventListener('click', handleFirstClick);
+    canvas.addEventListener('touchend', handleFirstClick);
   });
 }
 
@@ -4751,23 +4793,70 @@ if (drawArrowBtn) {
     canvas.parentElement.appendChild(tempCanvas);
 
     const handleFirstClick = (e) => {
+      e.preventDefault();
       const rect = canvas.getBoundingClientRect();
+      const coords = getEventCoords(e, rect);
       startPoint = {
-        x: (e.clientX - rect.left) / canvas.width,
-        y: (e.clientY - rect.top) / canvas.height
+        x: coords.x / canvas.width,
+        y: coords.y / canvas.height
       };
       canvas.style.cursor = 'crosshair';
       setStatus("Click where the arrow should point");
       canvas.removeEventListener('click', handleFirstClick);
+      canvas.removeEventListener('touchend', handleFirstClick);
       canvas.addEventListener('click', handleSecondClick);
+      canvas.addEventListener('touchend', handleSecondClick);
       canvas.addEventListener('mousemove', handleMouseMove);
+      canvas.addEventListener('touchmove', handleTouchMove);
     };
 
     const handleMouseMove = (e) => {
       if (!startPoint) return;
       const rect = canvas.getBoundingClientRect();
-      const currentX = e.clientX - rect.left;
-      const currentY = e.clientY - rect.top;
+      const coords = getEventCoords(e, rect);
+      const currentX = coords.x;
+      const currentY = coords.y;
+
+      const tempCtx = tempCanvas.getContext('2d');
+      tempCtx.clearRect(0, 0, tempCanvas.width, tempCanvas.height);
+      tempCtx.strokeStyle = 'rgba(255, 0, 0, 0.7)';
+      tempCtx.lineWidth = 3;
+      tempCtx.setLineDash([5, 5]);
+
+      const x1 = startPoint.x * canvas.width;
+      const y1 = startPoint.y * canvas.height;
+
+      // Draw line
+      tempCtx.beginPath();
+      tempCtx.moveTo(x1, y1);
+      tempCtx.lineTo(currentX, currentY);
+      tempCtx.stroke();
+
+      // Draw arrowhead preview
+      const angle = Math.atan2(currentY - y1, currentX - x1);
+      const arrowLength = 15;
+      tempCtx.beginPath();
+      tempCtx.moveTo(currentX, currentY);
+      tempCtx.lineTo(
+        currentX - arrowLength * Math.cos(angle - Math.PI / 6),
+        currentY - arrowLength * Math.sin(angle - Math.PI / 6)
+      );
+      tempCtx.moveTo(currentX, currentY);
+      tempCtx.lineTo(
+        currentX - arrowLength * Math.cos(angle + Math.PI / 6),
+        currentY - arrowLength * Math.sin(angle + Math.PI / 6)
+      );
+      tempCtx.stroke();
+      tempCtx.setLineDash([]);
+    };
+
+    const handleTouchMove = (e) => {
+      if (!startPoint) return;
+      e.preventDefault();
+      const rect = canvas.getBoundingClientRect();
+      const coords = getEventCoords(e, rect);
+      const currentX = coords.x;
+      const currentY = coords.y;
 
       const tempCtx = tempCanvas.getContext('2d');
       tempCtx.clearRect(0, 0, tempCanvas.width, tempCanvas.height);
@@ -4803,10 +4892,12 @@ if (drawArrowBtn) {
     };
 
     const handleSecondClick = (e) => {
+      e.preventDefault();
       const rect = canvas.getBoundingClientRect();
+      const coords = getEventCoords(e, rect);
       const endPoint = {
-        x: (e.clientX - rect.left) / canvas.width,
-        y: (e.clientY - rect.top) / canvas.height
+        x: coords.x / canvas.width,
+        y: coords.y / canvas.height
       };
 
       if (!photo.annotations) photo.annotations = [];
@@ -4822,7 +4913,9 @@ if (drawArrowBtn) {
       });
 
       canvas.removeEventListener('click', handleSecondClick);
+      canvas.removeEventListener('touchend', handleSecondClick);
       canvas.removeEventListener('mousemove', handleMouseMove);
+      canvas.removeEventListener('touchmove', handleTouchMove);
       canvas.style.cursor = 'default';
       if (tempCanvas.parentElement) {
         tempCanvas.parentElement.removeChild(tempCanvas);
@@ -4843,6 +4936,7 @@ if (drawArrowBtn) {
     canvas.style.cursor = 'crosshair';
     setStatus("Click where the arrow should start");
     canvas.addEventListener('click', handleFirstClick);
+    canvas.addEventListener('touchend', handleFirstClick);
   });
 }
 
@@ -4868,23 +4962,27 @@ if (drawRectBtn) {
     canvas.parentElement.appendChild(tempCanvas);
 
     const handleFirstClick = (e) => {
+      e.preventDefault();
       const rect = canvas.getBoundingClientRect();
+      const coords = getEventCoords(e, rect);
       startPoint = {
-        x: (e.clientX - rect.left) / canvas.width,
-        y: (e.clientY - rect.top) / canvas.height
+        x: coords.x / canvas.width,
+        y: coords.y / canvas.height
       };
       canvas.style.cursor = 'crosshair';
       setStatus("Click opposite corner of rectangle");
       canvas.removeEventListener('click', handleFirstClick);
+      canvas.removeEventListener('touchend', handleFirstClick);
       canvas.addEventListener('click', handleSecondClick);
+      canvas.addEventListener('touchend', handleSecondClick);
       canvas.addEventListener('mousemove', handleMouseMove);
+      canvas.addEventListener('touchmove', handleTouchMove);
     };
 
     const handleMouseMove = (e) => {
       if (!startPoint) return;
       const rect = canvas.getBoundingClientRect();
-      const currentX = e.clientX - rect.left;
-      const currentY = e.clientY - rect.top;
+      const coords = getEventCoords(e, rect);
 
       const tempCtx = tempCanvas.getContext('2d');
       tempCtx.clearRect(0, 0, tempCanvas.width, tempCanvas.height);
@@ -4892,20 +4990,43 @@ if (drawRectBtn) {
       tempCtx.lineWidth = 3;
       tempCtx.setLineDash([5, 5]);
 
-      const x = Math.min(startPoint.x * canvas.width, currentX);
-      const y = Math.min(startPoint.y * canvas.height, currentY);
-      const width = Math.abs(currentX - startPoint.x * canvas.width);
-      const height = Math.abs(currentY - startPoint.y * canvas.height);
+      const x = Math.min(startPoint.x * canvas.width, coords.x);
+      const y = Math.min(startPoint.y * canvas.height, coords.y);
+      const width = Math.abs(coords.x - startPoint.x * canvas.width);
+      const height = Math.abs(coords.y - startPoint.y * canvas.height);
+
+      tempCtx.strokeRect(x, y, width, height);
+      tempCtx.setLineDash([]);
+    };
+
+    const handleTouchMove = (e) => {
+      if (!startPoint) return;
+      e.preventDefault();
+      const rect = canvas.getBoundingClientRect();
+      const coords = getEventCoords(e, rect);
+
+      const tempCtx = tempCanvas.getContext('2d');
+      tempCtx.clearRect(0, 0, tempCanvas.width, tempCanvas.height);
+      tempCtx.strokeStyle = 'rgba(255, 0, 0, 0.7)';
+      tempCtx.lineWidth = 3;
+      tempCtx.setLineDash([5, 5]);
+
+      const x = Math.min(startPoint.x * canvas.width, coords.x);
+      const y = Math.min(startPoint.y * canvas.height, coords.y);
+      const width = Math.abs(coords.x - startPoint.x * canvas.width);
+      const height = Math.abs(coords.y - startPoint.y * canvas.height);
 
       tempCtx.strokeRect(x, y, width, height);
       tempCtx.setLineDash([]);
     };
 
     const handleSecondClick = (e) => {
+      e.preventDefault();
       const rect = canvas.getBoundingClientRect();
+      const coords = getEventCoords(e, rect);
       const endPoint = {
-        x: (e.clientX - rect.left) / canvas.width,
-        y: (e.clientY - rect.top) / canvas.height
+        x: coords.x / canvas.width,
+        y: coords.y / canvas.height
       };
 
       if (!photo.annotations) photo.annotations = [];
@@ -4921,7 +5042,9 @@ if (drawRectBtn) {
       });
 
       canvas.removeEventListener('click', handleSecondClick);
+      canvas.removeEventListener('touchend', handleSecondClick);
       canvas.removeEventListener('mousemove', handleMouseMove);
+      canvas.removeEventListener('touchmove', handleTouchMove);
       canvas.style.cursor = 'default';
       if (tempCanvas.parentElement) {
         tempCanvas.parentElement.removeChild(tempCanvas);
@@ -4942,6 +5065,7 @@ if (drawRectBtn) {
     canvas.style.cursor = 'crosshair';
     setStatus("Click first corner of rectangle");
     canvas.addEventListener('click', handleFirstClick);
+    canvas.addEventListener('touchend', handleFirstClick);
   });
 }
 

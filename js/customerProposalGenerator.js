@@ -789,29 +789,29 @@ export function initCustomerProposalButton() {
 
   btn.title = 'Generate 4-page customer-facing proposal (requires system recommendation)';
 
-  if (!btn.dataset.proposalReady) {
-    btn.addEventListener('click', () => {
-      generateCustomerProposal();
-    });
-    btn.dataset.proposalReady = 'true';
-  }
+  // Always attach event listener (using onclick to replace any previous handler)
+  btn.onclick = function() {
+    console.log('Customer proposal button clicked');
+    generateCustomerProposal();
+  };
 
-  // Insert after the regular presentation button, or after system recommendation button
-  const presentationBtn = document.getElementById('generatePresentationBtn');
-  if (presentationBtn && presentationBtn.parentNode === btn.parentNode) {
-    presentationBtn.parentNode.insertBefore(btn, presentationBtn.nextSibling);
-  } else if (presentationBtn) {
-    presentationBtn.parentNode.insertBefore(btn, presentationBtn.nextSibling);
-  } else {
-    const sysRecBtn = document.getElementById('systemRecommendationBtn');
-    if (sysRecBtn) {
-      sysRecBtn.parentNode.insertBefore(btn, sysRecBtn.nextSibling);
+  // If button is not in the DOM yet, insert it
+  if (!btn.parentNode) {
+    // Insert after the regular presentation button, or after system recommendation button
+    const presentationBtn = document.getElementById('generatePresentationBtn');
+    if (presentationBtn) {
+      presentationBtn.parentNode.insertBefore(btn, presentationBtn.nextSibling);
     } else {
-      const settingsBtn = document.getElementById('settingsBtn');
-      if (settingsBtn) {
-        settingsBtn.parentNode.insertBefore(btn, settingsBtn.nextSibling);
-      } else if (!btn.parentNode) {
-        toolbar.appendChild(btn);
+      const sysRecBtn = document.getElementById('systemRecommendationBtn');
+      if (sysRecBtn) {
+        sysRecBtn.parentNode.insertBefore(btn, sysRecBtn.nextSibling);
+      } else {
+        const settingsBtn = document.getElementById('settingsBtn');
+        if (settingsBtn) {
+          settingsBtn.parentNode.insertBefore(btn, settingsBtn.nextSibling);
+        } else {
+          toolbar.appendChild(btn);
+        }
       }
     }
   }

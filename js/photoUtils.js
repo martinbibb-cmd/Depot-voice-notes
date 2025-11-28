@@ -146,11 +146,26 @@ function parseIFD(view, offset, tiffOffset, littleEndian, result) {
       // Long (32-bit)
       value = valueOffset;
     } else if (type === 5) {
-      // Rational
-      value = readRational(view, tiffOffset + valueOffset, littleEndian);
+      // Rational (or array of rationals)
+      if (count === 1) {
+        value = readRational(view, tiffOffset + valueOffset, littleEndian);
+      } else {
+        // Read array of rationals (e.g., GPS coordinates: degrees, minutes, seconds)
+        value = [];
+        for (let j = 0; j < count; j++) {
+          value.push(readRational(view, tiffOffset + valueOffset + j * 8, littleEndian));
+        }
+      }
     } else if (type === 10) {
-      // Signed rational
-      value = readSignedRational(view, tiffOffset + valueOffset, littleEndian);
+      // Signed rational (or array of signed rationals)
+      if (count === 1) {
+        value = readSignedRational(view, tiffOffset + valueOffset, littleEndian);
+      } else {
+        value = [];
+        for (let j = 0; j < count; j++) {
+          value.push(readSignedRational(view, tiffOffset + valueOffset + j * 8, littleEndian));
+        }
+      }
     } else {
       continue;
     }

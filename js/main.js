@@ -4591,9 +4591,22 @@ initWhat3Words();
 // Initialize structured form
 initStructuredForm();
 
+// Enable survey form button
+const enableSurveyFormBtn = document.getElementById('enableSurveyFormBtn');
+if (enableSurveyFormBtn) {
+  enableSurveyFormBtn.onclick = () => {
+    if (typeof window.toggleStructuredForm === 'function') {
+      window.toggleStructuredForm();
+    }
+  };
+}
+
 // Expose functions for external integrations
 window.refreshUiFromState = refreshUiFromState;
 window.saveToLocalStorage = autoSaveSessionToLocal;
+window.renderPhotoGallery = renderPhotoGallery;
+window.renderDistances = renderDistances;
+window.updateLocationsFromPhotos = updateLocationsFromPhotos;
 
 // Agent suggestions are always available by default
 const agentSuggestionsPanel = document.getElementById('agentSuggestionsPanel');

@@ -361,27 +361,70 @@ async function loadAndApplyCloudSession(sessionName, workerUrl, token) {
     const session = result.sessionData;
     const sessionData = session.sessionData || session;
 
-    // Apply session data to the app
+    // Apply session data to the app (use main.js variables)
+    if (window.lastRawSections !== undefined) {
+      window.lastRawSections = sessionData.sections || [];
+    }
+    if (window.lastMaterials !== undefined) {
+      window.lastMaterials = sessionData.materials || [];
+    }
+    if (window.lastCheckedItems !== undefined) {
+      window.lastCheckedItems = sessionData.checkedItems || [];
+    }
+    if (window.lastMissingInfo !== undefined) {
+      window.lastMissingInfo = sessionData.missingInfo || [];
+    }
+    if (window.lastCustomerSummary !== undefined) {
+      window.lastCustomerSummary = sessionData.customerSummary || '';
+    }
+    if (window.lastQuoteNotes !== undefined) {
+      window.lastQuoteNotes = sessionData.quoteNotes || [];
+    }
+
+    // Load new photo, form, and location data
+    if (window.sessionPhotos !== undefined) {
+      window.sessionPhotos = sessionData.photos || [];
+    }
+    if (window.sessionFormData !== undefined) {
+      window.sessionFormData = sessionData.formData || {};
+    }
+    if (window.sessionLocations !== undefined) {
+      window.sessionLocations = sessionData.locations || {};
+    }
+    if (window.sessionDistances !== undefined) {
+      window.sessionDistances = sessionData.distances || {};
+    }
+
     window.__depotAppState = {
       sections: sessionData.sections || [],
       materials: sessionData.materials || [],
       checkedItems: sessionData.checkedItems || [],
       missingInfo: sessionData.missingInfo || [],
       customerSummary: sessionData.customerSummary || '',
-      quoteNotes: sessionData.quoteNotes || []
+      quoteNotes: sessionData.quoteNotes || [],
+      photos: sessionData.photos || [],
+      formData: sessionData.formData || {},
+      locations: sessionData.locations || {},
+      distances: sessionData.distances || {}
     };
 
     // Update transcript if present
     const transcriptInput = document.getElementById('transcriptInput');
     if (transcriptInput && sessionData.fullTranscript) {
       transcriptInput.value = sessionData.fullTranscript;
+      if (window.committedTranscript !== undefined) {
+        window.committedTranscript = sessionData.fullTranscript;
+      }
+      if (window.lastSentTranscript !== undefined) {
+        window.lastSentTranscript = sessionData.fullTranscript;
+      }
     }
 
     // Restore audio data if present
     if (sessionData.audioBase64 && sessionData.audioMime) {
       try {
         // Convert base64 back to blob
-        const byteCharacters = atob(sessionData.audioBase64);
+        const byteCharacters = atob(sessionData.audioBase64.split(',')[1] || sessionData.audioBase64);
         const byteNumbers = new Array(byteCharacters.length);
         for (let i = 0; i < byteCharacters.length; i++) {
           byteNumbers[i] = byteCharacters.charCodeAt(i);
@@ -389,13 +432,15 @@ async function loadAndApplyCloudSession(sessionName, workerUrl, token) {
         const byteArray = new Uint8Array(byteNumbers);
         const audioBlob = new Blob([byteArray], { type: sessionData.audioMime });
 
-        // Store audio data globally for playback
-        if (window.audioChunks) {
-          window.audioChunks = [audioBlob];
+        // Store audio data globally
+        if (window.sessionAudioChunks !== undefined) {
+          window.sessionAudioChunks = [audioBlob];
         }
-        if (window.audioMime) {
-          window.audioMime = sessionData.audioMime;
+        if (window.lastAudioMime !== undefined) {
+          window.lastAudioMime = sessionData.audioMime;
         }
+        window.__depotSessionAudioChunks = [audioBlob];
+        window.__depotLastAudioMime = sessionData.audioMime;
 
         console.log('✅ Audio data restored from cloud session');
       } catch (error) {
@@ -408,13 +453,24 @@ async function loadAndApplyCloudSession(sessionName, workerUrl, token) {
       localStorage.setItem('depot.currentSessionName', sessionData.sessionName);
     }
 
+    // Call UI refresh functions
+    if (typeof window.refreshUiFromState === 'function') {
+      window.refreshUiFromState();
+    }
+    if (typeof window.renderPhotoGallery === 'function') {
+      window.renderPhotoGallery();
+    }
+    if (typeof window.renderDistances === 'function') {
+      window.renderDistances();
+    }
+    if (typeof window.exposeStateToWindow === 'function') {
+      window.exposeStateToWindow();
+    }
+
     closeLoadingModal();
 
-    // Show success message and offer to generate recommendations
-    const proceed = confirm('Session loaded successfully! Generate system recommendations now?');
-    if (proceed) {
-      showSystemRecommendationPanel();
-    }
+    // Show success message
+    alert('Session loaded successfully! All data restored including photos and form data.');
 
   } catch (error) {
     closeLoadingModal();

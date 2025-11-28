@@ -23,7 +23,8 @@ export function createEmptyDepotSurveySession(): DepotSurveySession {
     ai: {},
     sections: [],
     missingInfo: [],
-    photos: []
+    photos: [],
+    quote: undefined
   };
 }
 

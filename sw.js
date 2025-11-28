@@ -3,7 +3,7 @@
  * Provides offline capability and performance optimization
  */
 
-const CACHE_VERSION = 'depot-v1.1.0';
+const CACHE_VERSION = 'depot-v1.2.0';
 const CACHE_STATIC = `${CACHE_VERSION}-static`;
 const CACHE_DYNAMIC = `${CACHE_VERSION}-dynamic`;
 const CACHE_API = `${CACHE_VERSION}-api`;

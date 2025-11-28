@@ -2147,6 +2147,20 @@
       transition: all 0.3s ease;
     }
   </style>
+
+  <!-- PWA Manifest -->
+  <link rel="manifest" href="/manifest.json">
+
+  <!-- PWA Meta Tags -->
+  <meta name="theme-color" content="#2563eb">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Depot Notes">
+
+  <!-- Icons -->
+  <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">
+  <link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png">
+  <link rel="apple-touch-icon" href="/icon-192.png">
 </head>
 <body>
   <header>
@@ -2654,5 +2668,120 @@
   <script type="module" src="./js/uiEnhancements.js"></script>
   <script type="module" src="./js/main.js"></script>
   <script type="module" src="./js/mainIntegration.js"></script>
+
+  <!-- Service Worker Registration -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js')
+          .then(registration => {
+            console.log('✅ Service Worker registered:', registration.scope);
+
+            // Check for updates periodically
+            setInterval(() => {
+              registration.update();
+            }, 60000); // Check every minute
+
+            // Listen for updates
+            registration.addEventListener('updatefound', () => {
+              const newWorker = registration.installing;
+              newWorker.addEventListener('statechange', () => {
+                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                  // New service worker available
+                  console.log('🔄 New version available! Reload to update.');
+                  if (confirm('A new version is available! Reload to update?')) {
+                    newWorker.postMessage({ type: 'SKIP_WAITING' });
+                    window.location.reload();
+                  }
+                }
+              });
+            });
+          })
+          .catch(error => {
+            console.error('❌ Service Worker registration failed:', error);
+          });
+
+        // Listen for messages from service worker
+        navigator.serviceWorker.addEventListener('message', (event) => {
+          if (event.data && event.data.type === 'CACHE_CLEARED') {
+            console.log('✅ Cache cleared successfully');
+          }
+          if (event.data && event.data.type === 'UPDATE_CHECKED') {
+            console.log('✅ Update check complete');
+          }
+        });
+      });
+
+      // Handle service worker controller changes
+      let refreshing = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (!refreshing) {
+          refreshing = true;
+          window.location.reload();
+        }
+      });
+    }
+
+    // PWA Install Prompt
+    let deferredPrompt;
+    window.addEventListener('beforeinstallprompt', (e) => {
+      // Prevent the mini-infobar from appearing on mobile
+      e.preventDefault();
+      // Stash the event so it can be triggered later
+      deferredPrompt = e;
+      console.log('💾 App can be installed');
+
+      // Show install button if it exists
+      const installBtn = document.getElementById('installAppBtn');
+      if (installBtn) {
+        installBtn.style.display = 'block';
+      }
+    });
+
+    // Function to trigger install prompt
+    window.triggerInstallPrompt = async () => {
+      if (!deferredPrompt) {
+        alert('App is already installed or install prompt is not available');
+        return;
+      }
+
+      // Show the install prompt
+      deferredPrompt.prompt();
+
+      // Wait for the user to respond to the prompt
+      const { outcome } = await deferredPrompt.userChoice;
+      console.log(`User response to install prompt: ${outcome}`);
+
+      // Clear the deferred prompt
+      deferredPrompt = null;
+
+      // Hide install button
+      const installBtn = document.getElementById('installAppBtn');
+      if (installBtn) {
+        installBtn.style.display = 'none';
+      }
+    };
+
+    // Check for updates function (can be called from settings)
+    window.checkForUpdates = () => {
+      if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage({ type: 'CHECK_UPDATE' });
+        alert('Checking for updates...');
+      } else {
+        alert('Service worker not available');
+      }
+    };
+
+    // Clear cache function (can be called from settings)
+    window.clearAppCache = () => {
+      if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+        if (confirm('Clear all cached data? This will free up space but may slow down the app temporarily.')) {
+          navigator.serviceWorker.controller.postMessage({ type: 'CLEAR_CACHE' });
+        }
+      } else {
+        alert('Service worker not available');
+      }
+    };
+  </script>
 </body>
 </html>

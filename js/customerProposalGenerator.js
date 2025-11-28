@@ -12,6 +12,8 @@
  * 4. What Happens Next & Important Notes
  */
 
+import { loadSystemRecommendationJson } from './systemRecommendationImport.js';
+
 // ============================================================================
 // DATA LOADING
 // ============================================================================
@@ -70,23 +72,6 @@ function getSessionData() {
     transcript: localStorage.getItem('dvn_transcript') || '',
     customerSummary: ''
   };
-}
-
-/**
- * Load system recommendation JSON from localStorage
- */
-function loadSystemRecommendationJson() {
-  const raw = localStorage.getItem('dvn_system_recommendation');
-  if (!raw) {
-    return null;
-  }
-
-  try {
-    return JSON.parse(raw);
-  } catch (e) {
-    console.error('Failed to parse system recommendation JSON:', e);
-    return null;
-  }
 }
 
 /**

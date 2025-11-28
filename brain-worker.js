@@ -960,6 +960,18 @@ Do not include any explanation outside the JSON.`;
   };
 }
 
+/**
+ * Extract structured DepotSurveySession data from a voice transcript.
+ *
+ * Uses AI to parse a raw heating survey transcript and populate session fields
+ * with high confidence, while identifying questions that need on-site confirmation.
+ *
+ * @param {object} env - Worker environment with OPENAI_API_KEY or ANTHROPIC_API_KEY
+ * @param {object} payload - Contains transcript, session, tool, schema
+ * @returns {Promise<{sessionPatch: object, missingInfo: Array}>}
+ *   - sessionPatch: Partial DepotSurveySession with extracted fields
+ *   - missingInfo: Array of {target: "expert"|"customer", question: string}
+ */
 async function autoFillSessionWithAI(env, payload) {
   const openaiKey = env.OPENAI_API_KEY;
   const anthropicKey = env.ANTHROPIC_API_KEY;
@@ -970,15 +982,75 @@ async function autoFillSessionWithAI(env, payload) {
 
   const { transcript, session, tool, schema } = payload;
 
-  const systemPrompt = `You are an expert heating survey assistant.
+  const systemPrompt = `You are an expert British Gas heating-survey assistant.
 
-Use the provided site survey transcript and the current Depot survey session to suggest high-confidence structured updates.
+You receive:
+- A raw voice transcript from a home heating survey.
+- An existing DepotSurveySession JSON object (may be partially filled).
+
+Your goals:
+
+1. Extract as much **reliable structured information** as possible from the
+   transcript and place it into a PARTIAL DepotSurveySession object called
+   "sessionPatch".
+   - Only include fields you can fill with HIGH confidence.
+   - Do NOT invent values.
+   - If a value is ambiguous, leave it undefined.
+
+2. Do NOT overwrite values that are already clearly set in currentSession
+   unless the transcript explicitly corrects them.
+   - Example: if currentSession.vulnerability.hsaInstallRating is "urgent"
+     and the transcript confirms that, you don't need to repeat it.
+   - If the transcript contradicts a value, prefer the transcript and note
+     the discrepancy as a missingInfo question.
+
+3. Identify any **missing but important information** that the adviser should
+   confirm on site, and return them as "missingInfo" questions.
+   - Each question should specify target: "expert" (adviser/engineer) or
+     "customer".
+   - Focus on safety, feasibility, and anything that would prevent you from
+     booking the job or planning materials correctly.
+
+4. Use the following enum values EXACTLY as written when filling fields:
+   - YesNoNone: "yes" | "no" | "none"
+   - Urgency: "standard" | "urgent" | "none"
+   - SystemType: "conventional" | "system" | "combi" | "unknown"
+   - JobType: "boiler_replacement" | "full_system"
+   - HomecareStatus: "none" | "boiler_warranty" | "multi_prem_homecare"
+   - FuelType: "natural_gas" | "lpg" | "electric" | "unknown"
+
+5. High-level mapping hints:
+   - "conventional / regular" boiler -> existingSystem.existingSystemType = "conventional"
+   - "system boiler with cylinder" (pressurised or unvented) -> "system"
+   - "combi" boiler -> "combi"
+   - Mentions of A2 / Conv-Conv / same room same location -> boilerJob.systemTypeA, boilerJob.locationTypeB
+   - Vulnerability due to age, disability etc -> vulnerability.vulnerabilityReason
+   - "Urgent install", "no heating", "no hot water" -> vulnerability.hsaInstallRating / priorityInstallRating = "urgent"
+   - "Ladder to first floor", "no scaffolding" -> workingAtHeight.safeAccessRequired = "no" and workingAtHeight.safeAccessWorkDescription
+   - "No asbestos identified", "ASB3" -> asbestos.suspectMaterialPresent="no"
+
+6. Use installer-focused paragraphs from the transcript to populate the
+   installerNotes fields. For example, any clear instructions about:
+   - Boiler & controls work -> installerNotes.boilerControlsNotes
+   - Flue work -> installerNotes.flueNotes
+   - Gas / water pipework -> installerNotes.gasWaterNotes
+   - Disruption / making good / decoration -> installerNotes.disruptionNotes
+   - Customer agreed actions -> installerNotes.customerAgreedActions
+   - Special future plans -> installerNotes.specialRequirements
+
+7. Use any clear summary of what will be installed to improve:
+   - sections[] items such as "New boiler and controls"
+   - ai.customerSummary (short friendly paragraph)
+
+You are NOT pricing the job and NOT selecting SKUs. You are ONLY:
+- extracting structured survey fields, and
+- capturing unanswered questions.
 
 Return ONLY valid JSON matching this shape (no markdown, no extra text):
 {
   "sessionPatch": { ...partial DepotSurveySession fields you are confident about... },
   "missingInfo": [
-    { "path": "string (JSON path)", "label": "short label", "detail": "what is missing/uncertain" }
+    { "target": "expert" | "customer", "question": "What needs to be confirmed?" }
   ]
 }
 
@@ -988,8 +1060,7 @@ Rules:
 - Prefer concise strings and arrays; avoid invented numbers or boiler models.
 - If unsure about a value, leave it out of sessionPatch and add a missingInfo entry instead.
 - When adding arrays (e.g., materials, allowances), include only items mentioned in the transcript.
-- Preserve units and common pipe sizes (8mm/10mm/15mm/22mm/28mm/35mm) when present.
-- Paths should align with DepotSurveySession (e.g., "existingSystem.boilerLocation", "boilerJob.systemTypeA").`;
+- Preserve units and common pipe sizes (8mm/10mm/15mm/22mm/28mm/35mm) when present.`;
 
   const userPayload = {
     tool: tool || "auto_fill_depot_session",

@@ -9,6 +9,10 @@ import {
   sessionToSingleCSV,
   downloadCSV
 } from "./csvExport.js";
+import {
+  buildSessionFromAppState,
+  saveSessionToStorage
+} from "../src/state/sessionStore.js";
 
 // Modal elements
 const saveMenuModal = document.getElementById('saveMenuModal');
@@ -710,8 +714,8 @@ async function saveSessionToCloud() {
   const audioChunks = window.__depotSessionAudioChunks || [];
   const audioMime = window.__depotLastAudioMime || '';
 
-  // Build session object
-  const session = {
+  const baseSession = {
+    ...(sessionData || {}),
     version: 2, // Incremented for new photo/form/location features
     createdAt: new Date().toISOString(),
     sessionName: getSessionReference(),
@@ -734,12 +738,20 @@ async function saveSessionToCloud() {
     try {
       const audioBlob = new Blob(audioChunks, { type: audioMime || 'audio/webm' });
       const base64 = await blobToBase64(audioBlob);
-      session.audioMime = audioMime;
-      session.audioBase64 = base64;
+      baseSession.audioMime = audioMime;
+      baseSession.audioBase64 = base64;
     } catch (err) {
       console.warn('Could not encode audio for cloud save:', err);
     }
   }
+
+  const session = buildSessionFromAppState(baseSession, {
+    transcript,
+    sessionName: baseSession.sessionName,
+    audioBase64: baseSession.audioBase64,
+    audioMime: baseSession.audioMime
+  });
+  saveSessionToStorage(session);
 
   // Disable button during save
   cloudSaveBtn.disabled = true;

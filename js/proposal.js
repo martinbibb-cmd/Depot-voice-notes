@@ -1,4 +1,5 @@
-import { loadSystemRecommendationJson } from './systemRecommendationImport.js';
+import { buildPresentation } from '../src/presentation/buildPresentation.js';
+import { loadSessionFromStorage, migrateLegacySession } from '../src/state/sessionStore.js';
 
 // Adjusted to match current storage: prefer live app state, fall back to autosave keys
 const TRANSCRIPT_STORAGE_KEYS = ['dvn_transcript', 'surveyBrainAutosave'];
@@ -43,218 +44,152 @@ function renderNoData() {
   if (!container) return;
   container.innerHTML = `
     <div class="no-data-message">
-      <p>We couldn’t find both a System Recommendation JSON and a transcript for this property.</p>
-      <p>Please export the JSON from the System Recommendation app and import it here, then regenerate the proposal after running Depot Voice Notes.</p>
+      <p>We couldn’t find a saved survey session to build this presentation.</p>
+      <p>Please capture a Depot Voice Notes session or import a saved JSON, then reload this page.</p>
     </div>
   `;
 }
 
-function buildWhatYouToldUsBullets(transcriptJson) {
-  const list = document.getElementById('what-you-told-us-list');
-  if (!list) return;
+function renderPresentationDocument(doc) {
+  const container = document.createElement('div');
+  container.className = 'presentation-document';
 
-  list.innerHTML = '';
+  const heading = document.createElement('h2');
+  heading.textContent = doc.title;
+  container.appendChild(heading);
 
-  if (!transcriptJson) return;
+  doc.sections.forEach((section) => {
+    const sec = document.createElement('section');
+    sec.className = 'presentation-section card';
 
-  const raw =
-    transcriptJson.fullTranscript ||
-    transcriptJson.text ||
-    transcriptJson.transcript ||
-    '';
+    const title = document.createElement('h3');
+    title.textContent = section.title;
+    sec.appendChild(title);
 
-  if (!raw || typeof raw !== 'string') return;
-
-  // Very simple sentence split
-  const sentences = raw
-    .split(/[\.\?\!]\s+/)
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0);
-
-  const keywords = [
-    'radiator',
-    'radiators',
-    'hot water',
-    'pressure',
-    'shower',
-    'bath',
-    'bill',
-    'bills',
-    'cold',
-    'leak',
-    'noise',
-    'future',
-    'control',
-    'comfort',
-    'space'
-  ];
-
-  const bullets = [];
-  for (const s of sentences) {
-    if (bullets.length >= 6) break;
-    const lower = s.toLowerCase();
-    const hit = keywords.some((k) => lower.includes(k));
-    if (hit) {
-      bullets.push(s.length > 140 ? s.slice(0, 137) + '…' : s);
+    if (section.body) {
+      const p = document.createElement('p');
+      p.textContent = section.body;
+      sec.appendChild(p);
     }
-  }
 
-  // Fallback: first 3 sentences if keyword filter gave nothing
-  if (bullets.length === 0) {
-    bullets.push(...sentences.slice(0, 3));
-  }
+    if (Array.isArray(section.items) && section.items.length) {
+      const ul = document.createElement('ul');
+      section.items.forEach((item) => {
+        const li = document.createElement('li');
+        li.textContent = item;
+        ul.appendChild(li);
+      });
+      sec.appendChild(ul);
+    }
 
-  bullets.forEach((text) => {
-    const li = document.createElement('li');
-    li.textContent = text;
-    list.appendChild(li);
+    container.appendChild(sec);
   });
+
+  (doc.tables || []).forEach((table) => {
+    const wrapper = document.createElement('section');
+    wrapper.className = 'presentation-table card';
+    if (table.title) {
+      const t = document.createElement('h4');
+      t.textContent = table.title;
+      wrapper.appendChild(t);
+    }
+
+    const tbl = document.createElement('table');
+    const thead = document.createElement('thead');
+    const headerRow = document.createElement('tr');
+    table.headers.forEach((h) => {
+      const th = document.createElement('th');
+      th.textContent = h;
+      headerRow.appendChild(th);
+    });
+    thead.appendChild(headerRow);
+    tbl.appendChild(thead);
+
+    const tbody = document.createElement('tbody');
+    table.rows.forEach((row) => {
+      const tr = document.createElement('tr');
+      row.forEach((cell) => {
+        const td = document.createElement('td');
+        td.textContent = cell === null || cell === undefined ? '' : String(cell);
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+    tbl.appendChild(tbody);
+    wrapper.appendChild(tbl);
+    container.appendChild(wrapper);
+  });
+
+  return container;
 }
 
-// Map system-rec JSON into Gold/Silver/Bronze
-function renderOptionsFromSystemRec(systemJson) {
-  const container = document.getElementById('proposal-options-container');
-  if (!container) return;
+function renderPackSwitcher(bundle, onSelect) {
+  const wrapper = document.createElement('div');
+  wrapper.className = 'pack-switcher';
 
-  // Clear any placeholder content
-  container.innerHTML = '';
+  const packs = [
+    { key: 'customer', label: 'Customer pack', doc: bundle.customerPack },
+    { key: 'installer', label: 'Installer pack', doc: bundle.installerPack },
+    { key: 'office', label: 'Office pack', doc: bundle.officePack }
+  ];
 
-  if (!systemJson) {
-    renderNoData();
-    return;
-  }
-
-  // We expect something like:
-  // {
-  //   summary: "...",
-  //   recommendations: [ { title, variantLabel, key, score, keyFactors, bestFor, ... }, ... ]
-  // }
-  // Let’s be defensive and try to adapt to what’s actually there.
-
-  const recs =
-    systemJson.topRecommendations ||
-    systemJson.recommendations ||
-    systemJson.options ||
-    [];
-
-  if (!Array.isArray(recs) || recs.length === 0) {
-    renderNoData();
-    return;
-  }
-
-  const labels = ['GOLD – RECOMMENDED', 'SILVER', 'BRONZE'];
-
-  recs.slice(0, 3).forEach((rec, idx) => {
-    const label = labels[idx] || 'OPTION';
-
-    const title =
-      rec.title ||
-      rec.name ||
-      rec.displayName ||
-      'Recommended option';
-
-    const subtitle =
-      rec.variantLabel ||
-      rec.type ||
-      rec.subtitle ||
-      '';
-
-    const score = typeof rec.score === 'number' ? rec.score : null;
-    const efficiency = rec.efficiency || rec.efficiencyRange;
-    const lifespan = rec.lifespan || rec.lifespanRange;
-
-    const keyFactors =
-      rec.keyFactors ||
-      rec.factors ||
-      rec.reasons ||
-      [];
-
-    const bestFor =
-      rec.bestFor ||
-      rec.best_for ||
-      '';
-
-    // Build a simple box for each option
-    const card = document.createElement('section');
-    card.className = `proposal-option proposal-option-${idx}`;
-
-    card.innerHTML = `
-      <header class="proposal-option-header">
-        <div class="proposal-option-label">${label}</div>
-        <h2 class="proposal-option-title">${title}</h2>
-        ${
-          subtitle
-            ? `<p class="proposal-option-subtitle">${subtitle}</p>`
-            : ''
-        }
-      </header>
-      <div class="proposal-option-meta">
-        ${
-          score !== null
-            ? `<span><strong>Score:</strong> ${score}</span>`
-            : ''
-        }
-        ${
-          efficiency
-            ? `<span><strong>Efficiency:</strong> ${efficiency}</span>`
-            : ''
-        }
-        ${
-          lifespan
-            ? `<span><strong>Lifespan:</strong> ${lifespan}</span>`
-            : ''
-        }
-      </div>
-      <div class="proposal-option-body">
-        ${
-          Array.isArray(keyFactors) && keyFactors.length
-            ? `<h3>Key factors</h3>
-               <ul class="proposal-option-factors">
-                 ${keyFactors
-                   .slice(0, 5)
-                   .map((f) => `<li>${f}</li>`)
-                   .join('')}
-               </ul>`
-            : ''
-        }
-        ${
-          bestFor
-            ? `<p class="proposal-option-bestfor"><strong>Best for:</strong> ${bestFor}</p>`
-            : ''
-        }
-      </div>
-    `;
-
-    container.appendChild(card);
+  packs.forEach((pack, idx) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = `btn btn-secondary ${idx === 0 ? 'active' : ''}`;
+    btn.textContent = pack.label;
+    btn.addEventListener('click', () => {
+      wrapper.querySelectorAll('button').forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      onSelect(pack.doc);
+    });
+    wrapper.appendChild(btn);
   });
+
+  return wrapper;
+}
+
+function hydrateSession() {
+  const stored = loadSessionFromStorage();
+  if (stored) return stored;
+  const legacy = loadTranscriptJson();
+  if (legacy) return migrateLegacySession(legacy);
+  return migrateLegacySession({});
+}
+
+function populateHeader(session) {
+  setText('customer-name', session.meta?.customerName || 'Not specified');
+  setText('customer-address', session.meta?.customerAddress || 'Not specified');
+  setText('property-type', session.existingSystem?.systemType || 'Not specified');
+  setText(
+    'property-summary',
+    session.vulnerability?.reasonForQuotation || session.ai?.customerSummary || ''
+  );
+  setText('current-system', session.existingSystem?.systemType || session.existingSystem?.systemHealth);
+  setText('special-notes', session.ai?.customerSummary || session.vulnerability?.accessibilityNotes);
 }
 
 function initProposal() {
-  // Date
   setText('proposal-date', getTodayDisplayDate());
+  const session = hydrateSession();
 
-  const transcriptJson = loadTranscriptJson();
-  const systemJson = loadSystemRecommendationJson();
-
-  if (!systemJson || !transcriptJson) {
+  if (!session || (!session.sections?.length && !session.fullTranscript)) {
     renderNoData();
     return;
   }
 
-  // "What you told us" from transcript
-  buildWhatYouToldUsBullets(transcriptJson);
+  populateHeader(session);
+  const bundle = buildPresentation(session);
+  const container = document.getElementById('proposal-options-container');
+  if (!container) return;
 
-  // Fill anything else you want from transcriptJson (property type, etc.)
-  // Example (adapt to your JSON):
-  setText('customer-name', transcriptJson.customerName);
-  setText('customer-address', transcriptJson.customerAddress);
-  setText('property-type', transcriptJson.propertyType || transcriptJson.houseType);
-  setText('property-summary', transcriptJson.propertySummary);
-  setText('current-system', transcriptJson.currentSystem);
-  setText('special-notes', transcriptJson.customerSummary);
+  container.innerHTML = '';
+  const switcher = renderPackSwitcher(bundle, (doc) => {
+    container.replaceChildren(switcher, renderPresentationDocument(doc));
+  });
 
-  // Options from system-rec JSON
-  renderOptionsFromSystemRec(systemJson);
+  container.appendChild(switcher);
+  container.appendChild(renderPresentationDocument(bundle.customerPack));
 }
 
 document.addEventListener('DOMContentLoaded', initProposal);

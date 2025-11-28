@@ -272,14 +272,19 @@ async function saveSelected() {
  */
 async function saveFullSession(appData, filename, format, timestamp) {
   const session = {
-    version: 1,
+    version: 2, // Incremented for new photo/form/location features
     createdAt: new Date().toISOString(),
     fullTranscript: appData.fullTranscript,
     sections: appData.sections,
     materials: appData.materials,
     checkedItems: appData.checkedItems,
     missingInfo: appData.missingInfo,
-    customerSummary: appData.customerSummary
+    customerSummary: appData.customerSummary,
+    // New fields for photo, GPS, and structured form support
+    photos: appData.photos || [],
+    formData: appData.formData || {},
+    locations: appData.locations || {},
+    distances: appData.distances || {}
   };
 
   // Include audio if available and format is JSON
@@ -707,7 +712,7 @@ async function saveSessionToCloud() {
 
   // Build session object
   const session = {
-    version: 1,
+    version: 2, // Incremented for new photo/form/location features
     createdAt: new Date().toISOString(),
     sessionName: getSessionReference(),
     fullTranscript: transcript,
@@ -716,7 +721,12 @@ async function saveSessionToCloud() {
     checkedItems: sessionData.checkedItems || [],
     missingInfo: sessionData.missingInfo || [],
     customerSummary: sessionData.customerSummary || '',
-    quoteNotes: sessionData.quoteNotes || []
+    quoteNotes: sessionData.quoteNotes || [],
+    // New fields for photo, GPS, and structured form support
+    photos: window.__depotSessionPhotos || [],
+    formData: window.__depotSessionFormData || {},
+    locations: window.__depotSessionLocations || {},
+    distances: window.__depotSessionDistances || {}
   };
 
   // Include audio if present

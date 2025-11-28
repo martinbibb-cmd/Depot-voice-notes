@@ -5,6 +5,20 @@ import {
 import { loadSchema } from "./schema.js";
 import { logError, showBugReportModal } from "./bugReport.js";
 import {
+  processPhoto,
+  generatePhotoId,
+  validatePhoto,
+  createThumbnail
+} from "./photoUtils.js";
+import {
+  calculateDistance,
+  formatDistanceAsCrowFlies,
+  buildLocationsFromPhotos,
+  calculateJobDistances,
+  applyGPSPrivacy,
+  getCurrentPosition
+} from "./gpsUtils.js";
+import {
   depotNotesToCSV,
   sessionToSingleCSV,
   downloadCSV,
@@ -19,6 +33,12 @@ import {
 } from "./agentMode.js";
 import { showSendSectionsSlideOver, updateSendSectionsSlideOver } from "./sendSections.js";
 import { initWhat3Words } from "./what3words.js";
+import {
+  initStructuredForm,
+  getFormData,
+  isFormModeActive,
+  clearFormData
+} from "./structuredForm.js";
 import {
   retryWithBackoff,
   categorizeError,
@@ -270,6 +290,11 @@ let lastCheckedItems = [];
 let lastMissingInfo = [];
 let lastCustomerSummary = "";
 let lastQuoteNotes = [];
+// Photo, GPS, and structured form state
+let sessionPhotos = [];
+let sessionFormData = {};
+let sessionLocations = {};
+let sessionDistances = {};
 let wasBackgroundedDuringSession = false;
 let pauseReason = null;
 let lastWorkerPayload = null;
@@ -292,6 +317,10 @@ function exposeStateToWindow() {
   window.__depotLastAudioMime = lastAudioMime;
   window.__depotAppState = APP_STATE;
   window.__depotQuoteNotes = lastQuoteNotes;
+  window.__depotSessionPhotos = sessionPhotos;
+  window.__depotSessionFormData = sessionFormData;
+  window.__depotSessionLocations = sessionLocations;
+  window.__depotSessionDistances = sessionDistances;
   window.lastSections = lastSections; // Expose for what3words and other integrations
 }
 
@@ -308,6 +337,11 @@ function updateAppStateSnapshot() {
   })) : [];
   APP_STATE.fullTranscript = (transcriptInput?.value || "").trim();
   APP_STATE.transcriptText = APP_STATE.fullTranscript;
+  // Add new photo, form, and location data
+  APP_STATE.photos = Array.isArray(sessionPhotos) ? [...sessionPhotos] : [];
+  APP_STATE.formData = sessionFormData ? { ...sessionFormData } : {};
+  APP_STATE.locations = sessionLocations ? { ...sessionLocations } : {};
+  APP_STATE.distances = sessionDistances ? { ...sessionDistances } : {};
 }
 
 function buildStateSnapshot() {
@@ -2405,10 +2439,224 @@ function base64ToBlob(b64, mime) {
   return new Blob([byteArray], { type: mime || "application/octet-stream" });
 }
 
+// --- PHOTO HELPER FUNCTIONS ---
+
+/**
+ * Update locations and distances based on current photos
+ */
+function updateLocationsFromPhotos() {
+  sessionLocations = buildLocationsFromPhotos(sessionPhotos);
+  sessionDistances = calculateJobDistances(sessionLocations);
+  console.log("Updated locations:", Object.keys(sessionLocations).length);
+  console.log("Calculated distances:", Object.keys(sessionDistances).length);
+}
+
+/**
+ * Render photo gallery in UI
+ */
+function renderPhotoGallery() {
+  const gallery = document.getElementById("photosGallery");
+  if (!gallery) return;
+
+  if (!sessionPhotos || sessionPhotos.length === 0) {
+    gallery.innerHTML = '<span class="small">No photos yet. Tap "Add Photo" to capture or upload.</span>';
+    return;
+  }
+
+  gallery.innerHTML = "";
+
+  sessionPhotos.forEach((photo, index) => {
+    const photoCard = document.createElement("div");
+    photoCard.className = "photo-card";
+    photoCard.style.cssText = `
+      display: inline-block;
+      margin: 8px;
+      padding: 8px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      cursor: pointer;
+      max-width: 200px;
+      background: var(--bg-subtle);
+    `;
+
+    const img = document.createElement("img");
+    img.src = photo.base64;
+    img.alt = photo.description || photo.section;
+    img.style.cssText = `
+      width: 100%;
+      height: 150px;
+      object-fit: cover;
+      border-radius: 4px;
+      margin-bottom: 8px;
+    `;
+
+    const caption = document.createElement("div");
+    caption.style.cssText = "font-size: 0.85rem; margin-top: 4px;";
+    caption.innerHTML = `
+      <strong>${photo.section}</strong><br>
+      ${photo.description || "(no description)"}<br>
+      ${photo.gps ? `📍 ${photo.gps.lat.toFixed(5)}, ${photo.gps.lng.toFixed(5)}` : "📍 No GPS"}
+    `;
+
+    photoCard.appendChild(img);
+    photoCard.appendChild(caption);
+
+    photoCard.onclick = () => openPhotoModal(photo);
+
+    gallery.appendChild(photoCard);
+  });
+}
+
+/**
+ * Render calculated distances in UI
+ */
+function renderDistances() {
+  const locationsDisplay = document.getElementById("locationsDisplay");
+  const distancesList = document.getElementById("distancesList");
+
+  if (!locationsDisplay || !distancesList) return;
+
+  if (!sessionDistances || Object.keys(sessionDistances).length === 0) {
+    locationsDisplay.style.display = "none";
+    return;
+  }
+
+  locationsDisplay.style.display = "block";
+  distancesList.innerHTML = "";
+
+  const distanceLabels = {
+    "gas_meter_to_boiler_position": "Gas meter → Boiler",
+    "boiler_position_to_flue_terminal": "Boiler → Flue terminal",
+    "flue_terminal_to_boundary_point": "Flue → Boundary point",
+    "boiler_position_to_cylinder_cupboard": "Boiler → Cylinder",
+    "gas_meter_to_existing_boiler": "Gas meter → Existing boiler"
+  };
+
+  Object.entries(sessionDistances).forEach(([key, data]) => {
+    const label = distanceLabels[key] || key.replace(/_/g, " ");
+    const item = document.createElement("div");
+    item.style.cssText = "padding: 4px 0; font-size: 0.85rem;";
+    item.innerHTML = `<strong>${label}:</strong> ${data.formattedLong}`;
+    distancesList.appendChild(item);
+  });
+}
+
+/**
+ * Open photo modal for viewing/editing
+ */
+function openPhotoModal(photo) {
+  const modal = document.getElementById("photoModal");
+  const canvas = document.getElementById("photoCanvas");
+  const sectionSelect = document.getElementById("photoSectionSelect");
+  const descriptionInput = document.getElementById("photoDescriptionInput");
+  const gpsDisplay = document.getElementById("photoGpsDisplay");
+  const capturedDisplay = document.getElementById("photoCapturedDisplay");
+  const cameraDisplay = document.getElementById("photoCameraDisplay");
+
+  if (!modal || !canvas) return;
+
+  // Store current photo ID for editing
+  modal.dataset.photoId = photo.id;
+
+  // Populate section dropdown
+  sectionSelect.innerHTML = '<option value="">Not assigned</option>';
+  SECTION_SCHEMA.forEach((section) => {
+    const option = document.createElement("option");
+    option.value = section.name;
+    option.textContent = section.name;
+    if (section.name === photo.section) {
+      option.selected = true;
+    }
+    sectionSelect.appendChild(option);
+  });
+
+  // Populate metadata
+  descriptionInput.value = photo.description || "";
+
+  if (photo.gps) {
+    const accuracy = photo.gps.accuracy ? ` (±${photo.gps.accuracy.toFixed(1)}m)` : "";
+    gpsDisplay.innerHTML = `
+      Lat: ${photo.gps.lat.toFixed(6)}, Lng: ${photo.gps.lng.toFixed(6)}${accuracy}<br>
+      ${photo.gps.alt ? `Alt: ${photo.gps.alt.toFixed(1)}m` : ""}
+    `;
+  } else {
+    gpsDisplay.textContent = "No GPS data available";
+  }
+
+  capturedDisplay.textContent = new Date(photo.capturedAt).toLocaleString();
+
+  if (photo.camera) {
+    cameraDisplay.textContent = `${photo.camera.make || ""} ${photo.camera.model || ""}`.trim() || "Unknown";
+  } else {
+    cameraDisplay.textContent = "Unknown";
+  }
+
+  // Load image onto canvas
+  const img = new Image();
+  img.onload = () => {
+    const ctx = canvas.getContext("2d");
+    canvas.width = img.width;
+    canvas.height = img.height;
+    ctx.drawImage(img, 0, 0);
+
+    // Draw existing markers and annotations
+    drawPhotoAnnotations(canvas, photo);
+  };
+  img.src = photo.base64;
+
+  // Show modal
+  modal.classList.add("active");
+}
+
+/**
+ * Draw annotations on photo canvas
+ */
+function drawPhotoAnnotations(canvas, photo) {
+  const ctx = canvas.getContext("2d");
+
+  // Draw markers
+  if (photo.markers && photo.markers.length > 0) {
+    photo.markers.forEach((marker) => {
+      const x = marker.x * canvas.width;
+      const y = marker.y * canvas.height;
+
+      // Draw marker pin
+      ctx.fillStyle = "rgba(255, 0, 0, 0.7)";
+      ctx.beginPath();
+      ctx.arc(x, y, 8, 0, 2 * Math.PI);
+      ctx.fill();
+
+      // Draw label
+      if (marker.label) {
+        ctx.fillStyle = "white";
+        ctx.strokeStyle = "black";
+        ctx.lineWidth = 3;
+        ctx.font = "bold 14px sans-serif";
+        ctx.strokeText(marker.label, x + 12, y - 12);
+        ctx.fillText(marker.label, x + 12, y - 12);
+      }
+    });
+  }
+
+  // Draw annotations (lines, etc.)
+  if (photo.annotations && photo.annotations.length > 0) {
+    photo.annotations.forEach((annotation) => {
+      if (annotation.type === "line") {
+        ctx.strokeStyle = annotation.color || "red";
+        ctx.lineWidth = annotation.width || 3;
+        ctx.beginPath();
+        ctx.moveTo(annotation.x1 * canvas.width, annotation.y1 * canvas.height);
+        ctx.lineTo(annotation.x2 * canvas.width, annotation.y2 * canvas.height);
+        ctx.stroke();
+      }
+    });
+  }
+}
+
 async function saveSessionToFile() {
   const fullTranscript = transcriptInput.value.trim() || committedTranscript || "";
   const session = {
-    version: 1,
+    version: 2, // Incremented for new photo/form/location features
     createdAt: new Date().toISOString(),
     fullTranscript,
     sections: lastRawSections,
@@ -2416,7 +2664,12 @@ async function saveSessionToFile() {
     checkedItems: lastCheckedItems,
     missingInfo: lastMissingInfo,
     customerSummary: lastCustomerSummary,
-    quoteNotes: lastQuoteNotes
+    quoteNotes: lastQuoteNotes,
+    // New fields for photo, GPS, and structured form support
+    photos: sessionPhotos,
+    formData: sessionFormData,
+    locations: sessionLocations,
+    distances: sessionDistances
   };
 
   if (sessionAudioChunks && sessionAudioChunks.length > 0) {
@@ -2480,6 +2733,67 @@ importAudioInput.onchange = async (e) => {
   importAudioInput.value = "";
 };
 
+// --- PHOTO UPLOAD ---
+const uploadPhotoBtn = document.getElementById("uploadPhotoBtn");
+const uploadPhotoInput = document.getElementById("uploadPhotoInput");
+
+if (uploadPhotoBtn && uploadPhotoInput) {
+  uploadPhotoBtn.onclick = () => uploadPhotoInput.click();
+
+  uploadPhotoInput.onchange = async (e) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    try {
+      setStatus("Processing photos...");
+
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+
+        // Show progress for multiple photos
+        if (files.length > 1) {
+          setStatus(`Processing photo ${i + 1} of ${files.length}...`);
+        }
+
+        // Prompt for section assignment
+        const section = prompt(
+          `Which section is this photo for?\n\nExamples:\n- Gas meter\n- Boiler location\n- Cylinder cupboard\n- Flue terminal\n- Boundary point`,
+          ""
+        );
+
+        if (section === null) {
+          // User cancelled
+          continue;
+        }
+
+        // Process the photo
+        const photo = await processPhoto(file, section || "General");
+
+        // Add to session photos
+        sessionPhotos.push(photo);
+
+        console.log("Photo added:", photo.id, photo.gps ? "with GPS" : "no GPS");
+      }
+
+      // Update locations and distances from photos
+      updateLocationsFromPhotos();
+
+      // Refresh UI
+      renderPhotoGallery();
+      renderDistances();
+      exposeStateToWindow();
+
+      setStatus(`${files.length} photo(s) added successfully`);
+
+    } catch (err) {
+      console.error("Failed to process photos:", err);
+      showVoiceError("Failed to process photos: " + (err.message || "Unknown error"));
+    } finally {
+      uploadPhotoInput.value = "";
+    }
+  };
+}
+
 loadSessionBtn.onclick = () => loadSessionInput.click();
 if (loadCloudSessionBtn) {
   loadCloudSessionBtn.onclick = async () => {
@@ -2501,6 +2815,11 @@ loadSessionInput.onchange = async (e) => {
     lastCheckedItems = Array.isArray(session.checkedItems) ? session.checkedItems : [];
     lastMissingInfo = Array.isArray(session.missingInfo) ? session.missingInfo : [];
     lastCustomerSummary = session.customerSummary || "";
+    // Load new photo, form, and location data (backward compatible)
+    sessionPhotos = Array.isArray(session.photos) ? session.photos : [];
+    sessionFormData = session.formData && typeof session.formData === 'object' ? session.formData : {};
+    sessionLocations = session.locations && typeof session.locations === 'object' ? session.locations : {};
+    sessionDistances = session.distances && typeof session.distances === 'object' ? session.distances : {};
     if (session.audioBase64) {
       try {
         const mime = session.audioMime || "audio/webm";
@@ -2523,6 +2842,8 @@ loadSessionInput.onchange = async (e) => {
     lastRawSections = Array.isArray(normalisedFromSession) ? normalisedFromSession : [];
     syncSectionsState(lastRawSections);
     refreshUiFromState();
+    renderPhotoGallery();
+    renderDistances();
     setWorkerDebugPayload(null);
     setStatus("Session loaded.");
     clearSleepWarning();
@@ -3840,6 +4161,169 @@ if (startLiveBtn) {
 }
 
 // ============================================================================
+// PHOTO MODAL HANDLERS
+// ============================================================================
+
+const photoModal = document.getElementById("photoModal");
+const closePhotoModalBtn = document.getElementById("closePhotoModalBtn");
+const savePhotoBtn = document.getElementById("savePhotoBtn");
+const deletePhotoBtn = document.getElementById("deletePhotoBtn");
+const addMarkerBtn = document.getElementById("addMarkerBtn");
+const drawLineBtn = document.getElementById("drawLineBtn");
+const clearAnnotationsBtn = document.getElementById("clearAnnotationsBtn");
+
+// Close modal
+if (closePhotoModalBtn) {
+  closePhotoModalBtn.addEventListener('click', () => {
+    if (photoModal) {
+      photoModal.classList.remove('active');
+    }
+  });
+}
+
+// Save photo changes
+if (savePhotoBtn) {
+  savePhotoBtn.addEventListener('click', () => {
+    const photoId = photoModal?.dataset.photoId;
+    if (!photoId) return;
+
+    const photo = sessionPhotos.find(p => p.id === photoId);
+    if (!photo) return;
+
+    // Update section and description
+    const sectionSelect = document.getElementById("photoSectionSelect");
+    const descriptionInput = document.getElementById("photoDescriptionInput");
+
+    if (sectionSelect) {
+      photo.section = sectionSelect.value;
+    }
+
+    if (descriptionInput) {
+      photo.description = descriptionInput.value.trim();
+    }
+
+    // Update locations and distances
+    updateLocationsFromPhotos();
+    renderPhotoGallery();
+    renderDistances();
+    exposeStateToWindow();
+
+    // Close modal
+    photoModal.classList.remove('active');
+    setStatus("Photo updated");
+  });
+}
+
+// Delete photo
+if (deletePhotoBtn) {
+  deletePhotoBtn.addEventListener('click', () => {
+    const photoId = photoModal?.dataset.photoId;
+    if (!photoId) return;
+
+    const confirmed = confirm("Delete this photo?");
+    if (!confirmed) return;
+
+    // Remove photo from array
+    const index = sessionPhotos.findIndex(p => p.id === photoId);
+    if (index >= 0) {
+      sessionPhotos.splice(index, 1);
+    }
+
+    // Update UI
+    updateLocationsFromPhotos();
+    renderPhotoGallery();
+    renderDistances();
+    exposeStateToWindow();
+
+    // Close modal
+    photoModal.classList.remove('active');
+    setStatus("Photo deleted");
+  });
+}
+
+// Add marker to photo
+if (addMarkerBtn) {
+  addMarkerBtn.addEventListener('click', () => {
+    const canvas = document.getElementById("photoCanvas");
+    const photoId = photoModal?.dataset.photoId;
+    if (!canvas || !photoId) return;
+
+    const photo = sessionPhotos.find(p => p.id === photoId);
+    if (!photo) return;
+
+    const label = prompt("Enter marker label (e.g., 'Boiler', 'Gas meter', 'Flue terminal'):");
+    if (!label) return;
+
+    // Set up one-time click handler on canvas
+    const handleClick = (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const x = (e.clientX - rect.left) / canvas.width;
+      const y = (e.clientY - rect.top) / canvas.height;
+
+      // Add marker
+      if (!photo.markers) photo.markers = [];
+      photo.markers.push({
+        id: `marker-${Date.now()}`,
+        label,
+        x,
+        y
+      });
+
+      // Redraw canvas
+      const img = new Image();
+      img.onload = () => {
+        const ctx = canvas.getContext("2d");
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0);
+        drawPhotoAnnotations(canvas, photo);
+      };
+      img.src = photo.base64;
+
+      // Remove click handler
+      canvas.removeEventListener('click', handleClick);
+      canvas.style.cursor = 'crosshair';
+      setStatus("Marker added");
+    };
+
+    canvas.style.cursor = 'crosshair';
+    setStatus("Click on the photo to place the marker");
+    canvas.addEventListener('click', handleClick, { once: true });
+  });
+}
+
+// Clear all annotations
+if (clearAnnotationsBtn) {
+  clearAnnotationsBtn.addEventListener('click', () => {
+    const photoId = photoModal?.dataset.photoId;
+    if (!photoId) return;
+
+    const photo = sessionPhotos.find(p => p.id === photoId);
+    if (!photo) return;
+
+    const confirmed = confirm("Clear all markers and annotations from this photo?");
+    if (!confirmed) return;
+
+    // Clear arrays
+    photo.markers = [];
+    photo.annotations = [];
+
+    // Redraw canvas
+    const canvas = document.getElementById("photoCanvas");
+    if (canvas) {
+      const img = new Image();
+      img.onload = () => {
+        const ctx = canvas.getContext("2d");
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0);
+      };
+      img.src = photo.base64;
+    }
+
+    setStatus("Annotations cleared");
+  });
+}
+
+// ============================================================================
 // ENHANCED FINISH SESSION
 // ============================================================================
 
@@ -4103,6 +4587,9 @@ initAgentMode();
 
 // Initialize what3words
 initWhat3Words();
+
+// Initialize structured form
+initStructuredForm();
 
 // Expose functions for external integrations
 window.refreshUiFromState = refreshUiFromState;

@@ -238,11 +238,12 @@ export async function loadSessionFromCloud() {
       throw new Error(`Failed to fetch sessions: ${response.status} ${response.statusText}`);
     }
 
-    const sessions = await response.json();
+    const result = await response.json();
 
     closeLoadingModal();
 
-    // Display session list
+    // Display session list (expecting result.sessions array)
+    const sessions = result.sessions || [];
     displayCloudSessionList(sessions, workerUrl, token);
 
   } catch (error) {
@@ -275,11 +276,11 @@ function displayCloudSessionList(sessions, workerUrl, token) {
 
   const sessionItems = Array.isArray(sessions) && sessions.length > 0
     ? sessions.map(session => `
-        <div class="cloud-session-item" data-session-id="${session.id || ''}" style="padding: 16px; border: 1px solid #e2e8f0; border-radius: 8px; cursor: pointer; transition: all 0.2s; margin-bottom: 12px;">
-          <div style="font-weight: 600; font-size: 16px; color: #333; margin-bottom: 6px;">${session.sessionName || 'Unnamed Session'}</div>
+        <div class="cloud-session-item" data-session-name="${session.session_name || ''}" style="padding: 16px; border: 1px solid #e2e8f0; border-radius: 8px; cursor: pointer; transition: all 0.2s; margin-bottom: 12px;">
+          <div style="font-weight: 600; font-size: 16px; color: #333; margin-bottom: 6px;">${session.session_name || 'Unnamed Session'}</div>
           <div style="font-size: 13px; color: #666;">
-            ${session.createdAt ? new Date(session.createdAt).toLocaleString() : 'Unknown date'}
-            ${session.sessionData ? ` • ${(JSON.stringify(session.sessionData).length / 1024).toFixed(1)} KB` : ''}
+            Updated: ${session.updated_at ? new Date(session.updated_at).toLocaleString() : 'Unknown date'}
+            ${session.created_at ? ` • Created: ${new Date(session.created_at).toLocaleDateString()}` : ''}
           </div>
         </div>
       `).join('')
@@ -319,9 +320,9 @@ function displayCloudSessionList(sessions, workerUrl, token) {
   // Add click handlers to session items
   document.querySelectorAll('.cloud-session-item').forEach(item => {
     item.addEventListener('click', async () => {
-      const sessionId = item.dataset.sessionId;
+      const sessionName = item.dataset.sessionName;
       modal.remove();
-      await loadAndApplyCloudSession(sessionId, workerUrl, token);
+      await loadAndApplyCloudSession(sessionName, workerUrl, token);
     });
 
     // Hover effect
@@ -339,12 +340,12 @@ function displayCloudSessionList(sessions, workerUrl, token) {
 /**
  * Loads and applies a specific cloud session
  */
-async function loadAndApplyCloudSession(sessionId, workerUrl, token) {
+async function loadAndApplyCloudSession(sessionName, workerUrl, token) {
   showLoadingModal('Loading session...');
 
   try {
     // Fetch the specific session
-    const response = await fetch(`${workerUrl}/cloud-session/${sessionId}`, {
+    const response = await fetch(`${workerUrl}/cloud-session?sessionName=${encodeURIComponent(sessionName)}`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -356,7 +357,8 @@ async function loadAndApplyCloudSession(sessionId, workerUrl, token) {
       throw new Error(`Failed to load session: ${response.status} ${response.statusText}`);
     }
 
-    const session = await response.json();
+    const result = await response.json();
+    const session = result.sessionData;
     const sessionData = session.sessionData || session;
 
     // Apply session data to the app

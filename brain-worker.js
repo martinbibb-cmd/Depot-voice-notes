@@ -7,6 +7,11 @@ import {
   handleRequestReset,
   handleResetPassword
 } from './auth-handlers.js';
+import {
+  handleSaveSession,
+  handleLoadSession,
+  handleDeleteSession
+} from './session-handlers.js';
 
 export default {
   async fetch(request, env, ctx) {
@@ -109,6 +114,19 @@ export default {
         return handleLoadSettings(request, env);
       }
 
+      // Cloud session endpoints
+      if (request.method === "POST" && url.pathname === "/cloud-session") {
+        return handleSaveSession(request, env);
+      }
+
+      if (request.method === "GET" && url.pathname === "/cloud-session") {
+        return handleLoadSession(request, env);
+      }
+
+      if (request.method === "DELETE" && url.pathname === "/cloud-session") {
+        return handleDeleteSession(request, env);
+      }
+
       // Existing endpoints
       if (request.method === "POST" && url.pathname === "/text") {
         return handleText(request, env);
@@ -149,7 +167,7 @@ export default {
 function corsHeaders(extra = {}) {
   return {
     "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+    "Access-Control-Allow-Methods": "GET,POST,DELETE,OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, Authorization",
     "Content-Type": "application/json",
     ...extra

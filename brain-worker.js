@@ -156,6 +156,10 @@ export default {
         return handleGeneratePresentation(request, env);
       }
 
+      if (request.method === "POST" && url.pathname === "/tools/auto-fill-session") {
+        return handleAutoFillSession(request, env);
+      }
+
       return jsonResponse({ error: "not_found" }, 404);
     } catch (err) {
       console.error("Worker fatal error:", err);
@@ -186,6 +190,59 @@ function jsonResponse(body, status = 200) {
     status,
     headers: corsHeaders()
   });
+}
+
+/* ---------- /tools/auto-fill-session ---------- */
+
+async function handleAutoFillSession(request, env) {
+  let payload;
+  try {
+    payload = await request.json();
+  } catch {
+    return jsonResponse(
+      { error: "bad_request", message: "JSON body required" },
+      400
+    );
+  }
+
+  const transcript = typeof payload.transcript === "string"
+    ? payload.transcript.trim()
+    : "";
+
+  if (!transcript) {
+    return jsonResponse(
+      { error: "bad_request", message: "transcript required" },
+      400
+    );
+  }
+
+  const session = payload.session && typeof payload.session === "object" && !Array.isArray(payload.session)
+    ? payload.session
+    : {};
+
+  const tool = typeof payload.tool === "string" && payload.tool.trim()
+    ? payload.tool.trim()
+    : "auto_fill_depot_session";
+
+  const schema = typeof payload.schema === "string" && payload.schema.trim()
+    ? payload.schema.trim()
+    : "DepotSurveySession";
+
+  try {
+    const result = await autoFillSessionWithAI(env, {
+      transcript,
+      session,
+      tool,
+      schema
+    });
+    return jsonResponse(result, 200);
+  } catch (err) {
+    console.error("handleAutoFillSession error:", err);
+    return jsonResponse(
+      { error: "model_error", message: String(err) },
+      500
+    );
+  }
 }
 
 /* ---------- /text ---------- */
@@ -901,6 +958,133 @@ Do not include any explanation outside the JSON.`;
     plainText: jsonOut.plainText,
     naturalLanguage: jsonOut.naturalLanguage
   };
+}
+
+async function autoFillSessionWithAI(env, payload) {
+  const openaiKey = env.OPENAI_API_KEY;
+  const anthropicKey = env.ANTHROPIC_API_KEY;
+
+  if (!openaiKey && !anthropicKey) {
+    throw new Error("Either OPENAI_API_KEY or ANTHROPIC_API_KEY must be configured");
+  }
+
+  const { transcript, session, tool, schema } = payload;
+
+  const systemPrompt = `You are an expert heating survey assistant.
+
+Use the provided site survey transcript and the current Depot survey session to suggest high-confidence structured updates.
+
+Return ONLY valid JSON matching this shape (no markdown, no extra text):
+{
+  "sessionPatch": { ...partial DepotSurveySession fields you are confident about... },
+  "missingInfo": [
+    { "path": "string (JSON path)", "label": "short label", "detail": "what is missing/uncertain" }
+  ]
+}
+
+Rules:
+- Only set fields you can infer with high confidence from the transcript.
+- Keep existing user-entered values unless they clearly conflict with the transcript; do not blank out data.
+- Prefer concise strings and arrays; avoid invented numbers or boiler models.
+- If unsure about a value, leave it out of sessionPatch and add a missingInfo entry instead.
+- When adding arrays (e.g., materials, allowances), include only items mentioned in the transcript.
+- Preserve units and common pipe sizes (8mm/10mm/15mm/22mm/28mm/35mm) when present.
+- Paths should align with DepotSurveySession (e.g., "existingSystem.boilerLocation", "boilerJob.systemTypeA").`;
+
+  const userPayload = {
+    tool: tool || "auto_fill_depot_session",
+    schema: schema || "DepotSurveySession",
+    transcript,
+    currentSession: session || {}
+  };
+
+  let trimmedContent;
+  let lastError;
+
+  if (openaiKey) {
+    try {
+      console.log("Attempting to call OpenAI for auto-fill...");
+      const body = {
+        model: "gpt-4.1",
+        temperature: 0.3,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: JSON.stringify(userPayload) }
+        ]
+      };
+
+      const res = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${openaiKey}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(body)
+      });
+
+      const rawText = await res.text();
+
+      if (!res.ok) {
+        throw new Error(`OpenAI chat.completions ${res.status}: ${rawText}`);
+      }
+
+      let parsed;
+      try {
+        parsed = JSON.parse(rawText);
+      } catch (err) {
+        throw new Error(`OpenAI returned non-JSON response: ${String(err)} :: ${rawText}`);
+      }
+
+      const content = parsed?.choices?.[0]?.message?.content;
+      if (!content || typeof content !== "string") {
+        throw new Error("No content from OpenAI model");
+      }
+
+      trimmedContent = content.trim();
+      console.log("OpenAI call successful");
+    } catch (err) {
+      console.error("OpenAI call failed:", String(err));
+      lastError = err;
+      trimmedContent = null;
+    }
+  }
+
+  if (!trimmedContent && anthropicKey) {
+    try {
+      console.log("Falling back to Anthropic for auto-fill...");
+      trimmedContent = await callAnthropicChat(
+        anthropicKey,
+        systemPrompt,
+        JSON.stringify(userPayload),
+        0.2
+      );
+      console.log("Anthropic call successful");
+    } catch (err) {
+      console.error("Anthropic call failed:", String(err));
+      lastError = err;
+      trimmedContent = null;
+    }
+  }
+
+  if (!trimmedContent) {
+    throw new Error(`All AI providers failed. Last error: ${String(lastError)}`);
+  }
+
+  let jsonOut;
+  try {
+    jsonOut = JSON.parse(trimmedContent);
+  } catch (err) {
+    throw new Error(`Model content was not valid JSON: ${String(err)} :: ${trimmedContent}`);
+  }
+
+  const sessionPatch = jsonOut && typeof jsonOut.sessionPatch === "object" && !Array.isArray(jsonOut.sessionPatch)
+    ? jsonOut.sessionPatch
+    : {};
+  const missingInfo = Array.isArray(jsonOut?.missingInfo)
+    ? jsonOut.missingInfo.filter((item) => item && typeof item === "object")
+    : [];
+
+  return { sessionPatch, missingInfo };
 }
 
 /* ---------- OpenAI helpers ---------- */

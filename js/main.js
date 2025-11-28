@@ -5369,12 +5369,34 @@ initWhat3Words();
 // Initialize structured form
 initStructuredForm();
 
+// Initialize CloudSense survey form
+if (typeof window.initCloudSenseSurveyForm === 'function') {
+  window.initCloudSenseSurveyForm();
+}
+
 // Enable survey form button
 const enableSurveyFormBtn = document.getElementById('enableSurveyFormBtn');
 if (enableSurveyFormBtn) {
   enableSurveyFormBtn.onclick = () => {
     if (typeof window.toggleStructuredForm === 'function') {
       window.toggleStructuredForm();
+    }
+  };
+}
+
+// Enable CloudSense survey form button
+const enableCloudSenseFormBtn = document.getElementById('enableCloudSenseFormBtn');
+if (enableCloudSenseFormBtn) {
+  enableCloudSenseFormBtn.onclick = () => {
+    if (typeof window.toggleCloudSenseSurveyForm === 'function') {
+      window.toggleCloudSenseSurveyForm();
+    } else if (typeof window.initCloudSenseSurveyForm === 'function') {
+      window.initCloudSenseSurveyForm();
+      setTimeout(() => {
+        if (typeof window.toggleCloudSenseSurveyForm === 'function') {
+          window.toggleCloudSenseSurveyForm();
+        }
+      }, 100);
     }
   };
 }

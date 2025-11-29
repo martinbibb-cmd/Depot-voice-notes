@@ -190,8 +190,7 @@ export function updateAINotes(notes) {
   if (!aiNotesList) return;
 
   const normalised = Array.isArray(notes)
-    ? notes.map((note, index) => ({
-      index: index,
+    ? notes.map((note) => ({
       title: note.title || note.section || 'Note',
       content: note.content || note.text || note.value || ''
     })).filter(note => note.content)
@@ -232,7 +231,7 @@ export function updateAINotes(notes) {
           </div>
         </div>
         <div class="ai-note-content-view">
-          <pre style="white-space: pre-wrap; word-wrap: break-word; text-transform: none;">${escapeHtml(content) || '<span class="placeholder">No content</span>'}</pre>
+          <pre style="white-space: pre-wrap; word-wrap: break-word; text-transform: none;">${content ? escapeHtml(content) : '<span class="placeholder">No content</span>'}</pre>
         </div>
         <div class="ai-note-content-edit" style="display: none;">
           <label style="display: block; margin-bottom: 4px; font-size: 0.7rem; font-weight: 600; color: #475569;">Natural Language Content:</label>
@@ -340,7 +339,7 @@ function attachAINoteEventListeners() {
     btn.addEventListener('click', (e) => {
       const index = parseInt(e.currentTarget.dataset.aiNoteIndex, 10);
       const note = lastAiNotes[index];
-      if (note && window.showTweakModal) {
+      if (note && window.showAINotesTweakModal) {
         // Convert AI note format to section format for tweak modal
         const sectionFormat = {
           section: note.title,
@@ -544,9 +543,7 @@ window.showAINotesTweakModal = function(note, noteIndex) {
 function closeAINotesTweakModal(modal) {
   modal.classList.add('closing');
   setTimeout(() => {
-    if (modal.parentNode) {
-      modal.parentNode.removeChild(modal);
-    }
+    modal.remove();
   }, 200);
 }
 

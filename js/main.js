@@ -242,6 +242,21 @@ function loadDepotNotesInstructions() {
 
 let WORKER_URL = loadWorkerEndpoint();
 
+// --- ELEMENT ALIAS HELPER ---
+// Allows finding elements by their data-alias attribute for backward compatibility
+function getElementByIdOrAlias(idOrAlias) {
+  // First try direct getElementById
+  let el = document.getElementById(idOrAlias);
+  if (el) return el;
+  
+  // Try finding by data-alias
+  el = document.querySelector(`[data-alias="${idOrAlias}"]`);
+  return el;
+}
+
+// Expose helper globally for other scripts
+window.getElementByIdOrAlias = getElementByIdOrAlias;
+
 // --- ELEMENTS ---
 const sendTextBtn = document.getElementById("sendTextBtn");
 const transcriptInput = document.getElementById("transcriptInput");
@@ -5374,21 +5389,77 @@ if (typeof window.initCloudSenseSurveyForm === 'function') {
   window.initCloudSenseSurveyForm();
 }
 
-// Enable survey form button
+// Unified Survey Form Handling
+const unifiedSurveyCard = document.getElementById('unifiedSurveyCard');
+const toggleUnifiedSurveyBtn = document.getElementById('toggleUnifiedSurveyBtn');
+const selectStructuredSurveyBtn = document.getElementById('selectStructuredSurveyBtn');
+const selectCloudSenseSurveyBtn = document.getElementById('selectCloudSenseSurveyBtn');
+const structuredFormCardInner = document.getElementById('structuredFormCard');
+const cloudSenseFormCardInner = document.getElementById('cloudSenseFormCard');
+
+// Toggle unified survey visibility
+if (toggleUnifiedSurveyBtn && unifiedSurveyCard) {
+  toggleUnifiedSurveyBtn.onclick = () => {
+    const isVisible = unifiedSurveyCard.style.display !== 'none';
+    unifiedSurveyCard.style.display = isVisible ? 'none' : 'block';
+    toggleUnifiedSurveyBtn.textContent = isVisible ? 'Show Survey' : 'Hide Survey';
+  };
+}
+
+// Survey type selector buttons
+if (selectStructuredSurveyBtn && selectCloudSenseSurveyBtn) {
+  selectStructuredSurveyBtn.onclick = () => {
+    if (structuredFormCardInner) structuredFormCardInner.style.display = 'block';
+    if (cloudSenseFormCardInner) cloudSenseFormCardInner.style.display = 'none';
+    selectStructuredSurveyBtn.classList.add('active');
+    selectCloudSenseSurveyBtn.classList.remove('active');
+    // Initialize structured form if needed
+    const container = document.getElementById('structuredFormContainer');
+    if (container && container.children.length === 0) {
+      if (typeof window.initStructuredForm === 'function') {
+        window.initStructuredForm();
+      }
+    }
+  };
+  
+  selectCloudSenseSurveyBtn.onclick = () => {
+    if (structuredFormCardInner) structuredFormCardInner.style.display = 'none';
+    if (cloudSenseFormCardInner) cloudSenseFormCardInner.style.display = 'block';
+    selectStructuredSurveyBtn.classList.remove('active');
+    selectCloudSenseSurveyBtn.classList.add('active');
+    // Initialize CloudSense form if needed
+    const container = document.getElementById('cloudSenseFormContainer');
+    if (container && container.children.length === 0) {
+      if (typeof window.initCloudSenseSurveyForm === 'function') {
+        window.initCloudSenseSurveyForm();
+      }
+    }
+  };
+}
+
+// Enable survey form button - now shows the unified survey panel
 const enableSurveyFormBtn = document.getElementById('enableSurveyFormBtn');
 if (enableSurveyFormBtn) {
   enableSurveyFormBtn.onclick = () => {
-    if (typeof window.toggleStructuredForm === 'function') {
+    if (unifiedSurveyCard) {
+      unifiedSurveyCard.style.display = 'block';
+      // Show structured form by default
+      if (selectStructuredSurveyBtn) selectStructuredSurveyBtn.click();
+    } else if (typeof window.toggleStructuredForm === 'function') {
       window.toggleStructuredForm();
     }
   };
 }
 
-// Enable CloudSense survey form button
+// Enable CloudSense survey form button - now shows the unified survey panel with CloudSense selected
 const enableCloudSenseFormBtn = document.getElementById('enableCloudSenseFormBtn');
 if (enableCloudSenseFormBtn) {
   enableCloudSenseFormBtn.onclick = () => {
-    if (typeof window.toggleCloudSenseSurveyForm === 'function') {
+    if (unifiedSurveyCard) {
+      unifiedSurveyCard.style.display = 'block';
+      // Show CloudSense form
+      if (selectCloudSenseSurveyBtn) selectCloudSenseSurveyBtn.click();
+    } else if (typeof window.toggleCloudSenseSurveyForm === 'function') {
       window.toggleCloudSenseSurveyForm();
     } else if (typeof window.initCloudSenseSurveyForm === 'function') {
       window.initCloudSenseSurveyForm();

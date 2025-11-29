@@ -2410,6 +2410,30 @@
       gap: 4px;
       font-weight: 600;
     }
+
+    /* Survey Type Selector Styles */
+    #surveyTypeSelector .pill-secondary.active {
+      background: linear-gradient(145deg, var(--accent) 0%, #059669 100%);
+      color: white;
+      border-color: var(--accent);
+    }
+
+    /* Customer Summary Section Styles */
+    #customerSummaryCard {
+      background: linear-gradient(145deg, #f0fdf4 0%, #dcfce7 100%);
+      border-color: #86efac;
+    }
+    #customerSummaryCard .card-title {
+      color: #15803d;
+    }
+    #customerSummary {
+      font-size: 0.9rem;
+      line-height: 1.6;
+      padding: 12px;
+      background: white;
+      border-radius: var(--radius);
+      border: 1px solid #86efac;
+    }
   </style>
 
   <!-- CloudSense Survey CSS -->
@@ -2564,7 +2588,7 @@
               <button id="searchNextBtn" class="search-nav-btn" disabled>Next →</button>
               <button id="editTranscriptBtn" class="search-nav-btn" style="margin-left: auto;">✏️ Edit</button>
             </div>
-            <div id="transcriptDisplay" class="transcript-scroll-box"></div>
+            <div id="transcriptDisplay" data-alias="live-transcript" class="transcript-scroll-box"></div>
             <textarea id="transcriptInput" placeholder="Or type/paste notes here..." style="display: none;"></textarea>
           </div>
           <div class="statusbar" id="statusBar">Idle (Online • Manual)</div>
@@ -2610,27 +2634,32 @@
     </div>
 
     <div class="column main-right">
-      <!-- Structured Survey Form (Optional) -->
-      <div class="card" id="structuredFormCard" style="display: none;">
+      <!-- Unified Survey Form Section (consolidates Structured and CloudSense forms) -->
+      <div class="card" id="unifiedSurveyCard" style="display: none;">
         <div class="card-title">
-          📋 Structured Survey Form
-          <span class="small">Fill in details (overrides voice transcript on conflict)</span>
-          <button id="toggleFormBtn" class="pill-secondary" style="float: right; padding: 4px 12px; font-size: 0.8rem;">Hide Form</button>
+          📋 Survey Form
+          <span class="small">Select survey type and fill in details</span>
+          <button id="toggleUnifiedSurveyBtn" class="pill-secondary" style="float: right; padding: 4px 12px; font-size: 0.8rem;">Hide Survey</button>
         </div>
-        <div id="structuredFormContainer" class="structured-form">
-          <!-- Form sections will be rendered here by JavaScript -->
+        
+        <!-- Survey Type Selector -->
+        <div id="surveyTypeSelector" style="display: flex; gap: 8px; margin-bottom: 12px;">
+          <button id="selectStructuredSurveyBtn" class="pill-secondary" style="flex: 1;">📋 Basic Survey</button>
+          <button id="selectCloudSenseSurveyBtn" class="pill-secondary" style="flex: 1;">☁️ CloudSense Survey</button>
         </div>
-      </div>
-
-      <!-- CloudSense Survey Form -->
-      <div class="card" id="cloudSenseFormCard" style="display: none;">
-        <div class="card-title">
-          ☁️ CloudSense Survey (13 Sections)
-          <span class="small">Complete, CloudSense-aligned survey sections</span>
-          <button id="toggleCloudSenseFormBtn" class="pill-secondary" style="float: right; padding: 4px 12px; font-size: 0.8rem;">Hide Survey</button>
+        
+        <!-- Structured Survey Form Content -->
+        <div id="structuredFormCard" style="display: block;">
+          <div id="structuredFormContainer" class="structured-form">
+            <!-- Form sections will be rendered here by JavaScript -->
+          </div>
         </div>
-        <div id="cloudSenseFormContainer">
-          <!-- CloudSense form sections will be rendered here by JavaScript -->
+        
+        <!-- CloudSense Survey Form Content -->
+        <div id="cloudSenseFormCard" style="display: none;">
+          <div id="cloudSenseFormContainer">
+            <!-- CloudSense form sections will be rendered here by JavaScript -->
+          </div>
         </div>
       </div>
 
@@ -2639,7 +2668,7 @@
           Survey checklist &amp; questions
           <span class="small">Ticks as details are captured</span>
         </div>
-        <div id="clarifications" class="clarifications">
+        <div id="clarifications" data-alias="checklist-output" class="clarifications">
           <span class="small">No checklist items yet.</span>
         </div>
       </div>
@@ -2669,7 +2698,7 @@
           Automatic Depot Notes
           <span class="small">Standard structured layout</span>
         </div>
-        <div id="sectionsList" class="sections-list">
+        <div id="sectionsList" data-alias="engineer-notes-auto" class="sections-list">
           <span class="small">No automatic notes yet.</span>
         </div>
       </div>
@@ -2679,9 +2708,20 @@
           AI Natural Language Notes
           <span class="small">AI-enhanced narrative summary</span>
         </div>
-        <div id="aiNotesList" class="sections-list">
+        <div id="aiNotesList" data-alias="natural-language-notes" class="sections-list">
           <span class="small">No AI notes yet.</span>
         </div>
+      </div>
+    </div>
+
+    <!-- Customer Summary Section -->
+    <div class="card" id="customerSummaryCard">
+      <div class="card-title">
+        Customer Summary
+        <span class="small">Key recommendations and next steps</span>
+      </div>
+      <div id="customerSummary" data-alias="customer-summary" class="sections-list">
+        <span class="small" style="color: var(--muted); font-style: italic;">Customer summary will appear here after processing...</span>
       </div>
     </div>
 

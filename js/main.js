@@ -2234,9 +2234,8 @@ function refreshUiFromState() {
       : "";
     const naturalLanguage = typeof sec.naturalLanguage === "string" ? sec.naturalLanguage.trim() : "";
     const preClassAttr = formattedPlain ? "" : " class=\"placeholder\"";
-    const naturalMarkup = naturalLanguage
-      ? `<p class="small" style="margin-top:3px;">${naturalLanguage}</p>`
-      : "";
+    // Natural language notes are displayed in their own separate section (AI Natural Language Notes)
+    // Do not display them in the automatic depot notes section
     div.innerHTML = `
       <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
         <h4 style="margin: 0;">${sec.section}</h4>
@@ -2259,7 +2258,6 @@ function refreshUiFromState() {
       </div>
       <div class="section-content-view">
         <pre${preClassAttr}>${formattedPlain || "No bullets yet."}</pre>
-        ${naturalMarkup}
       </div>
       <div class="section-content-edit" style="display: none;">
         <label style="display: block; margin-bottom: 4px; font-size: 0.7rem; font-weight: 600; color: #475569;">Plain Text (bullets):</label>
@@ -2303,11 +2301,8 @@ function refreshUiFromState() {
         const formattedPlain = plainTextRaw
           ? formatPlainTextForSection(variantSection.section, plainTextRaw).trim()
           : "";
-        const naturalLanguage = typeof variantSection.naturalLanguage === "string" ? variantSection.naturalLanguage.trim() : "";
         const preClassAttr = formattedPlain ? "" : " class=\"placeholder\"";
-        const naturalMarkup = naturalLanguage
-          ? `<p class="small" style="margin-top:3px;">${naturalLanguage}</p>`
-          : "";
+        // Natural language notes for quote variants are also displayed in the AI Natural Language Notes section
         div.innerHTML = `
           <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
             <h4 style="margin: 0;">${variantSection.section || "Section"}</h4>
@@ -2315,7 +2310,6 @@ function refreshUiFromState() {
           </div>
           <div class="section-content-view">
             <pre${preClassAttr}>${formattedPlain || "No bullets yet."}</pre>
-            ${naturalMarkup}
           </div>
         `;
         sectionsListEl.appendChild(div);

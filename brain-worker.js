@@ -31,6 +31,11 @@ export default {
         }, 200);
       }
 
+      // Comprehensive database health check for app and agent
+      if (request.method === "GET" && url.pathname === "/db/health") {
+        return handleDbHealth(env);
+      }
+
       // Detailed auth system health check
       if (request.method === "GET" && url.pathname === "/auth/health") {
         const health = {
@@ -190,6 +195,107 @@ function jsonResponse(body, status = 200) {
     status,
     headers: corsHeaders()
   });
+}
+
+/* ---------- /db/health ---------- */
+
+async function handleDbHealth(env) {
+  const health = {
+    status: "ok",
+    timestamp: new Date().toISOString(),
+    database: {
+      binding: false,
+      connected: false,
+      tables: [],
+      queryTest: false
+    },
+    storage: {
+      r2Binding: false
+    }
+  };
+
+  const errors = [];
+
+  try {
+    // Check D1 database binding
+    if (env.DB) {
+      health.database.binding = true;
+
+      // Test database connection with a simple query
+      try {
+        const testResult = await env.DB.prepare("SELECT 1 as test").first();
+        if (testResult && testResult.test === 1) {
+          health.database.connected = true;
+          health.database.queryTest = true;
+        }
+      } catch (err) {
+        errors.push(`Database connection test failed: ${err.message}`);
+      }
+
+      // Check for all known tables
+      if (health.database.connected) {
+        try {
+          const tables = await env.DB.prepare(`
+            SELECT name FROM sqlite_master
+            WHERE type='table'
+            ORDER BY name
+          `).all();
+
+          health.database.tables = tables.results.map(t => t.name);
+
+          // Check for expected tables
+          const expectedTables = [
+            'users',
+            'user_settings',
+            'password_reset_tokens',
+            'user_sessions',
+            'reference_materials'
+          ];
+
+          health.database.expectedTables = expectedTables;
+          health.database.missingTables = expectedTables.filter(
+            t => !health.database.tables.includes(t)
+          );
+        } catch (err) {
+          errors.push(`Failed to query table list: ${err.message}`);
+        }
+      }
+    } else {
+      errors.push("Database binding (DB) not configured in environment");
+    }
+
+    // Check R2 bucket binding
+    if (env.REFERENCE_BUCKET) {
+      health.storage.r2Binding = true;
+    } else {
+      // R2 is optional, so just note it's not configured
+      health.storage.note = "R2 bucket (REFERENCE_BUCKET) not configured";
+    }
+
+    // Set overall status
+    if (!health.database.binding) {
+      health.status = "error";
+    } else if (!health.database.connected) {
+      health.status = "error";
+    } else if (health.database.missingTables?.length > 0) {
+      health.status = "degraded";
+      health.note = "Some tables may need to be created on first use";
+    }
+
+    if (errors.length > 0) {
+      health.errors = errors;
+    }
+
+  } catch (err) {
+    health.status = "error";
+    if (errors.length === 0) {
+      errors.push(err.message);
+    }
+    health.errors = errors;
+  }
+
+  const statusCode = health.status === "ok" ? 200 : health.status === "degraded" ? 200 : 503;
+  return jsonResponse(health, statusCode);
 }
 
 /* ---------- /tools/auto-fill-session ---------- */

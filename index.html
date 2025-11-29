@@ -3104,6 +3104,12 @@
           .then(registration => {
             console.log('✅ Service Worker registered:', registration.scope);
 
+            // Auto-reload when new service worker takes control (no user interaction needed)
+            navigator.serviceWorker.addEventListener('controllerchange', () => {
+              console.log('🔄 New service worker activated - reloading...');
+              window.location.reload();
+            });
+
             // Check for updates periodically
             setInterval(() => {
               registration.update();
@@ -3115,12 +3121,10 @@
               if (newWorker) {
                 newWorker.addEventListener('statechange', () => {
                   if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                    // New service worker available
-                    console.log('🔄 New version available! Reload to update.');
-                    if (confirm('A new version is available! Reload to update?')) {
-                      newWorker.postMessage({ type: 'SKIP_WAITING' });
-                      window.location.reload();
-                    }
+                    // New service worker available - activate immediately
+                    console.log('🔄 New version available! Activating automatically...');
+                    newWorker.postMessage({ type: 'SKIP_WAITING' });
+                    // controllerchange listener will handle the reload
                   }
                 });
               }

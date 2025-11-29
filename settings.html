@@ -2063,11 +2063,14 @@ Do not include any explanation outside the JSON.`
       // Check for updates button
       if (checkUpdatesBtn) {
         checkUpdatesBtn.addEventListener('click', () => {
-          if (typeof window.checkForUpdates === 'function') {
-            window.checkForUpdates();
-          } else if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-            navigator.serviceWorker.controller.postMessage({ type: 'CHECK_UPDATE' });
-            alert('✅ Checking for updates...\n\nIf a new version is found, you\'ll be prompted to reload.');
+          if ('serviceWorker' in navigator && navigator.serviceWorker.ready) {
+            navigator.serviceWorker.ready.then(registration => {
+              if (registration && registration.update) {
+                console.log('[PWA] Manual update check triggered');
+                registration.update();
+                alert('✅ Checking for updates...\n\nIf a new version is found, the app will reload automatically.');
+              }
+            });
           } else {
             alert('❌ Service worker not available.\n\nPlease reload the page to register the service worker.');
           }
@@ -2206,12 +2209,6 @@ Do not include any explanation outside the JSON.`
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        // Auto-reload when new service worker takes control (no user interaction needed)
-        navigator.serviceWorker.addEventListener('controllerchange', () => {
-          console.log('🔄 New service worker activated - reloading...');
-          window.location.reload();
-        });
-
         navigator.serviceWorker.register('/sw.js')
           .then(registration => {
             console.log('✅ Service Worker registered:', registration.scope);
@@ -2219,6 +2216,17 @@ Do not include any explanation outside the JSON.`
           .catch(error => {
             console.error('❌ Service Worker registration failed:', error);
           });
+      });
+
+      // Reload the page once when a new service worker takes control
+      let hasReloadedForSWUpdate = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        // Avoid potential infinite reload loops
+        if (hasReloadedForSWUpdate) return;
+        hasReloadedForSWUpdate = true;
+
+        console.log('[PWA] New version activated – reloading to apply updates');
+        window.location.reload();
       });
     }
   </script>

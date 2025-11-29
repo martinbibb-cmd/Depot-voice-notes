@@ -1716,7 +1716,7 @@ Output concise, engineer-ready bullets in each section: no waffle, no contradict
           window.location.replace("index.html?cacheBust=" + Date.now());
         } catch (err) {
           console.error("Force reload/reset failed", err);
-          alert("Failed to reset stored data. Error: " + (err?.message || err) + "\n\nPlease try clearing site data from your browser settings.");
+          alert("Failed to reset stored data. Error: " + String(err?.message || err) + "\n\nPlease try clearing site data from your browser settings.");
           forceReloadBtn.disabled = false;
           forceReloadBtn.textContent = originalLabel;
         }
@@ -2113,19 +2113,20 @@ Do not include any explanation outside the JSON.`
             } else if (registration.installing) {
               console.log('[PWA] Found installing worker');
               // Wait for the installing worker to become waiting
-              registration.installing.addEventListener('statechange', function() {
-                if (this.state === 'installed' && navigator.serviceWorker.controller) {
+              const installingWorker = registration.installing;
+              installingWorker.addEventListener('statechange', () => {
+                if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
                   console.log('[PWA] New worker installed, sending SKIP_WAITING');
-                  this.postMessage({ type: 'SKIP_WAITING' });
+                  installingWorker.postMessage({ type: 'SKIP_WAITING' });
                 }
               });
               alert('✅ New version found and installing! The page will reload when ready.');
             } else {
-              alert('✅ You are using the latest version.\n\nApp version: ' + (window.DepotBuildInfo?.appVersion || 'unknown') + '\nCache version: ' + (window.DepotBuildInfo?.cacheVersion || 'unknown'));
+              alert(`✅ You are using the latest version.\n\nApp version: ${window.DepotBuildInfo?.appVersion || 'unknown'}\nCache version: ${window.DepotBuildInfo?.cacheVersion || 'unknown'}`);
             }
           } catch (err) {
             console.error('[PWA] Update check failed:', err);
-            alert('❌ Failed to check for updates: ' + (err?.message || err));
+            alert('❌ Failed to check for updates: ' + String(err?.message || err));
           } finally {
             checkUpdatesBtn.disabled = false;
             checkUpdatesBtn.textContent = '🔄 Check for Updates';

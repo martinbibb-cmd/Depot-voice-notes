@@ -1,5 +1,32 @@
 # Depot Voice Notes - Enhancement Changelog
 
+## Version 1.4.1 - 2025-11-29 - Natural Language Notes & Button Cleanup
+
+This release improves the natural language notes display and removes defunct buttons.
+
+---
+
+## ✅ Changes
+
+### 🔢 Version Updates
+- Updated package.json version from 1.4.0 to 1.4.1
+- Updated service worker cache version from depot-v1.3.2 to depot-v1.4.1
+
+### 🗑️ Removed Defunct Buttons
+- Removed "CloudSense Survey" button from header
+- Removed "Survey Form" button from header  
+- Removed "Customer Proposal" button from header
+
+### 📝 Natural Language Notes Improvements
+- Natural language notes no longer appear in the Automatic Depot Notes section
+- Natural language notes now display only in the dedicated "AI Natural Language Notes" section
+- Fixed uppercase text issue (removed `.small` class styling from natural language content)
+- Added Tweak button for AI Natural Language Notes (AI-powered content improvement)
+- Added Edit button for AI Natural Language Notes (inline editing capability)
+- Each AI note now has its own dedicated edit and tweak functionality
+
+---
+
 ## Version 1.4.0 - 2025-11-29 - UI Layout Reorganization
 
 This release includes significant UI layout improvements focusing on usability and clarity.
@@ -13,7 +40,7 @@ This release includes significant UI layout improvements focusing on usability a
   - **Primary Actions**: "New session", "Clear all"
   - **System Recommendations**: "What3Words System Rec" link, "Import System Rec" button
   - **Utilities**: "Bug report", "Settings"
-  - **Additional Actions**: Save, Duplicate, what3words, Survey Form, CloudSense Survey, Customer Proposal
+  - **Additional Actions**: Save, Duplicate, what3words
 
 ### 🎙️ Recording Section (Collapsible)
 - Made the Recording section minimizable/collapsible

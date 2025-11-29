@@ -277,7 +277,7 @@ async function handleDbHealth(env) {
       health.status = "error";
     } else if (!health.database.connected) {
       health.status = "error";
-    } else if (health.database.missingTables && health.database.missingTables.length > 0) {
+    } else if (health.database.missingTables?.length > 0) {
       health.status = "degraded";
       health.note = "Some tables may need to be created on first use";
     }

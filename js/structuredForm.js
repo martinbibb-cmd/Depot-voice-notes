@@ -66,11 +66,6 @@ export function initStructuredForm() {
     return;
   }
 
-  // Render form content if not already rendered
-  if (container.children.length === 0) {
-    renderForm(container);
-  }
-
   // Check if form should be visible (legacy support)
   const formEnabled = localStorage.getItem(FORM_STORAGE_KEY) === 'true';
 
@@ -79,6 +74,10 @@ export function initStructuredForm() {
     // If unified card exists, show it too
     if (unifiedCard) {
       unifiedCard.style.display = 'block';
+    }
+    // Only render form content when needed
+    if (container.children.length === 0) {
+      renderForm(container);
     }
   }
 
@@ -106,7 +105,8 @@ export function initStructuredForm() {
       toggleBtn.click();
     } else if (unifiedCard && card) {
       // New unified layout - toggle the unified card and show structured form
-      const isVisible = unifiedCard.style.display !== 'none';
+      const computedDisplay = window.getComputedStyle(unifiedCard).display;
+      const isVisible = computedDisplay !== 'none';
       if (isVisible) {
         unifiedCard.style.display = 'none';
       } else {

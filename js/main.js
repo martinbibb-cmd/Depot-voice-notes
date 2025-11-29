@@ -5414,13 +5414,10 @@ if (selectStructuredSurveyBtn && selectCloudSenseSurveyBtn) {
     selectStructuredSurveyBtn.classList.add('active');
     selectCloudSenseSurveyBtn.classList.remove('active');
     // Initialize structured form if needed
-    if (typeof window.toggleStructuredForm === 'function') {
-      const container = document.getElementById('structuredFormContainer');
-      if (container && container.children.length === 0) {
-        // Trigger form initialization
-        if (typeof window.initStructuredForm === 'function') {
-          window.initStructuredForm();
-        }
+    const container = document.getElementById('structuredFormContainer');
+    if (container && container.children.length === 0) {
+      if (typeof window.initStructuredForm === 'function') {
+        window.initStructuredForm();
       }
     }
   };
@@ -5431,9 +5428,9 @@ if (selectStructuredSurveyBtn && selectCloudSenseSurveyBtn) {
     selectStructuredSurveyBtn.classList.remove('active');
     selectCloudSenseSurveyBtn.classList.add('active');
     // Initialize CloudSense form if needed
-    if (typeof window.initCloudSenseSurveyForm === 'function') {
-      const container = document.getElementById('cloudSenseFormContainer');
-      if (container && container.children.length === 0) {
+    const container = document.getElementById('cloudSenseFormContainer');
+    if (container && container.children.length === 0) {
+      if (typeof window.initCloudSenseSurveyForm === 'function') {
         window.initCloudSenseSurveyForm();
       }
     }

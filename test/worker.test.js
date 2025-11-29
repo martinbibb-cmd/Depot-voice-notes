@@ -251,3 +251,50 @@ test('GET /health returns basic health status', async () => {
   assert.equal(body.version, '1.0.0');
 });
 
+test('GET /db/health returns error when DB connection fails', async () => {
+  const mockDB = {
+    prepare: (sql) => ({
+      first: async () => {
+        throw new Error('Connection refused');
+      }
+    })
+  };
+
+  const request = new Request('https://example.com/db/health', {
+    method: 'GET'
+  });
+
+  const response = await worker.fetch(request, { DB: mockDB }, {});
+  assert.equal(response.status, 503);
+  const body = await parseJson(response);
+  assert.equal(body.status, 'error');
+  assert.equal(body.database.binding, true);
+  assert.equal(body.database.connected, false);
+  assert(body.errors.some(e => e.includes('connection test failed')));
+});
+
+test('GET /db/health handles table query failure gracefully', async () => {
+  const mockDB = {
+    prepare: (sql) => ({
+      first: async () => {
+        if (sql.includes('SELECT 1')) {
+          return { test: 1 };
+        }
+        return null;
+      },
+      all: async () => {
+        throw new Error('Table query failed');
+      }
+    })
+  };
+
+  const request = new Request('https://example.com/db/health', {
+    method: 'GET'
+  });
+
+  const response = await worker.fetch(request, { DB: mockDB }, {});
+  const body = await parseJson(response);
+  assert.equal(body.database.connected, true);
+  assert(body.errors.some(e => e.includes('Failed to query table list')));
+});
+

@@ -288,7 +288,10 @@ async function handleDbHealth(env) {
 
   } catch (err) {
     health.status = "error";
-    health.error = err.message;
+    if (errors.length === 0) {
+      errors.push(err.message);
+    }
+    health.errors = errors;
   }
 
   const statusCode = health.status === "ok" ? 200 : health.status === "degraded" ? 200 : 503;

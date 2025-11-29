@@ -3319,13 +3319,20 @@
               if (newWorker) {
                 newWorker.addEventListener('statechange', () => {
                   if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                    // New service worker available - will activate automatically via skipWaiting()
-                    console.log('🔄 New version available! Activating automatically...');
+                    // New service worker available - send SKIP_WAITING to activate immediately
+                    console.log('🔄 New version available! Sending SKIP_WAITING...');
+                    newWorker.postMessage({ type: 'SKIP_WAITING' });
                     // controllerchange listener will handle the reload
                   }
                 });
               }
             });
+
+            // Also check if there's already a waiting worker
+            if (registration.waiting) {
+              console.log('🔄 Found waiting service worker, sending SKIP_WAITING...');
+              registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+            }
           })
           .catch(error => {
             console.error(`❌ Service Worker registration failed at ${swPath}:`, error);

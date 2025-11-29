@@ -1,9 +1,15 @@
 /**
  * Depot Voice Notes - Service Worker
  * Provides offline capability and performance optimization
+ * 
+ * CACHE VERSIONING: Bump CACHE_VERSION on each deploy to ensure users get fresh content.
+ * The version string is used to create unique cache names, and old caches are
+ * automatically cleaned up on activate.
+ * 
+ * Last updated: 2025-11-29
  */
 
-const CACHE_VERSION = 'depot-v1.4.1';
+const CACHE_VERSION = 'depot-v1.4.2';
 const CACHE_STATIC = `${CACHE_VERSION}-static`;
 const CACHE_DYNAMIC = `${CACHE_VERSION}-dynamic`;
 const CACHE_API = `${CACHE_VERSION}-api`;

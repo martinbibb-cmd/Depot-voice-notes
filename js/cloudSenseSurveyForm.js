@@ -254,28 +254,42 @@ export function initCloudSenseSurveyForm() {
   const container = document.getElementById('cloudSenseFormContainer');
   const card = document.getElementById('cloudSenseFormCard');
   const toggleBtn = document.getElementById('toggleCloudSenseFormBtn');
+  const unifiedCard = document.getElementById('unifiedSurveyCard');
+  const structuredCard = document.getElementById('structuredFormCard');
 
-  if (!container || !card) {
-    console.warn('CloudSense form elements not found');
+  if (!container) {
+    console.warn('CloudSense form container not found');
     return;
   }
 
-  // Check if form should be visible
-  const formEnabled = localStorage.getItem(CS_FORM_STORAGE_KEY) === 'true';
-
-  if (formEnabled) {
-    card.style.display = 'block';
+  // Render form content if not already rendered
+  if (container.children.length === 0) {
     renderCloudSenseForm(container);
   }
 
-  // Toggle button
+  // Check if form should be visible (legacy support)
+  const formEnabled = localStorage.getItem(CS_FORM_STORAGE_KEY) === 'true';
+
+  if (formEnabled && card) {
+    card.style.display = 'block';
+    // Hide structured form if showing CloudSense
+    if (structuredCard) {
+      structuredCard.style.display = 'none';
+    }
+    // If unified card exists, show it too
+    if (unifiedCard) {
+      unifiedCard.style.display = 'block';
+    }
+  }
+
+  // Toggle button (legacy support - may not exist in new layout)
   if (toggleBtn) {
     toggleBtn.onclick = () => {
-      const isVisible = card.style.display !== 'none';
-      if (isVisible) {
+      const isVisible = card && card.style.display !== 'none';
+      if (isVisible && card) {
         card.style.display = 'none';
         localStorage.setItem(CS_FORM_STORAGE_KEY, 'false');
-      } else {
+      } else if (card) {
         card.style.display = 'block';
         localStorage.setItem(CS_FORM_STORAGE_KEY, 'true');
         if (container.children.length === 0) {
@@ -288,7 +302,25 @@ export function initCloudSenseSurveyForm() {
 
   // Expose toggle function
   window.toggleCloudSenseSurveyForm = () => {
-    if (toggleBtn) toggleBtn.click();
+    if (toggleBtn) {
+      toggleBtn.click();
+    } else if (unifiedCard && card) {
+      // New unified layout - toggle the unified card and show CloudSense form
+      const isVisible = unifiedCard.style.display !== 'none';
+      if (isVisible) {
+        unifiedCard.style.display = 'none';
+      } else {
+        unifiedCard.style.display = 'block';
+        card.style.display = 'block';
+        // Hide structured form
+        if (structuredCard) {
+          structuredCard.style.display = 'none';
+        }
+        if (container.children.length === 0) {
+          renderCloudSenseForm(container);
+        }
+      }
+    }
   };
 }
 

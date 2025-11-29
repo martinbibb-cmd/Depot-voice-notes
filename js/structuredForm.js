@@ -59,28 +59,37 @@ export function initStructuredForm() {
   const container = document.getElementById('structuredFormContainer');
   const card = document.getElementById('structuredFormCard');
   const toggleBtn = document.getElementById('toggleFormBtn');
+  const unifiedCard = document.getElementById('unifiedSurveyCard');
 
-  if (!container || !card) {
-    console.warn('Structured form elements not found');
+  if (!container) {
+    console.warn('Structured form container not found');
     return;
   }
 
-  // Check if form should be visible
-  const formEnabled = localStorage.getItem(FORM_STORAGE_KEY) === 'true';
-
-  if (formEnabled) {
-    card.style.display = 'block';
+  // Render form content if not already rendered
+  if (container.children.length === 0) {
     renderForm(container);
   }
 
-  // Toggle button
+  // Check if form should be visible (legacy support)
+  const formEnabled = localStorage.getItem(FORM_STORAGE_KEY) === 'true';
+
+  if (formEnabled && card) {
+    card.style.display = 'block';
+    // If unified card exists, show it too
+    if (unifiedCard) {
+      unifiedCard.style.display = 'block';
+    }
+  }
+
+  // Toggle button (legacy support - may not exist in new layout)
   if (toggleBtn) {
     toggleBtn.onclick = () => {
-      const isVisible = card.style.display !== 'none';
-      if (isVisible) {
+      const isVisible = card && card.style.display !== 'none';
+      if (isVisible && card) {
         card.style.display = 'none';
         localStorage.setItem(FORM_STORAGE_KEY, 'false');
-      } else {
+      } else if (card) {
         card.style.display = 'block';
         localStorage.setItem(FORM_STORAGE_KEY, 'true');
         if (container.children.length === 0) {
@@ -93,7 +102,21 @@ export function initStructuredForm() {
 
   // Expose toggle function
   window.toggleStructuredForm = () => {
-    if (toggleBtn) toggleBtn.click();
+    if (toggleBtn) {
+      toggleBtn.click();
+    } else if (unifiedCard && card) {
+      // New unified layout - toggle the unified card and show structured form
+      const isVisible = unifiedCard.style.display !== 'none';
+      if (isVisible) {
+        unifiedCard.style.display = 'none';
+      } else {
+        unifiedCard.style.display = 'block';
+        card.style.display = 'block';
+        if (container.children.length === 0) {
+          renderForm(container);
+        }
+      }
+    }
   };
 }
 

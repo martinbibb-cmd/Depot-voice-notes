@@ -1178,17 +1178,22 @@ function cleanSectionContent(section) {
   }
 
   if (typeof cleaned.naturalLanguage === "string") {
-    const paras = cleaned.naturalLanguage
-      .split(/\n+/)
-      .map((p) => p.trim())
+    // Split natural language text into sentences for deduplication
+    const rawSentences = cleaned.naturalLanguage
+      .split(/(?<=[.!?])\s+|\n+/)
+      .map((s) => s.trim())
       .filter(Boolean);
-    if (paras.length > 1) {
-      cleaned.naturalLanguage = paras[paras.length - 1];
-    } else if (paras.length === 1) {
-      cleaned.naturalLanguage = paras[0];
-    } else {
-      cleaned.naturalLanguage = "";
+
+    // Apply semantic deduplication to sentences (same as plainText lines)
+    let uniqueSentences = deduplicateLines(rawSentences, 0.6);
+
+    // Remove generic "No additional notes" sentences if real content exists
+    const hasDetail = uniqueSentences.some((s) => !/^no\s+additional/i.test(s));
+    if (hasDetail) {
+      uniqueSentences = uniqueSentences.filter((s) => !/^no\s+additional/i.test(s));
     }
+
+    cleaned.naturalLanguage = uniqueSentences.join(" ").trim();
   }
 
   return cleaned;

@@ -1,5 +1,47 @@
 # Depot Voice Notes - Enhancement Changelog
 
+## Version 1.4.0 - 2025-11-29 - UI Layout Reorganization
+
+This release includes significant UI layout improvements focusing on usability and clarity.
+
+---
+
+## ✅ UI Layout Changes
+
+### 📱 Menu Bar Reorganization
+- Reorganized menu bar with logical grouping:
+  - **Primary Actions**: "New session", "Clear all"
+  - **System Recommendations**: "What3Words System Rec" link, "Import System Rec" button
+  - **Utilities**: "Bug report", "Settings"
+  - **Additional Actions**: Save, Duplicate, what3words, Survey Form, CloudSense Survey, Customer Proposal
+
+### 🎙️ Recording Section (Collapsible)
+- Made the Recording section minimizable/collapsible
+- Click the header to toggle visibility
+- State persisted in localStorage
+
+### 📋 Survey Section (Collapsible)
+- Made the Survey section minimizable/collapsible
+- Click the header to toggle visibility  
+- State persisted in localStorage
+
+### 📝 Completed Notes Section
+- Added "Completed Notes" collapsible section
+- Contains: Automatic Depot Notes, AI Natural Language Notes, Customer Summary, Survey Session Data
+- Collapsible for better screen real estate management
+
+### 📌 Fixed Checklist Position
+- Checklist section now stays fixed on the right-hand side
+- Remains visible while scrolling on larger screens
+- Reverts to normal flow on mobile devices
+
+### 🎨 New CSS Features
+- Added `.collapsible-section`, `.collapsible-header`, `.collapsible-content` classes
+- Added `.menu-divider` for visual menu organization
+- Added `.main-right` sticky positioning for desktop
+
+---
+
 ## 2025-11-26 - Major Application Improvements
 
 This release includes significant efficiency, user control, adaptability, and reliability enhancements based on comprehensive codebase analysis.

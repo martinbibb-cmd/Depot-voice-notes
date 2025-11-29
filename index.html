@@ -2434,6 +2434,94 @@
       border-radius: var(--radius);
       border: 1px solid #86efac;
     }
+
+    /* Collapsible Section Styles */
+    .collapsible-section {
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .collapsible-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+      padding: 12px 16px;
+      background: linear-gradient(145deg, #f6f7f9 0%, #e3e6eb 100%);
+      border: 2px solid var(--border);
+      border-radius: var(--radius);
+      user-select: none;
+      transition: all 0.2s ease;
+    }
+    .collapsible-header:hover {
+      background: linear-gradient(145deg, #e3e6eb 0%, #d4d8df 100%);
+    }
+    .collapsible-header h3 {
+      margin: 0;
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: var(--accent);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .collapsible-toggle {
+      background: none;
+      border: none;
+      font-size: 1rem;
+      cursor: pointer;
+      padding: 4px 8px;
+      border-radius: 4px;
+      transition: transform 0.3s ease;
+      color: var(--muted);
+    }
+    .collapsible-toggle:hover {
+      background: rgba(0,0,0,0.05);
+    }
+    .collapsible-section.collapsed .collapsible-toggle {
+      transform: rotate(-90deg);
+    }
+    .collapsible-content {
+      max-height: 2000px;
+      overflow: hidden;
+      transition: max-height 0.3s ease-out, padding 0.3s ease-out;
+      padding-top: 12px;
+    }
+    .collapsible-section.collapsed .collapsible-content {
+      max-height: 0;
+      padding-top: 0;
+      padding-bottom: 0;
+    }
+
+    /* Fixed Checklist on right side */
+    .main-right {
+      position: sticky;
+      top: 16px;
+      align-self: flex-start;
+      max-height: calc(100vh - 120px);
+      overflow-y: auto;
+    }
+    @media (max-width: 970px) {
+      .main-right {
+        position: static;
+        max-height: none;
+      }
+    }
+
+    /* Menu bar organization */
+    .menu-group {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      padding: 4px 8px;
+      background: rgba(0,0,0,0.05);
+      border-radius: var(--radius);
+    }
+    .menu-divider {
+      width: 1px;
+      height: 24px;
+      background: var(--border);
+      margin: 0 4px;
+    }
   </style>
 
   <!-- CloudSense Survey CSS -->
@@ -2458,14 +2546,12 @@
     <h1>🎙️ Voice Notes 2.0</h1>
     <div id="sessionNameDisplay" style="display: none; margin-left: 12px; padding: 6px 14px; background: rgba(255,255,255,0.2); color: white; border-radius: 999px; font-size: 0.75rem; font-weight: 700; backdrop-filter: blur(10px); box-shadow: 0 2px 8px rgba(0,0,0,0.1);"></div>
     <div class="toolbar-row">
-      <button id="sessionMenuBtn" class="pill-secondary">📁 Menu</button>
+      <!-- Primary Actions Group -->
+      <button id="sessionMenuBtn" class="pill-secondary">🆕 New session</button>
       <button id="clearAllBtn" class="pill-secondary">🧹 Clear all</button>
-      <button id="saveMenuBtn" class="pill-secondary">💾 Save</button>
-      <button id="duplicateSessionBtn" class="pill-secondary">📋 Duplicate</button>
-      <button id="what3wordsBtn" class="pill-secondary">📍 what3words</button>
-      <button id="enableSurveyFormBtn" class="pill-secondary">📋 Survey Form</button>
-      <button id="enableCloudSenseFormBtn" class="pill-secondary">☁️ CloudSense Survey</button>
-      <button id="settingsBtn" class="pill-secondary">⚙️ Settings</button>
+      <span class="menu-divider"></span>
+      
+      <!-- System Recommendations Group -->
       <a
         id="systemRecommendationLink"
         class="pill-secondary toolbar-link"
@@ -2473,11 +2559,11 @@
         target="_blank"
         rel="noopener noreferrer"
       >
-        🎯 System Rec
+        🎯 What3Words System Rec
       </a>
       <div class="toolbar-group">
         <button id="btn-import-system-rec" type="button" class="pill-secondary">
-          Import System Recommendation
+          📥 Import System Rec
         </button>
         <input
           id="input-system-rec-file"
@@ -2486,8 +2572,20 @@
           style="display:none"
         />
       </div>
+      <span class="menu-divider"></span>
+      
+      <!-- Utilities Group -->
+      <button id="bugReportBtn" class="pill-secondary">🐛 Bug report</button>
+      <button id="settingsBtn" class="pill-secondary">⚙️ Settings</button>
+      <span class="menu-divider"></span>
+      
+      <!-- Additional Actions (Secondary) -->
+      <button id="saveMenuBtn" class="pill-secondary">💾 Save</button>
+      <button id="duplicateSessionBtn" class="pill-secondary">📋 Duplicate</button>
+      <button id="what3wordsBtn" class="pill-secondary">📍 what3words</button>
+      <button id="enableSurveyFormBtn" class="pill-secondary">📋 Survey Form</button>
+      <button id="enableCloudSenseFormBtn" class="pill-secondary">☁️ CloudSense Survey</button>
       <button id="customerProposalBtn" class="pill-secondary">📄 Customer Proposal</button>
-      <button id="bugReportBtn" class="pill-secondary">🐛 Report bug</button>
     </div>
   </header>
 
@@ -2496,73 +2594,82 @@
 
   <main>
     <div class="column main-left">
-      <!-- Audio Control Panel -->
-      <div class="audio-control-panel">
-        <div class="audio-controls-wrapper">
-          <div class="audio-status-bar">
-            <div class="audio-status-indicator">
-              <div class="status-dot" id="audioStatusDot"></div>
-              <span id="audioStatusText">Ready</span>
+      <!-- Recording Section (Collapsible) -->
+      <div class="collapsible-section" id="recordingSection">
+        <div class="collapsible-header" onclick="toggleSection('recordingSection')">
+          <h3>🎙️ Recording</h3>
+          <button class="collapsible-toggle" aria-label="Toggle recording section">▼</button>
+        </div>
+        <div class="collapsible-content">
+          <!-- Audio Control Panel -->
+          <div class="audio-control-panel">
+            <div class="audio-controls-wrapper">
+              <div class="audio-status-bar">
+                <div class="audio-status-indicator">
+                  <div class="status-dot" id="audioStatusDot"></div>
+                  <span id="audioStatusText">Ready</span>
+                </div>
+                <div class="audio-timer" id="audioTimer">00:00</div>
+              </div>
+
+              <div class="audio-waveform" id="audioWaveform">
+                <div class="waveform-bar"></div>
+                <div class="waveform-bar"></div>
+                <div class="waveform-bar"></div>
+                <div class="waveform-bar"></div>
+                <div class="waveform-bar"></div>
+                <div class="waveform-bar"></div>
+                <div class="waveform-bar"></div>
+                <div class="waveform-bar"></div>
+                <div class="waveform-bar"></div>
+                <div class="waveform-bar"></div>
+                <div class="waveform-bar"></div>
+                <div class="waveform-bar"></div>
+                <div class="waveform-bar"></div>
+                <div class="waveform-bar"></div>
+                <div class="waveform-bar"></div>
+              </div>
+
+              <div class="audio-level-meter">
+                <span>Level:</span>
+                <div class="level-bar-container">
+                  <div class="level-bar" id="audioLevelBar"></div>
+                </div>
+              </div>
+
+              <div class="internet-speed-indicator">
+                <span>Connection:</span>
+                <span id="internetSpeedBadge" class="speed-badge">Testing...</span>
+                <span id="chunkIntervalDisplay" class="small" style="margin-left: 8px; color: var(--muted);">Chunk: --s</span>
+              </div>
+
+              <div class="audio-control-buttons">
+                <button id="skipBackwardBtn" class="audio-btn" disabled>
+                  <span>⏮️</span>
+                </button>
+                <button id="rewindBtn" class="audio-btn" disabled>
+                  <span>⏪</span>
+                </button>
+                <button id="startLiveBtn" class="audio-btn">
+                  <span>🔴</span>
+                  <span>record</span>
+                </button>
+                <button id="pauseLiveBtn" class="audio-btn paused" disabled>
+                  <span>⏯️</span>
+                  <span>play/pause</span>
+                </button>
+                <button id="finishLiveBtn" class="audio-btn" disabled>
+                  <span>⏹️</span>
+                  <span>stop</span>
+                </button>
+                <button id="forwardBtn" class="audio-btn" disabled>
+                  <span>⏩</span>
+                </button>
+                <button id="skipForwardBtn" class="audio-btn" disabled>
+                  <span>⏭️</span>
+                </button>
+              </div>
             </div>
-            <div class="audio-timer" id="audioTimer">00:00</div>
-          </div>
-
-          <div class="audio-waveform" id="audioWaveform">
-            <div class="waveform-bar"></div>
-            <div class="waveform-bar"></div>
-            <div class="waveform-bar"></div>
-            <div class="waveform-bar"></div>
-            <div class="waveform-bar"></div>
-            <div class="waveform-bar"></div>
-            <div class="waveform-bar"></div>
-            <div class="waveform-bar"></div>
-            <div class="waveform-bar"></div>
-            <div class="waveform-bar"></div>
-            <div class="waveform-bar"></div>
-            <div class="waveform-bar"></div>
-            <div class="waveform-bar"></div>
-            <div class="waveform-bar"></div>
-            <div class="waveform-bar"></div>
-          </div>
-
-          <div class="audio-level-meter">
-            <span>Level:</span>
-            <div class="level-bar-container">
-              <div class="level-bar" id="audioLevelBar"></div>
-            </div>
-          </div>
-
-          <div class="internet-speed-indicator">
-            <span>Connection:</span>
-            <span id="internetSpeedBadge" class="speed-badge">Testing...</span>
-            <span id="chunkIntervalDisplay" class="small" style="margin-left: 8px; color: var(--muted);">Chunk: --s</span>
-          </div>
-
-          <div class="audio-control-buttons">
-            <button id="skipBackwardBtn" class="audio-btn" disabled>
-              <span>⏮️</span>
-            </button>
-            <button id="rewindBtn" class="audio-btn" disabled>
-              <span>⏪</span>
-            </button>
-            <button id="startLiveBtn" class="audio-btn">
-              <span>🔴</span>
-              <span>record</span>
-            </button>
-            <button id="pauseLiveBtn" class="audio-btn paused" disabled>
-              <span>⏯️</span>
-              <span>play/pause</span>
-            </button>
-            <button id="finishLiveBtn" class="audio-btn" disabled>
-              <span>⏹️</span>
-              <span>stop</span>
-            </button>
-            <button id="forwardBtn" class="audio-btn" disabled>
-              <span>⏩</span>
-            </button>
-            <button id="skipForwardBtn" class="audio-btn" disabled>
-              <span>⏭️</span>
-            </button>
           </div>
         </div>
       </div>
@@ -2634,35 +2741,45 @@
     </div>
 
     <div class="column main-right">
-      <!-- Unified Survey Form Section (consolidates Structured and CloudSense forms) -->
-      <div class="card" id="unifiedSurveyCard" style="display: none;">
-        <div class="card-title">
-          📋 Survey Form
-          <span class="small">Select survey type and fill in details</span>
-          <button id="toggleUnifiedSurveyBtn" class="pill-secondary" style="float: right; padding: 4px 12px; font-size: 0.8rem;">Hide Survey</button>
+      <!-- Survey Section (Collapsible) -->
+      <div class="collapsible-section" id="surveySection">
+        <div class="collapsible-header" onclick="toggleSection('surveySection')">
+          <h3>📋 Survey</h3>
+          <button class="collapsible-toggle" aria-label="Toggle survey section">▼</button>
         </div>
-        
-        <!-- Survey Type Selector -->
-        <div id="surveyTypeSelector" style="display: flex; gap: 8px; margin-bottom: 12px;">
-          <button id="selectStructuredSurveyBtn" class="pill-secondary" style="flex: 1;">📋 Basic Survey</button>
-          <button id="selectCloudSenseSurveyBtn" class="pill-secondary" style="flex: 1;">☁️ CloudSense Survey</button>
-        </div>
-        
-        <!-- Structured Survey Form Content -->
-        <div id="structuredFormCard" style="display: block;">
-          <div id="structuredFormContainer" class="structured-form">
-            <!-- Form sections will be rendered here by JavaScript -->
-          </div>
-        </div>
-        
-        <!-- CloudSense Survey Form Content -->
-        <div id="cloudSenseFormCard" style="display: none;">
-          <div id="cloudSenseFormContainer">
-            <!-- CloudSense form sections will be rendered here by JavaScript -->
+        <div class="collapsible-content">
+          <!-- Unified Survey Form Section (consolidates Structured and CloudSense forms) -->
+          <div class="card" id="unifiedSurveyCard" style="display: none;">
+            <div class="card-title">
+              📋 Survey Form
+              <span class="small">Select survey type and fill in details</span>
+              <button id="toggleUnifiedSurveyBtn" class="pill-secondary" style="float: right; padding: 4px 12px; font-size: 0.8rem;">Hide Survey</button>
+            </div>
+            
+            <!-- Survey Type Selector -->
+            <div id="surveyTypeSelector" style="display: flex; gap: 8px; margin-bottom: 12px;">
+              <button id="selectStructuredSurveyBtn" class="pill-secondary" style="flex: 1;">📋 Basic Survey</button>
+              <button id="selectCloudSenseSurveyBtn" class="pill-secondary" style="flex: 1;">☁️ CloudSense Survey</button>
+            </div>
+            
+            <!-- Structured Survey Form Content -->
+            <div id="structuredFormCard" style="display: block;">
+              <div id="structuredFormContainer" class="structured-form">
+                <!-- Form sections will be rendered here by JavaScript -->
+              </div>
+            </div>
+            
+            <!-- CloudSense Survey Form Content -->
+            <div id="cloudSenseFormCard" style="display: none;">
+              <div id="cloudSenseFormContainer">
+                <!-- CloudSense form sections will be rendered here by JavaScript -->
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
+      <!-- Checklist Section (Fixed on Right) -->
       <div class="card">
         <div class="card-title">
           Survey checklist &amp; questions
@@ -2691,56 +2808,66 @@
       <button id="autoFillSessionBtn" class="pill-secondary">✨ Auto-fill from transcript</button>
       <button id="buildQuoteBtn" class="pill-secondary">💷 Build quote</button>
     </div>
-    <!-- Side-by-side Notes Sections -->
-    <div class="notes-grid">
-      <div class="card">
-        <div class="card-title">
-          Automatic Depot Notes
-          <span class="small">Standard structured layout</span>
-        </div>
-        <div id="sectionsList" data-alias="engineer-notes-auto" class="sections-list">
-          <span class="small">No automatic notes yet.</span>
-        </div>
+    
+    <!-- Completed Notes Section -->
+    <div class="collapsible-section" id="completedNotesSection" style="margin-bottom: 14px;">
+      <div class="collapsible-header" onclick="toggleSection('completedNotesSection')">
+        <h3>📝 Completed Notes</h3>
+        <button class="collapsible-toggle" aria-label="Toggle completed notes section">▼</button>
       </div>
+      <div class="collapsible-content">
+        <!-- Side-by-side Notes Sections -->
+        <div class="notes-grid">
+          <div class="card">
+            <div class="card-title">
+              Automatic Depot Notes
+              <span class="small">Standard structured layout</span>
+            </div>
+            <div id="sectionsList" data-alias="engineer-notes-auto" class="sections-list">
+              <span class="small">No automatic notes yet.</span>
+            </div>
+          </div>
 
-      <div class="card">
-        <div class="card-title">
-          AI Natural Language Notes
-          <span class="small">AI-enhanced narrative summary</span>
+          <div class="card">
+            <div class="card-title">
+              AI Natural Language Notes
+              <span class="small">AI-enhanced narrative summary</span>
+            </div>
+            <div id="aiNotesList" data-alias="natural-language-notes" class="sections-list">
+              <span class="small">No AI notes yet.</span>
+            </div>
+          </div>
         </div>
-        <div id="aiNotesList" data-alias="natural-language-notes" class="sections-list">
-          <span class="small">No AI notes yet.</span>
-        </div>
-      </div>
-    </div>
 
-    <!-- Customer Summary Section -->
-    <div class="card" id="customerSummaryCard">
-      <div class="card-title">
-        Customer Summary
-        <span class="small">Key recommendations and next steps</span>
-      </div>
-      <div id="customerSummary" data-alias="customer-summary" class="sections-list">
-        <span class="small" style="color: var(--muted); font-style: italic;">Customer summary will appear here after processing...</span>
-      </div>
-    </div>
-
-    <div class="card" id="sessionDataCard">
-      <div class="card-title">
-        Survey session data
-        <span class="small">AI-filled fields highlighted</span>
-      </div>
-      <div id="sessionFieldList" class="session-field-list">
-        <span class="small" style="color: var(--muted);">No session data yet. Capture transcript or auto-fill to populate.</span>
-      </div>
-      <div class="missing-info-block">
-        <div class="card-title" style="font-size: 0.85rem;">
-          Missing info
-          <span class="small">Outstanding follow-ups</span>
+        <!-- Customer Summary Section -->
+        <div class="card" id="customerSummaryCard">
+          <div class="card-title">
+            Customer Summary
+            <span class="small">Key recommendations and next steps</span>
+          </div>
+          <div id="customerSummary" data-alias="customer-summary" class="sections-list">
+            <span class="small" style="color: var(--muted); font-style: italic;">Customer summary will appear here after processing...</span>
+          </div>
         </div>
-        <ul id="sessionMissingInfo" class="missing-info-list">
-          <li class="small" style="color: var(--muted); list-style: none;">No missing info captured.</li>
-        </ul>
+
+        <div class="card" id="sessionDataCard">
+          <div class="card-title">
+            Survey session data
+            <span class="small">AI-filled fields highlighted</span>
+          </div>
+          <div id="sessionFieldList" class="session-field-list">
+            <span class="small" style="color: var(--muted);">No session data yet. Capture transcript or auto-fill to populate.</span>
+          </div>
+          <div class="missing-info-block">
+            <div class="card-title" style="font-size: 0.85rem;">
+              Missing info
+              <span class="small">Outstanding follow-ups</span>
+            </div>
+            <ul id="sessionMissingInfo" class="missing-info-list">
+              <li class="small" style="color: var(--muted); list-style: none;">No missing info captured.</li>
+            </ul>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -3122,6 +3249,46 @@
 
   <!-- jsPDF library for quote PDF generation -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <!-- Collapsible Section Toggle Function -->
+  <script>
+    function toggleSection(sectionId, event) {
+      // Prevent event bubbling if event is passed
+      if (event) {
+        event.stopPropagation();
+      }
+      const section = document.getElementById(sectionId);
+      if (section) {
+        section.classList.toggle('collapsed');
+        // Save state to localStorage
+        const isCollapsed = section.classList.contains('collapsed');
+        localStorage.setItem('section_' + sectionId, isCollapsed ? 'collapsed' : 'expanded');
+      }
+    }
+
+    // Restore section states on page load
+    document.addEventListener('DOMContentLoaded', () => {
+      const collapsibleSections = ['recordingSection', 'surveySection', 'completedNotesSection'];
+      collapsibleSections.forEach(sectionId => {
+        const savedState = localStorage.getItem('section_' + sectionId);
+        const section = document.getElementById(sectionId);
+        if (section && savedState === 'collapsed') {
+          section.classList.add('collapsed');
+        }
+      });
+
+      // Add click handlers to prevent double-toggle when clicking on the button
+      document.querySelectorAll('.collapsible-toggle').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const section = btn.closest('.collapsible-section');
+          if (section) {
+            toggleSection(section.id);
+          }
+        });
+      });
+    });
+  </script>
 
   <!-- UI Enhancements -->
   <script type="module" src="./js/systemRecommendationImport.js"></script>

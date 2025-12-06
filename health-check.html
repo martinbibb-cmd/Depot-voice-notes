@@ -152,7 +152,6 @@
       />
 
       <button onclick="checkHealth()">🔍 Check Health</button>
-      <button onclick="checkDbHealth()">💾 Check Database</button>
       <button onclick="testLogin()">🔐 Test Login</button>
       <button onclick="testRegister()">📝 Test Register</button>
       <button onclick="clearResults()">🗑️ Clear Results</button>
@@ -222,77 +221,6 @@ ${authHealthData.database?.error ? `Error: ${authHealthData.database.error}` : '
 
             <h4 style="margin-top: 20px;">📄 Full Response</h4>
             <pre>${JSON.stringify(authHealthData, null, 2)}</pre>
-          </div>
-        `;
-
-        resultDiv.innerHTML = html;
-      } catch (err) {
-        resultDiv.innerHTML = `
-          <div class="result">
-            <h3>❌ Connection Error</h3>
-            <pre>${err.message}
-
-Possible causes:
-1. Worker URL is incorrect
-2. Worker is not deployed
-3. CORS is blocking the request
-4. Network connectivity issues
-
-Try:
-- Verify the worker URL
-- Deploy with: wrangler deploy
-- Check browser console for errors</pre>
-          </div>
-        `;
-      }
-    };
-
-    window.checkDbHealth = async function() {
-      const workerUrl = document.getElementById('workerUrl').value.trim();
-      const resultDiv = document.getElementById('result');
-
-      if (!workerUrl) {
-        resultDiv.innerHTML = '<div class="result"><pre>Please enter a worker URL</pre></div>';
-        return;
-      }
-
-      resultDiv.innerHTML = '<div class="result"><pre>Checking database health...</pre></div>';
-
-      try {
-        const dbHealthResponse = await fetch(`${workerUrl}/db/health`);
-        const dbHealthData = await dbHealthResponse.json();
-
-        const status = dbHealthData.status || 'unknown';
-        const statusClass = status === 'ok' ? 'ok' : status === 'degraded' ? 'degraded' : 'error';
-
-        let html = `
-          <div class="result">
-            <h3>💾 Database Health Check Results</h3>
-            <p><strong>Status:</strong> <span class="status ${statusClass}">${status}</span></p>
-            <p><strong>Timestamp:</strong> ${dbHealthData.timestamp || 'N/A'}</p>
-
-            <h4 style="margin-top: 20px;">🔗 Database Connection</h4>
-            <pre>Binding Available: ${dbHealthData.database?.binding ? '✅ Yes' : '❌ No'}
-Connected: ${dbHealthData.database?.connected ? '✅ Yes' : '❌ No'}
-Query Test: ${dbHealthData.database?.queryTest ? '✅ Passed' : '❌ Failed'}</pre>
-
-            <h4 style="margin-top: 20px;">📊 Database Tables</h4>
-            <pre>Tables Found: ${dbHealthData.database?.tables?.join(', ') || 'None'}
-Expected Tables: ${dbHealthData.database?.expectedTables?.join(', ') || 'N/A'}
-Missing Tables: ${dbHealthData.database?.missingTables?.length ? dbHealthData.database.missingTables.join(', ') : 'None'}</pre>
-
-            <h4 style="margin-top: 20px;">📦 Storage (R2)</h4>
-            <pre>R2 Bucket: ${dbHealthData.storage?.r2Binding ? '✅ Configured' : '⚠️ Not Configured'}
-${dbHealthData.storage?.note || ''}</pre>
-
-            ${dbHealthData.errors?.length ? `<h4 style="margin-top: 20px;">❌ Errors</h4><pre>${dbHealthData.errors.join('\n')}</pre>` : ''}
-            ${dbHealthData.note ? `<h4 style="margin-top: 20px;">ℹ️ Note</h4><pre>${dbHealthData.note}</pre>` : ''}
-
-            <h4 style="margin-top: 20px;">📋 Recommendations</h4>
-            <pre>${getDbRecommendations(dbHealthData)}</pre>
-
-            <h4 style="margin-top: 20px;">📄 Full Response</h4>
-            <pre>${JSON.stringify(dbHealthData, null, 2)}</pre>
           </div>
         `;
 
@@ -421,41 +349,6 @@ Try:
 
       if (health.status === 'ok') {
         recs.push('✅ All systems operational!');
-      }
-
-      return recs.length > 0 ? recs.join('\n') : 'No issues detected';
-    }
-
-    function getDbRecommendations(health) {
-      const recs = [];
-
-      if (!health.database?.binding) {
-        recs.push('❌ Database binding missing - Add D1 database binding in wrangler.toml');
-      }
-
-      if (!health.database?.connected) {
-        recs.push('❌ Database not connected - Check if D1 database exists and is properly bound');
-      }
-
-      if (health.database?.missingTables?.length > 0) {
-        recs.push('⚠️ Some tables are missing - They will be created automatically on first use');
-        if (health.database.missingTables.includes('users')) {
-          recs.push('   - Register a user to create auth tables');
-        }
-        if (health.database.missingTables.includes('user_sessions')) {
-          recs.push('   - Save a session to create session tables');
-        }
-        if (health.database.missingTables.includes('reference_materials')) {
-          recs.push('   - Add reference materials for the AI agent');
-        }
-      }
-
-      if (!health.storage?.r2Binding) {
-        recs.push('ℹ️ R2 bucket not configured - Optional for storing reference documents');
-      }
-
-      if (health.status === 'ok') {
-        recs.push('✅ Database is fully accessible and operational!');
       }
 
       return recs.length > 0 ? recs.join('\n') : 'No issues detected';

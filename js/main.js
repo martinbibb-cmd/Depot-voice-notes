@@ -41,7 +41,6 @@ import {
 } from "./structuredForm.js";
 import { createEmptyDepotSurveySession, buildSessionFromAppState } from "../src/state/sessionStore.js";
 import { autoFillSession } from "../src/api/autoFillSession.js";
-import { deriveTokensFromSession, buildQuoteFromTokens } from "../src/quote/quoteEngine.js";
 import {
   retryWithBackoff,
   categorizeError,
@@ -77,6 +76,22 @@ General rules:
 - When there is a conflict between earlier speculative text and later, typed "summary" lines from the adviser, ALWAYS prefer the later summary lines.
 - Preserve the adviser's intent, not the raw transcription glitches.
 - Never invent requirements that are not explicitly mentioned (for example, do not add a Powerflush unless the transcript clearly says it).
+
+CRITICAL DETAIL RETENTION:
+- RETAIN ALL SPECIFIC DETAILS: Capture exact measurements, routes, locations, sizes, and technical specifications.
+- SHARPEN VAGUE DESCRIPTIONS: Convert conversational language into precise technical specifications.
+  Example: "the flue goes up through the loft" → "Flue route: vertical rise from boiler through bedroom ceiling into loft space, horizontal run 3m to gable end external wall."
+- ROUTES AND PATHS: When describing flue routes, pipe routes, or cable runs, capture EVERY detail:  * Start point (e.g., "from boiler in kitchen")
+  * All waypoints (e.g., "through ceiling void", "across loft space", "behind boxing")
+  * Direction changes (e.g., "90° elbow at ceiling level", "45° bend around joist")
+  * Measurements when mentioned (e.g., "2.5m horizontal run", "1.2m vertical drop")
+  * End point (e.g., "terminate at external wall with terminal kit")
+- SIZES AND SPECIFICATIONS: Always include exact dimensions:
+  * "22mm copper pipe" not just "pipe"
+  * "Worcester Bosch Greenstar 30CDi" not just "combi boiler"
+  * "60/100mm concentric flue" not just "flue"
+- LOCATIONS: Be precise about locations - include room names, relative positions, and landmarks.
+- Keep ALL technical details mentioned in the transcript - do not summarize them away.
 
 Multiple quotes / A-B options:
 - If the transcript clearly discusses multiple quote options (A/B/C or first/second/third quote), generate a separate set of notes for each quote, labelled "Quote A", "Quote B", etc.
@@ -248,6 +263,7 @@ const transcriptInput = document.getElementById("transcriptInput");
 const customerSummaryEl = document.getElementById("customerSummary");
 const clarificationsEl = document.getElementById("clarifications");
 const sectionsListEl = document.getElementById("sectionsList");
+const aiNotesListEl = document.getElementById("aiNotesList");
 const statusBar = document.getElementById("statusBar");
 const startLiveBtn = document.getElementById("startLiveBtn");
 const pauseLiveBtn = document.getElementById("pauseLiveBtn");
@@ -266,16 +282,11 @@ const settingsBtn = document.getElementById("settingsBtn");
 const bugReportBtn = document.getElementById("bugReportBtn");
 const sendSectionsBtn = document.getElementById("sendSectionsBtn");
 const autoFillSessionBtn = document.getElementById("autoFillSessionBtn");
-const buildQuoteBtn = document.getElementById("buildQuoteBtn");
 const workerDebugEl = document.getElementById("workerDebug");
 const debugSectionsPre = document.getElementById("debugSectionsJson");
 const debugSectionsDetails = document.getElementById("debugSections");
 const sessionFieldListEl = document.getElementById("sessionFieldList");
 const sessionMissingInfoEl = document.getElementById("sessionMissingInfo");
-const quoteLinesTable = document.getElementById("quoteLinesTable");
-const quoteTotalsEl = document.getElementById("quoteTotals");
-const quoteStatusEl = document.getElementById("quoteStatus");
-const quoteTokensEl = document.getElementById("quoteTokens");
 
 if (typeof window !== "undefined") {
   window.__depotVoiceNotesDebug = window.__depotVoiceNotesDebug || {
@@ -291,8 +302,7 @@ if (typeof window !== "undefined") {
 // --- STATE ---
 const APP_STATE = {
   sections: [],
-  notes: [],
-  quoteNotes: []
+  notes: []
 };
 let lastMaterials = [];
 let lastRawSections = [];
@@ -300,8 +310,6 @@ let lastSections = [];
 let lastCheckedItems = [];
 let lastMissingInfo = [];
 let lastCustomerSummary = "";
-let lastQuoteNotes = [];
-let lastQuoteTokens = [];
 // Photo, GPS, and structured form state
 let sessionPhotos = [];
 let sessionFormData = {};
@@ -309,7 +317,6 @@ let sessionLocations = {};
 let sessionDistances = {};
 let currentSession = createEmptyDepotSurveySession();
 let aiFilledPaths = new Set();
-let currentQuoteResult = null;
 let wasBackgroundedDuringSession = false;
 let pauseReason = null;
 let lastWorkerPayload = null;
@@ -331,13 +338,11 @@ function exposeStateToWindow() {
   window.__depotSessionAudioChunks = sessionAudioChunks;
   window.__depotLastAudioMime = lastAudioMime;
   window.__depotAppState = APP_STATE;
-  window.__depotQuoteNotes = lastQuoteNotes;
   window.__depotSessionPhotos = sessionPhotos;
   window.__depotSessionFormData = sessionFormData;
   window.__depotSessionLocations = sessionLocations;
   window.__depotSessionDistances = sessionDistances;
   window.__depotCurrentSession = currentSession;
-  window.__depotQuoteResult = currentQuoteResult;
   window.lastSections = lastSections; // Expose for what3words and other integrations
 }
 
@@ -348,10 +353,6 @@ function updateAppStateSnapshot() {
   APP_STATE.checkedItems = Array.isArray(lastCheckedItems) ? [...lastCheckedItems] : [];
   APP_STATE.missingInfo = Array.isArray(lastMissingInfo) ? [...lastMissingInfo] : [];
   APP_STATE.customerSummary = lastCustomerSummary || "";
-  APP_STATE.quoteNotes = Array.isArray(lastQuoteNotes) ? lastQuoteNotes.map((variant) => ({
-    label: variant.label,
-    sections: Array.isArray(variant.sections) ? variant.sections.map((sec) => ({ ...sec })) : []
-  })) : [];
   APP_STATE.fullTranscript = (transcriptInput?.value || "").trim();
   APP_STATE.transcriptText = APP_STATE.fullTranscript;
   // Add new photo, form, and location data
@@ -359,7 +360,6 @@ function updateAppStateSnapshot() {
   APP_STATE.formData = sessionFormData ? { ...sessionFormData } : {};
   APP_STATE.locations = sessionLocations ? { ...sessionLocations } : {};
   APP_STATE.distances = sessionDistances ? { ...sessionDistances } : {};
-  APP_STATE.quote = currentSession.quote || currentQuoteResult || undefined;
   APP_STATE.session = currentSession;
 }
 
@@ -375,12 +375,6 @@ function buildStateSnapshot() {
       checkedItems: Array.isArray(lastCheckedItems) ? [...lastCheckedItems] : [],
       customerSummary: lastCustomerSummary || ""
     },
-    quoteNotes: Array.isArray(lastQuoteNotes)
-      ? lastQuoteNotes.map((variant) => ({
-        label: variant.label,
-        sections: Array.isArray(variant.sections) ? variant.sections.map((sec) => ({ ...sec })) : []
-      }))
-      : [],
     transcriptText: APP_STATE.fullTranscript,
     fullTranscript: APP_STATE.fullTranscript
   };
@@ -406,7 +400,6 @@ function refreshCurrentSessionSnapshot() {
   currentSession.missingInfo = Array.isArray(currentSession.missingInfo)
     ? currentSession.missingInfo
     : [];
-  currentSession.quote = currentSession.quote || currentQuoteResult || undefined;
 }
 
 function getValueAtPath(obj, path) {
@@ -518,58 +511,6 @@ function renderMissingInfo() {
   });
 }
 
-function renderQuoteResult(tokens = lastQuoteTokens) {
-  if (!quoteLinesTable || !quoteTotalsEl || !quoteStatusEl) return;
-  const tbody = quoteLinesTable.querySelector("tbody");
-  tbody.innerHTML = "";
-
-  const lines = currentQuoteResult?.lines || [];
-  if (!lines.length) {
-    const row = document.createElement("tr");
-    const cell = document.createElement("td");
-    cell.colSpan = 5;
-    cell.className = "small";
-    cell.style.textAlign = "center";
-    cell.style.color = "var(--muted)";
-    cell.textContent = "No quote lines yet.";
-    row.appendChild(cell);
-    tbody.appendChild(row);
-  } else {
-    lines.forEach((line) => {
-      const row = document.createElement("tr");
-      row.innerHTML = `
-        <td>${line.sku || ""}</td>
-        <td>${line.description || ""}</td>
-        <td>${line.quantity ?? ""}</td>
-        <td>£${(line.unitPrice || 0).toFixed(2)}</td>
-        <td>£${(line.totalPrice || 0).toFixed(2)}</td>
-      `;
-      tbody.appendChild(row);
-    });
-  }
-
-  quoteTotalsEl.innerHTML = "";
-  if (currentQuoteResult) {
-    const gross = document.createElement("div");
-    gross.textContent = `Gross (inc. VAT): £${(currentQuoteResult.grossPriceIncVat || 0).toFixed(2)}`;
-    const discount = document.createElement("div");
-    discount.textContent = `Discounts: £${(currentQuoteResult.totalDiscountIncVat || 0).toFixed(2)}`;
-    const total = document.createElement("div");
-    total.textContent = `Total payable (inc. VAT): £${(currentQuoteResult.totalPricePayableIncVat || 0).toFixed(2)}`;
-    quoteTotalsEl.appendChild(gross);
-    quoteTotalsEl.appendChild(discount);
-    quoteTotalsEl.appendChild(total);
-  }
-
-  if (quoteTokensEl) {
-    quoteTokensEl.textContent = tokens.length ? `Tokens: ${tokens.join(", ")}` : "";
-  }
-
-  quoteStatusEl.textContent = lines.length
-    ? "Quote ready"
-    : quoteStatusEl.textContent || "No quote built yet.";
-}
-
 async function handleAutoFillFromTranscript() {
   if (!autoFillSessionBtn) return;
   autoFillSessionBtn.disabled = true;
@@ -608,34 +549,6 @@ async function handleAutoFillFromTranscript() {
   }
 }
 
-async function handleBuildQuote() {
-  if (!buildQuoteBtn) return;
-  buildQuoteBtn.disabled = true;
-  buildQuoteBtn.textContent = "Building...";
-  if (quoteStatusEl) {
-    quoteStatusEl.textContent = "Building quote from pricebook...";
-  }
-
-  try {
-    refreshCurrentSessionSnapshot();
-    const tokens = deriveTokensFromSession(currentSession);
-    lastQuoteTokens = tokens;
-    currentQuoteResult = await buildQuoteFromTokens(tokens);
-    currentSession.quote = currentQuoteResult;
-    updateAppStateSnapshot();
-    renderQuoteResult(tokens);
-  } catch (err) {
-    console.error("Quote build failed", err);
-    if (quoteStatusEl) {
-      quoteStatusEl.textContent = err.message || "Failed to build quote.";
-    }
-  } finally {
-    buildQuoteBtn.disabled = false;
-    buildQuoteBtn.textContent = "💷 Build quote";
-    exposeStateToWindow();
-  }
-}
-
 // Auto-save function (will be called via debounced wrapper)
 function autoSaveSessionToLocal() {
   try {
@@ -646,7 +559,6 @@ function autoSaveSessionToLocal() {
       (Array.isArray(lastMaterials) && lastMaterials.length) ||
       (Array.isArray(lastCheckedItems) && lastCheckedItems.length) ||
       (Array.isArray(lastMissingInfo) && lastMissingInfo.length) ||
-      (Array.isArray(lastQuoteNotes) && lastQuoteNotes.length) ||
       (lastCustomerSummary && lastCustomerSummary.trim());
 
     if (!hasContent) {
@@ -2208,20 +2120,23 @@ function refreshUiFromState() {
   }
 
   const sectionsToRender = resolved.length ? resolved : normaliseDepotSections([]);
+
+  // Render TECHNICAL NOTES (plainText only) in sectionsListEl
   sectionsListEl.innerHTML = "";
   sectionsToRender.forEach((sec, index) => {
-    const div = document.createElement("div");
-    div.className = "section-item";
-    div.dataset.sectionIndex = index;
     const plainTextRaw = typeof sec.plainText === "string" ? sec.plainText : "";
     const formattedPlain = plainTextRaw
       ? formatPlainTextForSection(sec.section, plainTextRaw).trim()
       : "";
-    const naturalLanguage = typeof sec.naturalLanguage === "string" ? sec.naturalLanguage.trim() : "";
+
+    // Skip empty sections in technical notes
+    if (!formattedPlain || formattedPlain === "No bullets yet.") return;
+
+    const div = document.createElement("div");
+    div.className = "section-item";
+    div.dataset.sectionIndex = index;
     const preClassAttr = formattedPlain ? "" : " class=\"placeholder\"";
-    const naturalMarkup = naturalLanguage
-      ? `<p class="small" style="margin-top:3px;">${naturalLanguage}</p>`
-      : "";
+
     div.innerHTML = `
       <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
         <h4 style="margin: 0;">${sec.section}</h4>
@@ -2244,13 +2159,12 @@ function refreshUiFromState() {
       </div>
       <div class="section-content-view">
         <pre${preClassAttr}>${formattedPlain || "No bullets yet."}</pre>
-        ${naturalMarkup}
       </div>
       <div class="section-content-edit" style="display: none;">
         <label style="display: block; margin-bottom: 4px; font-size: 0.7rem; font-weight: 600; color: #475569;">Plain Text (bullets):</label>
         <textarea class="edit-plaintext" style="width: 100%; min-height: 80px; margin-bottom: 8px; font-size: 0.7rem; font-family: monospace;">${plainTextRaw}</textarea>
         <label style="display: block; margin-bottom: 4px; font-size: 0.7rem; font-weight: 600; color: #475569;">Natural Language:</label>
-        <textarea class="edit-naturallang" style="width: 100%; min-height: 60px; margin-bottom: 8px; font-size: 0.7rem;">${naturalLanguage}</textarea>
+        <textarea class="edit-naturallang" style="width: 100%; min-height: 60px; margin-bottom: 8px; font-size: 0.7rem;">${typeof sec.naturalLanguage === "string" ? sec.naturalLanguage.trim() : ""}</textarea>
         <div style="display: flex; gap: 6px;">
           <button class="save-edit-btn" style="background: #10b981; padding: 6px 12px; font-size: 0.7rem;">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle; margin-right: 4px;">
@@ -2264,6 +2178,34 @@ function refreshUiFromState() {
     `;
     sectionsListEl.appendChild(div);
   });
+
+  if (sectionsListEl.children.length === 0) {
+    sectionsListEl.innerHTML = '<span class="small">No technical notes yet.</span>';
+  }
+
+  // Render CUSTOMER NOTES (naturalLanguage only) in aiNotesListEl
+  if (aiNotesListEl) {
+    aiNotesListEl.innerHTML = "";
+    sectionsToRender.forEach((sec) => {
+      const naturalLanguage = typeof sec.naturalLanguage === "string" ? sec.naturalLanguage.trim() : "";
+
+      // Skip empty or placeholder sections in customer notes
+      if (!naturalLanguage || naturalLanguage === "No additional notes.") return;
+
+      const div = document.createElement("div");
+      div.className = "section-item";
+
+      div.innerHTML = `
+        <h4 style="margin: 0 0 8px 0;">${sec.section}</h4>
+        <p style="line-height: 1.6; margin: 0;">${naturalLanguage}</p>
+      `;
+      aiNotesListEl.appendChild(div);
+    });
+
+    if (aiNotesListEl.children.length === 0) {
+      aiNotesListEl.innerHTML = '<span class="small">No customer notes yet.</span>';
+    }
+  }
 
   if (Array.isArray(lastQuoteNotes) && lastQuoteNotes.length) {
     const divider = document.createElement("div");
@@ -3697,8 +3639,190 @@ if (autoFillSessionBtn) {
   autoFillSessionBtn.addEventListener("click", handleAutoFillFromTranscript);
 }
 
-if (buildQuoteBtn) {
-  buildQuoteBtn.addEventListener("click", handleBuildQuote);
+// Customer Summary Print Button
+const printCustomerSummaryBtn = document.getElementById("printCustomerSummaryBtn");
+if (printCustomerSummaryBtn) {
+  printCustomerSummaryBtn.addEventListener("click", () => {
+    generateAndPrintCustomerSummary();
+  });
+}
+
+function generateAndPrintCustomerSummary() {
+  // Extract customer notes (natural language) from sections
+  const customerNotes = lastSections
+    .filter(sec => sec.naturalLanguage && sec.naturalLanguage.trim() !== "No additional notes.")
+    .map(sec => ({
+      section: sec.section,
+      description: sec.naturalLanguage
+    }));
+
+  if (customerNotes.length === 0) {
+    alert("No customer notes available yet. Please capture or generate notes first.");
+    return;
+  }
+
+  // Generate customer summary HTML
+  const summaryHTML = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Customer Summary - Heating Installation</title>
+  <style>
+    @media print {
+      body { margin: 0; }
+      .no-print { display: none; }
+    }
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      line-height: 1.6;
+      color: #333;
+    }
+    .header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 30px;
+      border-radius: 8px;
+      margin-bottom: 30px;
+    }
+    h1 {
+      margin: 0 0 10px 0;
+      font-size: 28px;
+    }
+    .subtitle {
+      margin: 0;
+      opacity: 0.9;
+      font-size: 16px;
+    }
+    .date {
+      margin-top: 10px;
+      opacity: 0.8;
+      font-size: 14px;
+    }
+    .section {
+      margin-bottom: 25px;
+      page-break-inside: avoid;
+    }
+    .section-title {
+      color: #667eea;
+      font-size: 18px;
+      font-weight: bold;
+      margin-bottom: 10px;
+      border-bottom: 2px solid #667eea;
+      padding-bottom: 5px;
+    }
+    .section-content {
+      background: #f8fafc;
+      padding: 15px;
+      border-radius: 6px;
+      border-left: 4px solid #667eea;
+    }
+    .feature-item {
+      margin-bottom: 15px;
+      padding: 12px;
+      background: white;
+      border-radius: 4px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    .feature-title {
+      font-weight: 600;
+      color: #1e293b;
+      margin-bottom: 5px;
+    }
+    .benefit {
+      color: #059669;
+      font-style: italic;
+      margin-top: 5px;
+    }
+    .print-btn {
+      background: #667eea;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 6px;
+      font-size: 16px;
+      cursor: pointer;
+      margin-bottom: 20px;
+    }
+    .print-btn:hover {
+      background: #5568d3;
+    }
+    .footer {
+      margin-top: 40px;
+      padding-top: 20px;
+      border-top: 1px solid #e2e8f0;
+      font-size: 12px;
+      color: #64748b;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <button class="print-btn no-print" onclick="window.print()">🖨️ Print This Summary</button>
+
+  <div class="header">
+    <h1>Heating Installation Summary</h1>
+    <p class="subtitle">Proposed work and benefits for your property</p>
+    <p class="date">Generated: ${new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+  </div>
+
+  ${customerNotes.map(note => `
+    <div class="section">
+      <div class="section-title">${note.section}</div>
+      <div class="section-content">
+        ${extractFeaturesAndBenefits(note.description)}
+      </div>
+    </div>
+  `).join('')}
+
+  ${lastCustomerSummary ? `
+    <div class="section">
+      <div class="section-title">Overall Summary</div>
+      <div class="section-content">
+        <p>${lastCustomerSummary}</p>
+      </div>
+    </div>
+  ` : ''}
+
+  <div class="footer">
+    <p>This summary is based on your property survey and requirements discussed.<br>
+    All work will be carried out by qualified engineers to current building regulations.</p>
+  </div>
+</body>
+</html>
+  `;
+
+  // Open in new window and trigger print
+  const printWindow = window.open('', '_blank');
+  printWindow.document.write(summaryHTML);
+  printWindow.document.close();
+}
+
+function extractFeaturesAndBenefits(description) {
+  // Simple formatting to extract features and benefits
+  const sentences = description.split(/[.!?]+/).filter(s => s.trim());
+
+  return sentences.map(sentence => {
+    const trimmed = sentence.trim();
+    if (!trimmed) return '';
+
+    // Detect benefit keywords
+    const hasBenefit = /\b(benefit|advantage|improve|ensure|provide|reduce|increase|save|efficient|safer|better|more reliable)\b/i.test(trimmed);
+
+    if (hasBenefit) {
+      return `<div class="feature-item">
+        <div class="feature-title">✓ ${trimmed}</div>
+        <div class="benefit">Benefit: This ${trimmed.toLowerCase().includes('save') ? 'saves you money' : trimmed.toLowerCase().includes('safe') ? 'improves safety' : trimmed.toLowerCase().includes('efficient') ? 'increases efficiency' : 'provides better comfort'}</div>
+      </div>`;
+    } else {
+      return `<div class="feature-item">
+        <div class="feature-title">${trimmed}</div>
+      </div>`;
+    }
+  }).join('');
 }
 
 window.addEventListener("aiNotesUpdated", (event) => {
@@ -3814,10 +3938,8 @@ function resetSessionState() {
   lastMissingInfo = [];
   lastCustomerSummary = "";
   lastQuoteNotes = [];
-  lastQuoteTokens = [];
   currentSession = createEmptyDepotSurveySession();
   aiFilledPaths.clear();
-  currentQuoteResult = null;
   localStorage.removeItem(LS_AUTOSAVE_KEY);
   clearVoiceError();
   clearSleepWarning();

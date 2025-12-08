@@ -1,10 +1,12 @@
 import { buildDepotOutputFromChecklist } from "../notes/notesEngine.js";
 
 let sectionsContainer = null;
+let aiNotesContainer = null;
 let materialsContainer = null;
 
-export function initDepotRenderers({ sectionsEl, materialsEl } = {}) {
+export function initDepotRenderers({ sectionsEl, aiNotesEl, materialsEl } = {}) {
   sectionsContainer = sectionsEl || sectionsContainer;
+  aiNotesContainer = aiNotesEl || aiNotesContainer;
   materialsContainer = materialsEl || materialsContainer;
 }
 
@@ -95,37 +97,66 @@ function formatPlainTextForSection(section, plain) {
 }
 
 export function renderDepotSections(sections = []) {
-  if (!sectionsContainer) return;
-  sectionsContainer.innerHTML = "";
+  // Render technical notes (plainText) in sectionsContainer
+  if (sectionsContainer) {
+    sectionsContainer.innerHTML = "";
 
-  if (!sections.length) {
-    sectionsContainer.innerHTML = `<span class="small">No sections yet.</span>`;
-    return;
+    if (!sections.length) {
+      sectionsContainer.innerHTML = `<span class="small">No technical notes yet.</span>`;
+    } else {
+      sections.forEach((sec) => {
+        if (!sec.plainText || sec.plainText.trim() === "• No additional notes;") return;
+
+        const div = document.createElement("div");
+        div.className = "section-item";
+
+        const heading = document.createElement("h4");
+        heading.textContent = sec.section || "";
+        div.appendChild(heading);
+
+        const pre = document.createElement("pre");
+        pre.textContent = formatPlainTextForSection(sec.section, sec.plainText);
+        div.appendChild(pre);
+
+        sectionsContainer.appendChild(div);
+      });
+
+      if (sectionsContainer.children.length === 0) {
+        sectionsContainer.innerHTML = `<span class="small">No technical notes yet.</span>`;
+      }
+    }
   }
 
-  sections.forEach((sec) => {
-    const div = document.createElement("div");
-    div.className = "section-item";
+  // Render customer-friendly notes (naturalLanguage) in aiNotesContainer
+  if (aiNotesContainer) {
+    aiNotesContainer.innerHTML = "";
 
-    const heading = document.createElement("h4");
-    heading.textContent = sec.section || "";
-    div.appendChild(heading);
+    if (!sections.length) {
+      aiNotesContainer.innerHTML = `<span class="small">No customer notes yet.</span>`;
+    } else {
+      sections.forEach((sec) => {
+        if (!sec.naturalLanguage || sec.naturalLanguage.trim() === "No additional notes.") return;
 
-    if (sec.plainText) {
-      const pre = document.createElement("pre");
-      pre.textContent = formatPlainTextForSection(sec.section, sec.plainText);
-      div.appendChild(pre);
+        const div = document.createElement("div");
+        div.className = "section-item";
+
+        const heading = document.createElement("h4");
+        heading.textContent = sec.section || "";
+        div.appendChild(heading);
+
+        const p = document.createElement("p");
+        p.style.lineHeight = "1.6";
+        p.textContent = sec.naturalLanguage;
+        div.appendChild(p);
+
+        aiNotesContainer.appendChild(div);
+      });
+
+      if (aiNotesContainer.children.length === 0) {
+        aiNotesContainer.innerHTML = `<span class="small">No customer notes yet.</span>`;
+      }
     }
-
-    if (sec.naturalLanguage) {
-      const p = document.createElement("p");
-      p.className = "small";
-      p.textContent = sec.naturalLanguage;
-      div.appendChild(p);
-    }
-
-    sectionsContainer.appendChild(div);
-  });
+  }
 }
 
 export function renderMaterialsList(materials = []) {

@@ -2381,35 +2381,6 @@
       line-height: 1.4;
     }
 
-    .quote-table-wrapper {
-      overflow-x: auto;
-      margin-top: 8px;
-    }
-
-    .quote-table {
-      width: 100%;
-      border-collapse: collapse;
-    }
-
-    .quote-table th,
-    .quote-table td {
-      padding: 6px 8px;
-      text-align: left;
-      border-bottom: 1px solid var(--border);
-      font-size: 0.9rem;
-    }
-
-    .quote-table th {
-      background: var(--bg-secondary);
-      font-weight: 700;
-    }
-
-    .quote-totals {
-      margin-top: 10px;
-      display: grid;
-      gap: 4px;
-      font-weight: 600;
-    }
   </style>
 
   <!-- CloudSense Survey CSS -->
@@ -2660,27 +2631,27 @@
     <div class="results-actions">
       <button id="sendSectionsBtn" class="pill-secondary">📨 Send over sections</button>
       <button id="autoFillSessionBtn" class="pill-secondary">✨ Auto-fill from transcript</button>
-      <button id="buildQuoteBtn" class="pill-secondary">💷 Build quote</button>
+      <button id="printCustomerSummaryBtn" class="pill-secondary">📄 Print Customer Summary</button>
     </div>
     <!-- Side-by-side Notes Sections -->
     <div class="notes-grid">
       <div class="card">
         <div class="card-title">
-          Automatic Depot Notes
-          <span class="small">Standard structured layout</span>
+          Engineer Notes (Technical)
+          <span class="small">Structured depot notes for engineers</span>
         </div>
         <div id="sectionsList" class="sections-list">
-          <span class="small">No automatic notes yet.</span>
+          <span class="small">No technical notes yet.</span>
         </div>
       </div>
 
       <div class="card">
         <div class="card-title">
-          AI Natural Language Notes
-          <span class="small">AI-enhanced narrative summary</span>
+          Customer Summary (Natural Language)
+          <span class="small">Customer-friendly description of the work</span>
         </div>
         <div id="aiNotesList" class="sections-list">
-          <span class="small">No AI notes yet.</span>
+          <span class="small">No customer notes yet.</span>
         </div>
       </div>
     </div>
@@ -2702,34 +2673,6 @@
           <li class="small" style="color: var(--muted); list-style: none;">No missing info captured.</li>
         </ul>
       </div>
-    </div>
-
-    <div class="card" id="quoteBuilderCard">
-      <div class="card-title">
-        Quote builder
-        <span class="small">Deterministic pricebook lookup</span>
-      </div>
-      <div id="quoteStatus" class="small" style="color: var(--muted);">No quote built yet.</div>
-      <div id="quoteTokens" class="small" style="margin: 6px 0 10px; color: var(--muted);"></div>
-      <div class="quote-table-wrapper">
-        <table id="quoteLinesTable" class="quote-table" aria-label="Quote lines">
-          <thead>
-            <tr>
-              <th>SKU</th>
-              <th>Description</th>
-              <th>Qty</th>
-              <th>Unit</th>
-              <th>Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td colspan="5" class="small" style="text-align: center; color: var(--muted);">No quote lines yet.</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <div id="quoteTotals" class="quote-totals"></div>
     </div>
 
     <!-- Photos Section -->

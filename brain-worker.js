@@ -1895,14 +1895,19 @@ Your job is to:
 6. SANITY CHECK transcription details and correct obvious errors using context and standard dimensions (pipework sizes should be 8/10mm, 15mm, 22mm, 28mm, or 35mm; avoid improbable sizes by normalising to the nearest standard size).
 7. Prefer the most recent reference material versions (e.g., the latest pricebook, such as November 2025) if multiple versions are available.
 ${multipleQuotesInstructions}
-CRITICAL DEDUPLICATION RULES:
+CRITICAL DETAIL RETENTION RULES:
+- RETAIN ALL SPECIFIC DETAILS: If the transcript mentions specific measurements, routes, locations, sizes, or technical specifications, include ALL of them in the notes.
+- SHARPEN VAGUE DESCRIPTIONS: Convert conversational descriptions into precise technical specifications. For example, "the flue goes up and around" becomes "Flue route: vertical from boiler, 90° bend at ceiling level, horizontal run 2m through loft space to external wall."
+- ROUTES AND PATHS: When describing pipe routes, flue routes, or cable runs, capture EVERY waypoint, measurement, and direction change mentioned. Include start point, intermediate points, and end point.
+- SIZES AND SPECIFICATIONS: Always include exact measurements when mentioned (e.g., "22mm copper pipe" not "pipe", "2.5m vertical rise" not "goes up").
+- LOCATIONS: Be specific about locations - include room names, relative positions, heights, and any landmarks mentioned.
+- MATERIALS AND MODELS: Always capture full product names, model numbers, and specifications when mentioned.
+
+DEDUPLICATION RULES:
 - If alreadyCaptured contains information for a section, DO NOT repeat that information.
 - Only add NEW information from the current transcript that isn't already captured.
-- Do NOT rephrase or reword existing captured information - completely skip it.
 - If a detail is semantically the same (e.g., "Worcester Bosch 35kW boiler" vs "35kW Worcester Bosch"), treat as duplicate.
 - Within each section, avoid listing the same information multiple times even if worded differently.
-- For materials, do NOT duplicate items already in the list (check item names, not just exact strings).
-- If the transcript only repeats what's already captured, return empty or minimal content for that section.
 
 REAL-TIME QUESTION GENERATION:
 - As you process the live transcript, identify what information is MISSING or UNCLEAR.

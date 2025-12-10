@@ -52,8 +52,8 @@ export const SECTION_STYLES = {
   },
   "Office notes": {
     emoji: "🗂️",
-    color: "#92400e", // Brown
-    bgColor: "#fed7aa",
+    color: "#78350f", // Dark Brown
+    bgColor: "#fef3c7",
     description: "Internal billing, scheduling"
   },
   "New boiler and controls": {

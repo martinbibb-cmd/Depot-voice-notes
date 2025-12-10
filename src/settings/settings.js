@@ -472,7 +472,7 @@ function renderSectionEditor() {
     nameInput.type = "text";
     nameInput.placeholder = "Section name";
     nameInput.value = entry.name || "";
-    nameInput.disabled = entry.name === FUTURE_PLANS_NAME;
+    // All sections are now editable
     nameInput.addEventListener("input", (e) => {
       editableSchema[idx].name = e.target.value;
       updateSchemaTextarea();

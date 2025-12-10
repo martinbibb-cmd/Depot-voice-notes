@@ -197,7 +197,6 @@ const DEFAULT_DEPOT_SECTION_ORDER = [
   "Needs",
   "Working at heights",
   "System characteristics",
-  "Components that require assistance",
   "Arse_cover_notes",
   "Components that require assistance",
   "Restrictions to work",

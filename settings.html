@@ -929,7 +929,7 @@ Output concise, engineer-ready bullets in each section: no waffle, no contradict
       "depot.notesSchema.v1",
       "depot-checklist-state"
     ];
-    const FUTURE_PLANS_NAME = "Future plans";
+    // No longer using FUTURE_PLANS - all sections are treated equally
 
     // --- Helpers ---
     function getActiveUserId() {
@@ -1092,23 +1092,8 @@ Output concise, engineer-ready bullets in each section: no waffle, no contradict
         });
       });
 
-      // Keep Future plans last, ensure it exists
-      let withoutFuture = unique.filter((entry) => entry.name !== FUTURE_PLANS_NAME);
-      let future = unique.find((entry) => entry.name === FUTURE_PLANS_NAME);
-      if (!future) {
-        future = {
-          name: FUTURE_PLANS_NAME,
-          description: "Notes about any future work or follow-on visits.",
-          order: withoutFuture.length + 1
-        };
-      } else if (!future.description) {
-        future = {
-          ...future,
-          description: "Notes about any future work or follow-on visits."
-        };
-      }
-
-      const final = [...withoutFuture, future].map((entry, idx) => ({
+      // Return unique sections in order
+      const final = unique.map((entry, idx) => ({
         name: entry.name,
         description: entry.description || "",
         order: idx + 1
@@ -1184,7 +1169,7 @@ Output concise, engineer-ready bullets in each section: no waffle, no contradict
         "Pipe work": "Upgrades, reroutes, sizes, isolation points, gas run details, and any dead legs being removed.",
         "Disruption": "Lifting floors, making good, decoration, access panels, and anything that will disturb finishes.",
         "Customer actions": "Tasks the customer must do before/after install: clearances, power, access, permissions, or paperwork.",
-        "Future plans": "Follow-on work, phased upgrades, or extra visits to complete outstanding items."
+        "Arse_cover_notes": "Disclaimers, deviations from standard procedure, or acknowledged risks (e.g., customer declined power flush, asbestos noted but not tested)."
       };
     }
 

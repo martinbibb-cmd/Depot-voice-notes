@@ -3,6 +3,7 @@
     "Needs",
     "Working at heights",
     "System characteristics",
+    "Arse_cover_notes",
     "Components that require assistance",
     "Restrictions to work",
     "External hazards",
@@ -12,8 +13,7 @@
     "Flue",
     "Pipe work",
     "Disruption",
-    "Customer actions",
-    "Future plans"
+    "Customer actions"
   ],
   "items": [
     {
@@ -62,6 +62,17 @@
           "notes": "Pipe size to suit installation"
         }
       ]
+    },
+    {
+      "id": "disclaimers_recorded",
+      "group": "Risk management",
+      "section": "Arse_cover_notes",
+      "depotSection": "Arse_cover_notes",
+      "label": "Disclaimers and risk deviations recorded",
+      "hint": "Customer declined power flush, asbestos noted but not tested, etc.",
+      "plainText": "Any disclaimers, deviations from standard procedure, or acknowledged risks have been documented.",
+      "naturalLanguage": "We have recorded any disclaimers, deviations from standard installation procedures, or risks that the customer has been made aware of.",
+      "materials": []
     },
     {
       "id": "system_clean_flush_considered",

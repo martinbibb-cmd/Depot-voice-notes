@@ -197,6 +197,8 @@ const DEFAULT_DEPOT_SECTION_ORDER = [
   "Working at heights",
   "System characteristics",
   "Components that require assistance",
+  "Arse_cover_notes",
+  "Components that require assistance",
   "Restrictions to work",
   "External hazards",
   "Delivery notes",
@@ -205,8 +207,7 @@ const DEFAULT_DEPOT_SECTION_ORDER = [
   "Flue",
   "Pipe work",
   "Disruption",
-  "Customer actions",
-  "Future plans"
+  "Customer actions"
 ];
 
 // --- Utility functions ---

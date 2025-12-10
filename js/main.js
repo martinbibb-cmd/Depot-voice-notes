@@ -286,8 +286,9 @@ const autoFillSessionBtn = document.getElementById("autoFillSessionBtn");
 const workerDebugEl = document.getElementById("workerDebug");
 const debugSectionsPre = document.getElementById("debugSectionsJson");
 const debugSectionsDetails = document.getElementById("debugSections");
-const sessionFieldListEl = document.getElementById("sessionFieldList");
-const sessionMissingInfoEl = document.getElementById("sessionMissingInfo");
+// Removed: Session fields UI elements no longer in index.html
+// const sessionFieldListEl = document.getElementById("sessionFieldList");
+// const sessionMissingInfoEl = document.getElementById("sessionMissingInfo");
 
 if (typeof window !== "undefined") {
   window.__depotVoiceNotesDebug = window.__depotVoiceNotesDebug || {
@@ -436,47 +437,12 @@ function mergeSessionPatch(target, patch, prefix = []) {
   });
 }
 
-function renderSessionFields() {
-  if (!sessionFieldListEl) return;
-  sessionFieldListEl.innerHTML = "";
-
-  const fragments = document.createDocumentFragment();
-
-  SESSION_FIELD_CONFIG.forEach((field) => {
-    const value = getValueAtPath(currentSession, field.path);
-    const row = document.createElement("div");
-    row.className = "session-field-row";
-
-    const indicator = document.createElement("span");
-    indicator.className = `ai-indicator ${aiFilledPaths.has(field.path) ? "active" : ""}`.trim();
-    row.appendChild(indicator);
-
-    const label = document.createElement("div");
-    label.className = "session-field-label";
-    label.textContent = field.label;
-    row.appendChild(label);
-
-    const valueEl = document.createElement("div");
-    valueEl.className = "session-field-value";
-    valueEl.textContent = value === undefined || value === null || value === ""
-      ? "—"
-      : String(value);
-    row.appendChild(valueEl);
-
-    fragments.appendChild(row);
-  });
-
-  if (!fragments.childNodes.length) {
-    const empty = document.createElement("span");
-    empty.className = "small";
-    empty.style.color = "var(--muted)";
-    empty.textContent = "No session data yet.";
-    sessionFieldListEl.appendChild(empty);
-    return;
-  }
-
-  sessionFieldListEl.appendChild(fragments);
-}
+// Removed: Session fields rendering - UI elements no longer in index.html
+// function renderSessionFields() {
+//   if (!sessionFieldListEl) return;
+//   sessionFieldListEl.innerHTML = "";
+//   ... (removed content)
+// }
 
 function syncMissingInfoState() {
   const infoItems = Array.isArray(currentSession.missingInfo)
@@ -488,28 +454,11 @@ function syncMissingInfoState() {
   });
 }
 
+// Removed: Missing info rendering - UI elements no longer in index.html
+// Placeholder function to prevent errors if called
 function renderMissingInfo() {
-  if (!sessionMissingInfoEl) return;
-  sessionMissingInfoEl.innerHTML = "";
-  const infoItems = Array.isArray(currentSession.missingInfo) ? currentSession.missingInfo : [];
-
-  if (!infoItems.length) {
-    const li = document.createElement("li");
-    li.className = "small";
-    li.style.color = "var(--muted)";
-    li.style.listStyle = "none";
-    li.textContent = "No missing info captured.";
-    sessionMissingInfoEl.appendChild(li);
-    return;
-  }
-
-  infoItems.forEach((item) => {
-    const li = document.createElement("li");
-    const label = typeof item === "string" ? item : item.label || item.detail || item.path || "Follow up";
-    const detail = typeof item === "string" ? "" : item.detail;
-    li.textContent = detail ? `${label}: ${detail}` : label;
-    sessionMissingInfoEl.appendChild(li);
-  });
+  // Session fields removed from UI
+  return;
 }
 
 async function handleAutoFillFromTranscript() {
@@ -538,8 +487,8 @@ async function handleAutoFillFromTranscript() {
 
     syncMissingInfoState();
     updateAppStateSnapshot();
-    renderSessionFields();
-    renderMissingInfo();
+    // renderSessionFields(); // Removed: UI elements no longer exist
+    // renderMissingInfo(); // Removed: UI elements no longer exist
   } catch (err) {
     console.error("Auto-fill failed", err);
     alert(err.message || "Failed to auto-fill session");
@@ -2350,8 +2299,8 @@ function refreshUiFromState() {
 
   // 4) Expose state to window for save menu
   refreshCurrentSessionSnapshot();
-  renderSessionFields();
-  renderMissingInfo();
+  // renderSessionFields(); // Removed: UI elements no longer exist
+  // renderMissingInfo(); // Removed: UI elements no longer exist
   renderQuoteResult();
   exposeStateToWindow();
 }
@@ -2696,94 +2645,23 @@ function updateLocationsFromPhotos() {
   console.log("Calculated distances:", Object.keys(sessionDistances).length);
 }
 
-/**
- * Render photo gallery in UI
- */
+// Removed: Photo gallery rendering - UI elements no longer in index.html
+// Placeholder function to prevent errors if called
 function renderPhotoGallery() {
-  const gallery = document.getElementById("photosGallery");
-  if (!gallery) return;
-
-  if (!sessionPhotos || sessionPhotos.length === 0) {
-    gallery.innerHTML = '<span class="small">No photos yet. Tap "Add Photo" to capture or upload.</span>';
-    return;
-  }
-
-  gallery.innerHTML = "";
-
-  sessionPhotos.forEach((photo, index) => {
-    const photoCard = document.createElement("div");
-    photoCard.className = "photo-card";
-    photoCard.style.cssText = `
-      display: inline-block;
-      margin: 8px;
-      padding: 8px;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      cursor: pointer;
-      max-width: 200px;
-      background: var(--bg-subtle);
-    `;
-
-    const img = document.createElement("img");
-    img.src = photo.base64;
-    img.alt = photo.description || photo.section;
-    img.style.cssText = `
-      width: 100%;
-      height: 150px;
-      object-fit: cover;
-      border-radius: 4px;
-      margin-bottom: 8px;
-    `;
-
-    const caption = document.createElement("div");
-    caption.style.cssText = "font-size: 0.85rem; margin-top: 4px;";
-    caption.innerHTML = `
-      <strong>${photo.section}</strong><br>
-      ${photo.description || "(no description)"}<br>
-      ${photo.gps ? `📍 ${photo.gps.lat.toFixed(5)}, ${photo.gps.lng.toFixed(5)}` : "📍 No GPS"}
-    `;
-
-    photoCard.appendChild(img);
-    photoCard.appendChild(caption);
-
-    photoCard.onclick = () => openPhotoModal(photo);
-
-    gallery.appendChild(photoCard);
-  });
+  // Photos and locations removed from UI
+  return;
 }
 
-/**
- * Render calculated distances in UI
- */
+// Removed: Distances rendering - UI elements no longer in index.html
+// function renderDistances() {
+//   ... (removed content)
+// }
+
+// Removed: Distances rendering - UI elements no longer in index.html
+// Placeholder function to prevent errors if called
 function renderDistances() {
-  const locationsDisplay = document.getElementById("locationsDisplay");
-  const distancesList = document.getElementById("distancesList");
-
-  if (!locationsDisplay || !distancesList) return;
-
-  if (!sessionDistances || Object.keys(sessionDistances).length === 0) {
-    locationsDisplay.style.display = "none";
-    return;
-  }
-
-  locationsDisplay.style.display = "block";
-  distancesList.innerHTML = "";
-
-  const distanceLabels = {
-    "gas_meter_to_boiler_position": "Gas meter → Boiler",
-    "boiler_position_to_flue_terminal": "Boiler → Flue terminal",
-    "flue_terminal_to_boundary_point": "Flue → Boundary point",
-    "boiler_position_to_cylinder_cupboard": "Boiler → Cylinder",
-    "gas_meter_to_existing_boiler": "Gas meter → Existing boiler"
-  };
-
-  Object.entries(sessionDistances).forEach(([key, data]) => {
-    const label = distanceLabels[key] || key.replace(/_/g, " ");
-    const item = document.createElement("div");
-    item.style.cssText = "padding: 4px 0; font-size: 0.85rem;";
-    item.innerHTML = `<strong>${label}:</strong> ${data.formattedLong}`;
-    distancesList.appendChild(item);
-  });
+  // Photos and locations removed from UI
+  return;
 }
 
 /**
@@ -3027,66 +2905,10 @@ importAudioInput.onchange = async (e) => {
   importAudioInput.value = "";
 };
 
-// --- PHOTO UPLOAD ---
-const uploadPhotoBtn = document.getElementById("uploadPhotoBtn");
-const uploadPhotoInput = document.getElementById("uploadPhotoInput");
-
-if (uploadPhotoBtn && uploadPhotoInput) {
-  uploadPhotoBtn.onclick = () => uploadPhotoInput.click();
-
-  uploadPhotoInput.onchange = async (e) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-
-    try {
-      setStatus("Processing photos...");
-
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-
-        // Show progress for multiple photos
-        if (files.length > 1) {
-          setStatus(`Processing photo ${i + 1} of ${files.length}...`);
-        }
-
-        // Prompt for section assignment
-        const section = prompt(
-          `Which section is this photo for?\n\nExamples:\n- Gas meter\n- Boiler location\n- Cylinder cupboard\n- Flue terminal\n- Boundary point`,
-          ""
-        );
-
-        if (section === null) {
-          // User cancelled
-          continue;
-        }
-
-        // Process the photo
-        const photo = await processPhoto(file, section || "General");
-
-        // Add to session photos
-        sessionPhotos.push(photo);
-
-        console.log("Photo added:", photo.id, photo.gps ? "with GPS" : "no GPS");
-      }
-
-      // Update locations and distances from photos
-      updateLocationsFromPhotos();
-
-      // Refresh UI
-      renderPhotoGallery();
-      renderDistances();
-      exposeStateToWindow();
-
-      setStatus(`${files.length} photo(s) added successfully`);
-
-    } catch (err) {
-      console.error("Failed to process photos:", err);
-      showVoiceError("Failed to process photos: " + (err.message || "Unknown error"));
-    } finally {
-      uploadPhotoInput.value = "";
-    }
-  };
-}
+// --- PHOTO UPLOAD --- (Removed: UI elements no longer in index.html)
+// const uploadPhotoBtn = document.getElementById("uploadPhotoBtn");
+// const uploadPhotoInput = document.getElementById("uploadPhotoInput");
+// ... (removed photo upload handlers)
 
 loadSessionBtn.onclick = () => loadSessionInput.click();
 if (loadCloudSessionBtn) {
@@ -5526,32 +5348,7 @@ if (typeof window.initCloudSenseSurveyForm === 'function') {
   window.initCloudSenseSurveyForm();
 }
 
-// Enable survey form button
-const enableSurveyFormBtn = document.getElementById('enableSurveyFormBtn');
-if (enableSurveyFormBtn) {
-  enableSurveyFormBtn.onclick = () => {
-    if (typeof window.toggleStructuredForm === 'function') {
-      window.toggleStructuredForm();
-    }
-  };
-}
 
-// Enable CloudSense survey form button
-const enableCloudSenseFormBtn = document.getElementById('enableCloudSenseFormBtn');
-if (enableCloudSenseFormBtn) {
-  enableCloudSenseFormBtn.onclick = () => {
-    if (typeof window.toggleCloudSenseSurveyForm === 'function') {
-      window.toggleCloudSenseSurveyForm();
-    } else if (typeof window.initCloudSenseSurveyForm === 'function') {
-      window.initCloudSenseSurveyForm();
-      setTimeout(() => {
-        if (typeof window.toggleCloudSenseSurveyForm === 'function') {
-          window.toggleCloudSenseSurveyForm();
-        }
-      }, 100);
-    }
-  };
-}
 
 // Expose functions for external integrations
 window.refreshUiFromState = refreshUiFromState;

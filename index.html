@@ -2147,239 +2147,7 @@
       transition: all 0.3s ease;
     }
 
-    /* Photo Gallery Styles */
-    .photos-gallery {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 12px;
-      padding: 8px 0;
-    }
 
-    .photo-card {
-      display: inline-block;
-      margin: 0;
-      padding: 8px;
-      border: 2px solid var(--border);
-      border-radius: var(--radius);
-      cursor: pointer;
-      max-width: 200px;
-      background: var(--card);
-      box-shadow: var(--shadow-sm);
-      transition: all 0.2s ease;
-    }
-
-    .photo-card:hover {
-      transform: translateY(-2px);
-      box-shadow: var(--shadow-md);
-      border-color: var(--accent);
-    }
-
-    .photo-card img {
-      width: 100%;
-      height: 150px;
-      object-fit: cover;
-      border-radius: 4px;
-      margin-bottom: 8px;
-      display: block;
-    }
-
-    .locations-display {
-      margin-top: 12px;
-      padding: 12px;
-      background: var(--bg-secondary);
-      border-radius: var(--radius);
-      border: 1px solid var(--border);
-    }
-
-    .distances-list {
-      font-size: 0.85rem;
-      line-height: 1.6;
-    }
-
-    .distances-list div {
-      padding: 4px 0;
-      border-bottom: 1px solid var(--border);
-    }
-
-    .distances-list div:last-child {
-      border-bottom: none;
-    }
-
-    /* Photo Modal Styles */
-    #photoCanvas {
-      max-width: 100%;
-      max-height: 60vh;
-      cursor: crosshair;
-      border: 2px solid var(--border);
-      border-radius: var(--radius);
-      background: #000;
-      touch-action: none; /* Prevent scrolling on touch devices when drawing */
-      -webkit-user-select: none; /* Prevent text selection while drawing */
-      user-select: none;
-    }
-
-    #photoMetadata {
-      background: var(--bg-secondary);
-      padding: 12px;
-      border-radius: var(--radius);
-      font-size: 0.85rem;
-    }
-
-    #photoMetadata strong {
-      color: var(--accent);
-      font-weight: 600;
-    }
-
-    #photoSectionSelect,
-    #photoDescriptionInput {
-      width: 100%;
-      padding: 6px 8px;
-      border: 1px solid var(--border);
-      border-radius: 4px;
-      background: white;
-      font-family: inherit;
-      font-size: 0.85rem;
-    }
-
-    #photoSectionSelect:focus,
-    #photoDescriptionInput:focus {
-      outline: none;
-      border-color: var(--accent);
-      box-shadow: 0 0 0 2px var(--accent-soft);
-    }
-
-    /* Structured Form Styles */
-    .structured-form {
-      max-height: 600px;
-      overflow-y: auto;
-      padding: 8px;
-    }
-
-    .form-section {
-      margin-bottom: 20px;
-      padding: 16px;
-      background: var(--bg-secondary);
-      border-radius: var(--radius);
-      border: 1px solid var(--border);
-    }
-
-    .form-section h3 {
-      margin: 0 0 16px 0;
-      font-size: 1rem;
-      font-weight: 700;
-      color: var(--accent);
-    }
-
-    .form-field {
-      margin-bottom: 12px;
-    }
-
-    .form-field label {
-      display: block;
-      margin-bottom: 4px;
-      font-weight: 600;
-      font-size: 0.9rem;
-      color: var(--text);
-    }
-
-    .form-input,
-    .form-section select,
-    .form-section textarea {
-      width: 100%;
-      padding: 8px;
-      border: 1px solid var(--border);
-      border-radius: 4px;
-      font-family: inherit;
-      font-size: 0.9rem;
-      background: white;
-      transition: border-color 0.2s ease, box-shadow 0.2s ease;
-    }
-
-    .form-input:focus,
-    .form-section select:focus,
-    .form-section textarea:focus {
-      outline: none;
-      border-color: var(--accent);
-      box-shadow: 0 0 0 2px var(--accent-soft);
-    }
-
-    .form-section textarea {
-      resize: vertical;
-      min-height: 60px;
-    }
-
-    .form-section input[type="checkbox"] {
-      width: auto;
-      margin-right: 8px;
-    }
-
-    #toggleFormBtn {
-      float: right;
-      padding: 4px 12px;
-      font-size: 0.8rem;
-      margin-left: 12px;
-    }
-
-    .session-field-list {
-      display: grid;
-      gap: 8px;
-    }
-
-    .session-field-row {
-      display: grid;
-      grid-template-columns: 18px 180px 1fr;
-      gap: 8px;
-      align-items: center;
-      padding: 8px 10px;
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      background: var(--bg-secondary);
-    }
-
-    .session-field-label {
-      font-weight: 600;
-      color: var(--text);
-      font-size: 0.9rem;
-    }
-
-    .session-field-value {
-      color: var(--muted);
-      font-size: 0.9rem;
-    }
-
-    .ai-indicator {
-      width: 10px;
-      height: 10px;
-      border-radius: 50%;
-      border: 1px solid var(--border);
-      background: #fff;
-      display: inline-block;
-    }
-
-    .ai-indicator.active {
-      background: #3b82f6;
-      box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
-      border-color: #1d4ed8;
-    }
-
-    .missing-info-block {
-      margin-top: 12px;
-      padding: 10px;
-      border: 1px dashed var(--border);
-      border-radius: 6px;
-      background: #f8fafc;
-    }
-
-    .missing-info-list {
-      margin: 6px 0 0 16px;
-      padding: 0;
-      color: var(--muted);
-    }
-
-    .missing-info-list li {
-      margin-bottom: 4px;
-      line-height: 1.4;
-    }
 
   </style>
 
@@ -2410,8 +2178,7 @@
       <button id="saveMenuBtn" class="pill-secondary">💾 Save</button>
       <button id="duplicateSessionBtn" class="pill-secondary">📋 Duplicate</button>
       <button id="what3wordsBtn" class="pill-secondary">📍 what3words</button>
-      <button id="enableSurveyFormBtn" class="pill-secondary">📋 Survey Form</button>
-      <button id="enableCloudSenseFormBtn" class="pill-secondary">☁️ CloudSense Survey</button>
+
       <button id="settingsBtn" class="pill-secondary">⚙️ Settings</button>
       <a
         id="systemRecommendationLink"
@@ -2581,30 +2348,6 @@
     </div>
 
     <div class="column main-right">
-      <!-- Structured Survey Form (Optional) -->
-      <div class="card" id="structuredFormCard" style="display: none;">
-        <div class="card-title">
-          📋 Structured Survey Form
-          <span class="small">Fill in details (overrides voice transcript on conflict)</span>
-          <button id="toggleFormBtn" class="pill-secondary" style="float: right; padding: 4px 12px; font-size: 0.8rem;">Hide Form</button>
-        </div>
-        <div id="structuredFormContainer" class="structured-form">
-          <!-- Form sections will be rendered here by JavaScript -->
-        </div>
-      </div>
-
-      <!-- CloudSense Survey Form -->
-      <div class="card" id="cloudSenseFormCard" style="display: none;">
-        <div class="card-title">
-          ☁️ CloudSense Survey (13 Sections)
-          <span class="small">Complete, CloudSense-aligned survey sections</span>
-          <button id="toggleCloudSenseFormBtn" class="pill-secondary" style="float: right; padding: 4px 12px; font-size: 0.8rem;">Hide Survey</button>
-        </div>
-        <div id="cloudSenseFormContainer">
-          <!-- CloudSense form sections will be rendered here by JavaScript -->
-        </div>
-      </div>
-
       <div class="card">
         <div class="card-title">
           Survey checklist &amp; questions
@@ -2647,53 +2390,11 @@
 
       <div class="card">
         <div class="card-title">
-          Customer Summary (Natural Language)
+          Customer Summary (Natural language)
           <span class="small">Customer-friendly description of the work</span>
         </div>
         <div id="aiNotesList" class="sections-list">
           <span class="small">No customer notes yet.</span>
-        </div>
-      </div>
-    </div>
-
-    <div class="card" id="sessionDataCard">
-      <div class="card-title">
-        Survey session data
-        <span class="small">AI-filled fields highlighted</span>
-      </div>
-      <div id="sessionFieldList" class="session-field-list">
-        <span class="small" style="color: var(--muted);">No session data yet. Capture transcript or auto-fill to populate.</span>
-      </div>
-      <div class="missing-info-block">
-        <div class="card-title" style="font-size: 0.85rem;">
-          Missing info
-          <span class="small">Outstanding follow-ups</span>
-        </div>
-        <ul id="sessionMissingInfo" class="missing-info-list">
-          <li class="small" style="color: var(--muted); list-style: none;">No missing info captured.</li>
-        </ul>
-      </div>
-    </div>
-
-    <!-- Photos Section -->
-    <div class="card">
-      <div class="card-title">
-        Photos & Locations
-        <span class="small">Captured photos with GPS metadata</span>
-      </div>
-      <div style="margin-bottom: 12px;">
-        <button id="uploadPhotoBtn" class="pill-secondary" style="width: 100%;">
-          📷 Add Photo
-        </button>
-      </div>
-      <div id="photosGallery" class="photos-gallery">
-        <span class="small">No photos yet. Tap "Add Photo" to capture or upload.</span>
-      </div>
-      <div id="locationsDisplay" class="locations-display" style="margin-top: 12px; display: none;">
-        <div class="card-title" style="font-size: 0.85rem; margin-bottom: 8px;">
-          Calculated Distances
-        </div>
-        <div id="distancesList" class="distances-list">
         </div>
       </div>
     </div>

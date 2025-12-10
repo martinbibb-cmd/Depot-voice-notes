@@ -438,11 +438,6 @@ function mergeSessionPatch(target, patch, prefix = []) {
 }
 
 // Removed: Session fields rendering - UI elements no longer in index.html
-// function renderSessionFields() {
-//   if (!sessionFieldListEl) return;
-//   sessionFieldListEl.innerHTML = "";
-//   ... (removed content)
-// }
 
 function syncMissingInfoState() {
   const infoItems = Array.isArray(currentSession.missingInfo)
@@ -455,9 +450,9 @@ function syncMissingInfoState() {
 }
 
 // Removed: Missing info rendering - UI elements no longer in index.html
-// Placeholder function to prevent errors if called
 function renderMissingInfo() {
   // Session fields removed from UI
+  console.warn('renderMissingInfo called but session fields UI has been removed');
   return;
 }
 
@@ -2646,9 +2641,9 @@ function updateLocationsFromPhotos() {
 }
 
 // Removed: Photo gallery rendering - UI elements no longer in index.html
-// Placeholder function to prevent errors if called
 function renderPhotoGallery() {
   // Photos and locations removed from UI
+  console.warn('renderPhotoGallery called but photos UI has been removed');
   return;
 }
 
@@ -2658,9 +2653,9 @@ function renderPhotoGallery() {
 // }
 
 // Removed: Distances rendering - UI elements no longer in index.html
-// Placeholder function to prevent errors if called
 function renderDistances() {
   // Photos and locations removed from UI
+  console.warn('renderDistances called but locations UI has been removed');
   return;
 }
 
@@ -2906,9 +2901,6 @@ importAudioInput.onchange = async (e) => {
 };
 
 // --- PHOTO UPLOAD --- (Removed: UI elements no longer in index.html)
-// const uploadPhotoBtn = document.getElementById("uploadPhotoBtn");
-// const uploadPhotoInput = document.getElementById("uploadPhotoInput");
-// ... (removed photo upload handlers)
 
 loadSessionBtn.onclick = () => loadSessionInput.click();
 if (loadCloudSessionBtn) {

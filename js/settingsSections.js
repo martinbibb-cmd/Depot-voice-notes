@@ -1,6 +1,5 @@
 const SECTION_STORAGE_KEY = "depot.sectionSchema";
-const FUTURE_PLANS_NAME = "Future plans";
-const FUTURE_PLANS_DESCRIPTION = "Notes about any future work or follow-on visits.";
+// No longer using FUTURE_PLANS - all sections are now treated equally
 
 function $(id) {
   return document.getElementById(id);
@@ -34,7 +33,7 @@ function normaliseSectionNames(raw) {
       const n = entry.name ?? entry.section ?? entry.title ?? entry.heading;
       return typeof n === "string" ? n.trim() : "";
     })
-    .filter((n) => n && n.toLowerCase() !== "arse_cover_notes");
+    .filter((n) => n); // Accept all section names including Arse_cover_notes
 
   // Ensure unique, preserve order
   const seen = new Set();
@@ -72,12 +71,8 @@ async function loadSectionNamesForSettings() {
 
   // 3) Last-resort bare minimum if everything else failed
   if (!names.length) {
-    names = ["Needs", FUTURE_PLANS_NAME];
+    names = ["Needs", "Customer actions"];
   }
-
-  // Always ensure Future plans is present and at the bottom
-  names = names.filter((n) => n !== FUTURE_PLANS_NAME);
-  names.push(FUTURE_PLANS_NAME);
 
   return names;
 }
@@ -85,13 +80,13 @@ async function loadSectionNamesForSettings() {
 function saveNamesToLocalStorage(names) {
   const cleaned = names
     .map((n) => String(n || "").trim())
-    .filter((n) => n && n.toLowerCase() !== "arse_cover_notes");
+    .filter((n) => n); // Accept all section names
 
   const final = [];
   cleaned.forEach((name, idx) => {
     final.push({
       name,
-      description: name === FUTURE_PLANS_NAME ? FUTURE_PLANS_DESCRIPTION : "",
+      description: "",
       order: idx + 1
     });
   });
@@ -165,10 +160,6 @@ function renderSectionRows(names) {
     });
 
     deleteBtn.addEventListener("click", () => {
-      if (name === FUTURE_PLANS_NAME) {
-        alert('"Future plans" cannot be removed. It will always be kept at the bottom.');
-        return;
-      }
       names.splice(index, 1);
       renderSectionRows(names);
       renderSummary(names);
@@ -179,12 +170,6 @@ function renderSectionRows(names) {
     });
 
     row.appendChild(input);
-    if (name === FUTURE_PLANS_NAME) {
-      const badge = document.createElement("span");
-      badge.className = "badge";
-      badge.textContent = "Always last";
-      row.appendChild(badge);
-    }
     row.appendChild(upBtn);
     row.appendChild(downBtn);
     row.appendChild(deleteBtn);
@@ -245,12 +230,9 @@ async function importSchemaFromFile(file) {
       alert("No valid sections found in this file.");
       return null;
     }
-    // Ensure Future plans is present and last
-    const cleaned = names.filter((n) => n !== FUTURE_PLANS_NAME);
-    cleaned.push(FUTURE_PLANS_NAME);
     // Persist to localStorage using the same structure
-    saveNamesToLocalStorage(cleaned);
-    return cleaned;
+    saveNamesToLocalStorage(names);
+    return names;
   } catch (err) {
     console.error("Failed to import schema file", err);
     alert("Failed to read schema file.");
@@ -292,10 +274,7 @@ async function initSettingsPage() {
       names = inputs
         .map((input) => input.value || "")
         .map((n) => String(n || "").trim())
-        .filter((n) => n && n.toLowerCase() !== "arse_cover_notes");
-
-      names = names.filter((n) => n !== FUTURE_PLANS_NAME);
-      names.push(FUTURE_PLANS_NAME);
+        .filter((n) => n); // Accept all section names
 
       saveNamesToLocalStorage(names);
       renderSectionRows(names);
@@ -311,12 +290,9 @@ async function initSettingsPage() {
       const currentNames = inputs
         .map((input) => input.value || "")
         .map((n) => String(n || "").trim())
-        .filter((n) => n && n.toLowerCase() !== "arse_cover_notes");
+        .filter((n) => n); // Accept all section names
 
-      const namesForExport = currentNames.filter((n) => n !== FUTURE_PLANS_NAME);
-      namesForExport.push(FUTURE_PLANS_NAME);
-
-      exportSchemaAsFile(namesForExport).catch((err) => {
+      exportSchemaAsFile(currentNames).catch((err) => {
         console.error("Export failed", err);
         alert("Failed to export schema.");
       });

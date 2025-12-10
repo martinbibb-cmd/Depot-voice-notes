@@ -1082,7 +1082,7 @@ Your goals:
    - Gas/water work -> installerNotes.gasWaterNotes
    - Making good / decoration -> installerNotes.disruptionNotes
    - Customer to clear cupboard -> installerNotes.customerAgreedActions
-   - Future plans / extensions -> installerNotes.specialRequirements
+   - Disclaimers / risk deviations -> installerNotes.specialRequirements
 
 6. Use installer-focused paragraphs from the transcript to populate the
    installerNotes fields. For example, any clear instructions about:
@@ -1551,7 +1551,7 @@ function buildConversationContext(transcript, sections, materials, customerSumma
   };
 
   // Extract key facts from sections
-  const importantSections = ['Needs', 'System characteristics', 'New boiler and controls', 'Future plans'];
+  const importantSections = ['Needs', 'System characteristics', 'New boiler and controls', 'Arse_cover_notes'];
   sections.forEach(section => {
     if (importantSections.includes(section.section) && section.naturalLanguage) {
       context.keyFacts.push(`${section.section}: ${section.naturalLanguage}`);
@@ -2161,8 +2161,7 @@ function normaliseSectionsFromModel(rawSections, schemaInfo) {
 import schemaConfig from "./depot.output.schema.json" with { type: "json" };
 import checklistConfig from "./checklist.config.json" with { type: "json" };
 
-const FUTURE_PLANS_NAME = "Future plans";
-const FUTURE_PLANS_DESCRIPTION = "Notes about any future work or follow-on visits.";
+// No longer using FUTURE_PLANS - now using Arse_cover_notes from schema
 
 function sanitiseSectionSchema(input) {
   const asArray = (value) => {
@@ -2212,19 +2211,8 @@ function sanitiseSectionSchema(input) {
     });
   });
 
-  let withoutFuture = unique.filter((entry) => entry.name !== FUTURE_PLANS_NAME);
-  let future = unique.find((entry) => entry.name === FUTURE_PLANS_NAME);
-  if (!future) {
-    future = {
-      name: FUTURE_PLANS_NAME,
-      description: FUTURE_PLANS_DESCRIPTION,
-      order: withoutFuture.length + 1
-    };
-  } else if (!future.description) {
-    future = { ...future, description: FUTURE_PLANS_DESCRIPTION };
-  }
-
-  const final = [...withoutFuture, future].map((entry, idx) => ({
+  // Return unique sections in order without forcing any section to be last
+  const final = unique.map((entry, idx) => ({
     name: entry.name,
     description: entry.description || "",
     order: idx + 1

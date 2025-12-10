@@ -33,15 +33,17 @@ function sanitiseSectionSchema(input) {
     if (!entry) return;
     const rawName = entry.name ?? entry.section ?? entry.title ?? entry.heading;
     const name = typeof rawName === "string" ? rawName.trim() : "";
-    if (!name || name.toLowerCase() === "arse_cover_notes") return;
+    if (!name) return; // Accept all section names including Arse_cover_notes
 
     const rawDescription = entry.description ?? entry.hint ?? "";
     const description = typeof rawDescription === "string"
       ? rawDescription.trim()
       : String(rawDescription || "").trim();
+    
+    const emoji = entry.emoji || ""; // Preserve emoji if present
 
     const order = typeof entry.order === "number" ? entry.order : idx + 1;
-    prepared.push({ name, description, order, idx });
+    prepared.push({ name, description, emoji, order, idx });
   });
 
   prepared.sort((a, b) => {
@@ -63,6 +65,7 @@ function sanitiseSectionSchema(input) {
     unique.push({
       name: entry.name,
       description: entry.description || "",
+      emoji: entry.emoji || "",
       order: entry.order
     });
   });
@@ -70,6 +73,7 @@ function sanitiseSectionSchema(input) {
   const final = unique.map((entry, idx) => ({
     name: entry.name,
     description: entry.description || "",
+    emoji: entry.emoji || "",
     order: idx + 1
   }));
 

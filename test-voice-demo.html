@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice Demo Test Results</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-result {
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            border-left: 5px solid #ccc;
+        }
+        .test-pass {
+            background-color: #d4edda;
+            border-left-color: #28a745;
+        }
+        .test-fail {
+            background-color: #f8d7da;
+            border-left-color: #dc3545;
+        }
+        .test-info {
+            background-color: #d1ecf1;
+            border-left-color: #17a2b8;
+        }
+        h1 {
+            color: #333;
+        }
+        pre {
+            background-color: #fff;
+            padding: 10px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>Voice Demo Test Results</h1>
+    <div id="test-results"></div>
+    
+    <script>
+        const results = [];
+        
+        function addResult(passed, message, details = '') {
+            const className = passed ? 'test-pass' : 'test-fail';
+            const symbol = passed ? '✓' : '✗';
+            results.push({
+                className: className,
+                message: `${symbol} ${message}`,
+                details: details
+            });
+        }
+        
+        function addInfo(message, details = '') {
+            results.push({
+                className: 'test-info',
+                message: `ℹ ${message}`,
+                details: details
+            });
+        }
+        
+        // Test 1: Check if voice-demo.html exists and is accessible
+        fetch('voice-demo.html')
+            .then(response => {
+                if (response.ok) {
+                    addResult(true, 'voice-demo.html is accessible');
+                    return response.text();
+                } else {
+                    addResult(false, 'voice-demo.html is not accessible', `Status: ${response.status}`);
+                    throw new Error('File not accessible');
+                }
+            })
+            .then(html => {
+                // Test 2: Check for required elements
+                const requiredElements = [
+                    'voice-button',
+                    'raw-transcript',
+                    'engineer-output',
+                    'customer-output'
+                ];
+                
+                const missingElements = requiredElements.filter(id => !html.includes(`id="${id}"`));
+                
+                if (missingElements.length === 0) {
+                    addResult(true, 'All required HTML elements are present');
+                } else {
+                    addResult(false, 'Missing HTML elements', missingElements.join(', '));
+                }
+                
+                // Test 3: Check for script reference
+                if (html.includes('voice-demo-app.js')) {
+                    addResult(true, 'JavaScript file is referenced');
+                } else {
+                    addResult(false, 'JavaScript file is not referenced');
+                }
+                
+                // Test 4: Check for service worker registration
+                if (html.includes('serviceWorker')) {
+                    addResult(true, 'Service worker registration code is present');
+                } else {
+                    addResult(false, 'Service worker registration code is missing');
+                }
+            })
+            .catch(error => {
+                addResult(false, 'Error loading voice-demo.html', error.message);
+            })
+            .finally(() => {
+                // Test 5: Check if JavaScript file exists
+                fetch('voice-demo-app.js')
+                    .then(response => {
+                        if (response.ok) {
+                            addResult(true, 'voice-demo-app.js is accessible');
+                            return response.text();
+                        } else {
+                            addResult(false, 'voice-demo-app.js is not accessible', `Status: ${response.status}`);
+                            throw new Error('File not accessible');
+                        }
+                    })
+                    .then(js => {
+                        // Test 6: Check for Web Speech API usage
+                        if (js.includes('SpeechRecognition')) {
+                            addResult(true, 'Web Speech API code is present');
+                        } else {
+                            addResult(false, 'Web Speech API code is missing');
+                        }
+                        
+                        // Test 7: Check for categorization function
+                        if (js.includes('categorizeAndSummarize')) {
+                            addResult(true, 'Categorization function is present');
+                        } else {
+                            addResult(false, 'Categorization function is missing');
+                        }
+                    })
+                    .catch(error => {
+                        addResult(false, 'Error loading voice-demo-app.js', error.message);
+                    })
+                    .finally(() => {
+                        // Test 8: Check browser support
+                        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                        if (SpeechRecognition) {
+                            addResult(true, 'Browser supports Web Speech API');
+                            addInfo('Speech Recognition API is available', 'You can test the voice demo');
+                        } else {
+                            addResult(false, 'Browser does not support Web Speech API');
+                            addInfo('Browser compatibility', 'Try Chrome, Edge, or Safari for best results');
+                        }
+                        
+                        // Test 9: Check Service Worker support
+                        if ('serviceWorker' in navigator) {
+                            addResult(true, 'Browser supports Service Workers');
+                        } else {
+                            addResult(false, 'Browser does not support Service Workers');
+                        }
+                        
+                        // Display results
+                        displayResults();
+                    });
+            });
+        
+        function displayResults() {
+            const container = document.getElementById('test-results');
+            results.forEach(result => {
+                const div = document.createElement('div');
+                div.className = `test-result ${result.className}`;
+                
+                const message = document.createElement('strong');
+                message.textContent = result.message;
+                div.appendChild(message);
+                
+                if (result.details) {
+                    const details = document.createElement('pre');
+                    details.textContent = result.details;
+                    div.appendChild(details);
+                }
+                
+                container.appendChild(div);
+            });
+            
+            // Summary
+            const passCount = results.filter(r => r.className === 'test-pass').length;
+            const totalTests = results.filter(r => r.className !== 'test-info').length;
+            
+            const summary = document.createElement('div');
+            summary.className = 'test-result ' + (passCount === totalTests ? 'test-pass' : 'test-info');
+            summary.innerHTML = `<strong>Summary: ${passCount}/${totalTests} tests passed</strong>`;
+            container.appendChild(summary);
+        }
+    </script>
+</body>
+</html>

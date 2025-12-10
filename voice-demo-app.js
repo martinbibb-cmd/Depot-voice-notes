@@ -84,35 +84,35 @@ if (!SpeechRecognition) {
         let engineerNotes = [];
         
         if (lowerText.includes("new boiler") || lowerText.includes("boiler model")) {
-            engineerNotes.push("New Boiler: [Extract Model] installed in existing location. Flue route: [Extract Flue Details].");
+            engineerNotes.push("New Boiler: Installation required. Review transcript for specific model and location details.");
         }
         
         if (lowerText.includes("gas route") || lowerText.includes("gas pipe")) {
-            engineerNotes.push("Gas route requires 22mm run from meter via [Specify Route].");
+            engineerNotes.push("Gas route: 22mm run from meter required. Check transcript for specific routing details.");
         }
         
         if (lowerText.includes("scaffold") || lowerText.includes("working at heights") || lowerText.includes("ladder")) {
-            engineerNotes.push("Scaffold needed for flue termination. Area clear.");
+            engineerNotes.push("Scaffold: Required for flue termination. Verify area is accessible.");
         }
         
         if (lowerText.includes("flue") || lowerText.includes("chimney")) {
-            engineerNotes.push("Flue installation: [Specify type and route].");
+            engineerNotes.push("Flue installation: Required. Review transcript for type and routing specifications.");
         }
         
         if (lowerText.includes("radiator") || lowerText.includes("heating")) {
-            engineerNotes.push("Heating system: [Specify modifications required].");
+            engineerNotes.push("Heating system: Modifications needed. Check transcript for specific requirements.");
         }
         
         if (lowerText.includes("cylinder") || lowerText.includes("water tank")) {
-            engineerNotes.push("Hot water cylinder: [Specify details and location].");
+            engineerNotes.push("Hot water cylinder: Work required. Verify details and location in transcript.");
         }
         
         if (lowerText.includes("pipe") || lowerText.includes("pipework")) {
-            engineerNotes.push("Pipework modifications: [Specify routes and sizes].");
+            engineerNotes.push("Pipework: Modifications needed. Refer to transcript for routes and pipe sizes.");
         }
         
         if (lowerText.includes("electrical") || lowerText.includes("wiring")) {
-            engineerNotes.push("Electrical work required: [Specify details].");
+            engineerNotes.push("Electrical work: Required. Review transcript for specific details.");
         }
         
         // Add default note if nothing detected

@@ -72,3 +72,24 @@ The app includes a built-in bug reporting system that automatically collects dia
 
 **Note:** Mailchannels doesn't require API keys or additional configuration when used with Cloudflare Workers.
 
+
+## Boiler Installation Categories
+
+The app is now specifically designed for boiler installation surveys with 14 specialized categories:
+
+1. 🔵 **Needs** - What the customer wants or requires
+2. 🟠 **Working at heights** - Scaffolding, ladders, roof work details
+3. ⚪ **System characteristics** - Current boiler type, pipe size, heating system condition
+4. 🛡️ **Arse_cover_notes** - Disclaimers, deviations from standard, or risks acknowledged
+5. 🟡 **Components that require assistance** - Heavy lifting, specialist tools, second engineer needed
+6. 🔴 **Restrictions to work** - Time constraints, access issues, working hour limitations
+7. 🟢 **External hazards** - Asbestos, dangerous dogs, poor access, safety concerns
+8. 🟣 **Delivery notes** - Material drop-off or collection instructions
+9. 🗂️ **Office notes** - Internal billing, scheduling, paperwork instructions
+10. 🛠️ **New boiler and controls** - Make, model, location of new system
+11. 🌬️ **Flue** - Type, route, penetration details, terminal location
+12. 🔗 **Pipe work** - Relocations, re-runs, system modifications needed
+13. ⚠️ **Disruption** - Expected noise, dust, utility shut-offs
+14. 🔑 **Customer actions** - What the customer needs to do (clear space, provide keys, etc.)
+
+Each category is visually distinguished in the UI with color-coded backgrounds and emoji identifiers for quick recognition.

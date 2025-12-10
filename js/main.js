@@ -58,6 +58,7 @@ import {
   resetChecklistFilters
 } from "./checklistEnhancements.js";
 import { getAiNotes } from "./uiEnhancements.js";
+import { getSectionEmoji, getSectionStyle, applySectionStyle } from "./sectionStyles.js";
 import { loadSessionFromCloud } from "./systemRecommendationUI.js";
 
 // --- CONFIG / STORAGE KEYS ---
@@ -2137,10 +2138,17 @@ function refreshUiFromState() {
     div.className = "section-item";
     div.dataset.sectionIndex = index;
     const preClassAttr = formattedPlain ? "" : " class=\"placeholder\"";
+    
+    // Get emoji and style for this section
+    const emoji = getSectionEmoji(sec.section);
+    const style = getSectionStyle(sec.section);
 
     div.innerHTML = `
       <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
-        <h4 style="margin: 0;">${sec.section}</h4>
+        <h4 style="margin: 0; display: flex; align-items: center; gap: 6px;">
+          <span style="font-size: 1.2em;">${emoji}</span>
+          <span>${sec.section}</span>
+        </h4>
         <div class="section-actions" style="display: flex; gap: 6px;">
           <button class="edit-section-btn-inline" data-section-index="${index}" title="Edit this section inline">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -2177,6 +2185,10 @@ function refreshUiFromState() {
         </div>
       </div>
     `;
+    
+    // Apply section-specific styling
+    applySectionStyle(div, sec.section);
+    
     sectionsListEl.appendChild(div);
   });
 
@@ -2195,11 +2207,22 @@ function refreshUiFromState() {
 
       const div = document.createElement("div");
       div.className = "section-item";
+      
+      // Get emoji and style for this section
+      const emoji = getSectionEmoji(sec.section);
+      const style = getSectionStyle(sec.section);
 
       div.innerHTML = `
-        <h4 style="margin: 0 0 8px 0;">${sec.section}</h4>
+        <h4 style="margin: 0 0 8px 0; display: flex; align-items: center; gap: 6px;">
+          <span style="font-size: 1.2em;">${emoji}</span>
+          <span>${sec.section}</span>
+        </h4>
         <p style="line-height: 1.6; margin: 0;">${naturalLanguage}</p>
       `;
+      
+      // Apply section-specific styling
+      applySectionStyle(div, sec.section);
+      
       aiNotesListEl.appendChild(div);
     });
 
@@ -2236,9 +2259,16 @@ function refreshUiFromState() {
         const naturalMarkup = naturalLanguage
           ? `<p class="small" style="margin-top:3px;">${naturalLanguage}</p>`
           : "";
+        
+        // Get emoji for the variant section
+        const emoji = getSectionEmoji(variantSection.section);
+        
         div.innerHTML = `
           <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
-            <h4 style="margin: 0;">${variantSection.section || "Section"}</h4>
+            <h4 style="margin: 0; display: flex; align-items: center; gap: 6px;">
+              <span style="font-size: 1.1em;">${emoji}</span>
+              <span>${variantSection.section || "Section"}</span>
+            </h4>
             <span class="small" style="color: var(--muted);">${variant.label || "Quote option"}</span>
           </div>
           <div class="section-content-view">

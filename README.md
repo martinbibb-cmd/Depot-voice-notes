@@ -2,6 +2,11 @@
 
 Voice-notes capture tool for depot/site surveys. Free mode keeps everything in the browser via Web Speech API, while the Pro unlock adds a Cloudflare Worker bridge to OpenAI for fast, accurate transcripts plus “Copy ALL”.
 
+
+## Voice-to-Summary Demo
+
+A simple demonstration of voice-to-text functionality is available in `voice-demo.html`. This standalone page shows how the Web Speech API can be used for real-time voice recognition with automatic categorization into engineer and customer summaries. See [VOICE_DEMO_README.md](VOICE_DEMO_README.md) for details.
+
 ## Features
 
 - Structured note sections with installer hints

@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice Note Picker</title>
+    <style>
+        /* Add CSS for bullet points and colors here */
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .summary-box { 
+            border: 1px solid #ccc; 
+            padding: 15px; 
+            margin-top: 10px; 
+            border-radius: 8px;
+            background-color: white;
+        }
+        .engineer-summary { 
+            background-color: #f0f8ff; 
+            border-left: 5px solid #007bff; 
+        }
+        .customer-summary { 
+            background-color: #f0fff0; 
+            border-left: 5px solid #28a745; 
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        h3 { 
+            margin-top: 20px; 
+            color: #333; 
+        }
+        ul { 
+            list-style-type: disc; 
+            margin-left: 20px; 
+        }
+        button {
+            padding: 15px 30px;
+            font-size: 16px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+        #voice-button {
+            background-color: #ffc107;
+            color: #333;
+            display: block;
+            margin: 20px auto;
+        }
+        #voice-button:hover:not(:disabled) {
+            background-color: #e0a800;
+            transform: scale(1.05);
+        }
+        #voice-button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        textarea {
+            width: 100%;
+            box-sizing: border-box;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            resize: vertical;
+        }
+    </style>
+</head>
+<body>
+    <h1>Voice-to-Notes</h1>
+
+    <button id="voice-button" style="padding: 10px; background-color: #ffc107;">
+        🎙️ Start Recording
+    </button>
+
+    <h3>Raw Transcript:</h3>
+    <textarea id="raw-transcript" rows="6" style="width: 90%;"></textarea>
+
+    <h3>Engineer's Summary (Blue):</h3>
+    <div id="engineer-output" class="summary-box engineer-summary">
+        <ul></ul>
+    </div>
+
+    <h3>Customer Summary (Green):</h3>
+    <div id="customer-output" class="summary-box customer-summary">
+        <ul></ul>
+    </div>
+
+    <script src="voice-demo-app.js"></script>
+    <script>
+        // Assuming your service worker is registered like this:
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js').then(registration => {
+                    console.log('SW registered: ', registration);
+                }).catch(registrationError => {
+                    console.log('SW registration failed: ', registrationError);
+                });
+            });
+        }
+    </script>
+</body>
+</html>

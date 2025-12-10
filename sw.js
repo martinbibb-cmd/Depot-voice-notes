@@ -14,6 +14,8 @@ const PRECACHE_URLS = [
   '/index.html',
   '/settings.html',
   '/login.html',
+  '/voice-demo.html',
+  '/voice-demo-app.js',
   '/css/proposal.css',
   '/css/cloudSenseSurvey.css',
   '/js/main.js',

@@ -15,10 +15,10 @@
       "description": "Current boiler type, pipe size, heating system condition, and existing setup details.",
       "emoji": "⚪"
     },
-    { 
-      "name": "Arse_cover_notes", 
-      "description": "Any specific disclaimers, deviations from standard procedure, or risks that have been acknowledged (e.g., customer declined power flush, asbestos present but not tested).",
-      "emoji": "🛡️"
+    {
+      "name": "Future plans",
+      "description": "Notes about any future work or follow-on visits.",
+      "emoji": "📅"
     },
     { 
       "name": "Components that require assistance", 

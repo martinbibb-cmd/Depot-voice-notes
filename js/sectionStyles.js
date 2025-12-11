@@ -20,11 +20,11 @@ export const SECTION_STYLES = {
     bgColor: "#f3f4f6",
     description: "Current boiler, pipe size, heating system"
   },
-  "Arse_cover_notes": {
-    emoji: "🛡️",
-    color: "#64748b", // Shield Gray
-    bgColor: "#e2e8f0",
-    description: "Disclaimers, deviations, risks"
+  "Future plans": {
+    emoji: "📅",
+    color: "#8b5cf6", // Purple
+    bgColor: "#ede9fe",
+    description: "Future work or follow-on visits"
   },
   "Components that require assistance": {
     emoji: "🟡",

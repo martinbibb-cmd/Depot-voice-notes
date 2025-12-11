@@ -2179,7 +2179,7 @@ function sanitiseSectionSchema(input) {
     if (!entry) return;
     const rawName = entry.name ?? entry.section ?? entry.title ?? entry.heading;
     const name = typeof rawName === "string" ? rawName.trim() : "";
-    if (!name || name === "Arse_cover_notes") return;
+    if (!name) return;
     const rawDescription = entry.description ?? entry.hint ?? "";
     const description = typeof rawDescription === "string"
       ? rawDescription.trim()

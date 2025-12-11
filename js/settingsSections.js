@@ -33,7 +33,7 @@ function normaliseSectionNames(raw) {
       const n = entry.name ?? entry.section ?? entry.title ?? entry.heading;
       return typeof n === "string" ? n.trim() : "";
     })
-    .filter((n) => n); // Accept all section names including Arse_cover_notes
+    .filter((n) => n); // Accept all section names
 
   // Ensure unique, preserve order
   const seen = new Set();

@@ -197,7 +197,6 @@ const DEFAULT_DEPOT_SECTION_ORDER = [
   "Needs",
   "Working at heights",
   "System characteristics",
-  "Arse_cover_notes",
   "Components that require assistance",
   "Restrictions to work",
   "External hazards",
@@ -207,7 +206,8 @@ const DEFAULT_DEPOT_SECTION_ORDER = [
   "Flue",
   "Pipe work",
   "Disruption",
-  "Customer actions"
+  "Customer actions",
+  "Future plans"
 ];
 
 // --- Utility functions ---
@@ -705,7 +705,7 @@ function sanitiseSectionSchema(input) {
     if (!entry) return;
     const rawName = entry.name ?? entry.section ?? entry.title ?? entry.heading;
     const name = typeof rawName === "string" ? rawName.trim() : "";
-    if (!name) return;
+    if (!name || name === "Arse_cover_notes") return;
     const rawDescription = entry.description ?? entry.hint ?? "";
     const description = typeof rawDescription === "string"
       ? rawDescription.trim()

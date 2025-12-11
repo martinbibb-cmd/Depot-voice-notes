@@ -293,7 +293,7 @@ function renderSectionsStep() {
           <li><strong>System characteristics</strong> - Current heating setup details</li>
           <li><strong>New boiler and controls</strong> - Proposed installation details</li>
           <li><strong>Pipe work</strong> - Plumbing modifications needed</li>
-          <li><strong>Arse_cover_notes</strong> - Disclaimers and risk acknowledgements</li>
+          <li><strong>Future plans</strong> - Follow-on work or future visits</li>
         </ul>
       </div>
 

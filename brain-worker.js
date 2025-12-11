@@ -1082,7 +1082,7 @@ Your goals:
    - Gas/water work -> installerNotes.gasWaterNotes
    - Making good / decoration -> installerNotes.disruptionNotes
    - Customer to clear cupboard -> installerNotes.customerAgreedActions
-   - Disclaimers / risk deviations -> installerNotes.specialRequirements
+   - Future plans / follow-on work -> installerNotes.specialRequirements
 
 6. Use installer-focused paragraphs from the transcript to populate the
    installerNotes fields. For example, any clear instructions about:
@@ -2179,7 +2179,7 @@ function sanitiseSectionSchema(input) {
     if (!entry) return;
     const rawName = entry.name ?? entry.section ?? entry.title ?? entry.heading;
     const name = typeof rawName === "string" ? rawName.trim() : "";
-    if (!name) return;
+    if (!name || name === "Arse_cover_notes") return;
     const rawDescription = entry.description ?? entry.hint ?? "";
     const description = typeof rawDescription === "string"
       ? rawDescription.trim()

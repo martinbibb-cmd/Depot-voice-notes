@@ -1804,6 +1804,45 @@ Correct obvious transcription errors for well-known components:
 
 ---
 
+### CRITICAL: Simplification rules for "New boiler and controls", "Flue", and "Pipe work"
+
+Engineers require EXTREMELY SIMPLE, ACTION-FOCUSED bullets for these three sections:
+
+**New boiler and controls:**
+- State ONLY what equipment is being installed/removed and where
+- Include ALL quote items in this section (boiler, cylinder, filter, power flush, sure stop, controls, radiators, etc.)
+- Examples:
+  - "Replace regular boiler with Worcester 30i combi in same position"
+  - "Install Worcester 24Ri system boiler in kitchen, 180L Megaflo cylinder in airing cupboard, Fernox TF1 filter, Surestop valve"
+- Do NOT add explanatory text unless the job is genuinely complex
+- Keep it short: what's being installed, where it goes
+
+**Flue:**
+- State ONLY what flue work is to be done
+- Examples:
+  - "Brick up balanced flue and install fanned flue"
+  - "Install vertical flue through roof with tile adapter"
+  - "Extend existing flue 2m using 60/100mm PVC"
+- Include complex routing details ONLY if specifically described in the transcript
+- Default to simple action statements
+
+**Pipe work:**
+- State ONLY what pipework changes are needed
+- Examples:
+  - "Upgrade gas supply from meter to boiler position"
+  - "Replace primary flow and return between loft and airing cupboard"
+  - "Reroute condensate to external drain"
+- Include pipe sizes ONLY when they're critical to the action (e.g., "28mm primaries", "22mm gas")
+- If the job is straightforward, keep it to one simple bullet per task
+
+For all three sections:
+- If the transcript describes complex detail, include it
+- If the transcript is simple, keep the output simple
+- Default to the simplest possible description of the work
+- Engineers want to know WHAT to do, not WHY (unless the why is essential)
+
+---
+
 ### General clean-up and de-duplication
 
 - Remove "noise" bullets that do not contain a clear instruction or could cause confusion.

@@ -47,17 +47,17 @@
     },
     {
       "name": "New boiler and controls",
-      "description": "The specific make, model, and location of the new boiler system. Include what is being removed, what is being installed, which controls stay or change, where everything sits, and include cylinders, tanks, sealed system kits, and radiators when relevant.",
+      "description": "SIMPLE ACTION-FOCUSED BULLETS ONLY. What equipment is being installed/removed and where. Include all quote items (boiler, cylinder, filter, power flush, sure stop, controls, etc). Example: 'Replace regular boiler with Worcester 30i combi in same position' or 'Install Worcester 24Ri system boiler in kitchen, 180L Megaflo cylinder in airing cupboard, Fernox TF1 filter, Surestop valve'.",
       "emoji": "🛠️"
     },
-    { 
-      "name": "Flue", 
-      "description": "Flue type, route, penetration details, and terminal location. Include direction (vertical/horizontal), clearances, and any plume management.",
+    {
+      "name": "Flue",
+      "description": "SIMPLE ACTION-FOCUSED BULLETS ONLY. What flue work is to be done. Examples: 'Brick up balanced flue and install fanned flue' or 'Install vertical flue through roof with tile adapter' or 'Extend existing flue 2m using 60/100mm PVC'. Only include complex routes if specifically described.",
       "emoji": "🌬️"
     },
-    { 
-      "name": "Pipe work", 
-      "description": "Relocations, re-runs, and system modifications needed. Include gas pipe sizing, condensate routing, and any upgrades required.",
+    {
+      "name": "Pipe work",
+      "description": "SIMPLE ACTION-FOCUSED BULLETS ONLY. What pipework changes are needed. Examples: 'Upgrade gas supply from meter to boiler position' or 'Replace primary flow and return between loft and airing cupboard' or 'Reroute condensate to external drain'. Include sizes only when critical (e.g., '28mm primaries' or '22mm gas').",
       "emoji": "🔗"
     },
     { 

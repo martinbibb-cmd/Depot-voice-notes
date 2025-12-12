@@ -582,6 +582,30 @@
       </div>
     </section>
 
+    <!-- API Status Check Section -->
+    <section class="card" style="grid-column: 1 / -1;">
+      <div class="card-header">
+        <h2>API Status Check</h2>
+        <span>Test connection to the worker API</span>
+      </div>
+
+      <div class="toolbar">
+        <button id="checkApiStatusBtn" class="secondary">🔍 Check API Status</button>
+      </div>
+
+      <p class="hint">
+        <strong>Check API Status:</strong> Test if the worker API is reachable and responding correctly. This helps diagnose connection issues when sending transcripts.
+      </p>
+
+      <div id="apiStatusResult" style="margin-top: 12px; padding: 12px; background: var(--screen-bg); border-radius: var(--radius); font-size: 0.75rem; color: var(--muted); display: none;">
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+          <div id="apiStatusIndicator" style="width: 12px; height: 12px; border-radius: 50%; background: var(--muted);"></div>
+          <strong id="apiStatusText">Checking...</strong>
+        </div>
+        <div id="apiStatusDetails" style="font-family: 'Courier New', 'Consolas', monospace; font-size: 0.7rem; line-height: 1.6; margin-top: 8px;"></div>
+      </div>
+    </section>
+
     <!-- PWA & Updates Section -->
     <section class="card" style="grid-column: 1 / -1;">
       <div class="card-header">
@@ -2021,6 +2045,133 @@ Do not include any explanation outside the JSON.`
         status.classList.add('error');
       }
     });
+
+    // --- API Status Check ---
+    async function checkAPIStatus() {
+      const btn = document.getElementById('checkApiStatusBtn');
+      const resultDiv = document.getElementById('apiStatusResult');
+      const indicator = document.getElementById('apiStatusIndicator');
+      const statusText = document.getElementById('apiStatusText');
+      const statusDetails = document.getElementById('apiStatusDetails');
+
+      // Show result area
+      resultDiv.style.display = 'block';
+      
+      // Reset to checking state
+      indicator.style.background = 'var(--warning)';
+      statusText.textContent = 'Checking...';
+      statusDetails.textContent = '';
+      btn.disabled = true;
+      btn.textContent = 'Checking...';
+
+      try {
+        // Get worker URL
+        const workerUrl = (window.DepotWorkerConfig?.getWorkerUrl?.())
+          || localStorage.getItem('depot.workerUrl')
+          || localStorage.getItem('depot-worker-url')
+          || 'https://depot-voice-notes.martinbibb.workers.dev';
+
+        // Measure response time
+        const startTime = performance.now();
+        
+        // Check basic health endpoint
+        const healthResponse = await fetch(`${workerUrl}/health`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        const endTime = performance.now();
+        const latency = Math.round(endTime - startTime);
+
+        if (!healthResponse.ok) {
+          throw new Error(`HTTP ${healthResponse.status}: ${healthResponse.statusText}`);
+        }
+
+        const healthData = await healthResponse.json();
+
+        // Success
+        indicator.style.background = 'var(--accent)';
+        indicator.style.boxShadow = '0 0 10px var(--accent)';
+        statusText.textContent = '✅ API is Online';
+        statusText.style.color = 'var(--accent)';
+        
+        statusDetails.innerHTML = `
+<strong>Connection Details:</strong>
+• Endpoint: ${workerUrl.replace(/^https?:\/\//, '')}
+• Status: ${healthData.status || 'OK'}
+• Response Time: ${latency}ms
+• Timestamp: ${healthData.timestamp || new Date().toISOString()}
+
+<strong>Connection Quality:</strong>
+${latency < 200 ? '🟢 Excellent (< 200ms)' : latency < 500 ? '🟡 Good (< 500ms)' : '🔴 Slow (> 500ms)'}
+
+The API is reachable and responding correctly. You should be able to send transcripts without issues.
+        `.trim();
+
+      } catch (err) {
+        // Error
+        indicator.style.background = 'var(--danger)';
+        indicator.style.boxShadow = '0 0 10px var(--danger)';
+        statusText.textContent = '❌ API Connection Failed';
+        statusText.style.color = 'var(--danger)';
+        
+        let errorMessage = err.message || 'Unknown error';
+        let troubleshootingTips = '';
+
+        // Provide specific troubleshooting tips based on error type
+        if (errorMessage.includes('Failed to fetch') || errorMessage.includes('NetworkError')) {
+          troubleshootingTips = `
+<strong>Troubleshooting Tips:</strong>
+• Check your internet connection
+• Verify the worker URL is correct in settings
+• Check if the worker is deployed and running
+• Try disabling any VPN or proxy temporarily
+          `;
+        } else if (errorMessage.includes('401') || errorMessage.includes('403')) {
+          troubleshootingTips = `
+<strong>Troubleshooting Tips:</strong>
+• Check if authentication is required
+• Verify your API credentials
+• Try signing in again
+          `;
+        } else if (errorMessage.includes('500') || errorMessage.includes('502') || errorMessage.includes('503')) {
+          troubleshootingTips = `
+<strong>Troubleshooting Tips:</strong>
+• The server is experiencing issues
+• Wait a few minutes and try again
+• Check the worker deployment status
+          `;
+        } else {
+          troubleshootingTips = `
+<strong>Troubleshooting Tips:</strong>
+• Verify the worker URL is correct
+• Check browser console for detailed errors
+• Try reloading the page
+          `;
+        }
+
+        statusDetails.innerHTML = `
+<strong>Error Details:</strong>
+${errorMessage}
+
+${troubleshootingTips.trim()}
+
+<strong>Current Worker URL:</strong>
+${(window.DepotWorkerConfig?.getWorkerUrl?.())
+  || localStorage.getItem('depot.workerUrl')
+  || localStorage.getItem('depot-worker-url')
+  || 'https://depot-voice-notes.martinbibb.workers.dev'}
+        `.trim();
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '🔍 Check API Status';
+      }
+    }
+
+    // Setup API status check button
+    document.getElementById('checkApiStatusBtn')?.addEventListener('click', checkAPIStatus);
 
     // --- PWA Features ---
     function setupPWAFeatures() {

@@ -2047,6 +2047,21 @@ Do not include any explanation outside the JSON.`
     });
 
     // --- API Status Check ---
+    // Helper function to safely escape HTML
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+    
+    // Helper function to get worker URL (avoid duplication)
+    function getWorkerUrl() {
+      return (window.DepotWorkerConfig?.getWorkerUrl?.())
+        || localStorage.getItem('depot.workerUrl')
+        || localStorage.getItem('depot-worker-url')
+        || 'https://depot-voice-notes.martinbibb.workers.dev';
+    }
+    
     async function checkAPIStatus() {
       const btn = document.getElementById('checkApiStatusBtn');
       const resultDiv = document.getElementById('apiStatusResult');
@@ -2066,10 +2081,7 @@ Do not include any explanation outside the JSON.`
 
       try {
         // Get worker URL
-        const workerUrl = (window.DepotWorkerConfig?.getWorkerUrl?.())
-          || localStorage.getItem('depot.workerUrl')
-          || localStorage.getItem('depot-worker-url')
-          || 'https://depot-voice-notes.martinbibb.workers.dev';
+        const workerUrl = getWorkerUrl();
 
         // Measure response time
         const startTime = performance.now();
@@ -2097,15 +2109,21 @@ Do not include any explanation outside the JSON.`
         statusText.textContent = '✅ API is Online';
         statusText.style.color = 'var(--accent)';
         
+        // Safely build the details message with escaped content
+        const endpoint = escapeHtml(workerUrl.replace(/^https?:\/\//, ''));
+        const status = escapeHtml(healthData.status || 'OK');
+        const timestamp = escapeHtml(healthData.timestamp || new Date().toISOString());
+        const qualityBadge = latency < 200 ? '🟢 Excellent (< 200ms)' : latency < 500 ? '🟡 Good (< 500ms)' : '🔴 Slow (> 500ms)';
+        
         statusDetails.innerHTML = `
 <strong>Connection Details:</strong>
-• Endpoint: ${workerUrl.replace(/^https?:\/\//, '')}
-• Status: ${healthData.status || 'OK'}
+• Endpoint: ${endpoint}
+• Status: ${status}
 • Response Time: ${latency}ms
-• Timestamp: ${healthData.timestamp || new Date().toISOString()}
+• Timestamp: ${timestamp}
 
 <strong>Connection Quality:</strong>
-${latency < 200 ? '🟢 Excellent (< 200ms)' : latency < 500 ? '🟡 Good (< 500ms)' : '🔴 Slow (> 500ms)'}
+${qualityBadge}
 
 The API is reachable and responding correctly. You should be able to send transcripts without issues.
         `.trim();
@@ -2117,11 +2135,11 @@ The API is reachable and responding correctly. You should be able to send transc
         statusText.textContent = '❌ API Connection Failed';
         statusText.style.color = 'var(--danger)';
         
-        let errorMessage = err.message || 'Unknown error';
+        let errorMessage = escapeHtml(err.message || 'Unknown error');
         let troubleshootingTips = '';
 
         // Provide specific troubleshooting tips based on error type
-        if (errorMessage.includes('Failed to fetch') || errorMessage.includes('NetworkError')) {
+        if (err.message && (err.message.includes('Failed to fetch') || err.message.includes('NetworkError'))) {
           troubleshootingTips = `
 <strong>Troubleshooting Tips:</strong>
 • Check your internet connection
@@ -2129,14 +2147,14 @@ The API is reachable and responding correctly. You should be able to send transc
 • Check if the worker is deployed and running
 • Try disabling any VPN or proxy temporarily
           `;
-        } else if (errorMessage.includes('401') || errorMessage.includes('403')) {
+        } else if (err.message && (err.message.includes('401') || err.message.includes('403'))) {
           troubleshootingTips = `
 <strong>Troubleshooting Tips:</strong>
 • Check if authentication is required
 • Verify your API credentials
 • Try signing in again
           `;
-        } else if (errorMessage.includes('500') || errorMessage.includes('502') || errorMessage.includes('503')) {
+        } else if (err.message && (err.message.includes('500') || err.message.includes('502') || err.message.includes('503'))) {
           troubleshootingTips = `
 <strong>Troubleshooting Tips:</strong>
 • The server is experiencing issues
@@ -2152,6 +2170,7 @@ The API is reachable and responding correctly. You should be able to send transc
           `;
         }
 
+        const currentWorkerUrl = escapeHtml(getWorkerUrl());
         statusDetails.innerHTML = `
 <strong>Error Details:</strong>
 ${errorMessage}
@@ -2159,10 +2178,7 @@ ${errorMessage}
 ${troubleshootingTips.trim()}
 
 <strong>Current Worker URL:</strong>
-${(window.DepotWorkerConfig?.getWorkerUrl?.())
-  || localStorage.getItem('depot.workerUrl')
-  || localStorage.getItem('depot-worker-url')
-  || 'https://depot-voice-notes.martinbibb.workers.dev'}
+${currentWorkerUrl}
         `.trim();
       } finally {
         btn.disabled = false;

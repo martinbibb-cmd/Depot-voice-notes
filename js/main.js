@@ -1388,7 +1388,6 @@ function showVoiceError(message) {
 }
 function clearVoiceError() {
   if (!voiceErrorEl) return;
-  voiceErrorEl.textContent = "";
   voiceErrorEl.innerHTML = "";
   voiceErrorEl.style.display = "none";
 }

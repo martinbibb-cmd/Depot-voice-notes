@@ -390,7 +390,7 @@ async function saveAINotes(appData, filename, format, timestamp) {
  * Save transcript only
  */
 async function saveTranscript(appData, filename, format, timestamp) {
-  const transcriptText = appData.fullTranscript || '';
+  const transcriptText = appData.fullTranscript ?? '';
   
   const data = {
     type: 'transcript',

@@ -14,9 +14,9 @@ test('Transcript handling with undefined values', () => {
   const emptyTranscript = '';
   const validTranscript = 'Test transcript';
 
-  // Simulate the fix: use fallback to empty string
+  // Simulate the fix: use nullish coalescing to fallback to empty string
   const processTranscript = (transcript) => {
-    const transcriptText = transcript || '';
+    const transcriptText = transcript ?? '';
     return transcriptText.replace(/"/g, '""');
   };
 

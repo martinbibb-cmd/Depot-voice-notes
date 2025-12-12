@@ -426,6 +426,8 @@ function sessionToText(session) {
   let text = '';
   let hasContent = false;
 
+  // Only include transcript section if it exists and is a non-empty string
+  // This differs from saveTranscript() which always saves something (even if empty)
   if (session.fullTranscript && typeof session.fullTranscript === 'string') {
     text += '📝 Transcript\n';
     text += '===CONTENT===\n';

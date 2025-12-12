@@ -1368,12 +1368,39 @@ function showVoiceError(message) {
     alert(message);
     return;
   }
-  voiceErrorEl.textContent = message;
+  
+  // Check if this is a connection-related error
+  const isConnectionError = message && (
+    message.includes('Network') || 
+    message.includes('connection') || 
+    message.includes('Connection') ||
+    message.includes('fetch') ||
+    message.includes('Failed to fetch')
+  );
+  
+  // Clear previous content
+  voiceErrorEl.innerHTML = "";
+  
+  // Add message text (safely)
+  const messageText = document.createTextNode(message);
+  voiceErrorEl.appendChild(messageText);
+  
+  // Add helpful link for connection errors
+  if (isConnectionError) {
+    const link = document.createElement('a');
+    link.href = 'settings.html';
+    link.style.color = '#2563eb';
+    link.style.textDecoration = 'underline';
+    link.textContent = 'Check API status in Settings';
+    voiceErrorEl.appendChild(document.createTextNode(' '));
+    voiceErrorEl.appendChild(link);
+  }
+  
   voiceErrorEl.style.display = "block";
 }
 function clearVoiceError() {
   if (!voiceErrorEl) return;
-  voiceErrorEl.textContent = "";
+  voiceErrorEl.innerHTML = "";
   voiceErrorEl.style.display = "none";
 }
 function showSleepWarning(message) {
@@ -2439,7 +2466,18 @@ async function sendText() {
       ? err.voiceMessage
       : errorInfo.userMessage || ("Voice AI failed: " + (err && err.message ? err.message : "Unknown error"));
     showVoiceError(message);
-    setStatus("Text send failed.");
+    
+    // Provide more specific status based on error type
+    const statusMessage = errorInfo.category === 'network' 
+      ? "Connection failed - check network"
+      : errorInfo.category === 'auth'
+      ? "Authentication failed - check API key"
+      : errorInfo.category === 'rate_limit'
+      ? "Rate limit - please wait"
+      : errorInfo.category === 'server'
+      ? "Server error - retrying..."
+      : "Text send failed - see error above";
+    setStatus(statusMessage);
   }
 }
 
@@ -2502,7 +2540,18 @@ async function sendAudio(blob) {
       ? err.voiceMessage
       : errorInfo.userMessage || ("Voice AI failed: " + (err && err.message ? err.message : "Unknown error"));
     showVoiceError(message);
-    setStatus("Audio failed.");
+    
+    // Provide more specific status based on error type
+    const statusMessage = errorInfo.category === 'network' 
+      ? "Connection failed - check network"
+      : errorInfo.category === 'auth'
+      ? "Authentication failed - check API key"
+      : errorInfo.category === 'rate_limit'
+      ? "Rate limit - please wait"
+      : errorInfo.category === 'server'
+      ? "Server error - retrying..."
+      : "Audio upload failed - see error above";
+    setStatus(statusMessage);
     throw err;
   }
 }

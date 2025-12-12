@@ -390,22 +390,24 @@ async function saveAINotes(appData, filename, format, timestamp) {
  * Save transcript only
  */
 async function saveTranscript(appData, filename, format, timestamp) {
+  const transcriptText = appData.fullTranscript ?? '';
+  
   const data = {
     type: 'transcript',
     timestamp: new Date().toISOString(),
-    transcript: appData.fullTranscript
+    transcript: transcriptText
   };
 
   let blob, finalFilename;
 
   if (format === 'csv') {
     // Simple CSV format for transcript
-    const csvContent = 'Transcript\n' + appData.fullTranscript.replace(/"/g, '""');
+    const csvContent = 'Transcript\n' + transcriptText.replace(/"/g, '""');
     blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     finalFilename = `${filename}-transcript-${timestamp}.csv`;
   } else if (format === 'txt') {
     // Plain text format for transcript
-    const txtContent = appData.fullTranscript;
+    const txtContent = transcriptText;
     blob = new Blob([txtContent], { type: 'text/plain;charset=utf-8;' });
     finalFilename = `${filename}-transcript-${timestamp}.txt`;
   } else {
@@ -424,7 +426,9 @@ function sessionToText(session) {
   let text = '';
   let hasContent = false;
 
-  if (session.fullTranscript) {
+  // Only include transcript section if it exists and is a non-empty string
+  // This differs from saveTranscript() which always saves something (even if empty)
+  if (session.fullTranscript && typeof session.fullTranscript === 'string') {
     text += '📝 Transcript\n';
     text += '===CONTENT===\n';
     text += session.fullTranscript + '\n';

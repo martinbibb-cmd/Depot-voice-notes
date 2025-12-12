@@ -1378,12 +1378,24 @@ function showVoiceError(message) {
     message.includes('Failed to fetch')
   );
   
+  // Clear previous content
+  voiceErrorEl.innerHTML = "";
+  
+  // Add message text (safely)
+  const messageText = document.createTextNode(message);
+  voiceErrorEl.appendChild(messageText);
+  
   // Add helpful link for connection errors
   if (isConnectionError) {
-    voiceErrorEl.innerHTML = message + ' <a href="settings.html" style="color: #2563eb; text-decoration: underline;">Check API status in Settings</a>';
-  } else {
-    voiceErrorEl.textContent = message;
+    const link = document.createElement('a');
+    link.href = 'settings.html';
+    link.style.color = '#2563eb';
+    link.style.textDecoration = 'underline';
+    link.textContent = 'Check API status in Settings';
+    voiceErrorEl.appendChild(document.createTextNode(' '));
+    voiceErrorEl.appendChild(link);
   }
+  
   voiceErrorEl.style.display = "block";
 }
 function clearVoiceError() {

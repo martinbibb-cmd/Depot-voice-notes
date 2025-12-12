@@ -669,9 +669,10 @@ async function handleAgentChat(request, env) {
 async function agentChatWithAI(env, payload) {
   const openaiKey = env.OPENAI_API_KEY;
   const anthropicKey = env.ANTHROPIC_API_KEY;
+  const geminiKey = env.GEMINI_API_KEY;
 
-  if (!openaiKey && !anthropicKey) {
-    throw new Error("Either OPENAI_API_KEY or ANTHROPIC_API_KEY must be configured");
+  if (!openaiKey && !anthropicKey && !geminiKey) {
+    throw new Error("At least one API key must be configured: OPENAI_API_KEY, ANTHROPIC_API_KEY, or GEMINI_API_KEY");
   }
 
   const { message, context, customInstructions } = payload;
@@ -796,6 +797,24 @@ IMPORTANT:
     }
   }
 
+  // Fall back to Gemini if both OpenAI and Anthropic failed or weren't available
+  if (!response && geminiKey) {
+    try {
+      console.log("Falling back to Gemini for agent chat...");
+      response = await callGeminiChat(
+        geminiKey,
+        systemPrompt,
+        userContent,
+        0.5
+      );
+      console.log("Gemini call successful");
+    } catch (err) {
+      console.error("Gemini call failed:", String(err));
+      lastError = err;
+      response = null;
+    }
+  }
+
   if (!response) {
     throw new Error(`All AI providers failed. Last error: ${String(lastError)}`);
   }
@@ -806,9 +825,10 @@ IMPORTANT:
 async function tweakSectionWithAI(env, payload) {
   const openaiKey = env.OPENAI_API_KEY;
   const anthropicKey = env.ANTHROPIC_API_KEY;
+  const geminiKey = env.GEMINI_API_KEY;
 
-  if (!openaiKey && !anthropicKey) {
-    throw new Error("Either OPENAI_API_KEY or ANTHROPIC_API_KEY must be configured");
+  if (!openaiKey && !anthropicKey && !geminiKey) {
+    throw new Error("At least one API key must be configured: OPENAI_API_KEY, ANTHROPIC_API_KEY, or GEMINI_API_KEY");
   }
 
   const { sectionName, plainText, naturalLanguage, instructions, customInstructions } = payload;
@@ -926,6 +946,24 @@ Do not include any explanation outside the JSON.`;
       console.log("Anthropic call successful");
     } catch (err) {
       console.error("Anthropic call failed:", String(err));
+      lastError = err;
+      trimmedContent = null;
+    }
+  }
+
+  // Fall back to Gemini if both OpenAI and Anthropic failed or weren't available
+  if (!trimmedContent && geminiKey) {
+    try {
+      console.log("Falling back to Gemini for section tweak...");
+      trimmedContent = await callGeminiChat(
+        geminiKey,
+        systemPrompt,
+        JSON.stringify(userPayload),
+        0.3
+      );
+      console.log("Gemini call successful");
+    } catch (err) {
+      console.error("Gemini call failed:", String(err));
       lastError = err;
       trimmedContent = null;
     }
@@ -1613,6 +1651,79 @@ async function callAnthropicChat(apiKey, systemPrompt, userContent, temperature 
   return content.trim();
 }
 
+async function callGeminiChat(apiKey, systemPrompt, userContent, temperature = 0.2) {
+  if (!apiKey) throw new Error("GEMINI_API_KEY not configured");
+
+  const body = {
+    contents: [
+      {
+        role: "user",
+        parts: [
+          { text: systemPrompt + "\n\n" + userContent }
+        ]
+      }
+    ],
+    generationConfig: {
+      temperature,
+      maxOutputTokens: 4096
+    }
+  };
+
+  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${apiKey}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(body)
+  });
+
+  const rawText = await res.text();
+
+  if (!res.ok) {
+    throw new Error(`gemini.generateContent ${res.status}: ${rawText}`);
+  }
+
+  let parsed;
+  try {
+    parsed = JSON.parse(rawText);
+  } catch (err) {
+    throw new Error(`Gemini returned non-JSON response: ${String(err)} :: ${rawText}`);
+  }
+
+  const content = parsed?.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!content || typeof content !== "string") {
+    throw new Error("No content from Gemini model");
+  }
+
+  return content.trim();
+}
+
+/**
+ * Determines the order of API providers to try based on API_PROVIDER setting.
+ * Returns an array of provider names in the order they should be attempted.
+ *
+ * @param {string} preferredProvider - Value from env.API_PROVIDER ("openai", "anthropic", "gemini", or undefined)
+ * @returns {string[]} Array of provider names in try order
+ */
+function getProviderOrder(preferredProvider) {
+  const allProviders = ["openai", "anthropic", "gemini"];
+
+  if (!preferredProvider) {
+    // Default order if no preference is set
+    return allProviders;
+  }
+
+  const preferred = preferredProvider.toLowerCase().trim();
+
+  if (!allProviders.includes(preferred)) {
+    console.warn(`Invalid API_PROVIDER value: ${preferredProvider}. Using default order.`);
+    return allProviders;
+  }
+
+  // Put preferred provider first, then the rest
+  return [preferred, ...allProviders.filter(p => p !== preferred)];
+}
+
 /* ---------- Reference Materials Fetcher ---------- */
 
 async function fetchReferenceMaterials(env, transcript) {
@@ -1832,9 +1943,10 @@ function buildDepotNotesInstructions(customInstructions, referenceMaterials) {
 async function callNotesModel(env, payload) {
   const openaiKey = env.OPENAI_API_KEY;
   const anthropicKey = env.ANTHROPIC_API_KEY;
+  const geminiKey = env.GEMINI_API_KEY;
 
-  if (!openaiKey && !anthropicKey) {
-    throw new Error("Either OPENAI_API_KEY or ANTHROPIC_API_KEY must be configured");
+  if (!openaiKey && !anthropicKey && !geminiKey) {
+    throw new Error("At least one API key must be configured: OPENAI_API_KEY, ANTHROPIC_API_KEY, or GEMINI_API_KEY");
   }
 
   const {
@@ -2041,6 +2153,24 @@ Always preserve boiler/cylinder make & model exactly as spoken.
       console.log("Anthropic call successful");
     } catch (err) {
       console.error("Anthropic call failed:", String(err));
+      lastError = err;
+      trimmedContent = null;
+    }
+  }
+
+  // Fall back to Gemini if both OpenAI and Anthropic failed or weren't available
+  if (!trimmedContent && geminiKey) {
+    try {
+      console.log("Falling back to Gemini for notes model...");
+      trimmedContent = await callGeminiChat(
+        geminiKey,
+        systemPrompt,
+        JSON.stringify(userPayload),
+        0.2
+      );
+      console.log("Gemini call successful");
+    } catch (err) {
+      console.error("Gemini call failed:", String(err));
       lastError = err;
       trimmedContent = null;
     }

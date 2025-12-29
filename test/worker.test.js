@@ -2,8 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import worker from '../src/worker.js';
-import depotSchema from '../depot.output.schema.json' with { type: 'json' };
-import checklistConfig from '../checklist.config.json' with { type: 'json' };
+import depotSchema from '../depot.output.schema.json' assert { type: 'json' };
+import checklistConfig from '../checklist.config.json' assert { type: 'json' };
 
 function extractDefaultSections(schema) {
   if (schema && typeof schema === 'object' && Array.isArray(schema.sections)) {

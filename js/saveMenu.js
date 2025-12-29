@@ -9,10 +9,6 @@ import {
   sessionToSingleCSV,
   downloadCSV
 } from "./csvExport.js";
-import {
-  buildSessionFromAppState,
-  saveSessionToStorage
-} from "../src/state/sessionStore.js";
 
 // Modal elements
 const saveMenuModal = document.getElementById('saveMenuModal');
@@ -157,20 +153,6 @@ function getAppData() {
   };
 }
 
-async function ensureAuthModule() {
-  if (typeof window.DepotAuth !== 'undefined') {
-    return window.DepotAuth;
-  }
-
-  try {
-    await import('../src/auth/auth-client.js');
-    return window.DepotAuth;
-  } catch (err) {
-    console.error('Failed to load auth module:', err);
-    return undefined;
-  }
-}
-
 /**
  * Save the selected options
  */
@@ -189,65 +171,30 @@ async function saveSelected() {
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
 
   try {
-    const saveTasks = [];
-
     // Handle different save options
     if (options.fullSession) {
-      saveTasks.push(
-        saveFullSession(appData, filename, format, timestamp)
-          .then(() => ({ label: 'Full session', success: true }))
-          .catch(error => ({ label: 'Full session', success: false, error }))
-      );
+      await saveFullSession(appData, filename, format, timestamp);
     }
 
     if (options.depotNotes) {
-      saveTasks.push(
-        saveDepotNotes(appData, filename, format, timestamp)
-          .then(() => ({ label: 'Depot notes', success: true }))
-          .catch(error => ({ label: 'Depot notes', success: false, error }))
-      );
+      await saveDepotNotes(appData, filename, format, timestamp);
     }
 
     if (options.aiNotes) {
-      saveTasks.push(
-        saveAINotes(appData, filename, format, timestamp)
-          .then(() => ({ label: 'AI notes', success: true }))
-          .catch(error => ({ label: 'AI notes', success: false, error }))
-      );
+      await saveAINotes(appData, filename, format, timestamp);
     }
 
     if (options.transcript) {
-      saveTasks.push(
-        saveTranscript(appData, filename, format, timestamp)
-          .then(() => ({ label: 'Transcript', success: true }))
-          .catch(error => ({ label: 'Transcript', success: false, error }))
-      );
+      await saveTranscript(appData, filename, format, timestamp);
     }
 
     // Handle audio export options
     if (options.audioWav) {
-      saveTasks.push(
-        saveAudioWav(appData, filename, timestamp)
-          .then(() => ({ label: 'Audio WAV', success: true }))
-          .catch(error => ({ label: 'Audio WAV', success: false, error }))
-      );
+      await saveAudioWav(appData, filename, timestamp);
     }
 
     if (options.audioMp3) {
-      saveTasks.push(
-        saveAudioNative(appData, filename, timestamp)
-          .then(() => ({ label: 'Audio MP3/WebM', success: true }))
-          .catch(error => ({ label: 'Audio MP3/WebM', success: false, error }))
-      );
-    }
-
-    const results = await Promise.all(saveTasks);
-    const successCount = results.filter(r => r.success).length;
-    const failures = results.filter(r => !r.success);
-
-    if (!successCount) {
-      const firstError = failures[0]?.error;
-      throw firstError || new Error('No files were saved');
+      await saveAudioNative(appData, filename, timestamp);
     }
 
     // Hide modal and show success
@@ -256,14 +203,11 @@ async function saveSelected() {
     // Show feedback
     const statusBar = document.getElementById('statusBar');
     if (statusBar) {
-      statusBar.textContent = `Saved ${successCount} file(s) successfully`;
+      const count = [options.fullSession, options.depotNotes, options.aiNotes, options.transcript, options.audioWav, options.audioMp3].filter(Boolean).length;
+      statusBar.textContent = `Saved ${count} file(s) successfully`;
       setTimeout(() => {
         statusBar.textContent = 'Idle (Online • Manual)';
       }, 3000);
-    }
-
-    if (failures.length) {
-      alert(`Saved ${successCount} item(s), but some failed: ${failures.map(f => f.label).join(', ')}`);
     }
   } catch (error) {
     console.error('Save error:', error);
@@ -276,19 +220,14 @@ async function saveSelected() {
  */
 async function saveFullSession(appData, filename, format, timestamp) {
   const session = {
-    version: 2, // Incremented for new photo/form/location features
+    version: 1,
     createdAt: new Date().toISOString(),
     fullTranscript: appData.fullTranscript,
     sections: appData.sections,
     materials: appData.materials,
     checkedItems: appData.checkedItems,
     missingInfo: appData.missingInfo,
-    customerSummary: appData.customerSummary,
-    // New fields for photo, GPS, and structured form support
-    photos: appData.photos || [],
-    formData: appData.formData || {},
-    locations: appData.locations || {},
-    distances: appData.distances || {}
+    customerSummary: appData.customerSummary
   };
 
   // Include audio if available and format is JSON
@@ -390,24 +329,22 @@ async function saveAINotes(appData, filename, format, timestamp) {
  * Save transcript only
  */
 async function saveTranscript(appData, filename, format, timestamp) {
-  const transcriptText = appData.fullTranscript ?? '';
-  
   const data = {
     type: 'transcript',
     timestamp: new Date().toISOString(),
-    transcript: transcriptText
+    transcript: appData.fullTranscript
   };
 
   let blob, finalFilename;
 
   if (format === 'csv') {
     // Simple CSV format for transcript
-    const csvContent = 'Transcript\n' + transcriptText.replace(/"/g, '""');
+    const csvContent = 'Transcript\n' + appData.fullTranscript.replace(/"/g, '""');
     blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     finalFilename = `${filename}-transcript-${timestamp}.csv`;
   } else if (format === 'txt') {
     // Plain text format for transcript
-    const txtContent = transcriptText;
+    const txtContent = appData.fullTranscript;
     blob = new Blob([txtContent], { type: 'text/plain;charset=utf-8;' });
     finalFilename = `${filename}-transcript-${timestamp}.txt`;
   } else {
@@ -426,9 +363,7 @@ function sessionToText(session) {
   let text = '';
   let hasContent = false;
 
-  // Only include transcript section if it exists and is a non-empty string
-  // This differs from saveTranscript() which always saves something (even if empty)
-  if (session.fullTranscript && typeof session.fullTranscript === 'string') {
+  if (session.fullTranscript) {
     text += '📝 Transcript\n';
     text += '===CONTENT===\n';
     text += session.fullTranscript + '\n';
@@ -691,136 +626,6 @@ function downloadFile(blob, filename) {
 }
 
 /**
- * Save session to cloud (Voice Notes 2.0)
- */
-async function saveSessionToCloud() {
-  const cloudSaveBtn = document.getElementById('saveToCloudBtn');
-  const cloudSaveBtnText = document.getElementById('cloudSaveBtnText');
-  const cloudSaveStatus = document.getElementById('cloudSaveStatus');
-
-  const authModule = await ensureAuthModule();
-
-  // Check authentication
-  if (!authModule || !authModule.isAuthenticated()) {
-    cloudSaveStatus.style.color = 'var(--danger)';
-    cloudSaveStatus.textContent = '⚠️ Please sign in to save to cloud';
-    setTimeout(() => {
-      if (confirm('Sign in to save sessions to the cloud?')) {
-        window.location.href = 'login.html';
-      }
-    }, 500);
-    return;
-  }
-
-  // Get session data
-  const sessionData = window.__depotAppState || {};
-  const transcript = document.getElementById('transcriptInput')?.value || '';
-  const audioChunks = window.__depotSessionAudioChunks || [];
-  const audioMime = window.__depotLastAudioMime || '';
-
-  const baseSession = {
-    ...(sessionData || {}),
-    version: 2, // Incremented for new photo/form/location features
-    createdAt: new Date().toISOString(),
-    sessionName: getSessionReference(),
-    fullTranscript: transcript,
-    sections: sessionData.sections || [],
-    materials: sessionData.materials || [],
-    checkedItems: sessionData.checkedItems || [],
-    missingInfo: sessionData.missingInfo || [],
-    customerSummary: sessionData.customerSummary || '',
-    quoteNotes: sessionData.quoteNotes || [],
-    // New fields for photo, GPS, and structured form support
-    photos: window.__depotSessionPhotos || [],
-    formData: window.__depotSessionFormData || {},
-    locations: window.__depotSessionLocations || {},
-    distances: window.__depotSessionDistances || {}
-  };
-
-  // Include audio if present
-  if (audioChunks && audioChunks.length > 0) {
-    try {
-      const audioBlob = new Blob(audioChunks, { type: audioMime || 'audio/webm' });
-      const base64 = await blobToBase64(audioBlob);
-      baseSession.audioMime = audioMime;
-      baseSession.audioBase64 = base64;
-    } catch (err) {
-      console.warn('Could not encode audio for cloud save:', err);
-    }
-  }
-
-  const session = buildSessionFromAppState(baseSession, {
-    transcript,
-    sessionName: baseSession.sessionName,
-    audioBase64: baseSession.audioBase64,
-    audioMime: baseSession.audioMime
-  });
-  saveSessionToStorage(session);
-
-  // Disable button during save
-  cloudSaveBtn.disabled = true;
-  cloudSaveBtnText.textContent = '☁️ Saving...';
-  cloudSaveStatus.style.color = 'var(--muted)';
-  cloudSaveStatus.textContent = 'Uploading session to cloud...';
-
-  try {
-    // Get worker URL
-    const workerUrl = localStorage.getItem('depot.workerUrl') ||
-                      localStorage.getItem('depot-worker-url') ||
-                      'https://depot-voice-notes.martinbibb.workers.dev';
-    const userInfo = authModule?.getUserInfo();
-    const token = authModule?.getAuthToken ? authModule.getAuthToken() : null;
-
-    if (!token) {
-      throw new Error('Authentication required: missing token');
-    }
-
-    // Send to cloud
-    const response = await fetch(`${workerUrl}/cloud-session`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({
-        sessionName: session.sessionName,
-        sessionData: session,
-        userId: userInfo?.id || userInfo?.email
-      })
-    });
-
-    if (!response.ok) {
-      throw new Error(`Cloud save failed: ${response.status} ${response.statusText}`);
-    }
-
-    const result = await response.json();
-
-    // Success
-    cloudSaveBtn.disabled = false;
-    cloudSaveBtnText.textContent = '✅ Saved to Cloud';
-    cloudSaveStatus.style.color = 'var(--success)';
-    cloudSaveStatus.textContent = `✅ Session saved successfully! (${(JSON.stringify(session).length / 1024).toFixed(1)} KB)`;
-
-    // Reset button text after 3 seconds
-    setTimeout(() => {
-      cloudSaveBtnText.textContent = '☁️ Save Session to Cloud';
-    }, 3000);
-
-  } catch (error) {
-    console.error('Cloud save error:', error);
-    cloudSaveBtn.disabled = false;
-    cloudSaveBtnText.textContent = '❌ Save Failed';
-    cloudSaveStatus.style.color = 'var(--danger)';
-    cloudSaveStatus.textContent = `❌ Error: ${error.message || 'Could not save to cloud'}`;
-
-    // Reset button text after 5 seconds
-    setTimeout(() => {
-      cloudSaveBtnText.textContent = '☁️ Save Session to Cloud';
-    }, 5000);
-  }
-}
-
-/**
  * Initialize save menu event listeners
  */
 export function initSaveMenu() {
@@ -840,12 +645,6 @@ export function initSaveMenu() {
 
   if (confirmSaveMenuBtn) {
     confirmSaveMenuBtn.addEventListener('click', saveSelected);
-  }
-
-  // Cloud save button (Voice Notes 2.0)
-  const saveToCloudBtn = document.getElementById('saveToCloudBtn');
-  if (saveToCloudBtn) {
-    saveToCloudBtn.addEventListener('click', saveSessionToCloud);
   }
 
   // Close modal when clicking outside

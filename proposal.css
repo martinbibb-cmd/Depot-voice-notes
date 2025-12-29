@@ -1,0 +1,188 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  margin: 0;
+  padding: 0;
+  color: #111;
+  background: #f5f5f5;
+}
+
+.proposal-shell {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+.page {
+  background: #fff;
+  border: 1px solid #e2e2e2;
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1.25rem;
+  page-break-after: always;
+}
+
+.page:last-of-type {
+  page-break-after: auto;
+}
+
+.cover {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.cover-text {
+  flex: 2;
+}
+
+.cover-graphic {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 240px;
+}
+
+.cover-graphic img {
+  max-width: 100%;
+  max-height: 320px;
+  border: 1px solid #e5e5e5;
+  padding: 0.5rem;
+}
+
+h1, h2, h3 {
+  margin: 0 0 0.5rem;
+}
+
+p {
+  margin: 0 0 0.75rem;
+}
+
+.eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.8rem;
+  color: #666;
+  margin: 0 0 0.35rem;
+}
+
+.muted {
+  color: #555;
+}
+
+.glance {
+  margin: 1rem 0;
+}
+
+.fact-list {
+  list-style: none;
+  padding: 0;
+  margin: 0.35rem 0 0;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.fact-list .label {
+  display: inline-block;
+  min-width: 140px;
+  font-weight: 600;
+  color: #222;
+}
+
+.told-us {
+  margin: 1rem 0 0;
+}
+
+.bullet-list {
+  padding-left: 1rem;
+  margin: 0.25rem 0 0.5rem;
+}
+
+.bullet-list li {
+  margin-bottom: 0.35rem;
+}
+
+.options header {
+  margin-bottom: 0.75rem;
+}
+
+.options-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1rem;
+}
+
+.option-card {
+  border: 2px solid #d9d9d9;
+  padding: 1rem;
+  min-height: 320px;
+}
+
+.option-card.gold {
+  border-color: #c8a200;
+}
+
+.option-card.silver {
+  border-color: #8f8f8f;
+}
+
+.option-card.bronze {
+  border-color: #b87333;
+}
+
+.option-header h3 {
+  margin: 0 0 0.25rem;
+}
+
+.mini-spec {
+  background: #f7f7f7;
+  border: 1px solid #e5e5e5;
+  padding: 0.75rem;
+  margin: 0.5rem 0 0;
+}
+
+.next-steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1rem;
+}
+
+.note-box {
+  min-height: 120px;
+  border: 1px solid #d2d2d2;
+  background: #fafafa;
+  padding: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.note-box.blank {
+  background: #fff;
+  min-height: 140px;
+}
+
+.warning {
+  color: #a23400;
+  font-weight: 600;
+  margin: 0.5rem 0 0;
+}
+
+@media print {
+  body {
+    background: #fff;
+  }
+  .proposal-shell {
+    max-width: none;
+    padding: 0.25rem;
+  }
+  .page {
+    margin: 0 0 1rem;
+    border: 1px solid #dcdcdc;
+    box-shadow: none;
+  }
+  .cover-graphic img {
+    max-height: 260px;
+  }
+}

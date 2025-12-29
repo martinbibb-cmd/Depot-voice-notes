@@ -1,74 +1,21 @@
 {
   "sections": [
-    { 
-      "name": "Needs", 
-      "description": "What the customer wants or requires - the primary goal of the installation.",
-      "emoji": "🔵"
-    },
-    { 
-      "name": "Working at heights", 
-      "description": "Details of required scaffolding, ladders, roof work, or any elevated access requirements.",
-      "emoji": "🟠"
-    },
-    { 
-      "name": "System characteristics", 
-      "description": "Current boiler type, pipe size, heating system condition, and existing setup details.",
-      "emoji": "⚪"
-    },
-    {
-      "name": "Future plans",
-      "description": "Notes about any future work or follow-on visits.",
-      "emoji": "📅"
-    },
-    { 
-      "name": "Components that require assistance", 
-      "description": "Heavy lifting requirements, specialist tools needed, or tasks requiring a second engineer.",
-      "emoji": "🟡"
-    },
-    { 
-      "name": "Restrictions to work", 
-      "description": "Time constraints, access issues, no working during certain hours, or other limitations.",
-      "emoji": "🔴"
-    },
-    { 
-      "name": "External hazards", 
-      "description": "Asbestos, dangerous dogs, poor access to property, confined spaces, or other safety concerns.",
-      "emoji": "🟢"
-    },
-    { 
-      "name": "Delivery notes", 
-      "description": "Specific instructions for material drop-off, collection, or delivery timing.",
-      "emoji": "🟣"
-    },
-    { 
-      "name": "Office notes", 
-      "description": "Internal billing information, scheduling requirements, or paperwork instructions.",
-      "emoji": "🗂️"
-    },
+    { "name": "Needs", "description": "" },
+    { "name": "Working at heights", "description": "" },
+    { "name": "System characteristics", "description": "" },
+    { "name": "Components that require assistance", "description": "" },
+    { "name": "Restrictions to work", "description": "" },
+    { "name": "External hazards", "description": "" },
+    { "name": "Delivery notes", "description": "" },
+    { "name": "Office notes", "description": "" },
     {
       "name": "New boiler and controls",
-      "description": "The specific make, model, and location of the new boiler system. Include what is being removed, what is being installed, which controls stay or change, where everything sits, and include cylinders, tanks, sealed system kits, and radiators when relevant.",
-      "emoji": "🛠️"
+      "description": "Keep it simple: what is being removed, what is being installed, which controls stay or change, where everything sits, and include cylinders, tanks, sealed system kits, and radiators when relevant."
     },
-    { 
-      "name": "Flue", 
-      "description": "Flue type, route, penetration details, and terminal location. Include direction (vertical/horizontal), clearances, and any plume management.",
-      "emoji": "🌬️"
-    },
-    { 
-      "name": "Pipe work", 
-      "description": "Relocations, re-runs, and system modifications needed. Include gas pipe sizing, condensate routing, and any upgrades required.",
-      "emoji": "🔗"
-    },
-    { 
-      "name": "Disruption", 
-      "description": "Expected noise, dust, utility shut-offs, and timeline for the work. Help customer understand what to expect.",
-      "emoji": "⚠️"
-    },
-    { 
-      "name": "Customer actions", 
-      "description": "What the customer needs to do before or during the installation (e.g., clear cupboard space, provide keys, be present at certain times).",
-      "emoji": "🔑"
-    }
+    { "name": "Flue", "description": "" },
+    { "name": "Pipe work", "description": "" },
+    { "name": "Disruption", "description": "" },
+    { "name": "Customer actions", "description": "" },
+    { "name": "Future plans", "description": "Notes about any future work or follow-on visits." }
   ]
 }

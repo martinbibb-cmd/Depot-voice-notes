@@ -1361,6 +1361,8 @@ async function callGeminiChat(apiKey, systemPrompt, userContent, temperature = 0
     }
   };
 
+  // Note: Gemini API requires the API key as a query parameter (standard Google API practice)
+  // This is server-side only, so the key is not exposed to clients
   const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${apiKey}`, {
     method: "POST",
     headers: {

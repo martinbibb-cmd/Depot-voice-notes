@@ -4,7 +4,7 @@
  * based on actual conversation and recommendations
  */
 
-import { loadWorkerEndpoint } from '../src/app/worker-config.js';
+import { getWorkerUrl } from './config.js';
 import { generateRecommendations } from './recommendationEngine.js';
 
 // Cache for AI-generated presentations
@@ -47,7 +47,7 @@ export async function generateAIPresentationContent(sessionData, recommendations
   console.log('🤖 Calling AI to generate personalized presentation content...');
 
   try {
-    const workerUrl = loadWorkerEndpoint();
+    const workerUrl = getWorkerUrl();
     const response = await fetch(`${workerUrl}/generate-presentation`, {
       method: 'POST',
       headers: {

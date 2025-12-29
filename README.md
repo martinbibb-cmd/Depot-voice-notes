@@ -2,11 +2,6 @@
 
 Voice-notes capture tool for depot/site surveys. Free mode keeps everything in the browser via Web Speech API, while the Pro unlock adds a Cloudflare Worker bridge to OpenAI for fast, accurate transcripts plus “Copy ALL”.
 
-
-## Voice-to-Summary Demo
-
-A simple demonstration of voice-to-text functionality is available in `voice-demo.html`. This standalone page shows how the Web Speech API can be used for real-time voice recognition with automatic categorization into engineer and customer summaries. See [VOICE_DEMO_README.md](VOICE_DEMO_README.md) for details.
-
 ## Features
 
 - Structured note sections with installer hints
@@ -77,24 +72,3 @@ The app includes a built-in bug reporting system that automatically collects dia
 
 **Note:** Mailchannels doesn't require API keys or additional configuration when used with Cloudflare Workers.
 
-
-## Boiler Installation Categories
-
-The app is now specifically designed for boiler installation surveys with 14 specialized categories:
-
-1. 🔵 **Needs** - What the customer wants or requires
-2. 🟠 **Working at heights** - Scaffolding, ladders, roof work details
-3. ⚪ **System characteristics** - Current boiler type, pipe size, heating system condition
-4. 🟡 **Components that require assistance** - Heavy lifting, specialist tools, second engineer needed
-5. 🔴 **Restrictions to work** - Time constraints, access issues, working hour limitations
-6. 🟢 **External hazards** - Asbestos, dangerous dogs, poor access, safety concerns
-7. 🟣 **Delivery notes** - Material drop-off or collection instructions
-8. 🗂️ **Office notes** - Internal billing, scheduling, paperwork instructions
-9. 🛠️ **New boiler and controls** - Make, model, location of new system
-10. 🌬️ **Flue** - Type, route, penetration details, terminal location
-11. 🔗 **Pipe work** - Relocations, re-runs, system modifications needed
-12. ⚠️ **Disruption** - Expected noise, dust, utility shut-offs
-13. 🔑 **Customer actions** - What the customer needs to do (clear space, provide keys, etc.)
-14. 📅 **Future plans** - Follow-on work or future visits
-
-Each category is visually distinguished in the UI with color-coded backgrounds and emoji identifiers for quick recognition.

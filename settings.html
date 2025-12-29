@@ -4,40 +4,21 @@
   <meta charset="UTF-8" />
   <title>Survey Brain – Settings</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <script type="module" src="./js/themeSettings.js"></script>
-  <script>
-    (function () {
-      const key = "depot.themePreference";
-      const saved = localStorage.getItem(key);
-      const validThemes = ["blue", "green"];
-      const theme = validThemes.includes(saved) ? saved : "blue";
-      document.documentElement.dataset.theme = theme;
-    })();
-  </script>
   <style>
     :root {
-      /* Silver control deck theme (matches main app) */
-      --bg: #e7eaef;
-      --card: linear-gradient(145deg, #f4f6f8 0%, #dde2e7 50%, #f4f6f8 100%);
-      --border: #b5bcc7;
-      --accent: #2563eb;
-      --accent-hover: #1d4ed8;
-      --accent-soft: #dbeafe;
-      --muted: #4b5563;
-      --danger: #d14343;
-      --radius: 6px;
-      --screen-glow: 0 0 12px rgba(37, 99, 235, 0.35);
-      --metal-shine: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.35) 50%, rgba(255,255,255,0) 100%);
-      --button-inset: inset 1px 1px 3px rgba(255,255,255,0.65), inset -3px -3px 6px rgba(0,0,0,0.08);
-      --screen-bg: linear-gradient(180deg, #eef2f7 0%, #d8dee6 100%);
-      --text: #1f2937;
-    }
-
-    :root[data-theme="green"] {
-      --accent: #2f855a;
-      --accent-hover: #276749;
-      --accent-soft: #c9e4d4;
-      --screen-glow: 0 0 12px rgba(79, 209, 197, 0.35);
+      /* Metal Control Deck Theme */
+      --bg: #1a1d24;
+      --card: linear-gradient(145deg, #2a2f3a 0%, #363c4a 50%, #2a2f3a 100%);
+      --border: #4a5568;
+      --accent: #10b981;
+      --accent-soft: #34d399;
+      --muted: #94a3b8;
+      --danger: #ef4444;
+      --radius: 4px;
+      --screen-glow: 0 0 20px rgba(16, 185, 129, 0.3);
+      --metal-shine: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.15) 50%, rgba(255,255,255,0) 100%);
+      --button-inset: inset 2px 2px 5px rgba(0,0,0,0.4), inset -2px -2px 5px rgba(255,255,255,0.1);
+      --screen-bg: linear-gradient(180deg, #0f1419 0%, #1a1f29 100%);
     }
     * { box-sizing: border-box; }
 
@@ -58,10 +39,11 @@
 
     body {
       margin: 0;
-      font-family: 'Inter', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+      font-family: 'Courier New', 'Consolas', monospace;
       background:
-        linear-gradient(180deg, #f8fafc 0%, #e1e6ee 40%, #d4d9e1 100%);
-      color: var(--text);
+        repeating-linear-gradient(0deg, rgba(0,0,0,0.1) 0px, transparent 1px, transparent 2px, rgba(0,0,0,0.1) 3px),
+        radial-gradient(circle at top, #2d3748 0%, var(--bg) 60%);
+      color: #e2e8f0;
       min-height: 100vh;
       padding: 16px;
       position: relative;
@@ -75,9 +57,9 @@
       right: 0;
       bottom: 0;
       background:
-        repeating-linear-gradient(90deg, transparent 0px, rgba(255,255,255,0.25) 2px, transparent 4px),
-        repeating-linear-gradient(0deg, transparent 0px, rgba(0,0,0,0.04) 2px, transparent 4px);
-      background-size: 4px 4px;
+        repeating-linear-gradient(90deg, transparent 0px, rgba(0,255,0,0.03) 1px, transparent 2px),
+        repeating-linear-gradient(0deg, transparent 0px, rgba(0,255,0,0.03) 1px, transparent 2px);
+      background-size: 2px 2px;
       pointer-events: none;
       z-index: 1;
       animation: screenFlicker 3s infinite;
@@ -90,9 +72,9 @@
       margin-bottom: 16px;
       padding: 16px;
       background: var(--card);
-      border: 1px solid var(--border);
+      border: 2px solid var(--border);
       border-radius: var(--radius);
-      box-shadow: var(--button-inset), 0 6px 12px rgba(0,0,0,0.08);
+      box-shadow: var(--button-inset);
       position: relative;
       z-index: 2;
     }
@@ -112,10 +94,10 @@
     header h1 {
       margin: 0;
       font-size: 1.1rem;
-      letter-spacing: 0.08em;
+      letter-spacing: 0.15em;
       text-transform: uppercase;
       color: var(--accent);
-      text-shadow: 0 0 6px var(--accent);
+      text-shadow: 0 0 10px var(--accent), 0 0 20px var(--accent);
       font-weight: 700;
     }
 
@@ -149,13 +131,13 @@
     .card {
       background: var(--card);
       border-radius: var(--radius);
-      border: 1px solid var(--border);
+      border: 2px solid var(--border);
       padding: 16px 18px 18px;
-      color: var(--text);
+      color: #e2e8f0;
       display: flex;
       flex-direction: column;
       gap: 12px;
-      box-shadow: var(--button-inset), 0 10px 18px rgba(0,0,0,0.12);
+      box-shadow: var(--button-inset), 0 4px 12px rgba(0,0,0,0.4);
       position: relative;
       overflow: hidden;
     }
@@ -191,7 +173,7 @@
       margin: 0;
       font-size: .9rem;
       text-transform: uppercase;
-      letter-spacing: .08em;
+      letter-spacing: .1em;
       color: var(--accent);
       text-shadow: 0 0 5px var(--accent);
       font-weight: 700;
@@ -218,7 +200,7 @@
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      background: linear-gradient(145deg, var(--accent) 0%, var(--accent-hover, #1d4ed8) 100%);
+      background: linear-gradient(145deg, var(--accent) 0%, #059669 100%);
       color: #fff;
       white-space: nowrap;
       box-shadow: 0 2px 4px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.2), inset 0 -1px 0 rgba(0,0,0,0.3);
@@ -250,7 +232,7 @@
 
     button:hover:not(:disabled) {
       background: linear-gradient(145deg, var(--accent-soft) 0%, var(--accent) 100%);
-      box-shadow: 0 4px 8px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.3), inset 0 -1px 0 rgba(0,0,0,0.16);
+      box-shadow: 0 4px 8px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.3), inset 0 -1px 0 rgba(0,0,0,0.3);
     }
 
     button:active:not(:disabled) {
@@ -259,12 +241,12 @@
     }
 
     button.secondary {
-      background: linear-gradient(145deg, #e2e8f0 0%, #cbd5e1 100%);
-      color: var(--text);
+      background: linear-gradient(145deg, #475569 0%, #334155 100%);
+      color: #e2e8f0;
     }
 
     button.secondary:hover:not(:disabled) {
-      background: linear-gradient(145deg, #cbd5e1 0%, #94a3b8 100%);
+      background: linear-gradient(145deg, #64748b 0%, #475569 100%);
     }
 
     button.danger {
@@ -285,7 +267,7 @@
     button:disabled {
       opacity: .4;
       cursor: not-allowed;
-      background: linear-gradient(145deg, #e5e7eb 0%, #d1d5db 100%);
+      background: linear-gradient(145deg, #374151 0%, #1f2937 100%);
       color: #6b7280;
     }
     .pill {
@@ -295,7 +277,7 @@
       font-size: .65rem;
       border-radius: var(--radius);
       padding: 4px 10px;
-      background: linear-gradient(145deg, #eef2f7 0%, #e2e8f0 100%);
+      background: linear-gradient(145deg, #1f2937 0%, #111827 100%);
       color: var(--accent);
       border: 1px solid var(--border);
       box-shadow: inset 1px 1px 2px rgba(0,0,0,0.4);
@@ -308,21 +290,21 @@
       padding: 3px 8px;
     }
     .pill-tag {
-      background: linear-gradient(145deg, #eef2f7 0%, #e2e8f0 100%);
+      background: linear-gradient(145deg, #1f2937 0%, #111827 100%);
       border: 1px solid var(--border);
       border-radius: var(--radius);
       padding: 3px 8px;
       font-size: .6rem;
       color: var(--accent);
-      box-shadow: inset 1px 1px 2px rgba(255,255,255,0.6);
+      box-shadow: inset 1px 1px 2px rgba(0,0,0,0.4);
     }
     .rows {
       border-radius: var(--radius);
-      border: 1px solid var(--border);
+      border: 2px solid var(--border);
       max-height: 60vh;
       overflow: auto;
       background: var(--screen-bg);
-      box-shadow: inset 2px 2px 6px rgba(0,0,0,0.06);
+      box-shadow: inset 2px 2px 8px rgba(0,0,0,0.6);
     }
     .row {
       display: grid;
@@ -348,16 +330,16 @@
       padding: 6px 8px;
       border-radius: var(--radius);
       border: 1px solid var(--border);
-      background: linear-gradient(145deg, #f8fafc 0%, #e5e9ef 100%);
-      color: var(--text);
-      font-family: 'Inter', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
-      box-shadow: inset 1px 1px 3px rgba(0,0,0,0.08);
+      background: linear-gradient(145deg, #1a1f29 0%, #0f1419 100%);
+      color: var(--accent);
+      font-family: 'Courier New', 'Consolas', monospace;
+      box-shadow: inset 1px 1px 3px rgba(0,0,0,0.5);
     }
 
     .row input[type="text"]:focus {
       outline: none;
       border-color: var(--accent);
-      box-shadow: inset 1px 1px 3px rgba(0,0,0,0.08), 0 0 8px rgba(37, 99, 235, 0.25);
+      box-shadow: inset 1px 1px 3px rgba(0,0,0,0.5), 0 0 8px rgba(16, 185, 129, 0.4);
     }
 
     .row textarea {
@@ -366,12 +348,12 @@
       padding: 6px 8px;
       border-radius: var(--radius);
       border: 1px solid var(--border);
-      background: linear-gradient(145deg, #f8fafc 0%, #e5e9ef 100%);
-      color: var(--text);
-      font-family: 'Inter', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+      background: linear-gradient(145deg, #1a1f29 0%, #0f1419 100%);
+      color: var(--accent);
+      font-family: 'Courier New', 'Consolas', monospace;
       resize: vertical;
       min-height: 42px;
-      box-shadow: inset 1px 1px 3px rgba(0,0,0,0.08);
+      box-shadow: inset 1px 1px 3px rgba(0,0,0,0.5);
     }
 
     .row textarea:focus {
@@ -386,10 +368,9 @@
     }
     .checklist-rows {
       border-radius: 12px;
-      border: 1px solid var(--border);
+      border: 1px solid #e2e8f0;
       max-height: 60vh;
       overflow: auto;
-      background: #f8fafc;
     }
     .checklist-row {
       display: grid;
@@ -407,14 +388,12 @@
       color: var(--muted);
       min-width: 1.5rem;
     }
-    .checklist-row input[type="text"],
-    .checklist-row select {
+    .checklist-row input[type="text"] {
       width: 100%;
       font-size: .65rem;
-      padding: 6px 8px;
+      padding: 3px 4px;
       border-radius: 6px;
       border: 1px solid #cbd5e1;
-      background: #fff;
     }
     .status {
       font-size: .65rem;
@@ -440,7 +419,7 @@
     }
     .rule-rows {
       border-radius: 12px;
-      border: 1px solid var(--border);
+      border: 1px solid #e2e8f0;
       display: flex;
       flex-direction: column;
       max-height: 50vh;
@@ -459,7 +438,7 @@
     }
     .rule-row strong {
       font-size: .75rem;
-      color: var(--text);
+      color: #0f172a;
     }
     .rule-row textarea {
       width: 100%;
@@ -479,27 +458,6 @@
       margin: 0;
     }
   </style>
-
-  <script>
-    window.DepotBuildInfo = {
-      appVersion: '1.3.2',
-      cacheVersion: 'depot-v1.3.2'
-    };
-  </script>
-
-  <!-- PWA Manifest -->
-  <link rel="manifest" href="/manifest.json">
-
-  <!-- PWA Meta Tags -->
-  <meta name="theme-color" content="#2563eb">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="Depot Notes">
-
-  <!-- Icons -->
-  <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">
-  <link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png">
-  <link rel="apple-touch-icon" href="/icon-192.png">
 </head>
 <body>
   <header>
@@ -510,7 +468,6 @@
       <button id="loginBtn" class="secondary" style="font-size: 0.7rem; padding: 4px 10px;">Sign In</button>
       <button id="logoutBtn" class="secondary" style="font-size: 0.7rem; padding: 4px 10px; display: none;">Sign Out</button>
     </div>
-    <button id="openSetupWizardBtn" style="background: linear-gradient(145deg, #10b981 0%, #059669 100%);">🧙‍♂️ Setup Wizard</button>
     <button id="forceReloadBtn" class="danger">Force reload / reset app data</button>
     <a href="index.html" class="back-link">← Back to app</a>
   </header>
@@ -536,100 +493,6 @@
       <p class="status" id="syncStatus"></p>
     </section>
 
-    <!-- Build / Variation info -->
-    <section class="card" style="grid-column: 1 / -1;">
-      <div class="card-header">
-        <h2>Build & Variation Numbers</h2>
-        <span>Identify the exact version currently loaded</span>
-      </div>
-
-      <div class="rows">
-        <div class="row">
-          <span class="order">#1</span>
-          <div>
-            <strong>App variation</strong>
-            <div class="hint">Tracks the main build/version number for this release.</div>
-          </div>
-          <div>
-            <span class="pill" id="appVariationValue">Loading…</span>
-          </div>
-          <div class="row-controls"></div>
-        </div>
-
-        <div class="row">
-          <span class="order">#2</span>
-          <div>
-            <strong>Cache variation</strong>
-            <div class="hint">Matches the service worker cache key to confirm updates shipped.</div>
-          </div>
-          <div>
-            <span class="pill" id="cacheVariationValue">Loading…</span>
-          </div>
-          <div class="row-controls"></div>
-        </div>
-
-        <div class="row">
-          <span class="order">#3</span>
-          <div>
-            <strong>Worker endpoint in use</strong>
-            <div class="hint">Confirms which backend is receiving cloud saves and updates.</div>
-          </div>
-          <div>
-            <span class="pill" id="workerEndpointValue">Loading…</span>
-          </div>
-          <div class="row-controls"></div>
-        </div>
-      </div>
-    </section>
-
-    <!-- API Status Check Section -->
-    <section class="card" style="grid-column: 1 / -1;">
-      <div class="card-header">
-        <h2>API Status Check</h2>
-        <span>Test connection to the worker API</span>
-      </div>
-
-      <div class="toolbar">
-        <button id="checkApiStatusBtn" class="secondary">🔍 Check API Status</button>
-      </div>
-
-      <p class="hint">
-        <strong>Check API Status:</strong> Test if the worker API is reachable and responding correctly. This helps diagnose connection issues when sending transcripts.
-      </p>
-
-      <div id="apiStatusResult" style="margin-top: 12px; padding: 12px; background: var(--screen-bg); border-radius: var(--radius); font-size: 0.75rem; color: var(--muted); display: none;">
-        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
-          <div id="apiStatusIndicator" style="width: 12px; height: 12px; border-radius: 50%; background: var(--muted);"></div>
-          <strong id="apiStatusText">Checking...</strong>
-        </div>
-        <div id="apiStatusDetails" style="font-family: 'Courier New', 'Consolas', monospace; font-size: 0.7rem; line-height: 1.6; margin-top: 8px;"></div>
-      </div>
-    </section>
-
-    <!-- PWA & Updates Section -->
-    <section class="card" style="grid-column: 1 / -1;">
-      <div class="card-header">
-        <h2>App Updates & Installation</h2>
-        <span>Manage PWA features and updates</span>
-      </div>
-
-      <div class="toolbar">
-        <button id="checkUpdatesBtn" class="secondary">🔄 Check for Updates</button>
-        <button id="installAppBtn" class="secondary" style="display: none;">📱 Install App</button>
-        <button id="clearCacheBtn" class="secondary">🧹 Clear Cache</button>
-      </div>
-
-      <p class="hint">
-        <strong>Check for Updates:</strong> Manually check if a new version of the app is available.<br>
-        <strong>Install App:</strong> Install Depot Voice Notes as a standalone app on your device (available when supported).<br>
-        <strong>Clear Cache:</strong> Clear cached files to free up space or resolve issues.
-      </p>
-
-      <div id="pwaStatus" style="margin-top: 12px; padding: 10px; background: var(--screen-bg); border-radius: var(--radius); font-size: 0.75rem; color: var(--muted);">
-        Service Worker: <span id="swStatus">Checking...</span>
-      </div>
-    </section>
-
     <!-- Export Format Preferences -->
     <section class="card" style="grid-column: 1 / -1;">
       <div class="card-header">
@@ -650,58 +513,6 @@
         This setting controls the format used when exporting notes, sessions, and automatic/AI notes.
         JSON exports include all data in a structured format, while CSV exports are optimized for spreadsheet applications.
       </p>
-    </section>
-
-    <!-- Voice Notes 2.0 Settings -->
-    <section class="card" style="grid-column: 1 / -1;">
-      <div class="card-header">
-        <h2>Voice Notes 2.0 Features</h2>
-        <span>Configure new Voice Notes 2.0 features</span>
-      </div>
-
-      <div style="display: flex; flex-direction: column; gap: 16px;">
-        <div style="padding: 12px; background: var(--screen-bg); border-radius: var(--radius); border: 1px solid var(--border);">
-          <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
-            <input type="checkbox" id="skipClarificationModal" style="cursor: pointer; width: 18px; height: 18px;">
-            <div>
-              <span style="font-size: 0.75rem; font-weight: 600; display: block;">Skip Clarification Modal</span>
-              <span class="hint" style="display: block; margin-top: 4px;">When enabled, the pre-processing clarification modal will be skipped and notes will generate immediately.</span>
-            </div>
-          </label>
-        </div>
-
-        <div style="padding: 12px; background: var(--screen-bg); border-radius: var(--radius); border: 1px solid var(--border);">
-          <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
-            <input type="checkbox" id="enableMultipleQuotesDetection" checked style="cursor: pointer; width: 18px; height: 18px;">
-            <div>
-              <span style="font-size: 0.75rem; font-weight: 600; display: block;">Auto-detect Multiple Quotes</span>
-              <span class="hint" style="display: block; margin-top: 4px;">Automatically detect when the transcript discusses multiple quote options and generate separate quote variants.</span>
-            </div>
-          </label>
-        </div>
-      </div>
-
-      <p class="hint" style="margin-top: 12px;">
-        <strong>New in Voice Notes 2.0:</strong> Pre-processing clarification modal helps prevent AI assumptions by letting you review and add context before generating notes. Multiple quotes detection automatically generates separate quote variants when you discuss options like "Option 1" or "Quote A/B".
-      </p>
-    </section>
-
-    <!-- Colour Theme Preferences -->
-    <section class="card" style="grid-column: 1 / -1;">
-      <div class="card-header">
-        <h2>Colour theme</h2>
-        <span>Pick an accent colour for the app</span>
-      </div>
-
-      <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
-        <label for="colorThemeSelect" style="font-size: 0.75rem; font-weight: 600; color: var(--muted);">Accent colour</label>
-        <select id="colorThemeSelect" style="padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--card); color: #e2e8f0; box-shadow: var(--button-inset);">
-          <option value="blue">Blue (default)</option>
-          <option value="green">Green</option>
-        </select>
-      </div>
-
-      <p class="hint">Changing the accent colour updates buttons, highlights, and other green elements throughout the app.</p>
     </section>
 
     <!-- AI Instructions Configuration -->
@@ -755,13 +566,13 @@
 
       <div class="toolbar">
         <button id="sections-add-btn">+ Add section</button>
-        <button id="sections-save-btn" class="secondary">Save to your profile</button>
+        <button id="sections-save-btn" class="secondary">Save to browser</button>
         <button id="sections-export-btn" class="secondary">Export JSON</button>
         <button id="sections-import-btn" class="secondary">Import JSON</button>
       </div>
       <p class="hint">
         These control the section headings in the main app. The worker fills them with text, but the
-        <strong>names & order are defined here</strong>. “Future plans” are now fully configurable. All sections are equal.
+        <strong>names & order are defined here</strong>. “Future plans” will always be kept last by the app.
       </p>
 
       <div class="rows" id="sections-rows"></div>
@@ -778,7 +589,7 @@
       </div>
 
       <div class="toolbar">
-        <button id="section-rules-save-btn" class="secondary">Save rules to your profile</button>
+        <button id="section-rules-save-btn" class="secondary">Save rules to browser</button>
         <button id="section-rules-reset-btn" class="secondary">Reset rules to defaults</button>
       </div>
 
@@ -821,14 +632,14 @@
 
       <div class="toolbar">
         <button id="checklist-add-btn">+ Add item</button>
-        <button id="checklist-save-btn" class="secondary">Save to your profile</button>
+        <button id="checklist-save-btn" class="secondary">Save to browser</button>
         <button id="checklist-export-btn" class="secondary">Export JSON</button>
         <button id="checklist-import-btn" class="secondary">Import JSON</button>
       </div>
         <p class="hint">
-          Click <strong>+ Add item</strong>, set a stable <strong>ID</strong>, then choose a <strong>section</strong> from the dropdown to
-          avoid typos. Add a <strong>group</strong>, <strong>label</strong>, and optional <strong>hint</strong>. Click <strong>⋯</strong> to expand and edit
-          <strong>AI templates</strong> (plainText &amp; naturalLanguage). The worker uses these templates to generate section content.
+          Each item has a stable <strong>ID</strong>, a <strong>group</strong> label, an optional
+          <strong>section link</strong>, plus a visible label and hint. Click <strong>⋯</strong> to expand and edit
+          <strong>AI templates</strong> (plainText & naturalLanguage). The worker uses these templates to generate section content.
         </p>
 
       <div class="checklist-rows" id="checklist-rows"></div>
@@ -953,68 +764,16 @@ Output concise, engineer-ready bullets in each section: no waffle, no contradict
       "depot.notesSchema.v1",
       "depot-checklist-state"
     ];
-    // No longer using FUTURE_PLANS - all sections are treated equally
+    const FUTURE_PLANS_NAME = "Future plans";
 
     // --- Helpers ---
-    function getActiveUserId() {
+    function readJSONSafe(key) {
       try {
-        const raw = localStorage.getItem('depot.userInfo');
+        const raw = localStorage.getItem(key);
         if (!raw) return null;
-        const parsed = JSON.parse(raw);
-        return parsed?.id || parsed?._id || parsed?.userId || parsed?.email || parsed?.username || null;
+        return JSON.parse(raw);
       } catch (_) {
         return null;
-      }
-    }
-
-    function getUserScopedKey(baseKey) {
-      const userId = getActiveUserId();
-      return userId ? `${baseKey}::user:${userId}` : null;
-    }
-
-    function readJSONSafe(key) {
-      const scopedKey = getUserScopedKey(key);
-      const keysToTry = scopedKey ? [scopedKey, key] : [key];
-      for (const candidate of keysToTry) {
-        try {
-          const raw = localStorage.getItem(candidate);
-          if (!raw) continue;
-          return JSON.parse(raw);
-        } catch (_) {
-          // ignore and try fallback
-        }
-      }
-      return null;
-    }
-
-    function writeJSONSafe(key, value) {
-      const payload = JSON.stringify(value);
-      const scopedKey = getUserScopedKey(key);
-      try { localStorage.setItem(key, payload); } catch (_) { /* ignore */ }
-      if (scopedKey) {
-        try { localStorage.setItem(scopedKey, payload); } catch (_) { /* ignore */ }
-      }
-    }
-
-    function readStringSafe(key) {
-      const scopedKey = getUserScopedKey(key);
-      const keysToTry = scopedKey ? [scopedKey, key] : [key];
-      for (const candidate of keysToTry) {
-        try {
-          const raw = localStorage.getItem(candidate);
-          if (raw != null) return raw;
-        } catch (_) {
-          // ignore and try fallback
-        }
-      }
-      return null;
-    }
-
-    function writeStringSafe(key, value) {
-      const scopedKey = getUserScopedKey(key);
-      try { localStorage.setItem(key, value); } catch (_) { /* ignore */ }
-      if (scopedKey) {
-        try { localStorage.setItem(scopedKey, value); } catch (_) { /* ignore */ }
       }
     }
 
@@ -1028,17 +787,6 @@ Output concise, engineer-ready bullets in each section: no waffle, no contradict
         ...WORKER_URL_STORAGE_KEYS,
         ...ADDITIONAL_STORAGE_KEYS
       ]);
-
-      const userScopedKeys = [
-        SECTION_STORAGE_KEY,
-        LEGACY_SECTION_STORAGE_KEY,
-        CHECKLIST_STORAGE_KEY,
-        SECTION_RULES_STORAGE_KEY,
-        AI_INSTRUCTIONS_STORAGE_KEY,
-        LS_AUTOSAVE_KEY,
-        ...WORKER_URL_STORAGE_KEYS
-      ].map(getUserScopedKey).filter(Boolean);
-      userScopedKeys.forEach((key) => keys.add(key));
 
       try {
         for (let i = 0; i < localStorage.length; i += 1) {
@@ -1116,8 +864,23 @@ Output concise, engineer-ready bullets in each section: no waffle, no contradict
         });
       });
 
-      // Return unique sections in order
-      const final = unique.map((entry, idx) => ({
+      // Keep Future plans last, ensure it exists
+      let withoutFuture = unique.filter((entry) => entry.name !== FUTURE_PLANS_NAME);
+      let future = unique.find((entry) => entry.name === FUTURE_PLANS_NAME);
+      if (!future) {
+        future = {
+          name: FUTURE_PLANS_NAME,
+          description: "Notes about any future work or follow-on visits.",
+          order: withoutFuture.length + 1
+        };
+      } else if (!future.description) {
+        future = {
+          ...future,
+          description: "Notes about any future work or follow-on visits."
+        };
+      }
+
+      const final = [...withoutFuture, future].map((entry, idx) => ({
         name: entry.name,
         description: entry.description || "",
         order: idx + 1
@@ -1193,7 +956,7 @@ Output concise, engineer-ready bullets in each section: no waffle, no contradict
         "Pipe work": "Upgrades, reroutes, sizes, isolation points, gas run details, and any dead legs being removed.",
         "Disruption": "Lifting floors, making good, decoration, access panels, and anything that will disturb finishes.",
         "Customer actions": "Tasks the customer must do before/after install: clearances, power, access, permissions, or paperwork.",
-        "Arse_cover_notes": "Disclaimers, deviations from standard procedure, or acknowledged risks (e.g., customer declined power flush, asbestos noted but not tested)."
+        "Future plans": "Follow-on work, phased upgrades, or extra visits to complete outstanding items."
       };
     }
 
@@ -1277,7 +1040,6 @@ Output concise, engineer-ready bullets in each section: no waffle, no contradict
       });
 
       renderSectionRules();
-      renderChecklistEditor();
     }
 
     function renderSectionRules() {
@@ -1343,7 +1105,7 @@ Output concise, engineer-ready bullets in each section: no waffle, no contradict
       );
 
       sections = candidate;
-      sectionsStatusEl.innerHTML = `Loaded <strong>${sections.length}</strong> sections (${overrideNew || overrideLegacy ? "from your profile" : "from bundled schema file"}).`;
+      sectionsStatusEl.innerHTML = `Loaded <strong>${sections.length}</strong> sections (${overrideNew || overrideLegacy ? "from browser storage" : "from bundled schema file"}).`;
       renderSections();
     }
 
@@ -1351,9 +1113,8 @@ Output concise, engineer-ready bullets in each section: no waffle, no contradict
       const cleaned = sanitiseSectionSchema(sections);
       // Store as { sections: [...] } for clarity
       const payload = { sections: cleaned };
-      writeJSONSafe(SECTION_STORAGE_KEY, payload);
-      sectionsStatusEl.innerHTML = `Saved <strong>${cleaned.length}</strong> sections to your profile. Main app will pick these up on next load.`;
-      renderChecklistEditor();
+      localStorage.setItem(SECTION_STORAGE_KEY, JSON.stringify(payload));
+      sectionsStatusEl.innerHTML = `Saved <strong>${cleaned.length}</strong> sections to browser. Main app will pick these up on next load.`;
     }
 
     function exportSectionsJSON() {
@@ -1380,9 +1141,9 @@ Output concise, engineer-ready bullets in each section: no waffle, no contradict
           const data = JSON.parse(e.target.result);
           const cleaned = sanitiseSectionSchema(data);
           sections = cleaned;
-          writeJSONSafe(SECTION_STORAGE_KEY, { sections: cleaned });
+          localStorage.setItem(SECTION_STORAGE_KEY, JSON.stringify({ sections: cleaned }));
           renderSections();
-          sectionsStatusEl.innerHTML = `Imported <strong>${cleaned.length}</strong> sections and saved to your profile.`;
+          sectionsStatusEl.innerHTML = `Imported <strong>${cleaned.length}</strong> sections and saved to browser.`;
         } catch (err) {
           console.error(err);
           sectionsStatusEl.classList.add("error");
@@ -1397,9 +1158,16 @@ Output concise, engineer-ready bullets in each section: no waffle, no contradict
       const defaults = getDefaultSectionRules();
       sectionRules = { ...defaults };
 
-      const stored = readJSONSafe(SECTION_RULES_STORAGE_KEY);
-      if (stored && typeof stored === "object" && !Array.isArray(stored)) {
-        sectionRules = { ...defaults, ...stored };
+      try {
+        const raw = localStorage.getItem(SECTION_RULES_STORAGE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+            sectionRules = { ...defaults, ...parsed };
+          }
+        }
+      } catch (err) {
+        console.warn("Failed to load section rules", err);
       }
 
       renderSectionRules();
@@ -1408,8 +1176,8 @@ Output concise, engineer-ready bullets in each section: no waffle, no contradict
 
     function saveSectionRules() {
       try {
-        writeJSONSafe(SECTION_RULES_STORAGE_KEY, sectionRules);
-        sectionRulesStatusEl.textContent = "Section rules saved to your profile.";
+        localStorage.setItem(SECTION_RULES_STORAGE_KEY, JSON.stringify(sectionRules));
+        sectionRulesStatusEl.textContent = "Section rules saved to browser.";
       } catch (err) {
         alert("Unable to save section rules: " + (err?.message || err));
       }
@@ -1461,29 +1229,11 @@ Output concise, engineer-ready bullets in each section: no waffle, no contradict
           checklist[idx].group = groupInput.value.trim();
         };
 
-        const sectionInput = document.createElement("select");
-        const placeholderOption = document.createElement("option");
-        placeholderOption.value = "";
-        placeholderOption.textContent = "Choose section (optional)";
-        sectionInput.appendChild(placeholderOption);
-
-        const availableSections = (sections || []).map((sec) => sec.name).filter(Boolean);
-        availableSections.forEach((name) => {
-          const opt = document.createElement("option");
-          opt.value = name;
-          opt.textContent = name;
-          sectionInput.appendChild(opt);
-        });
-
-        if (item.section && !availableSections.includes(item.section)) {
-          const customOpt = document.createElement("option");
-          customOpt.value = item.section;
-          customOpt.textContent = `${item.section} (custom)`;
-          sectionInput.appendChild(customOpt);
-        }
-
+        const sectionInput = document.createElement("input");
+        sectionInput.type = "text";
         sectionInput.value = item.section || "";
-        sectionInput.onchange = () => {
+        sectionInput.placeholder = "Section link (optional)";
+        sectionInput.oninput = () => {
           checklist[idx].section = sectionInput.value.trim();
         };
 
@@ -1645,7 +1395,7 @@ Output concise, engineer-ready bullets in each section: no waffle, no contradict
       const candidate = override.length ? override : defaults;
       checklist = candidate;
 
-      const source = override.length ? "your profile" : "checklist.config.json";
+      const source = override.length ? "browser storage" : "checklist.config.json";
       checklistStatusEl.innerHTML = `Loaded <strong>${checklist.length}</strong> items (${source}).`;
       renderChecklistEditor();
     }
@@ -1653,8 +1403,8 @@ Output concise, engineer-ready bullets in each section: no waffle, no contradict
     function saveChecklistToLocal() {
       const cleaned = sanitiseChecklistConfig(checklist);
       const payload = { items: cleaned };
-      writeJSONSafe(CHECKLIST_STORAGE_KEY, payload);
-      checklistStatusEl.innerHTML = `Saved <strong>${cleaned.length}</strong> checklist items to your profile.`;
+      localStorage.setItem(CHECKLIST_STORAGE_KEY, JSON.stringify(payload));
+      checklistStatusEl.innerHTML = `Saved <strong>${cleaned.length}</strong> checklist items to browser.`;
     }
 
     function exportChecklistJSON() {
@@ -1681,9 +1431,9 @@ Output concise, engineer-ready bullets in each section: no waffle, no contradict
           const data = JSON.parse(e.target.result);
           const cleaned = sanitiseChecklistConfig(data);
           checklist = cleaned;
-          writeJSONSafe(CHECKLIST_STORAGE_KEY, { items: cleaned });
+          localStorage.setItem(CHECKLIST_STORAGE_KEY, JSON.stringify({ items: cleaned }));
           renderChecklistEditor();
-          checklistStatusEl.innerHTML = `Imported <strong>${cleaned.length}</strong> checklist items and saved to your profile.`;
+          checklistStatusEl.innerHTML = `Imported <strong>${cleaned.length}</strong> checklist items and saved to browser.`;
         } catch (err) {
           console.error(err);
           checklistStatusEl.classList.add("error");
@@ -1761,14 +1511,13 @@ Output concise, engineer-ready bullets in each section: no waffle, no contradict
 
     // --- Export Format Preferences ---
     function loadExportFormat() {
-      const stored = readStringSafe('exportFormat');
-      const format = stored || 'json';
+      const format = localStorage.getItem('exportFormat') || 'json';
       const radioBtn = document.getElementById(format === 'csv' ? 'formatCSV' : 'formatJSON');
       if (radioBtn) radioBtn.checked = true;
     }
 
     function saveExportFormat(format) {
-      writeStringSafe('exportFormat', format);
+      localStorage.setItem('exportFormat', format);
     }
 
     document.querySelectorAll('input[name="exportFormat"]').forEach(radio => {
@@ -1843,22 +1592,26 @@ Do not include any explanation outside the JSON.`
 
     function loadAIInstructions() {
       const defaults = getDefaultAIInstructions();
-      const stored = readJSONSafe(AI_INSTRUCTIONS_STORAGE_KEY);
-      if (stored) {
-        return {
-          agentChat: stored.agentChat || defaults.agentChat,
-          tweakSection: stored.tweakSection || defaults.tweakSection,
-          depotNotes: stored.depotNotes || defaults.depotNotes
-        };
+      try {
+        const raw = localStorage.getItem(AI_INSTRUCTIONS_STORAGE_KEY);
+        if (raw) {
+          const stored = JSON.parse(raw);
+          return {
+            agentChat: stored.agentChat || defaults.agentChat,
+            tweakSection: stored.tweakSection || defaults.tweakSection,
+            depotNotes: stored.depotNotes || defaults.depotNotes
+          };
+        }
+      } catch (err) {
+        console.warn("Failed to read AI instructions override", err);
       }
-
       return defaults;
     }
 
     function saveAIInstructions(instructions) {
       try {
-        writeJSONSafe(AI_INSTRUCTIONS_STORAGE_KEY, instructions);
-        document.getElementById('ai-status').textContent = "AI instructions saved to your profile";
+        localStorage.setItem(AI_INSTRUCTIONS_STORAGE_KEY, JSON.stringify(instructions));
+        document.getElementById('ai-status').textContent = "AI instructions saved successfully";
         setTimeout(() => {
           document.getElementById('ai-status').textContent = "";
         }, 3000);
@@ -1903,10 +1656,6 @@ Do not include any explanation outside the JSON.`
       if (!confirm('Reset AI instructions to defaults? This cannot be undone.')) return;
 
       localStorage.removeItem(AI_INSTRUCTIONS_STORAGE_KEY);
-      const scopedAIKey = getUserScopedKey(AI_INSTRUCTIONS_STORAGE_KEY);
-      if (scopedAIKey) {
-        localStorage.removeItem(scopedAIKey);
-      }
       renderAIInstructions();
       document.getElementById('ai-status').textContent = "AI instructions reset to defaults";
       setTimeout(() => {
@@ -2046,282 +1795,6 @@ Do not include any explanation outside the JSON.`
       }
     });
 
-    // --- API Status Check ---
-    // Helper function to safely escape HTML
-    function escapeHtml(text) {
-      const div = document.createElement('div');
-      div.textContent = text;
-      return div.innerHTML;
-    }
-    
-    // Helper function to get worker URL (avoid duplication)
-    function getWorkerUrl() {
-      return (window.DepotWorkerConfig?.getWorkerUrl?.())
-        || localStorage.getItem('depot.workerUrl')
-        || localStorage.getItem('depot-worker-url')
-        || 'https://depot-voice-notes.martinbibb.workers.dev';
-    }
-    
-    async function checkAPIStatus() {
-      const btn = document.getElementById('checkApiStatusBtn');
-      const resultDiv = document.getElementById('apiStatusResult');
-      const indicator = document.getElementById('apiStatusIndicator');
-      const statusText = document.getElementById('apiStatusText');
-      const statusDetails = document.getElementById('apiStatusDetails');
-
-      // Show result area
-      resultDiv.style.display = 'block';
-      
-      // Reset to checking state
-      indicator.style.background = 'var(--warning)';
-      statusText.textContent = 'Checking...';
-      statusDetails.textContent = '';
-      btn.disabled = true;
-      btn.textContent = 'Checking...';
-
-      try {
-        // Get worker URL
-        const workerUrl = getWorkerUrl();
-
-        // Measure response time
-        const startTime = performance.now();
-        
-        // Check basic health endpoint
-        const healthResponse = await fetch(`${workerUrl}/health`, {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json'
-          }
-        });
-        
-        const endTime = performance.now();
-        const latency = Math.round(endTime - startTime);
-
-        if (!healthResponse.ok) {
-          throw new Error(`HTTP ${healthResponse.status}: ${healthResponse.statusText}`);
-        }
-
-        const healthData = await healthResponse.json();
-
-        // Success
-        indicator.style.background = 'var(--accent)';
-        indicator.style.boxShadow = '0 0 10px var(--accent)';
-        statusText.textContent = '✅ API is Online';
-        statusText.style.color = 'var(--accent)';
-        
-        // Safely build the details message with escaped content
-        const endpoint = escapeHtml(workerUrl.replace(/^https?:\/\//, ''));
-        const status = escapeHtml(healthData.status || 'OK');
-        const timestamp = escapeHtml(healthData.timestamp || new Date().toISOString());
-        const qualityBadge = latency < 200 ? '🟢 Excellent (< 200ms)' : latency < 500 ? '🟡 Good (< 500ms)' : '🔴 Slow (> 500ms)';
-        
-        statusDetails.innerHTML = `
-<strong>Connection Details:</strong>
-• Endpoint: ${endpoint}
-• Status: ${status}
-• Response Time: ${latency}ms
-• Timestamp: ${timestamp}
-
-<strong>Connection Quality:</strong>
-${qualityBadge}
-
-The API is reachable and responding correctly. You should be able to send transcripts without issues.
-        `.trim();
-
-      } catch (err) {
-        // Error
-        indicator.style.background = 'var(--danger)';
-        indicator.style.boxShadow = '0 0 10px var(--danger)';
-        statusText.textContent = '❌ API Connection Failed';
-        statusText.style.color = 'var(--danger)';
-        
-        let errorMessage = escapeHtml(err.message || 'Unknown error');
-        let troubleshootingTips = '';
-
-        // Provide specific troubleshooting tips based on error type
-        if (err.message && (err.message.includes('Failed to fetch') || err.message.includes('NetworkError'))) {
-          troubleshootingTips = `
-<strong>Troubleshooting Tips:</strong>
-• Check your internet connection
-• Verify the worker URL is correct in settings
-• Check if the worker is deployed and running
-• Try disabling any VPN or proxy temporarily
-          `;
-        } else if (err.message && (err.message.includes('401') || err.message.includes('403'))) {
-          troubleshootingTips = `
-<strong>Troubleshooting Tips:</strong>
-• Check if authentication is required
-• Verify your API credentials
-• Try signing in again
-          `;
-        } else if (err.message && (err.message.includes('500') || err.message.includes('502') || err.message.includes('503'))) {
-          troubleshootingTips = `
-<strong>Troubleshooting Tips:</strong>
-• The server is experiencing issues
-• Wait a few minutes and try again
-• Check the worker deployment status
-          `;
-        } else {
-          troubleshootingTips = `
-<strong>Troubleshooting Tips:</strong>
-• Verify the worker URL is correct
-• Check browser console for detailed errors
-• Try reloading the page
-          `;
-        }
-
-        const currentWorkerUrl = escapeHtml(getWorkerUrl());
-        statusDetails.innerHTML = `
-<strong>Error Details:</strong>
-${errorMessage}
-
-${troubleshootingTips.trim()}
-
-<strong>Current Worker URL:</strong>
-${currentWorkerUrl}
-        `.trim();
-      } finally {
-        btn.disabled = false;
-        btn.textContent = '🔍 Check API Status';
-      }
-    }
-
-    // Setup API status check button
-    document.getElementById('checkApiStatusBtn')?.addEventListener('click', checkAPIStatus);
-
-    // --- PWA Features ---
-    function setupPWAFeatures() {
-      const checkUpdatesBtn = document.getElementById('checkUpdatesBtn');
-      const installAppBtn = document.getElementById('installAppBtn');
-      const clearCacheBtn = document.getElementById('clearCacheBtn');
-      const swStatus = document.getElementById('swStatus');
-
-      // Check service worker status
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.getRegistration().then(registration => {
-          if (registration) {
-            swStatus.textContent = '✅ Active';
-            swStatus.style.color = 'var(--success)';
-          } else {
-            swStatus.textContent = '❌ Not registered';
-            swStatus.style.color = 'var(--danger)';
-          }
-        });
-      } else {
-        swStatus.textContent = '❌ Not supported';
-        swStatus.style.color = 'var(--danger)';
-      }
-
-      // Check for updates button
-      if (checkUpdatesBtn) {
-        checkUpdatesBtn.addEventListener('click', () => {
-          if ('serviceWorker' in navigator && navigator.serviceWorker.ready) {
-            navigator.serviceWorker.ready.then(registration => {
-              if (registration && registration.update) {
-                console.log('[PWA] Manual update check triggered');
-                registration.update();
-                alert('✅ Checking for updates...\n\nIf a new version is found, the app will reload automatically.');
-              }
-            });
-          } else {
-            alert('❌ Service worker not available.\n\nPlease reload the page to register the service worker.');
-          }
-        });
-      }
-
-      // Install app button
-      if (installAppBtn) {
-        // Show button if install prompt is available
-        window.addEventListener('beforeinstallprompt', (e) => {
-          e.preventDefault();
-          installAppBtn.style.display = 'inline-block';
-
-          installAppBtn.addEventListener('click', async () => {
-            if (typeof window.triggerInstallPrompt === 'function') {
-              window.triggerInstallPrompt();
-            } else {
-              e.prompt();
-              const { outcome } = await e.userChoice;
-              if (outcome === 'accepted') {
-                installAppBtn.style.display = 'none';
-              }
-            }
-          });
-        });
-
-        // Check if already installed
-        if (window.matchMedia('(display-mode: standalone)').matches) {
-          installAppBtn.textContent = '✅ App Installed';
-          installAppBtn.disabled = true;
-        }
-      }
-
-      // Clear cache button
-      if (clearCacheBtn) {
-        clearCacheBtn.addEventListener('click', () => {
-          if (typeof window.clearAppCache === 'function') {
-            window.clearAppCache();
-          } else if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-            if (confirm('🧹 Clear all cached data?\n\nThis will free up space but may slow down the app temporarily.')) {
-              navigator.serviceWorker.controller.postMessage({ type: 'CLEAR_CACHE' });
-              alert('✅ Cache cleared! The app will reload...');
-              setTimeout(() => window.location.reload(), 1000);
-            }
-          } else {
-            alert('❌ Service worker not available.\n\nPlease reload the page to register the service worker.');
-          }
-        });
-      }
-    }
-
-    // --- Voice Notes 2.0 Settings ---
-    function loadVoiceNotes2Settings() {
-      const skipClarification = localStorage.getItem('depot.skipClarificationModal') === 'true';
-      const enableMultipleQuotes = localStorage.getItem('depot.enableMultipleQuotesDetection') !== 'false'; // Default to true
-
-      const skipCheckbox = document.getElementById('skipClarificationModal');
-      const multipleQuotesCheckbox = document.getElementById('enableMultipleQuotesDetection');
-
-      if (skipCheckbox) {
-        skipCheckbox.checked = skipClarification;
-        skipCheckbox.addEventListener('change', (e) => {
-          localStorage.setItem('depot.skipClarificationModal', e.target.checked ? 'true' : 'false');
-        });
-      }
-
-      if (multipleQuotesCheckbox) {
-        multipleQuotesCheckbox.checked = enableMultipleQuotes;
-        multipleQuotesCheckbox.addEventListener('change', (e) => {
-          localStorage.setItem('depot.enableMultipleQuotesDetection', e.target.checked ? 'true' : 'false');
-        });
-      }
-    }
-
-    function renderBuildMeta() {
-      const appVariationValue = document.getElementById('appVariationValue');
-      const cacheVariationValue = document.getElementById('cacheVariationValue');
-      const workerEndpointValue = document.getElementById('workerEndpointValue');
-
-      const buildInfo = window.DepotBuildInfo || {};
-      const appVersion = buildInfo.appVersion || '1.3.2';
-      const cacheVersion = buildInfo.cacheVersion || 'depot-v1.3.2';
-      const workerUrl = (window.DepotWorkerConfig?.getWorkerUrl?.())
-        || localStorage.getItem('depot.workerUrl')
-        || localStorage.getItem('depot-worker-url')
-        || 'https://depot-voice-notes.martinbibb.workers.dev';
-
-      if (appVariationValue) {
-        appVariationValue.textContent = appVersion;
-      }
-      if (cacheVariationValue) {
-        cacheVariationValue.textContent = cacheVersion;
-      }
-      if (workerEndpointValue) {
-        workerEndpointValue.textContent = workerUrl.replace(/^https?:\/\//, '');
-        workerEndpointValue.title = workerUrl;
-      }
-    }
-
     // --- Boot ---
     (async function boot() {
       await loadSections();
@@ -2329,8 +1802,6 @@ ${currentWorkerUrl}
       await loadChecklist();
       loadExportFormat();
       renderAIInstructions();
-      loadVoiceNotes2Settings();
-      renderBuildMeta();
 
       // Load auth module dynamically
       try {
@@ -2339,48 +1810,7 @@ ${currentWorkerUrl}
       } catch (err) {
         console.warn('Failed to load auth module:', err);
       }
-
-      // PWA features setup
-      setupPWAFeatures();
-
-      // Load setup wizard module
-      try {
-        const wizardModule = await import('./js/setupWizard.js');
-
-        // Setup wizard button click handler
-        document.getElementById('openSetupWizardBtn')?.addEventListener('click', () => {
-          wizardModule.showSetupWizard();
-        });
-      } catch (err) {
-        console.warn('Failed to load setup wizard module:', err);
-      }
     })();
-  </script>
-
-  <!-- Service Worker Registration (shared with main app) -->
-  <script>
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js')
-          .then(registration => {
-            console.log('✅ Service Worker registered:', registration.scope);
-          })
-          .catch(error => {
-            console.error('❌ Service Worker registration failed:', error);
-          });
-      });
-
-      // Reload the page once when a new service worker takes control
-      let hasReloadedForSWUpdate = false;
-      navigator.serviceWorker.addEventListener('controllerchange', () => {
-        // Avoid potential infinite reload loops
-        if (hasReloadedForSWUpdate) return;
-        hasReloadedForSWUpdate = true;
-
-        console.log('[PWA] New version activated – reloading to apply updates');
-        window.location.reload();
-      });
-    }
   </script>
 </body>
 </html>

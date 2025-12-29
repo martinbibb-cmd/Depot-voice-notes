@@ -9,6 +9,7 @@ ALLOWED_ORIGIN = "https://YOUR-DOMAIN.example"
 # Set your secrets via:
 #   wrangler secret put OPENAI_API_KEY
 #   wrangler secret put ANTHROPIC_API_KEY
+#   wrangler secret put GEMINI_API_KEY
 
 # D1 Database for agent reference materials
 [[d1_databases]]

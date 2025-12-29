@@ -8,8 +8,8 @@ Voice-notes capture tool for depot/site surveys. Free mode keeps everything in t
 - Free local dictation using the browser Web Speech API
 - Pro unlock via signed Ed25519 license tokens (local + Worker verification)
 - 20 second Pro recording limit with MediaRecorder capture
-- Cloudflare Worker proxy to OpenAI or Anthropic for AI processing
-- Automatic fallback to Anthropic Claude if OpenAI fails
+- Cloudflare Worker proxy to OpenAI, Gemini, or Anthropic for AI processing
+- Automatic fallback to Gemini and Anthropic Claude if OpenAI fails
 - Integrated bug reporting system with email notifications via Mailchannels
 
 ## Quick start
@@ -30,15 +30,17 @@ Voice-notes capture tool for depot/site surveys. Free mode keeps everything in t
 3. **Configure and deploy the Worker**
    ```bash
    wrangler secret put OPENAI_API_KEY
-   wrangler secret put ANTHROPIC_API_KEY  # Optional: for fallback support
+   wrangler secret put GEMINI_API_KEY      # Optional: for Gemini support
+   wrangler secret put ANTHROPIC_API_KEY  # Optional: for Anthropic support
    wrangler deploy
    ```
    Update `ALLOWED_ORIGIN` (and optional additional origins) plus `PUBLIC_KEY_JWK_X` in `wrangler.toml`.
 
-   **Note:** You can configure either or both API keys:
+   **Note:** You can configure one or more API keys:
    - `OPENAI_API_KEY` only: Uses OpenAI exclusively
+   - `GEMINI_API_KEY` only: Uses Google Gemini exclusively
    - `ANTHROPIC_API_KEY` only: Uses Anthropic Claude exclusively
-   - Both keys: Uses OpenAI by default, falls back to Anthropic if OpenAI fails
+   - Multiple keys: Uses OpenAI by default, falls back to Gemini, then Anthropic if earlier providers fail
 
 4. **Host the web app**
    Serve `index.html` from GitHub Pages or your domain. Update in-file constants:

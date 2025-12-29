@@ -277,7 +277,7 @@ if (sessionMenuModal) {
 }
 
 // Close session menu when any menu item is clicked
-const sessionMenuItems = ['newJobBtn', 'importAudioBtn', 'loadSessionBtn', 'loadCloudSessionBtn'];
+const sessionMenuItems = ['newJobBtn', 'importAudioBtn', 'loadSessionBtn'];
 sessionMenuItems.forEach(btnId => {
   const btn = document.getElementById(btnId);
   if (btn) {

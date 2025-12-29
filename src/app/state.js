@@ -1,5 +1,5 @@
-import defaultChecklistConfig from "../../checklist.config.json" with { type: "json" };
-import defaultDepotSchema from "../../depot.output.schema.json" with { type: "json" };
+import defaultChecklistConfig from "../../checklist.config.json" assert { type: "json" };
+import defaultDepotSchema from "../../depot.output.schema.json" assert { type: "json" };
 import {
   DEFAULT_WORKER_ENDPOINT,
   WORKER_ENDPOINT_STORAGE_KEY,

@@ -7,11 +7,6 @@ import {
   handleRequestReset,
   handleResetPassword
 } from './auth-handlers.js';
-import {
-  handleSaveSession,
-  handleLoadSession,
-  handleDeleteSession
-} from './session-handlers.js';
 
 export default {
   async fetch(request, env, ctx) {
@@ -114,19 +109,6 @@ export default {
         return handleLoadSettings(request, env);
       }
 
-      // Cloud session endpoints
-      if (request.method === "POST" && url.pathname === "/cloud-session") {
-        return handleSaveSession(request, env);
-      }
-
-      if (request.method === "GET" && url.pathname === "/cloud-session") {
-        return handleLoadSession(request, env);
-      }
-
-      if (request.method === "DELETE" && url.pathname === "/cloud-session") {
-        return handleDeleteSession(request, env);
-      }
-
       // Existing endpoints
       if (request.method === "POST" && url.pathname === "/text") {
         return handleText(request, env);
@@ -156,10 +138,6 @@ export default {
         return handleGeneratePresentation(request, env);
       }
 
-      if (request.method === "POST" && url.pathname === "/tools/auto-fill-session") {
-        return handleAutoFillSession(request, env);
-      }
-
       return jsonResponse({ error: "not_found" }, 404);
     } catch (err) {
       console.error("Worker fatal error:", err);
@@ -171,7 +149,7 @@ export default {
 function corsHeaders(extra = {}) {
   return {
     "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET,POST,DELETE,OPTIONS",
+    "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, Authorization",
     "Content-Type": "application/json",
     ...extra
@@ -190,59 +168,6 @@ function jsonResponse(body, status = 200) {
     status,
     headers: corsHeaders()
   });
-}
-
-/* ---------- /tools/auto-fill-session ---------- */
-
-async function handleAutoFillSession(request, env) {
-  let payload;
-  try {
-    payload = await request.json();
-  } catch {
-    return jsonResponse(
-      { error: "bad_request", message: "JSON body required" },
-      400
-    );
-  }
-
-  const transcript = typeof payload.transcript === "string"
-    ? payload.transcript.trim()
-    : "";
-
-  if (!transcript) {
-    return jsonResponse(
-      { error: "bad_request", message: "transcript required" },
-      400
-    );
-  }
-
-  const session = payload.session && typeof payload.session === "object" && !Array.isArray(payload.session)
-    ? payload.session
-    : {};
-
-  const tool = typeof payload.tool === "string" && payload.tool.trim()
-    ? payload.tool.trim()
-    : "auto_fill_depot_session";
-
-  const schema = typeof payload.schema === "string" && payload.schema.trim()
-    ? payload.schema.trim()
-    : "DepotSurveySession";
-
-  try {
-    const result = await autoFillSessionWithAI(env, {
-      transcript,
-      session,
-      tool,
-      schema
-    });
-    return jsonResponse(result, 200);
-  } catch (err) {
-    console.error("handleAutoFillSession error:", err);
-    return jsonResponse(
-      { error: "model_error", message: String(err) },
-      500
-    );
-  }
 }
 
 /* ---------- /text ---------- */
@@ -669,10 +594,9 @@ async function handleAgentChat(request, env) {
 async function agentChatWithAI(env, payload) {
   const openaiKey = env.OPENAI_API_KEY;
   const anthropicKey = env.ANTHROPIC_API_KEY;
-  const geminiKey = env.GEMINI_API_KEY;
 
-  if (!openaiKey && !anthropicKey && !geminiKey) {
-    throw new Error("At least one API key must be configured: OPENAI_API_KEY, ANTHROPIC_API_KEY, or GEMINI_API_KEY");
+  if (!openaiKey && !anthropicKey) {
+    throw new Error("Either OPENAI_API_KEY or ANTHROPIC_API_KEY must be configured");
   }
 
   const { message, context, customInstructions } = payload;
@@ -797,24 +721,6 @@ IMPORTANT:
     }
   }
 
-  // Fall back to Gemini if both OpenAI and Anthropic failed or weren't available
-  if (!response && geminiKey) {
-    try {
-      console.log("Falling back to Gemini for agent chat...");
-      response = await callGeminiChat(
-        geminiKey,
-        systemPrompt,
-        userContent,
-        0.5
-      );
-      console.log("Gemini call successful");
-    } catch (err) {
-      console.error("Gemini call failed:", String(err));
-      lastError = err;
-      response = null;
-    }
-  }
-
   if (!response) {
     throw new Error(`All AI providers failed. Last error: ${String(lastError)}`);
   }
@@ -825,10 +731,9 @@ IMPORTANT:
 async function tweakSectionWithAI(env, payload) {
   const openaiKey = env.OPENAI_API_KEY;
   const anthropicKey = env.ANTHROPIC_API_KEY;
-  const geminiKey = env.GEMINI_API_KEY;
 
-  if (!openaiKey && !anthropicKey && !geminiKey) {
-    throw new Error("At least one API key must be configured: OPENAI_API_KEY, ANTHROPIC_API_KEY, or GEMINI_API_KEY");
+  if (!openaiKey && !anthropicKey) {
+    throw new Error("Either OPENAI_API_KEY or ANTHROPIC_API_KEY must be configured");
   }
 
   const { sectionName, plainText, naturalLanguage, instructions, customInstructions } = payload;
@@ -951,24 +856,6 @@ Do not include any explanation outside the JSON.`;
     }
   }
 
-  // Fall back to Gemini if both OpenAI and Anthropic failed or weren't available
-  if (!trimmedContent && geminiKey) {
-    try {
-      console.log("Falling back to Gemini for section tweak...");
-      trimmedContent = await callGeminiChat(
-        geminiKey,
-        systemPrompt,
-        JSON.stringify(userPayload),
-        0.3
-      );
-      console.log("Gemini call successful");
-    } catch (err) {
-      console.error("Gemini call failed:", String(err));
-      lastError = err;
-      trimmedContent = null;
-    }
-  }
-
   if (!trimmedContent) {
     throw new Error(`All AI providers failed. Last error: ${String(lastError)}`);
   }
@@ -996,259 +883,6 @@ Do not include any explanation outside the JSON.`;
     plainText: jsonOut.plainText,
     naturalLanguage: jsonOut.naturalLanguage
   };
-}
-
-/**
- * Extract structured DepotSurveySession data from a voice transcript.
- *
- * Uses AI to parse a raw heating survey transcript and populate session fields
- * with high confidence, while identifying questions that need on-site confirmation.
- *
- * @param {object} env - Worker environment with OPENAI_API_KEY or ANTHROPIC_API_KEY
- * @param {object} payload - Contains transcript, session, tool, schema
- * @returns {Promise<{sessionPatch: object, missingInfo: Array}>}
- *   - sessionPatch: Partial DepotSurveySession with extracted fields
- *   - missingInfo: Array of {target: "expert"|"customer", question: string}
- */
-async function autoFillSessionWithAI(env, payload) {
-  const openaiKey = env.OPENAI_API_KEY;
-  const anthropicKey = env.ANTHROPIC_API_KEY;
-
-  if (!openaiKey && !anthropicKey) {
-    throw new Error("Either OPENAI_API_KEY or ANTHROPIC_API_KEY must be configured");
-  }
-
-  const { transcript, session, tool, schema } = payload;
-
-  const systemPrompt = `You are an expert British Gas heating-survey assistant.
-
-You receive:
-- A raw voice transcript from a home heating survey.
-- An existing DepotSurveySession JSON object (may be partially filled).
-
-Your goals:
-
-1. Extract as much **reliable structured information** as possible from the
-   transcript and place it into a PARTIAL DepotSurveySession object called
-   "sessionPatch".
-   - Only include fields you can fill with HIGH confidence.
-   - Do NOT invent values.
-   - If a value is ambiguous, leave it undefined.
-
-2. Do NOT overwrite values that are already clearly set in currentSession
-   unless the transcript explicitly corrects them.
-   - Example: if currentSession.vulnerability.hsaInstallRating is "urgent"
-     and the transcript confirms that, you don't need to repeat it.
-   - If the transcript contradicts a value, prefer the transcript and note
-     the discrepancy as a missingInfo question.
-
-3. Identify any **missing but important information** that the adviser should
-   confirm on site, and return them as "missingInfo" questions.
-   - Each question should specify target: "expert" (adviser/engineer) or
-     "customer".
-   - Focus on safety, feasibility, and anything that would prevent you from
-     booking the job or planning materials correctly.
-
-4. Use the following enum values EXACTLY as written when filling fields:
-   - YesNoNone: "yes" | "no" | "none"
-   - Urgency: "asap" | "soon" | "flexible" | "unknown"
-   - SystemType: "conventional" | "system" | "combi" | "back_boiler" | "unknown"
-   - JobType: "boiler_replacement" | "full_system" | "conversion" | "new_install" | "unknown"
-   - HomecareStatus: "none" | "boiler_warranty" | "multiprem_homecare" | "unknown"
-   - FuelType: "natural_gas" | "lpg" | "oil" | "electric" | "unknown"
-   - HSAInstallationRating: "normal" | "urgent"
-   - PriorityInstallationRating: "none" | "standard" | "urgent"
-   - EarthSystemType: "TT" | "TN" | "TN-S" | "TN-C-S" | "unknown"
-   - PowerflushStatus: "required" | "not_required" | "recommended"
-   - MagneticFilterType: "22mm" | "28mm" | "none"
-   - BathroomZone: "outside" | "zone_1" | "zone_2" | "zone_3"
-   - CondensateRoute: "internal_drain" | "external_soakaway" | "pumped" | "other"
-
-5. High-level mapping hints (CloudSense-aligned):
-
-   SECTION 1 - Customer Status & Vulnerability:
-   - "Boiler not working", "no heating" -> vulnerability.boilerWorking = "no", hsaInstallationRating = "urgent"
-   - "No hot water" -> vulnerability.hotWaterAvailable = "no"
-   - "Over 75", "elderly", "disabled" -> vulnerability.vulnerabilityReason = "75 and over" | "Disability"
-   - "Boiler breakdown", "failed boiler" -> vulnerability.reasonForQuotation = "Boiler failure"
-   - Safety concerns -> vulnerability.safetyIssuesAtProperty = "yes", vulnerability.safetyIssuesNotes
-
-   SECTION 2 - Existing System:
-   - "conventional / regular" boiler -> existingSystem.existingSystemType = "conventional"
-   - "system boiler with cylinder" -> existingSystem.existingSystemType = "system"
-   - "combi" -> existingSystem.existingSystemType = "combi"
-   - "like-for-like swap" -> existingSystem.jobTypeRequired = "boiler_replacement"
-   - "full system upgrade" -> existingSystem.jobTypeRequired = "full_system"
-   - "homecare customer" -> existingSystem.homecareStatus = "multiprem_homecare"
-
-   SECTION 3 - Electrical:
-   - "TT system", "TN-S earth" -> electrical.earthSystemType
-   - "RCD fitted", "consumer unit has RCD" -> electrical.rcdPresent = "yes"
-   - "Socket test passed", "<1 ohm" -> electrical.socketAndSeeReading = "<1 ohm"
-
-   SECTION 4 - Working at Height:
-   - "Scaffolding needed", "tower required" -> workingAtHeight.safeAccessAtHeightRequired = "yes"
-   - "Loft access difficult" -> workingAtHeight.restrictionsToWorkAreas
-
-   SECTION 5 - Asbestos:
-   - "Artex ceiling", "suspect asbestos" -> asbestos.anyArtexOrSuspectAsbestos = "yes"
-   - "No asbestos", "clear" -> asbestos.anyArtexOrSuspectAsbestos = "no"
-
-   SECTION 6 - Water System:
-   - "Mains pressure 2.5 bar" -> waterSystem.pressure = 2.5
-   - "Flow rate 15 litres per minute" -> waterSystem.flowRate = 15
-
-   SECTION 7 - Boiler Job:
-   - "A2 Conv-Conv", "same room same location" -> boilerJob.systemTypeA, boilerJob.locationTypeB
-   - Natural gas / LPG -> boilerJob.fuelType
-   - "Kitchen install", "loft location" -> boilerJob.installationLocation
-
-   SECTION 8 - Cleansing & Controls:
-   - "Powerflush needed" -> cleansing.powerflushRequired = "required"
-   - "Mag filter 22mm" -> cleansing.magneticFilterType = "22mm"
-   - "Hive installed" -> cleansing.smartStatAlreadyInstalled = "yes"
-   - "Internal condensate" -> cleansing.condensateRoute = "internal_drain"
-
-   SECTION 9 - Heat Loss:
-   - "Total heat loss 18kW" -> heatLoss.totalHeatLossKw = 18
-   - "Detached house" -> heatLoss.propertyType = "Detached"
-
-   SECTION 10 - Installer Notes (map voice notes to specific fields):
-   - Delivery instructions -> installerNotes.deliveryLocation, installerNotes.additionalDeliveryNotes
-   - Boiler/controls work -> installerNotes.boilerControlsNotes
-   - Flue work details -> installerNotes.flueNotes
-   - Gas/water work -> installerNotes.gasWaterNotes
-   - Making good / decoration -> installerNotes.disruptionNotes
-   - Customer to clear cupboard -> installerNotes.customerAgreedActions
-   - Future plans / follow-on work -> installerNotes.specialRequirements
-
-6. Use installer-focused paragraphs from the transcript to populate the
-   installerNotes fields. For example, any clear instructions about:
-   - Boiler & controls work -> installerNotes.boilerControlsNotes
-   - Flue work -> installerNotes.flueNotes
-   - Gas / water pipework -> installerNotes.gasWaterNotes
-   - Disruption / making good / decoration -> installerNotes.disruptionNotes
-   - Customer agreed actions -> installerNotes.customerAgreedActions
-   - Special future plans -> installerNotes.specialRequirements
-
-7. Use any clear summary of what will be installed to improve:
-   - sections[] items such as "New boiler and controls"
-   - ai.customerSummary (short friendly paragraph)
-
-You are NOT pricing the job and NOT selecting SKUs. You are ONLY:
-- extracting structured survey fields, and
-- capturing unanswered questions.
-
-Return ONLY valid JSON matching this shape (no markdown, no extra text):
-{
-  "sessionPatch": { ...partial DepotSurveySession fields you are confident about... },
-  "missingInfo": [
-    { "target": "expert" | "customer", "question": "What needs to be confirmed?" }
-  ]
-}
-
-Rules:
-- Only set fields you can infer with high confidence from the transcript.
-- Keep existing user-entered values unless they clearly conflict with the transcript; do not blank out data.
-- Prefer concise strings and arrays; avoid invented numbers or boiler models.
-- If unsure about a value, leave it out of sessionPatch and add a missingInfo entry instead.
-- When adding arrays (e.g., materials, allowances), include only items mentioned in the transcript.
-- Preserve units and common pipe sizes (8mm/10mm/15mm/22mm/28mm/35mm) when present.`;
-
-  const userPayload = {
-    tool: tool || "auto_fill_depot_session",
-    schema: schema || "DepotSurveySession",
-    transcript,
-    currentSession: session || {}
-  };
-
-  let trimmedContent;
-  let lastError;
-
-  if (openaiKey) {
-    try {
-      console.log("Attempting to call OpenAI for auto-fill...");
-      const body = {
-        model: "gpt-4.1",
-        temperature: 0.3,
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: JSON.stringify(userPayload) }
-        ]
-      };
-
-      const res = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${openaiKey}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify(body)
-      });
-
-      const rawText = await res.text();
-
-      if (!res.ok) {
-        throw new Error(`OpenAI chat.completions ${res.status}: ${rawText}`);
-      }
-
-      let parsed;
-      try {
-        parsed = JSON.parse(rawText);
-      } catch (err) {
-        throw new Error(`OpenAI returned non-JSON response: ${String(err)} :: ${rawText}`);
-      }
-
-      const content = parsed?.choices?.[0]?.message?.content;
-      if (!content || typeof content !== "string") {
-        throw new Error("No content from OpenAI model");
-      }
-
-      trimmedContent = content.trim();
-      console.log("OpenAI call successful");
-    } catch (err) {
-      console.error("OpenAI call failed:", String(err));
-      lastError = err;
-      trimmedContent = null;
-    }
-  }
-
-  if (!trimmedContent && anthropicKey) {
-    try {
-      console.log("Falling back to Anthropic for auto-fill...");
-      trimmedContent = await callAnthropicChat(
-        anthropicKey,
-        systemPrompt,
-        JSON.stringify(userPayload),
-        0.2
-      );
-      console.log("Anthropic call successful");
-    } catch (err) {
-      console.error("Anthropic call failed:", String(err));
-      lastError = err;
-      trimmedContent = null;
-    }
-  }
-
-  if (!trimmedContent) {
-    throw new Error(`All AI providers failed. Last error: ${String(lastError)}`);
-  }
-
-  let jsonOut;
-  try {
-    jsonOut = JSON.parse(trimmedContent);
-  } catch (err) {
-    throw new Error(`Model content was not valid JSON: ${String(err)} :: ${trimmedContent}`);
-  }
-
-  const sessionPatch = jsonOut && typeof jsonOut.sessionPatch === "object" && !Array.isArray(jsonOut.sessionPatch)
-    ? jsonOut.sessionPatch
-    : {};
-  const missingInfo = Array.isArray(jsonOut?.missingInfo)
-    ? jsonOut.missingInfo.filter((item) => item && typeof item === "object")
-    : [];
-
-  return { sessionPatch, missingInfo };
 }
 
 /* ---------- OpenAI helpers ---------- */
@@ -1589,7 +1223,7 @@ function buildConversationContext(transcript, sections, materials, customerSumma
   };
 
   // Extract key facts from sections
-  const importantSections = ['Needs', 'System characteristics', 'New boiler and controls', 'Arse_cover_notes'];
+  const importantSections = ['Needs', 'System characteristics', 'New boiler and controls', 'Future plans'];
   sections.forEach(section => {
     if (importantSections.includes(section.section) && section.naturalLanguage) {
       context.keyFacts.push(`${section.section}: ${section.naturalLanguage}`);
@@ -1649,79 +1283,6 @@ async function callAnthropicChat(apiKey, systemPrompt, userContent, temperature 
   }
 
   return content.trim();
-}
-
-async function callGeminiChat(apiKey, systemPrompt, userContent, temperature = 0.2) {
-  if (!apiKey) throw new Error("GEMINI_API_KEY not configured");
-
-  const body = {
-    contents: [
-      {
-        role: "user",
-        parts: [
-          { text: systemPrompt + "\n\n" + userContent }
-        ]
-      }
-    ],
-    generationConfig: {
-      temperature,
-      maxOutputTokens: 4096
-    }
-  };
-
-  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${apiKey}`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify(body)
-  });
-
-  const rawText = await res.text();
-
-  if (!res.ok) {
-    throw new Error(`gemini.generateContent ${res.status}: ${rawText}`);
-  }
-
-  let parsed;
-  try {
-    parsed = JSON.parse(rawText);
-  } catch (err) {
-    throw new Error(`Gemini returned non-JSON response: ${String(err)} :: ${rawText}`);
-  }
-
-  const content = parsed?.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!content || typeof content !== "string") {
-    throw new Error("No content from Gemini model");
-  }
-
-  return content.trim();
-}
-
-/**
- * Determines the order of API providers to try based on API_PROVIDER setting.
- * Returns an array of provider names in the order they should be attempted.
- *
- * @param {string} preferredProvider - Value from env.API_PROVIDER ("openai", "anthropic", "gemini", or undefined)
- * @returns {string[]} Array of provider names in try order
- */
-function getProviderOrder(preferredProvider) {
-  const allProviders = ["openai", "anthropic", "gemini"];
-
-  if (!preferredProvider) {
-    // Default order if no preference is set
-    return allProviders;
-  }
-
-  const preferred = preferredProvider.toLowerCase().trim();
-
-  if (!allProviders.includes(preferred)) {
-    console.warn(`Invalid API_PROVIDER value: ${preferredProvider}. Using default order.`);
-    return allProviders;
-  }
-
-  // Put preferred provider first, then the rest
-  return [preferred, ...allProviders.filter(p => p !== preferred)];
 }
 
 /* ---------- Reference Materials Fetcher ---------- */
@@ -1943,10 +1504,9 @@ function buildDepotNotesInstructions(customInstructions, referenceMaterials) {
 async function callNotesModel(env, payload) {
   const openaiKey = env.OPENAI_API_KEY;
   const anthropicKey = env.ANTHROPIC_API_KEY;
-  const geminiKey = env.GEMINI_API_KEY;
 
-  if (!openaiKey && !anthropicKey && !geminiKey) {
-    throw new Error("At least one API key must be configured: OPENAI_API_KEY, ANTHROPIC_API_KEY, or GEMINI_API_KEY");
+  if (!openaiKey && !anthropicKey) {
+    throw new Error("Either OPENAI_API_KEY or ANTHROPIC_API_KEY must be configured");
   }
 
   const {
@@ -1957,8 +1517,7 @@ async function callNotesModel(env, payload) {
     sectionHints = {},
     forceStructured = false,
     sanityNotes = [],
-    customInstructions = "",
-    multipleQuotesHint = false
+    customInstructions = ""
   } = payload || {};
 
   const checklistFromPayload = sanitiseChecklistConfig(rawChecklistItems);
@@ -1976,20 +1535,6 @@ async function callNotesModel(env, payload) {
 
   // IMPORTANT: we do NOT use response_format here.
   // Instead we *ask* for JSON and parse it ourselves.
-
-  const multipleQuotesInstructions = multipleQuotesHint ? `
-
-MULTIPLE QUOTE OPTIONS DETECTED:
-- The transcript discusses multiple quote options or alternatives (e.g., "Option 1", "Quote 2", "alternatively").
-- You MUST generate separate quote variants using the "quoteVariants" field.
-- Each quote variant should have:
-  - A descriptive label (e.g., "Quote A", "Quote B", "Option 1", "Option 2")
-  - Complete sections with all depot notes specific to that option
-- Common information should go in the main "sections" field.
-- Quote-specific information (different boilers, alternative approaches, etc.) should go in "quoteVariants".
-- Each variant should be self-contained and complete enough for the engineer to understand what's different about that option.
-` : '';
-
   const systemPrompt = `
 ${buildDepotNotesInstructions(customInstructions, referenceMaterials)}
 
@@ -2006,20 +1551,15 @@ Your job is to:
 5. ACTIVELY ANALYZE the live transcript and ASK QUESTIONS about missing or unclear information.
 6. SANITY CHECK transcription details and correct obvious errors using context and standard dimensions (pipework sizes should be 8/10mm, 15mm, 22mm, 28mm, or 35mm; avoid improbable sizes by normalising to the nearest standard size).
 7. Prefer the most recent reference material versions (e.g., the latest pricebook, such as November 2025) if multiple versions are available.
-${multipleQuotesInstructions}
-CRITICAL DETAIL RETENTION RULES:
-- RETAIN ALL SPECIFIC DETAILS: If the transcript mentions specific measurements, routes, locations, sizes, or technical specifications, include ALL of them in the notes.
-- SHARPEN VAGUE DESCRIPTIONS: Convert conversational descriptions into precise technical specifications. For example, "the flue goes up and around" becomes "Flue route: vertical from boiler, 90° bend at ceiling level, horizontal run 2m through loft space to external wall."
-- ROUTES AND PATHS: When describing pipe routes, flue routes, or cable runs, capture EVERY waypoint, measurement, and direction change mentioned. Include start point, intermediate points, and end point.
-- SIZES AND SPECIFICATIONS: Always include exact measurements when mentioned (e.g., "22mm copper pipe" not "pipe", "2.5m vertical rise" not "goes up").
-- LOCATIONS: Be specific about locations - include room names, relative positions, heights, and any landmarks mentioned.
-- MATERIALS AND MODELS: Always capture full product names, model numbers, and specifications when mentioned.
 
-DEDUPLICATION RULES:
+CRITICAL DEDUPLICATION RULES:
 - If alreadyCaptured contains information for a section, DO NOT repeat that information.
 - Only add NEW information from the current transcript that isn't already captured.
+- Do NOT rephrase or reword existing captured information - completely skip it.
 - If a detail is semantically the same (e.g., "Worcester Bosch 35kW boiler" vs "35kW Worcester Bosch"), treat as duplicate.
 - Within each section, avoid listing the same information multiple times even if worded differently.
+- For materials, do NOT duplicate items already in the list (check item names, not just exact strings).
+- If the transcript only repeats what's already captured, return empty or minimal content for that section.
 
 REAL-TIME QUESTION GENERATION:
 - As you process the live transcript, identify what information is MISSING or UNCLEAR.
@@ -2052,19 +1592,7 @@ You MUST respond with ONLY valid JSON matching this shape:
   "missingInfo": [
     { "target": "expert | customer", "question": "Short question if anything important is unclear." }
   ],
-  "customerSummary": "2–4 sentence summary suitable to show the customer."${multipleQuotesHint ? `,
-  "quoteVariants": [
-    {
-      "label": "Quote A | Quote B | Option 1 | etc.",
-      "sections": [
-        {
-          "section": "<one of the depot section names>",
-          "plainText": "Quote-specific notes for this variant;",
-          "naturalLanguage": "Quote-specific description for this variant."
-        }
-      ]
-    }
-  ]` : ''}
+  "customerSummary": "2–4 sentence summary suitable to show the customer."
 }
 
 Do not wrap the JSON in backticks or markdown.
@@ -2153,24 +1681,6 @@ Always preserve boiler/cylinder make & model exactly as spoken.
       console.log("Anthropic call successful");
     } catch (err) {
       console.error("Anthropic call failed:", String(err));
-      lastError = err;
-      trimmedContent = null;
-    }
-  }
-
-  // Fall back to Gemini if both OpenAI and Anthropic failed or weren't available
-  if (!trimmedContent && geminiKey) {
-    try {
-      console.log("Falling back to Gemini for notes model...");
-      trimmedContent = await callGeminiChat(
-        geminiKey,
-        systemPrompt,
-        JSON.stringify(userPayload),
-        0.2
-      );
-      console.log("Gemini call successful");
-    } catch (err) {
-      console.error("Gemini call failed:", String(err));
       lastError = err;
       trimmedContent = null;
     }
@@ -2288,10 +1798,11 @@ function normaliseSectionsFromModel(rawSections, schemaInfo) {
 
   return normalised;
 }
-import schemaConfig from "./depot.output.schema.json" with { type: "json" };
-import checklistConfig from "./checklist.config.json" with { type: "json" };
+import schemaConfig from "./depot.output.schema.json" assert { type: "json" };
+import checklistConfig from "./checklist.config.json" assert { type: "json" };
 
-// No longer using FUTURE_PLANS - now using Arse_cover_notes from schema
+const FUTURE_PLANS_NAME = "Future plans";
+const FUTURE_PLANS_DESCRIPTION = "Notes about any future work or follow-on visits.";
 
 function sanitiseSectionSchema(input) {
   const asArray = (value) => {
@@ -2341,8 +1852,19 @@ function sanitiseSectionSchema(input) {
     });
   });
 
-  // Return unique sections in order without forcing any section to be last
-  const final = unique.map((entry, idx) => ({
+  let withoutFuture = unique.filter((entry) => entry.name !== FUTURE_PLANS_NAME);
+  let future = unique.find((entry) => entry.name === FUTURE_PLANS_NAME);
+  if (!future) {
+    future = {
+      name: FUTURE_PLANS_NAME,
+      description: FUTURE_PLANS_DESCRIPTION,
+      order: withoutFuture.length + 1
+    };
+  } else if (!future.description) {
+    future = { ...future, description: FUTURE_PLANS_DESCRIPTION };
+  }
+
+  const final = [...withoutFuture, future].map((entry, idx) => ({
     name: entry.name,
     description: entry.description || "",
     order: idx + 1

@@ -2,28 +2,19 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Voice Notes 2.0 – Live Depot Notes</title>
+  <title>voice-notes – Live Depot Notes</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <script>
-    (function () {
-      const key = "depot.themePreference";
-      const saved = localStorage.getItem(key);
-      const validThemes = ["blue", "green"];
-      const theme = validThemes.includes(saved) ? saved : "blue";
-      document.documentElement.dataset.theme = theme;
-    })();
-  </script>
   <style>
     :root {
       /* Silver control deck theme */
       --bg: #e7eaef;
       --card: linear-gradient(145deg, #f4f6f8 0%, #dde2e7 50%, #f4f6f8 100%);
       --border: #b5bcc7;
-      --accent: #2563eb;
-      --accent-hover: #1d4ed8;
-      --accent-soft: #dbeafe;
-      --success: #2563eb;
-      --success-soft: #e0f2fe;
+      --accent: #2f855a;
+      --accent-hover: #276749;
+      --accent-soft: #c9e4d4;
+      --success: #2f855a;
+      --success-soft: #e6f4ec;
       --muted: #6b7280;
       --danger: #d14343;
       --warning: #b7791f;
@@ -32,21 +23,12 @@
       --shadow-md: 0 4px 10px rgba(0,0,0,0.12);
       --shadow-lg: 0 10px 18px rgba(0,0,0,0.16);
       --shadow-xl: 0 18px 28px rgba(0,0,0,0.18);
-      --screen-glow: 0 0 12px rgba(37, 99, 235, 0.35);
+      --screen-glow: 0 0 12px rgba(79, 209, 197, 0.35);
       --metal-shine: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.35) 50%, rgba(255,255,255,0) 100%);
       --button-inset: inset 1px 1px 3px rgba(255,255,255,0.65), inset -3px -3px 6px rgba(0,0,0,0.08);
       --screen-bg: linear-gradient(180deg, #eef2f7 0%, #d8dee6 100%);
       --bg-secondary: #dfe3e8;
       --text: #1f2937;
-    }
-
-    :root[data-theme="green"] {
-      --accent: #2f855a;
-      --accent-hover: #276749;
-      --accent-soft: #c9e4d4;
-      --success: #2f855a;
-      --success-soft: #e6f4ec;
-      --screen-glow: 0 0 12px rgba(79, 209, 197, 0.35);
     }
     * { box-sizing: border-box; }
 
@@ -167,11 +149,6 @@
       gap: 8px;
       align-items: center;
       margin-left: auto;
-    }
-    .toolbar-group {
-      display: flex;
-      align-items: center;
-      gap: 8px;
     }
     main {
       padding: 0 16px 16px;
@@ -324,31 +301,6 @@
       box-shadow: 0 4px 8px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.3), inset 0 -1px 0 rgba(0,0,0,0.3);
     }
 
-    .toolbar-link {
-      border: 2px solid var(--border);
-      border-radius: var(--radius);
-      padding: 8px 16px;
-      font-size: .7rem;
-      font-weight: 700;
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      white-space: nowrap;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      text-decoration: none;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.2), inset 0 -1px 0 rgba(0,0,0,0.3);
-      transition: all 0.2s;
-      position: relative;
-      overflow: hidden;
-      font-family: 'Courier New', 'Consolas', monospace;
-      color: #fff;
-    }
-
-    .toolbar-link:hover {
-      box-shadow: 0 4px 8px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.3), inset 0 -1px 0 rgba(0,0,0,0.3);
-    }
-
     button:active:not(:disabled) {
       box-shadow: var(--button-inset);
       transform: translateY(1px);
@@ -406,14 +358,14 @@
     }
     .sections-list { display: flex; flex-direction: column; gap: 7px; }
     .section-item {
-      background: linear-gradient(160deg, #f3f4f6 0%, #e5e7eb 100%);
+      background: linear-gradient(145deg, #1f2937 0%, #111827 100%);
       border-radius: var(--radius);
       border: 1px solid var(--border);
       padding: 6px 8px 6px;
       position: relative;
       transition: all 0.3s ease;
-      box-shadow: inset 1px 1px 2px rgba(255,255,255,0.35);
-      color: var(--text);
+      box-shadow: inset 1px 1px 2px rgba(0,0,0,0.4);
+      color: var(--accent);
     }
     .section-item::before {
       content: '';
@@ -434,19 +386,18 @@
       pointer-events: none;
     }
     .section-item:hover {
-      background: linear-gradient(160deg, #e5e7eb 0%, #dfe3e8 100%);
+      background: linear-gradient(145deg, #cbd5e1 0%, #94a3b8 50%, #cbd5e1 100%);
       box-shadow:
         var(--shadow-md),
-        0 0 20px rgba(37, 99, 235, 0.16),
+        0 0 20px rgba(102, 126, 234, 0.2),
         inset 0 1px 0 rgba(255,255,255,0.8),
-        inset 0 -1px 0 rgba(0,0,0,0.05);
+        inset 0 -1px 0 rgba(0,0,0,0.1);
       transform: translateX(4px);
-      border-color: #cbd5e1;
+      border-color: #94a3b8;
     }
     .section-item h4 {
       margin: 0 0 3px;
       font-size: .7rem;
-      color: var(--accent);
     }
     .section-item pre {
       margin: 0;
@@ -2146,31 +2097,11 @@
       font-weight: 500;
       transition: all 0.3s ease;
     }
-
-
-
   </style>
-
-  <!-- CloudSense Survey CSS -->
-  <link rel="stylesheet" href="/css/cloudSenseSurvey.css">
-
-  <!-- PWA Manifest -->
-  <link rel="manifest" href="/manifest.json">
-
-  <!-- PWA Meta Tags -->
-  <meta name="theme-color" content="#2563eb">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="Depot Notes">
-
-  <!-- Icons -->
-  <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">
-  <link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png">
-  <link rel="apple-touch-icon" href="/icon-192.png">
 </head>
 <body>
   <header>
-    <h1>🎙️ Voice Notes 2.0</h1>
+    <h1>🎙️ voice-notes</h1>
     <div id="sessionNameDisplay" style="display: none; margin-left: 12px; padding: 6px 14px; background: rgba(255,255,255,0.2); color: white; border-radius: 999px; font-size: 0.75rem; font-weight: 700; backdrop-filter: blur(10px); box-shadow: 0 2px 8px rgba(0,0,0,0.1);"></div>
     <div class="toolbar-row">
       <button id="sessionMenuBtn" class="pill-secondary">📁 Menu</button>
@@ -2178,29 +2109,7 @@
       <button id="saveMenuBtn" class="pill-secondary">💾 Save</button>
       <button id="duplicateSessionBtn" class="pill-secondary">📋 Duplicate</button>
       <button id="what3wordsBtn" class="pill-secondary">📍 what3words</button>
-
       <button id="settingsBtn" class="pill-secondary">⚙️ Settings</button>
-      <a
-        id="systemRecommendationLink"
-        class="pill-secondary toolbar-link"
-        href="https://martinbibb-cmd.github.io/System-recommendation/"
-        target="_blank"
-        rel="noopener noreferrer"
-      >
-        🎯 System Rec
-      </a>
-      <div class="toolbar-group">
-        <button id="btn-import-system-rec" type="button" class="pill-secondary">
-          Import System Recommendation
-        </button>
-        <input
-          id="input-system-rec-file"
-          type="file"
-          accept="application/json"
-          style="display:none"
-        />
-      </div>
-      <button id="customerProposalBtn" class="pill-secondary">📄 Customer Proposal</button>
       <button id="bugReportBtn" class="pill-secondary">🐛 Report bug</button>
     </div>
   </header>
@@ -2373,28 +2282,26 @@
   <section class="results-row">
     <div class="results-actions">
       <button id="sendSectionsBtn" class="pill-secondary">📨 Send over sections</button>
-      <button id="autoFillSessionBtn" class="pill-secondary">✨ Auto-fill from transcript</button>
-      <button id="printCustomerSummaryBtn" class="pill-secondary">📄 Print Customer Summary</button>
     </div>
     <!-- Side-by-side Notes Sections -->
     <div class="notes-grid">
       <div class="card">
         <div class="card-title">
-          Engineer Notes (Technical)
-          <span class="small">Structured depot notes for engineers</span>
+          Automatic Depot Notes
+          <span class="small">Standard structured layout</span>
         </div>
         <div id="sectionsList" class="sections-list">
-          <span class="small">No technical notes yet.</span>
+          <span class="small">No automatic notes yet.</span>
         </div>
       </div>
 
       <div class="card">
         <div class="card-title">
-          Customer Summary (Natural language)
-          <span class="small">Customer-friendly description of the work</span>
+          AI Natural Language Notes
+          <span class="small">AI-enhanced narrative summary</span>
         </div>
         <div id="aiNotesList" class="sections-list">
-          <span class="small">No customer notes yet.</span>
+          <span class="small">No AI notes yet.</span>
         </div>
       </div>
     </div>
@@ -2427,7 +2334,6 @@
         <button id="newJobBtn" class="danger-btn" style="width: 100%; padding: 14px; font-size: 0.9rem;">🆕 New session</button>
         <button id="importAudioBtn" class="pill-secondary" style="width: 100%; padding: 14px; font-size: 0.9rem;">🎵 Import audio</button>
         <button id="loadSessionBtn" class="pill-secondary" style="width: 100%; padding: 14px; font-size: 0.9rem;">📂 Load session</button>
-        <button id="loadCloudSessionBtn" class="pill-secondary" style="width: 100%; padding: 14px; font-size: 0.9rem;">☁️ Load from cloud</button>
       </div>
     </div>
   </div>
@@ -2521,15 +2427,6 @@
           <p class="small" style="color: var(--muted); margin-top: 4px;">Session reference followed by type will be used for filenames</p>
         </div>
 
-        <div class="save-section" id="cloudSaveSection" style="border-top: 2px solid var(--border); padding-top: 16px; margin-top: 16px;">
-          <h3>☁️ Cloud Backup (Voice Notes 2.0)</h3>
-          <p class="small" style="color: var(--muted); margin-bottom: 12px;">Save your complete session to the cloud for access across devices</p>
-          <button id="saveToCloudBtn" class="pill-secondary" style="width: 100%;">
-            <span id="cloudSaveBtnText">☁️ Save Session to Cloud</span>
-          </button>
-          <p id="cloudSaveStatus" class="small" style="margin-top: 8px; min-height: 20px;"></p>
-        </div>
-
         <div class="save-actions">
           <button id="cancelSaveMenuBtn" class="pill-secondary">Cancel</button>
           <button id="confirmSaveMenuBtn">Save Selected</button>
@@ -2615,190 +2512,13 @@
     </div>
   </div>
 
-  <!-- Pre-Processing Clarification Modal -->
-  <div id="clarificationModal" class="modal-overlay">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h2>Review Before Processing</h2>
-        <button id="closeClarificationBtn" class="modal-close">Skip</button>
-      </div>
-
-      <div class="modal-section" id="multipleQuotesSection" style="display: none;">
-        <h3>⚠️ Multiple Quotes Detected</h3>
-        <p class="small">The transcript mentions multiple quote options. How many separate quotes would you like to generate?</p>
-        <div style="display: flex; gap: 8px; margin-top: 8px;">
-          <button class="pill-secondary quote-count-btn" data-count="2">2 Quotes</button>
-          <button class="pill-secondary quote-count-btn" data-count="3">3 Quotes</button>
-          <button class="pill-secondary quote-count-btn active" data-count="auto">Auto-detect</button>
-        </div>
-      </div>
-
-      <div class="modal-section">
-        <h3>Additional Context (Optional)</h3>
-        <p class="small">Add any clarifications or specific requirements before generating notes:</p>
-        <textarea id="clarificationContext" placeholder="e.g., Focus on boiler options, customer prefers system boiler, etc."
-                  style="width: 100%; min-height: 80px; padding: 10px; border: 1px solid var(--border); border-radius: var(--radius); font-family: inherit; resize: vertical;"></textarea>
-      </div>
-
-      <div class="modal-section">
-        <h3>Quick Checks</h3>
-        <div style="display: flex; flex-direction: column; gap: 8px;">
-          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-            <input type="checkbox" id="checkBoilerDetails" style="cursor: pointer;">
-            <span class="small">Boiler make/model confirmed</span>
-          </label>
-          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-            <input type="checkbox" id="checkPipework" style="cursor: pointer;">
-            <span class="small">Pipework routes discussed</span>
-          </label>
-          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-            <input type="checkbox" id="checkCustomerRequirements" style="cursor: pointer;">
-            <span class="small">Customer requirements captured</span>
-          </label>
-        </div>
-        <p class="small" style="color: var(--muted); margin-top: 8px;">These are just reminders - AI will still ask about missing information</p>
-      </div>
-
-      <div class="button-group" style="margin-top: 20px;">
-        <button id="skipClarificationBtn" class="pill-secondary">Skip & Generate</button>
-        <button id="proceedWithClarificationBtn">Generate Notes</button>
-      </div>
-    </div>
-  </div>
-
   <!-- jsPDF library for quote PDF generation -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
   <!-- UI Enhancements -->
-  <script type="module" src="./js/systemRecommendationImport.js"></script>
-  <script type="module" src="./js/presentationGenerator.js"></script>
-  <script type="module" src="./js/customerProposalGenerator.js"></script>
   <script type="module" src="./js/saveMenu.js"></script>
   <script type="module" src="./js/uiEnhancements.js"></script>
-  <script type="module" src="./js/cloudSenseSurveyForm.js"></script>
   <script type="module" src="./js/main.js"></script>
   <script type="module" src="./js/mainIntegration.js"></script>
-
-  <!-- Service Worker Registration -->
-  <script>
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        // Try to register the service worker (works when hosted in a subdirectory)
-        const swPath = new URL('sw.js', window.location.href).pathname;
-
-        navigator.serviceWorker.register(swPath)
-          .then(registration => {
-            console.log('✅ Service Worker registered:', registration.scope);
-
-            // Check for updates periodically
-            setInterval(() => {
-              registration.update();
-            }, 60000); // Check every minute
-
-            // Listen for updates
-            registration.addEventListener('updatefound', () => {
-              const newWorker = registration.installing;
-              if (newWorker) {
-                newWorker.addEventListener('statechange', () => {
-                  if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                    // New service worker available - will activate automatically via skipWaiting()
-                    console.log('🔄 New version available! Activating automatically...');
-                    // controllerchange listener will handle the reload
-                  }
-                });
-              }
-            });
-          })
-          .catch(error => {
-            console.error(`❌ Service Worker registration failed at ${swPath}:`, error);
-            console.info('ℹ️ The app will work without offline support.');
-          });
-
-        // Listen for messages from service worker
-        navigator.serviceWorker.addEventListener('message', (event) => {
-          if (event.data && event.data.type === 'CACHE_CLEARED') {
-            console.log('✅ Cache cleared successfully');
-          }
-          if (event.data && event.data.type === 'UPDATE_CHECKED') {
-            console.log('✅ Update check complete');
-          }
-        });
-      });
-
-      // Reload the page once when a new service worker takes control
-      let hasReloadedForSWUpdate = false;
-      navigator.serviceWorker.addEventListener('controllerchange', () => {
-        // Avoid potential infinite reload loops
-        if (hasReloadedForSWUpdate) return;
-        hasReloadedForSWUpdate = true;
-
-        console.log('[PWA] New version activated – reloading to apply updates');
-        window.location.reload();
-      });
-    } else {
-      console.warn('⚠️ Service Workers not supported in this browser.');
-    }
-
-    // PWA Install Prompt
-    let deferredPrompt;
-    window.addEventListener('beforeinstallprompt', (e) => {
-      // Prevent the mini-infobar from appearing on mobile
-      e.preventDefault();
-      // Stash the event so it can be triggered later
-      deferredPrompt = e;
-      console.log('💾 App can be installed');
-
-      // Show install button if it exists
-      const installBtn = document.getElementById('installAppBtn');
-      if (installBtn) {
-        installBtn.style.display = 'block';
-      }
-    });
-
-    // Function to trigger install prompt
-    window.triggerInstallPrompt = async () => {
-      if (!deferredPrompt) {
-        alert('App is already installed or install prompt is not available');
-        return;
-      }
-
-      // Show the install prompt
-      deferredPrompt.prompt();
-
-      // Wait for the user to respond to the prompt
-      const { outcome } = await deferredPrompt.userChoice;
-      console.log(`User response to install prompt: ${outcome}`);
-
-      // Clear the deferred prompt
-      deferredPrompt = null;
-
-      // Hide install button
-      const installBtn = document.getElementById('installAppBtn');
-      if (installBtn) {
-        installBtn.style.display = 'none';
-      }
-    };
-
-    // Check for updates function (can be called from settings)
-    window.checkForUpdates = () => {
-      if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-        navigator.serviceWorker.controller.postMessage({ type: 'CHECK_UPDATE' });
-        alert('Checking for updates...');
-      } else {
-        alert('Service worker not available');
-      }
-    };
-
-    // Clear cache function (can be called from settings)
-    window.clearAppCache = () => {
-      if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-        if (confirm('Clear all cached data? This will free up space but may slow down the app temporarily.')) {
-          navigator.serviceWorker.controller.postMessage({ type: 'CLEAR_CACHE' });
-        }
-      } else {
-        alert('Service worker not available');
-      }
-    };
-  </script>
 </body>
 </html>

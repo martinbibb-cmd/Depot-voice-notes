@@ -8,7 +8,8 @@ const LEGACY_SECTION_STORAGE_KEY = "surveybrain-schema";
 const CHECKLIST_STORAGE_KEY = "depot.checklistConfig";
 const CHECKLIST_CONFIG_URL = "../checklist.config.json";
 const AI_INSTRUCTIONS_STORAGE_KEY = "depot.aiInstructions";
-// No longer using FUTURE_PLANS - all sections are now treated equally
+const FUTURE_PLANS_NAME = "Future plans";
+const FUTURE_PLANS_DESCRIPTION = "Notes about any future work or follow-on visits.";
 const AUTOSAVE_STORAGE_KEY = "surveyBrainAutosave";
 const LEGACY_SCHEMA_STORAGE_KEY = "depot-output-schema";
 const CHECKLIST_STATE_STORAGE_KEY = "depot-checklist-state";
@@ -29,7 +30,7 @@ function sanitiseSectionSchema(input) {
     if (!entry) return;
     const rawName = entry.name ?? entry.section ?? entry.title ?? entry.heading;
     const name = typeof rawName === "string" ? rawName.trim() : "";
-    if (!name) return; // Accept all section names
+    if (!name || name === "Arse_cover_notes") return;
     const rawDescription = entry.description ?? entry.hint ?? "";
     const description = typeof rawDescription === "string"
       ? rawDescription.trim()
@@ -61,8 +62,19 @@ function sanitiseSectionSchema(input) {
     });
   });
 
-  // Return unique sections in order
-  const final = unique.map((entry, idx) => ({
+  let withoutFuture = unique.filter((entry) => entry.name !== FUTURE_PLANS_NAME);
+  let future = unique.find((entry) => entry.name === FUTURE_PLANS_NAME);
+  if (!future) {
+    future = {
+      name: FUTURE_PLANS_NAME,
+      description: FUTURE_PLANS_DESCRIPTION,
+      order: withoutFuture.length + 1
+    };
+  } else if (!future.description) {
+    future = { ...future, description: FUTURE_PLANS_DESCRIPTION };
+  }
+
+  const final = [...withoutFuture, future].map((entry, idx) => ({
     name: entry.name,
     description: entry.description || "",
     order: idx + 1
@@ -445,10 +457,21 @@ let agentChatArea;
 let tweakSectionArea;
 let editableAIInstructions = null;
 
-// No longer need to ensure Future plans is present - all sections are equal
+function ensureFuturePresence() {
+  let idx = editableSchema.findIndex((entry) => entry.name === FUTURE_PLANS_NAME);
+  if (idx === -1) {
+    editableSchema.push({ name: FUTURE_PLANS_NAME, description: FUTURE_PLANS_DESCRIPTION });
+    idx = editableSchema.length - 1;
+  }
+  if (idx !== editableSchema.length - 1) {
+    const [future] = editableSchema.splice(idx, 1);
+    editableSchema.push(future);
+  }
+}
 
 function updateSchemaTextarea() {
   if (!schemaArea) return;
+  ensureFuturePresence();
   const preview = editableSchema.map((entry, idx) => ({
     name: entry.name || "",
     description: entry.description || "",
@@ -459,6 +482,7 @@ function updateSchemaTextarea() {
 
 function renderSectionEditor() {
   if (!sectionEditor) return;
+  ensureFuturePresence();
   sectionEditor.innerHTML = "";
 
   editableSchema.forEach((entry, idx) => {
@@ -472,7 +496,7 @@ function renderSectionEditor() {
     nameInput.type = "text";
     nameInput.placeholder = "Section name";
     nameInput.value = entry.name || "";
-    // All sections are now editable
+    nameInput.disabled = entry.name === FUTURE_PLANS_NAME;
     nameInput.addEventListener("input", (e) => {
       editableSchema[idx].name = e.target.value;
       updateSchemaTextarea();
@@ -496,7 +520,7 @@ function renderSectionEditor() {
     const upBtn = document.createElement("button");
     upBtn.type = "button";
     upBtn.textContent = "↑";
-    upBtn.disabled = idx === 0;
+    upBtn.disabled = idx === 0 || entry.name === FUTURE_PLANS_NAME;
     upBtn.addEventListener("click", () => {
       if (idx === 0) return;
       const [item] = editableSchema.splice(idx, 1);
@@ -508,7 +532,7 @@ function renderSectionEditor() {
     const downBtn = document.createElement("button");
     downBtn.type = "button";
     downBtn.textContent = "↓";
-    downBtn.disabled = idx === editableSchema.length - 1;
+    downBtn.disabled = idx === editableSchema.length - 1 || entry.name === FUTURE_PLANS_NAME;
     downBtn.addEventListener("click", () => {
       if (idx >= editableSchema.length - 1) return;
       const [item] = editableSchema.splice(idx, 1);
@@ -520,6 +544,7 @@ function renderSectionEditor() {
     const deleteBtn = document.createElement("button");
     deleteBtn.type = "button";
     deleteBtn.textContent = "Delete";
+    deleteBtn.disabled = entry.name === FUTURE_PLANS_NAME;
     deleteBtn.addEventListener("click", () => {
       editableSchema.splice(idx, 1);
       renderSectionEditor();
@@ -542,7 +567,10 @@ function renderSectionEditor() {
   addBtn.type = "button";
   addBtn.textContent = "Add section";
   addBtn.addEventListener("click", () => {
-    editableSchema.push({ name: "", description: "" });
+    ensureFuturePresence();
+    const futureIndex = editableSchema.findIndex((entry) => entry.name === FUTURE_PLANS_NAME);
+    const insertIndex = futureIndex === -1 ? editableSchema.length : futureIndex;
+    editableSchema.splice(insertIndex, 0, { name: "", description: "" });
     renderSectionEditor();
     updateSchemaTextarea();
   });

@@ -5,20 +5,6 @@ import {
 import { loadSchema } from "./schema.js";
 import { logError, showBugReportModal } from "./bugReport.js";
 import {
-  processPhoto,
-  generatePhotoId,
-  validatePhoto,
-  createThumbnail
-} from "./photoUtils.js";
-import {
-  calculateDistance,
-  formatDistanceAsCrowFlies,
-  buildLocationsFromPhotos,
-  calculateJobDistances,
-  applyGPSPrivacy,
-  getCurrentPosition
-} from "./gpsUtils.js";
-import {
   depotNotesToCSV,
   sessionToSingleCSV,
   downloadCSV,
@@ -33,14 +19,6 @@ import {
 } from "./agentMode.js";
 import { showSendSectionsSlideOver, updateSendSectionsSlideOver } from "./sendSections.js";
 import { initWhat3Words } from "./what3words.js";
-import {
-  initStructuredForm,
-  getFormData,
-  isFormModeActive,
-  clearFormData
-} from "./structuredForm.js";
-import { createEmptyDepotSurveySession, buildSessionFromAppState } from "../src/state/sessionStore.js";
-import { autoFillSession } from "../src/api/autoFillSession.js";
 import {
   retryWithBackoff,
   categorizeError,
@@ -58,8 +36,6 @@ import {
   resetChecklistFilters
 } from "./checklistEnhancements.js";
 import { getAiNotes } from "./uiEnhancements.js";
-import { getSectionEmoji, getSectionStyle, applySectionStyle } from "./sectionStyles.js";
-import { loadSessionFromCloud } from "./systemRecommendationUI.js";
 
 // --- CONFIG / STORAGE KEYS ---
 const SECTION_STORAGE_KEY = "depot.sectionSchema";
@@ -76,28 +52,6 @@ General rules:
 - Avoid contradictions in the same section.
 - When there is a conflict between earlier speculative text and later, typed "summary" lines from the adviser, ALWAYS prefer the later summary lines.
 - Preserve the adviser's intent, not the raw transcription glitches.
-- Never invent requirements that are not explicitly mentioned (for example, do not add a Powerflush unless the transcript clearly says it).
-
-CRITICAL DETAIL RETENTION:
-- RETAIN ALL SPECIFIC DETAILS: Capture exact measurements, routes, locations, sizes, and technical specifications.
-- SHARPEN VAGUE DESCRIPTIONS: Convert conversational language into precise technical specifications.
-  Example: "the flue goes up through the loft" → "Flue route: vertical rise from boiler through bedroom ceiling into loft space, horizontal run 3m to gable end external wall."
-- ROUTES AND PATHS: When describing flue routes, pipe routes, or cable runs, capture EVERY detail:  * Start point (e.g., "from boiler in kitchen")
-  * All waypoints (e.g., "through ceiling void", "across loft space", "behind boxing")
-  * Direction changes (e.g., "90° elbow at ceiling level", "45° bend around joist")
-  * Measurements when mentioned (e.g., "2.5m horizontal run", "1.2m vertical drop")
-  * End point (e.g., "terminate at external wall with terminal kit")
-- SIZES AND SPECIFICATIONS: Always include exact dimensions:
-  * "22mm copper pipe" not just "pipe"
-  * "Worcester Bosch Greenstar 30CDi" not just "combi boiler"
-  * "60/100mm concentric flue" not just "flue"
-- LOCATIONS: Be precise about locations - include room names, relative positions, and landmarks.
-- Keep ALL technical details mentioned in the transcript - do not summarize them away.
-
-Multiple quotes / A-B options:
-- If the transcript clearly discusses multiple quote options (A/B/C or first/second/third quote), generate a separate set of notes for each quote, labelled "Quote A", "Quote B", etc.
-- Each quote's notes should follow the same section headings; only include sections where the transcript provides detail for that quote.
-- If only one quote is present, keep a single set of notes.
 
 High-priority source of truth:
 - If the transcript contains a clearly typed list or short summary entered by the adviser (for example in a "Customer summary", "Engineer notes", or "typed notes" section), treat these as the final instructions.
@@ -264,13 +218,11 @@ const transcriptInput = document.getElementById("transcriptInput");
 const customerSummaryEl = document.getElementById("customerSummary");
 const clarificationsEl = document.getElementById("clarifications");
 const sectionsListEl = document.getElementById("sectionsList");
-const aiNotesListEl = document.getElementById("aiNotesList");
 const statusBar = document.getElementById("statusBar");
 const startLiveBtn = document.getElementById("startLiveBtn");
 const pauseLiveBtn = document.getElementById("pauseLiveBtn");
 const finishLiveBtn = document.getElementById("finishLiveBtn");
 const loadSessionBtn = document.getElementById("loadSessionBtn");
-const loadCloudSessionBtn = document.getElementById("loadCloudSessionBtn");
 const loadSessionInput = document.getElementById("loadSessionInput");
 const importAudioBtn = document.getElementById("importAudioBtn");
 const importAudioInput = document.getElementById("importAudioInput");
@@ -282,13 +234,9 @@ const sleepWarningEl = document.getElementById("sleep-warning");
 const settingsBtn = document.getElementById("settingsBtn");
 const bugReportBtn = document.getElementById("bugReportBtn");
 const sendSectionsBtn = document.getElementById("sendSectionsBtn");
-const autoFillSessionBtn = document.getElementById("autoFillSessionBtn");
 const workerDebugEl = document.getElementById("workerDebug");
 const debugSectionsPre = document.getElementById("debugSectionsJson");
 const debugSectionsDetails = document.getElementById("debugSections");
-// Removed: Session fields UI elements no longer in index.html
-// const sessionFieldListEl = document.getElementById("sessionFieldList");
-// const sessionMissingInfoEl = document.getElementById("sessionMissingInfo");
 
 if (typeof window !== "undefined") {
   window.__depotVoiceNotesDebug = window.__depotVoiceNotesDebug || {
@@ -312,13 +260,6 @@ let lastSections = [];
 let lastCheckedItems = [];
 let lastMissingInfo = [];
 let lastCustomerSummary = "";
-// Photo, GPS, and structured form state
-let sessionPhotos = [];
-let sessionFormData = {};
-let sessionLocations = {};
-let sessionDistances = {};
-let currentSession = createEmptyDepotSurveySession();
-let aiFilledPaths = new Set();
 let wasBackgroundedDuringSession = false;
 let pauseReason = null;
 let lastWorkerPayload = null;
@@ -340,11 +281,6 @@ function exposeStateToWindow() {
   window.__depotSessionAudioChunks = sessionAudioChunks;
   window.__depotLastAudioMime = lastAudioMime;
   window.__depotAppState = APP_STATE;
-  window.__depotSessionPhotos = sessionPhotos;
-  window.__depotSessionFormData = sessionFormData;
-  window.__depotSessionLocations = sessionLocations;
-  window.__depotSessionDistances = sessionDistances;
-  window.__depotCurrentSession = currentSession;
   window.lastSections = lastSections; // Expose for what3words and other integrations
 }
 
@@ -357,12 +293,6 @@ function updateAppStateSnapshot() {
   APP_STATE.customerSummary = lastCustomerSummary || "";
   APP_STATE.fullTranscript = (transcriptInput?.value || "").trim();
   APP_STATE.transcriptText = APP_STATE.fullTranscript;
-  // Add new photo, form, and location data
-  APP_STATE.photos = Array.isArray(sessionPhotos) ? [...sessionPhotos] : [];
-  APP_STATE.formData = sessionFormData ? { ...sessionFormData } : {};
-  APP_STATE.locations = sessionLocations ? { ...sessionLocations } : {};
-  APP_STATE.distances = sessionDistances ? { ...sessionDistances } : {};
-  APP_STATE.session = currentSession;
 }
 
 function buildStateSnapshot() {
@@ -380,118 +310,6 @@ function buildStateSnapshot() {
     transcriptText: APP_STATE.fullTranscript,
     fullTranscript: APP_STATE.fullTranscript
   };
-}
-
-const SESSION_FIELD_CONFIG = [
-  { label: "Customer name", path: "meta.customerName" },
-  { label: "Job type", path: "meta.jobType" },
-  { label: "Existing system", path: "existingSystem.systemType" },
-  { label: "Existing fuel", path: "existingSystem.fuelType" },
-  { label: "Boiler job", path: "boilerJob.type" },
-  { label: "Heat loss (kW)", path: "heatLoss.totalHeatLossKw" },
-  { label: "Magnetic filter", path: "cleansing.magneticFilterType" },
-  { label: "Installer notes", path: "installerNotes.otherNotes" }
-];
-
-function refreshCurrentSessionSnapshot() {
-  updateAppStateSnapshot();
-  currentSession = buildSessionFromAppState(APP_STATE, {
-    transcript: APP_STATE.fullTranscript,
-    sessionName: APP_STATE.meta?.sessionName
-  });
-  currentSession.missingInfo = Array.isArray(currentSession.missingInfo)
-    ? currentSession.missingInfo
-    : [];
-}
-
-function getValueAtPath(obj, path) {
-  return path.split(".").reduce((acc, key) => (acc && acc[key] !== undefined ? acc[key] : undefined), obj);
-}
-
-function mergeSessionPatch(target, patch, prefix = []) {
-  if (!patch || typeof patch !== "object") return;
-  Object.entries(patch).forEach(([key, value]) => {
-    const currentPath = [...prefix, key].join(".");
-    const existing = target[key];
-
-    if (value && typeof value === "object" && !Array.isArray(value)) {
-      if (existing === undefined || existing === null) {
-        target[key] = {};
-      }
-      mergeSessionPatch(target[key], value, [...prefix, key]);
-      return;
-    }
-
-    if (Array.isArray(value)) {
-      if (existing === undefined || existing === null) {
-        target[key] = value;
-        aiFilledPaths.add(currentPath);
-      }
-      return;
-    }
-
-    if (existing === undefined || existing === null) {
-      target[key] = value;
-      aiFilledPaths.add(currentPath);
-    }
-  });
-}
-
-// Removed: Session fields rendering - UI elements no longer in index.html
-
-function syncMissingInfoState() {
-  const infoItems = Array.isArray(currentSession.missingInfo)
-    ? currentSession.missingInfo
-    : [];
-  lastMissingInfo = infoItems.map((item) => {
-    if (typeof item === "string") return item;
-    return item.detail || item.label || item.path || "Follow up item";
-  });
-}
-
-// Removed: Missing info rendering - UI elements no longer in index.html
-function renderMissingInfo() {
-  // Session fields removed from UI
-  console.warn('renderMissingInfo called but session fields UI has been removed');
-  return;
-}
-
-async function handleAutoFillFromTranscript() {
-  if (!autoFillSessionBtn) return;
-  autoFillSessionBtn.disabled = true;
-  autoFillSessionBtn.textContent = "Working...";
-
-  try {
-    refreshCurrentSessionSnapshot();
-    aiFilledPaths.clear();
-    if (!currentSession.fullTranscript || !currentSession.fullTranscript.trim()) {
-      alert("No transcript available yet.");
-      return;
-    }
-
-    const { sessionPatch, missingInfo } = await autoFillSession(
-      currentSession.fullTranscript,
-      currentSession
-    );
-
-    mergeSessionPatch(currentSession, sessionPatch);
-    if (Array.isArray(missingInfo) && missingInfo.length) {
-      currentSession.missingInfo = currentSession.missingInfo || [];
-      currentSession.missingInfo.push(...missingInfo);
-    }
-
-    syncMissingInfoState();
-    updateAppStateSnapshot();
-    // renderSessionFields(); // Removed: UI elements no longer exist
-    // renderMissingInfo(); // Removed: UI elements no longer exist
-  } catch (err) {
-    console.error("Auto-fill failed", err);
-    alert(err.message || "Failed to auto-fill session");
-  } finally {
-    autoFillSessionBtn.disabled = false;
-    autoFillSessionBtn.textContent = "✨ Auto-fill from transcript";
-    exposeStateToWindow();
-  }
 }
 
 // Auto-save function (will be called via debounced wrapper)
@@ -881,45 +699,6 @@ function normaliseDepotSections(rawSections) {
   return ordered;
 }
 
-function normaliseQuoteVariants(rawVariants) {
-  if (!Array.isArray(rawVariants) || !rawVariants.length) return [];
-
-  return rawVariants
-    .map((variant, idx) => {
-      if (!variant || typeof variant !== "object") return null;
-
-      const label = String(
-        variant.label ||
-        variant.title ||
-        variant.name ||
-        variant.quoteName ||
-        variant.option ||
-        ""
-      ).trim();
-
-      const sections = normaliseDepotSections(
-        Array.isArray(variant.sections)
-          ? variant.sections
-          : Array.isArray(variant.notes)
-            ? variant.notes
-            : []
-      );
-
-      const hasContent = sections.some((sec) =>
-        (sec.plainText && sec.plainText.trim()) ||
-        (sec.naturalLanguage && sec.naturalLanguage.trim())
-      );
-
-      if (!hasContent) return null;
-
-      return {
-        label: label || `Quote ${String.fromCharCode(65 + idx)}`,
-        sections
-      };
-    })
-    .filter(Boolean);
-}
-
 // --- Semantic Deduplication Helpers ---
 function normalizeTextForComparison(text) {
   if (!text || typeof text !== "string") return "";
@@ -1056,31 +835,6 @@ function cleanSectionsList(sections) {
   return sections.map((section) => cleanSectionContent(section));
 }
 
-function mergeSectionsAndQuoteVariants(baseSections, quoteVariants) {
-  const merged = Array.isArray(baseSections)
-    ? baseSections.map((sec) => ({ ...sec }))
-    : [];
-
-  if (!Array.isArray(quoteVariants) || !quoteVariants.length) {
-    return merged;
-  }
-
-  quoteVariants.forEach((variant) => {
-    if (!variant || !Array.isArray(variant.sections)) return;
-    const label = variant.label || "Quote option";
-    variant.sections.forEach((sec) => {
-      if (!sec || typeof sec !== "object") return;
-      merged.push({
-        section: `${label} — ${sec.section || "Section"}`,
-        plainText: sec.plainText || "",
-        naturalLanguage: sec.naturalLanguage || ""
-      });
-    });
-  });
-
-  return merged;
-}
-
 function getCanonicalSectionNames(schemaOverride) {
   if (Array.isArray(schemaOverride) && schemaOverride.length) {
     return schemaOverride
@@ -1147,17 +901,11 @@ function syncSectionsState(rawSections = lastRawSections) {
   updateAppStateSnapshot();
   updateDebugSnapshot();
 
-  const combinedSections = mergeSectionsAndQuoteVariants(normalised, lastQuoteNotes);
-
   // Update the slide-over if it's open
   updateSendSectionsSlideOver({
-    autoSections: combinedSections,
+    autoSections: normalised,
     aiSections: getAiNotes()
   });
-}
-
-function getSectionsForSharing() {
-  return mergeSectionsAndQuoteVariants(lastSections, lastQuoteNotes);
 }
 
 function firstDefined(...values) {
@@ -1368,39 +1116,12 @@ function showVoiceError(message) {
     alert(message);
     return;
   }
-  
-  // Check if this is a connection-related error
-  const isConnectionError = message && (
-    message.includes('Network') || 
-    message.includes('connection') || 
-    message.includes('Connection') ||
-    message.includes('fetch') ||
-    message.includes('Failed to fetch')
-  );
-  
-  // Clear previous content
-  voiceErrorEl.innerHTML = "";
-  
-  // Add message text (safely)
-  const messageText = document.createTextNode(message);
-  voiceErrorEl.appendChild(messageText);
-  
-  // Add helpful link for connection errors
-  if (isConnectionError) {
-    const link = document.createElement('a');
-    link.href = 'settings.html';
-    link.style.color = '#2563eb';
-    link.style.textDecoration = 'underline';
-    link.textContent = 'Check API status in Settings';
-    voiceErrorEl.appendChild(document.createTextNode(' '));
-    voiceErrorEl.appendChild(link);
-  }
-  
+  voiceErrorEl.textContent = message;
   voiceErrorEl.style.display = "block";
 }
 function clearVoiceError() {
   if (!voiceErrorEl) return;
-  voiceErrorEl.innerHTML = "";
+  voiceErrorEl.textContent = "";
   voiceErrorEl.style.display = "none";
 }
 function showSleepWarning(message) {
@@ -1791,34 +1512,16 @@ function buildVoiceRequestPayload(transcript, schema = SECTION_SCHEMA) {
     .map(sec => (sec && sec.name ? String(sec.name).trim() : ""))
     .filter(Boolean);
 
-  // Check if multiple quotes detection is enabled (Voice Notes 2.0)
-  const multipleQuotesEnabled = localStorage.getItem('depot.enableMultipleQuotesDetection') !== 'false'; // Default to true
-  const multipleQuotesHint = multipleQuotesEnabled && detectMultipleQuotesInTranscript();
-
-  // Include clarification context if provided (Voice Notes 2.0)
-  let enhancedTranscript = transcript;
-  if (window.__clarificationContext) {
-    enhancedTranscript = `${transcript}\n\n[Additional context from surveyor: ${window.__clarificationContext}]`;
-  }
-
-  const payload = {
-    transcript: enhancedTranscript,
+  return {
+    transcript,
     alreadyCaptured: existingSections,
     expectedSections,
     sectionHints: deriveSectionHints(),
-    multipleQuotesHint,
     forceStructured: true,
     checklistItems: CHECKLIST_SOURCE,
     depotSections: canonicalSchema,
     depotNotesInstructions: loadDepotNotesInstructions()
   };
-
-  // Add requested quote count if specified
-  if (window.__requestedQuoteCount && window.__requestedQuoteCount !== 'auto') {
-    payload.requestedQuoteCount = parseInt(window.__requestedQuoteCount);
-  }
-
-  return payload;
 }
 
 function normaliseSectionsFromResponse(data, _schema = SECTION_SCHEMA) {
@@ -1835,31 +1538,6 @@ function normaliseSectionsFromResponse(data, _schema = SECTION_SCHEMA) {
   const normalised = normaliseDepotSections(rawSections);
   data.sections = normalised;
   return normalised;
-}
-
-function extractQuoteVariants(data) {
-  if (!data || typeof data !== "object") return [];
-
-  const fromTopLevel = Array.isArray(data.quoteNotes)
-    ? data.quoteNotes
-    : Array.isArray(data.quoteVariants)
-      ? data.quoteVariants
-      : Array.isArray(data.quoteOptions)
-        ? data.quoteOptions
-        : null;
-
-  const fromDepotNotes = data.depotNotes && typeof data.depotNotes === "object"
-    ? (Array.isArray(data.depotNotes.quoteNotes)
-      ? data.depotNotes.quoteNotes
-      : Array.isArray(data.depotNotes.quoteVariants)
-        ? data.depotNotes.quoteVariants
-        : Array.isArray(data.depotNotes.quotes)
-          ? data.depotNotes.quotes
-          : null)
-    : null;
-
-  const candidate = fromTopLevel || fromDepotNotes || [];
-  return normaliseQuoteVariants(candidate);
 }
 
 // Plaintext shaping helpers
@@ -2022,7 +1700,6 @@ function renderChecklist(container, checkedIds, missingInfoFromServer) {
     items.forEach(item => {
       const div = document.createElement("div");
       div.className = "clar-chip checklist-item" + (item.done ? " done" : "");
-      div.dataset.itemId = String(item.id);
       div.dataset.group = groupName; // Tag with group for filtering
       div.innerHTML = `
         <span class="icon">${item.done ? "✅" : "⭕"}</span>
@@ -2092,33 +1769,23 @@ function refreshUiFromState() {
   }
 
   const sectionsToRender = resolved.length ? resolved : normaliseDepotSections([]);
-
-  // Render TECHNICAL NOTES (plainText only) in sectionsListEl
   sectionsListEl.innerHTML = "";
   sectionsToRender.forEach((sec, index) => {
+    const div = document.createElement("div");
+    div.className = "section-item";
+    div.dataset.sectionIndex = index;
     const plainTextRaw = typeof sec.plainText === "string" ? sec.plainText : "";
     const formattedPlain = plainTextRaw
       ? formatPlainTextForSection(sec.section, plainTextRaw).trim()
       : "";
-
-    // Skip empty sections in technical notes
-    if (!formattedPlain || formattedPlain === "No bullets yet.") return;
-
-    const div = document.createElement("div");
-    div.className = "section-item";
-    div.dataset.sectionIndex = index;
+    const naturalLanguage = typeof sec.naturalLanguage === "string" ? sec.naturalLanguage.trim() : "";
     const preClassAttr = formattedPlain ? "" : " class=\"placeholder\"";
-    
-    // Get emoji and style for this section
-    const emoji = getSectionEmoji(sec.section);
-    const style = getSectionStyle(sec.section);
-
+    const naturalMarkup = naturalLanguage
+      ? `<p class="small" style="margin-top:3px;">${naturalLanguage}</p>`
+      : "";
     div.innerHTML = `
       <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
-        <h4 style="margin: 0; display: flex; align-items: center; gap: 6px;">
-          <span style="font-size: 1.2em;">${emoji}</span>
-          <span>${sec.section}</span>
-        </h4>
+        <h4 style="margin: 0;">${sec.section}</h4>
         <div class="section-actions" style="display: flex; gap: 6px;">
           <button class="edit-section-btn-inline" data-section-index="${index}" title="Edit this section inline">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -2138,12 +1805,13 @@ function refreshUiFromState() {
       </div>
       <div class="section-content-view">
         <pre${preClassAttr}>${formattedPlain || "No bullets yet."}</pre>
+        ${naturalMarkup}
       </div>
       <div class="section-content-edit" style="display: none;">
         <label style="display: block; margin-bottom: 4px; font-size: 0.7rem; font-weight: 600; color: #475569;">Plain Text (bullets):</label>
         <textarea class="edit-plaintext" style="width: 100%; min-height: 80px; margin-bottom: 8px; font-size: 0.7rem; font-family: monospace;">${plainTextRaw}</textarea>
         <label style="display: block; margin-bottom: 4px; font-size: 0.7rem; font-weight: 600; color: #475569;">Natural Language:</label>
-        <textarea class="edit-naturallang" style="width: 100%; min-height: 60px; margin-bottom: 8px; font-size: 0.7rem;">${typeof sec.naturalLanguage === "string" ? sec.naturalLanguage.trim() : ""}</textarea>
+        <textarea class="edit-naturallang" style="width: 100%; min-height: 60px; margin-bottom: 8px; font-size: 0.7rem;">${naturalLanguage}</textarea>
         <div style="display: flex; gap: 6px;">
           <button class="save-edit-btn" style="background: #10b981; padding: 6px 12px; font-size: 0.7rem;">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle; margin-right: 4px;">
@@ -2155,101 +1823,8 @@ function refreshUiFromState() {
         </div>
       </div>
     `;
-    
-    // Apply section-specific styling
-    applySectionStyle(div, sec.section);
-    
     sectionsListEl.appendChild(div);
   });
-
-  if (sectionsListEl.children.length === 0) {
-    sectionsListEl.innerHTML = '<span class="small">No technical notes yet.</span>';
-  }
-
-  // Render CUSTOMER NOTES (naturalLanguage only) in aiNotesListEl
-  if (aiNotesListEl) {
-    aiNotesListEl.innerHTML = "";
-    sectionsToRender.forEach((sec) => {
-      const naturalLanguage = typeof sec.naturalLanguage === "string" ? sec.naturalLanguage.trim() : "";
-
-      // Skip empty or placeholder sections in customer notes
-      if (!naturalLanguage || naturalLanguage === "No additional notes.") return;
-
-      const div = document.createElement("div");
-      div.className = "section-item";
-      
-      // Get emoji and style for this section
-      const emoji = getSectionEmoji(sec.section);
-      const style = getSectionStyle(sec.section);
-
-      div.innerHTML = `
-        <h4 style="margin: 0 0 8px 0; display: flex; align-items: center; gap: 6px;">
-          <span style="font-size: 1.2em;">${emoji}</span>
-          <span>${sec.section}</span>
-        </h4>
-        <p style="line-height: 1.6; margin: 0;">${naturalLanguage}</p>
-      `;
-      
-      // Apply section-specific styling
-      applySectionStyle(div, sec.section);
-      
-      aiNotesListEl.appendChild(div);
-    });
-
-    if (aiNotesListEl.children.length === 0) {
-      aiNotesListEl.innerHTML = '<span class="small">No customer notes yet.</span>';
-    }
-  }
-
-  if (Array.isArray(lastQuoteNotes) && lastQuoteNotes.length) {
-    const divider = document.createElement("div");
-    divider.className = "quote-variant-divider";
-    divider.innerHTML = `
-      <h3 style="margin: 12px 0 4px 0;">Additional quote options</h3>
-      <p class="small" style="margin: 0 0 8px 0; color: var(--muted);">Separate notes for alternative quotes (read-only).</p>
-    `;
-    sectionsListEl.appendChild(divider);
-
-    lastQuoteNotes.forEach((variant) => {
-      const header = document.createElement("div");
-      header.className = "quote-variant-header";
-      header.innerHTML = `<h4 style="margin: 6px 0;">${variant.label || "Alternate quote"}</h4>`;
-      sectionsListEl.appendChild(header);
-
-      const variantSections = Array.isArray(variant.sections) ? variant.sections : [];
-      variantSections.forEach((variantSection) => {
-        const div = document.createElement("div");
-        div.className = "section-item quote-variant";
-        const plainTextRaw = typeof variantSection.plainText === "string" ? variantSection.plainText : "";
-        const formattedPlain = plainTextRaw
-          ? formatPlainTextForSection(variantSection.section, plainTextRaw).trim()
-          : "";
-        const naturalLanguage = typeof variantSection.naturalLanguage === "string" ? variantSection.naturalLanguage.trim() : "";
-        const preClassAttr = formattedPlain ? "" : " class=\"placeholder\"";
-        const naturalMarkup = naturalLanguage
-          ? `<p class="small" style="margin-top:3px;">${naturalLanguage}</p>`
-          : "";
-        
-        // Get emoji for the variant section
-        const emoji = getSectionEmoji(variantSection.section);
-        
-        div.innerHTML = `
-          <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
-            <h4 style="margin: 0; display: flex; align-items: center; gap: 6px;">
-              <span style="font-size: 1.1em;">${emoji}</span>
-              <span>${variantSection.section || "Section"}</span>
-            </h4>
-            <span class="small" style="color: var(--muted);">${variant.label || "Quote option"}</span>
-          </div>
-          <div class="section-content-view">
-            <pre${preClassAttr}>${formattedPlain || "No bullets yet."}</pre>
-            ${naturalMarkup}
-          </div>
-        `;
-        sectionsListEl.appendChild(div);
-      });
-    });
-  }
 
   // Attach event listeners to edit buttons
   const editBtns = sectionsListEl.querySelectorAll('.edit-section-btn-inline');
@@ -2320,10 +1895,6 @@ function refreshUiFromState() {
   renderChecklist(clarificationsEl, lastCheckedItems, lastMissingInfo);
 
   // 4) Expose state to window for save menu
-  refreshCurrentSessionSnapshot();
-  // renderSessionFields(); // Removed: UI elements no longer exist
-  // renderMissingInfo(); // Removed: UI elements no longer exist
-  renderQuoteResult();
   exposeStateToWindow();
 }
 
@@ -2338,7 +1909,6 @@ function applyVoiceResult(result) {
   const prevSummary = lastCustomerSummary;
   const prevChecked = Array.isArray(lastCheckedItems) ? lastCheckedItems.slice() : [];
   const prevMissing = Array.isArray(lastMissingInfo) ? lastMissingInfo.slice() : [];
-  const prevQuoteNotes = Array.isArray(lastQuoteNotes) ? lastQuoteNotes.slice() : [];
 
   let updated = false;
 
@@ -2359,19 +1929,6 @@ function applyVoiceResult(result) {
   lastRawSections = cloneDeep(mergedSections);
   syncSectionsState(lastRawSections);
 
-  const quoteVariants = extractQuoteVariants(result);
-  const prevQuoteJson = JSON.stringify(prevQuoteNotes);
-  const nextQuoteJson = JSON.stringify(quoteVariants);
-  if (prevQuoteJson !== nextQuoteJson) {
-    updated = true;
-  }
-  lastQuoteNotes = quoteVariants;
-  updateAppStateSnapshot();
-  updateSendSectionsSlideOver({
-    autoSections: getSectionsForSharing(),
-    aiSections: getAiNotes()
-  });
-
   if (Array.isArray(result.materials) && result.materials.length) {
     lastMaterials = result.materials.slice();
     updated = true;
@@ -2382,18 +1939,7 @@ function applyVoiceResult(result) {
   }
 
   if (Array.isArray(result.checkedItems)) {
-    const knownIds = new Set((CHECKLIST_ITEMS || []).map(item => String(item.id)));
-    const filtered = result.checkedItems
-      .map(id => String(id))
-      .filter(id => knownIds.size === 0 || knownIds.has(id));
-
-    if (filtered.length && knownIds.size && filtered.length >= knownIds.size) {
-      lastCheckedItems = prevChecked;
-    } else if (filtered.length) {
-      lastCheckedItems = filtered;
-    } else {
-      lastCheckedItems = prevChecked;
-    }
+    lastCheckedItems = result.checkedItems.slice();
   } else if (result.checkedItems === undefined) {
     lastCheckedItems = prevChecked;
   }
@@ -2466,18 +2012,7 @@ async function sendText() {
       ? err.voiceMessage
       : errorInfo.userMessage || ("Voice AI failed: " + (err && err.message ? err.message : "Unknown error"));
     showVoiceError(message);
-    
-    // Provide more specific status based on error type
-    const statusMessage = errorInfo.category === 'network' 
-      ? "Connection failed - check network"
-      : errorInfo.category === 'auth'
-      ? "Authentication failed - check API key"
-      : errorInfo.category === 'rate_limit'
-      ? "Rate limit - please wait"
-      : errorInfo.category === 'server'
-      ? "Server error - retrying..."
-      : "Text send failed - see error above";
-    setStatus(statusMessage);
+    setStatus("Text send failed.");
   }
 }
 
@@ -2540,18 +2075,7 @@ async function sendAudio(blob) {
       ? err.voiceMessage
       : errorInfo.userMessage || ("Voice AI failed: " + (err && err.message ? err.message : "Unknown error"));
     showVoiceError(message);
-    
-    // Provide more specific status based on error type
-    const statusMessage = errorInfo.category === 'network' 
-      ? "Connection failed - check network"
-      : errorInfo.category === 'auth'
-      ? "Authentication failed - check API key"
-      : errorInfo.category === 'rate_limit'
-      ? "Rate limit - please wait"
-      : errorInfo.category === 'server'
-      ? "Server error - retrying..."
-      : "Audio upload failed - see error above";
-    setStatus(statusMessage);
+    setStatus("Audio failed.");
     throw err;
   }
 }
@@ -2677,215 +2201,17 @@ function base64ToBlob(b64, mime) {
   return new Blob([byteArray], { type: mime || "application/octet-stream" });
 }
 
-// --- PHOTO HELPER FUNCTIONS ---
-
-/**
- * Update locations and distances based on current photos
- */
-function updateLocationsFromPhotos() {
-  sessionLocations = buildLocationsFromPhotos(sessionPhotos);
-  sessionDistances = calculateJobDistances(sessionLocations);
-  console.log("Updated locations:", Object.keys(sessionLocations).length);
-  console.log("Calculated distances:", Object.keys(sessionDistances).length);
-}
-
-// Removed: Photo gallery rendering - UI elements no longer in index.html
-function renderPhotoGallery() {
-  // Photos and locations removed from UI
-  console.warn('renderPhotoGallery called but photos UI has been removed');
-  return;
-}
-
-// Removed: Distances rendering - UI elements no longer in index.html
-// function renderDistances() {
-//   ... (removed content)
-// }
-
-// Removed: Distances rendering - UI elements no longer in index.html
-function renderDistances() {
-  // Photos and locations removed from UI
-  console.warn('renderDistances called but locations UI has been removed');
-  return;
-}
-
-/**
- * Open photo modal for viewing/editing
- */
-function openPhotoModal(photo) {
-  const modal = document.getElementById("photoModal");
-  const canvas = document.getElementById("photoCanvas");
-  const sectionSelect = document.getElementById("photoSectionSelect");
-  const descriptionInput = document.getElementById("photoDescriptionInput");
-  const gpsDisplay = document.getElementById("photoGpsDisplay");
-  const capturedDisplay = document.getElementById("photoCapturedDisplay");
-  const cameraDisplay = document.getElementById("photoCameraDisplay");
-
-  if (!modal || !canvas) return;
-
-  // Store current photo ID for editing
-  modal.dataset.photoId = photo.id;
-
-  // Populate section dropdown - use actual sections from the app, not just schema
-  sectionSelect.innerHTML = '<option value="">Not assigned</option>';
-
-  // Get sections that are actually being displayed in the app
-  const sectionsToShow = Array.isArray(lastSections) && lastSections.length
-    ? lastSections
-    : (Array.isArray(SECTION_SCHEMA) ? SECTION_SCHEMA : []);
-
-  // Create a Set to track unique section names (avoid duplicates)
-  const addedSections = new Set();
-
-  sectionsToShow.forEach((section) => {
-    const sectionName = section.section || section.name;
-    if (!sectionName || addedSections.has(sectionName)) return;
-
-    addedSections.add(sectionName);
-    const option = document.createElement("option");
-    option.value = sectionName;
-    option.textContent = sectionName;
-    if (sectionName === photo.section) {
-      option.selected = true;
-    }
-    sectionSelect.appendChild(option);
-  });
-
-  // Populate metadata
-  descriptionInput.value = photo.description || "";
-
-  if (photo.gps) {
-    const accuracy = photo.gps.accuracy ? ` (±${photo.gps.accuracy.toFixed(1)}m)` : "";
-    gpsDisplay.innerHTML = `
-      Lat: ${photo.gps.lat.toFixed(6)}, Lng: ${photo.gps.lng.toFixed(6)}${accuracy}<br>
-      ${photo.gps.alt ? `Alt: ${photo.gps.alt.toFixed(1)}m` : ""}
-    `;
-  } else {
-    gpsDisplay.textContent = "No GPS data available";
-  }
-
-  capturedDisplay.textContent = new Date(photo.capturedAt).toLocaleString();
-
-  if (photo.camera) {
-    cameraDisplay.textContent = `${photo.camera.make || ""} ${photo.camera.model || ""}`.trim() || "Unknown";
-  } else {
-    cameraDisplay.textContent = "Unknown";
-  }
-
-  // Load image onto canvas
-  const img = new Image();
-  img.onload = () => {
-    const ctx = canvas.getContext("2d");
-    canvas.width = img.width;
-    canvas.height = img.height;
-    ctx.drawImage(img, 0, 0);
-
-    // Draw existing markers and annotations
-    drawPhotoAnnotations(canvas, photo);
-  };
-  img.src = photo.base64;
-
-  // Show modal
-  modal.classList.add("active");
-}
-
-/**
- * Draw annotations on photo canvas
- */
-function drawPhotoAnnotations(canvas, photo) {
-  const ctx = canvas.getContext("2d");
-
-  // Draw markers
-  if (photo.markers && photo.markers.length > 0) {
-    photo.markers.forEach((marker) => {
-      const x = marker.x * canvas.width;
-      const y = marker.y * canvas.height;
-
-      // Draw marker pin
-      ctx.fillStyle = "rgba(255, 0, 0, 0.7)";
-      ctx.beginPath();
-      ctx.arc(x, y, 8, 0, 2 * Math.PI);
-      ctx.fill();
-
-      // Draw label
-      if (marker.label) {
-        ctx.fillStyle = "white";
-        ctx.strokeStyle = "black";
-        ctx.lineWidth = 3;
-        ctx.font = "bold 14px sans-serif";
-        ctx.strokeText(marker.label, x + 12, y - 12);
-        ctx.fillText(marker.label, x + 12, y - 12);
-      }
-    });
-  }
-
-  // Draw annotations (lines, arrows, rectangles, etc.)
-  if (photo.annotations && photo.annotations.length > 0) {
-    photo.annotations.forEach((annotation) => {
-      ctx.strokeStyle = annotation.color || "red";
-      ctx.fillStyle = annotation.color || "red";
-      ctx.lineWidth = annotation.width || 3;
-
-      if (annotation.type === "line") {
-        ctx.beginPath();
-        ctx.moveTo(annotation.x1 * canvas.width, annotation.y1 * canvas.height);
-        ctx.lineTo(annotation.x2 * canvas.width, annotation.y2 * canvas.height);
-        ctx.stroke();
-      } else if (annotation.type === "arrow") {
-        const x1 = annotation.x1 * canvas.width;
-        const y1 = annotation.y1 * canvas.height;
-        const x2 = annotation.x2 * canvas.width;
-        const y2 = annotation.y2 * canvas.height;
-
-        // Draw line
-        ctx.beginPath();
-        ctx.moveTo(x1, y1);
-        ctx.lineTo(x2, y2);
-        ctx.stroke();
-
-        // Draw arrowhead
-        const angle = Math.atan2(y2 - y1, x2 - x1);
-        const arrowLength = 15;
-        ctx.beginPath();
-        ctx.moveTo(x2, y2);
-        ctx.lineTo(
-          x2 - arrowLength * Math.cos(angle - Math.PI / 6),
-          y2 - arrowLength * Math.sin(angle - Math.PI / 6)
-        );
-        ctx.moveTo(x2, y2);
-        ctx.lineTo(
-          x2 - arrowLength * Math.cos(angle + Math.PI / 6),
-          y2 - arrowLength * Math.sin(angle + Math.PI / 6)
-        );
-        ctx.stroke();
-      } else if (annotation.type === "rectangle") {
-        const x = Math.min(annotation.x1, annotation.x2) * canvas.width;
-        const y = Math.min(annotation.y1, annotation.y2) * canvas.height;
-        const width = Math.abs(annotation.x2 - annotation.x1) * canvas.width;
-        const height = Math.abs(annotation.y2 - annotation.y1) * canvas.height;
-
-        ctx.strokeRect(x, y, width, height);
-      }
-    });
-  }
-}
-
 async function saveSessionToFile() {
   const fullTranscript = transcriptInput.value.trim() || committedTranscript || "";
   const session = {
-    version: 2, // Incremented for new photo/form/location features
+    version: 1,
     createdAt: new Date().toISOString(),
     fullTranscript,
     sections: lastRawSections,
     materials: lastMaterials,
     checkedItems: lastCheckedItems,
     missingInfo: lastMissingInfo,
-    customerSummary: lastCustomerSummary,
-    quoteNotes: lastQuoteNotes,
-    // New fields for photo, GPS, and structured form support
-    photos: sessionPhotos,
-    formData: sessionFormData,
-    locations: sessionLocations,
-    distances: sessionDistances
+    customerSummary: lastCustomerSummary
   };
 
   if (sessionAudioChunks && sessionAudioChunks.length > 0) {
@@ -2949,14 +2275,7 @@ importAudioInput.onchange = async (e) => {
   importAudioInput.value = "";
 };
 
-// --- PHOTO UPLOAD --- (Removed: UI elements no longer in index.html)
-
 loadSessionBtn.onclick = () => loadSessionInput.click();
-if (loadCloudSessionBtn) {
-  loadCloudSessionBtn.onclick = async () => {
-    await loadSessionFromCloud();
-  };
-}
 loadSessionInput.onchange = async (e) => {
   const file = e.target.files && e.target.files[0];
   if (!file) return;
@@ -2972,11 +2291,6 @@ loadSessionInput.onchange = async (e) => {
     lastCheckedItems = Array.isArray(session.checkedItems) ? session.checkedItems : [];
     lastMissingInfo = Array.isArray(session.missingInfo) ? session.missingInfo : [];
     lastCustomerSummary = session.customerSummary || "";
-    // Load new photo, form, and location data (backward compatible)
-    sessionPhotos = Array.isArray(session.photos) ? session.photos : [];
-    sessionFormData = session.formData && typeof session.formData === 'object' ? session.formData : {};
-    sessionLocations = session.locations && typeof session.locations === 'object' ? session.locations : {};
-    sessionDistances = session.distances && typeof session.distances === 'object' ? session.distances : {};
     if (session.audioBase64) {
       try {
         const mime = session.audioMime || "audio/webm";
@@ -2994,13 +2308,10 @@ loadSessionInput.onchange = async (e) => {
     mediaStream = null;
     mediaRecorder = null;
     await ensureSectionSchema();
-    lastQuoteNotes = extractQuoteVariants(session);
     const normalisedFromSession = normaliseSectionsFromResponse({ sections: lastRawSections }, SECTION_SCHEMA);
     lastRawSections = Array.isArray(normalisedFromSession) ? normalisedFromSession : [];
     syncSectionsState(lastRawSections);
     refreshUiFromState();
-    renderPhotoGallery();
-    renderDistances();
     setWorkerDebugPayload(null);
     setStatus("Session loaded.");
     clearSleepWarning();
@@ -3522,205 +2833,15 @@ if (settingsBtn) {
 
 if (sendSectionsBtn) {
   sendSectionsBtn.addEventListener("click", () => {
-    const autoSections = getSectionsForSharing();
+    const autoSections = Array.isArray(lastSections) ? lastSections : [];
     const aiSections = getAiNotes();
     showSendSectionsSlideOver({ autoSections, aiSections });
   });
 }
 
-if (autoFillSessionBtn) {
-  autoFillSessionBtn.addEventListener("click", handleAutoFillFromTranscript);
-}
-
-// Customer Summary Print Button
-const printCustomerSummaryBtn = document.getElementById("printCustomerSummaryBtn");
-if (printCustomerSummaryBtn) {
-  printCustomerSummaryBtn.addEventListener("click", () => {
-    generateAndPrintCustomerSummary();
-  });
-}
-
-function generateAndPrintCustomerSummary() {
-  // Extract customer notes (natural language) from sections
-  const customerNotes = lastSections
-    .filter(sec => sec.naturalLanguage && sec.naturalLanguage.trim() !== "No additional notes.")
-    .map(sec => ({
-      section: sec.section,
-      description: sec.naturalLanguage
-    }));
-
-  if (customerNotes.length === 0) {
-    alert("No customer notes available yet. Please capture or generate notes first.");
-    return;
-  }
-
-  // Generate customer summary HTML
-  const summaryHTML = `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <title>Customer Summary - Heating Installation</title>
-  <style>
-    @media print {
-      body { margin: 0; }
-      .no-print { display: none; }
-    }
-    body {
-      font-family: Arial, sans-serif;
-      max-width: 800px;
-      margin: 0 auto;
-      padding: 20px;
-      line-height: 1.6;
-      color: #333;
-    }
-    .header {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white;
-      padding: 30px;
-      border-radius: 8px;
-      margin-bottom: 30px;
-    }
-    h1 {
-      margin: 0 0 10px 0;
-      font-size: 28px;
-    }
-    .subtitle {
-      margin: 0;
-      opacity: 0.9;
-      font-size: 16px;
-    }
-    .date {
-      margin-top: 10px;
-      opacity: 0.8;
-      font-size: 14px;
-    }
-    .section {
-      margin-bottom: 25px;
-      page-break-inside: avoid;
-    }
-    .section-title {
-      color: #667eea;
-      font-size: 18px;
-      font-weight: bold;
-      margin-bottom: 10px;
-      border-bottom: 2px solid #667eea;
-      padding-bottom: 5px;
-    }
-    .section-content {
-      background: #f8fafc;
-      padding: 15px;
-      border-radius: 6px;
-      border-left: 4px solid #667eea;
-    }
-    .feature-item {
-      margin-bottom: 15px;
-      padding: 12px;
-      background: white;
-      border-radius: 4px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-    }
-    .feature-title {
-      font-weight: 600;
-      color: #1e293b;
-      margin-bottom: 5px;
-    }
-    .benefit {
-      color: #059669;
-      font-style: italic;
-      margin-top: 5px;
-    }
-    .print-btn {
-      background: #667eea;
-      color: white;
-      border: none;
-      padding: 12px 24px;
-      border-radius: 6px;
-      font-size: 16px;
-      cursor: pointer;
-      margin-bottom: 20px;
-    }
-    .print-btn:hover {
-      background: #5568d3;
-    }
-    .footer {
-      margin-top: 40px;
-      padding-top: 20px;
-      border-top: 1px solid #e2e8f0;
-      font-size: 12px;
-      color: #64748b;
-      text-align: center;
-    }
-  </style>
-</head>
-<body>
-  <button class="print-btn no-print" onclick="window.print()">🖨️ Print This Summary</button>
-
-  <div class="header">
-    <h1>Heating Installation Summary</h1>
-    <p class="subtitle">Proposed work and benefits for your property</p>
-    <p class="date">Generated: ${new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
-  </div>
-
-  ${customerNotes.map(note => `
-    <div class="section">
-      <div class="section-title">${note.section}</div>
-      <div class="section-content">
-        ${extractFeaturesAndBenefits(note.description)}
-      </div>
-    </div>
-  `).join('')}
-
-  ${lastCustomerSummary ? `
-    <div class="section">
-      <div class="section-title">Overall Summary</div>
-      <div class="section-content">
-        <p>${lastCustomerSummary}</p>
-      </div>
-    </div>
-  ` : ''}
-
-  <div class="footer">
-    <p>This summary is based on your property survey and requirements discussed.<br>
-    All work will be carried out by qualified engineers to current building regulations.</p>
-  </div>
-</body>
-</html>
-  `;
-
-  // Open in new window and trigger print
-  const printWindow = window.open('', '_blank');
-  printWindow.document.write(summaryHTML);
-  printWindow.document.close();
-}
-
-function extractFeaturesAndBenefits(description) {
-  // Simple formatting to extract features and benefits
-  const sentences = description.split(/[.!?]+/).filter(s => s.trim());
-
-  return sentences.map(sentence => {
-    const trimmed = sentence.trim();
-    if (!trimmed) return '';
-
-    // Detect benefit keywords
-    const hasBenefit = /\b(benefit|advantage|improve|ensure|provide|reduce|increase|save|efficient|safer|better|more reliable)\b/i.test(trimmed);
-
-    if (hasBenefit) {
-      return `<div class="feature-item">
-        <div class="feature-title">✓ ${trimmed}</div>
-        <div class="benefit">Benefit: This ${trimmed.toLowerCase().includes('save') ? 'saves you money' : trimmed.toLowerCase().includes('safe') ? 'improves safety' : trimmed.toLowerCase().includes('efficient') ? 'increases efficiency' : 'provides better comfort'}</div>
-      </div>`;
-    } else {
-      return `<div class="feature-item">
-        <div class="feature-title">${trimmed}</div>
-      </div>`;
-    }
-  }).join('');
-}
-
 window.addEventListener("aiNotesUpdated", (event) => {
   updateSendSectionsSlideOver({
-    autoSections: getSectionsForSharing(),
+    autoSections: lastSections,
     aiSections: (event?.detail?.notes && Array.isArray(event.detail.notes)) ? event.detail.notes : getAiNotes()
   });
 });
@@ -3779,7 +2900,6 @@ document.addEventListener("visibilitychange", () => {
             lastCheckedItems = Array.isArray(snap.checkedItems) ? snap.checkedItems : [];
             lastMissingInfo = Array.isArray(snap.missingInfo) ? snap.missingInfo : [];
             lastCustomerSummary = snap.customerSummary || "";
-            lastQuoteNotes = Array.isArray(snap.quoteNotes) ? normaliseQuoteVariants(snap.quoteNotes) : [];
             syncSectionsState(lastRawSections);
             refreshUiFromState();
           }
@@ -3830,9 +2950,6 @@ function resetSessionState() {
   lastCheckedItems = [];
   lastMissingInfo = [];
   lastCustomerSummary = "";
-  lastQuoteNotes = [];
-  currentSession = createEmptyDepotSurveySession();
-  aiFilledPaths.clear();
   localStorage.removeItem(LS_AUTOSAVE_KEY);
   clearVoiceError();
   clearSleepWarning();
@@ -3842,122 +2959,9 @@ function resetSessionState() {
   updateLiveControls();
   setStatus("Ready for new job.");
   transcriptInput.focus?.();
-  renderTranscriptDisplay();
 }
 
-// ============================================================================
-// CLARIFICATION MODAL (Voice Notes 2.0)
-// ============================================================================
-
-let clarificationModalActive = false;
-let clarificationData = {
-  quoteCount: 'auto',
-  additionalContext: '',
-  skipModal: false
-};
-
-function showClarificationModal() {
-  return new Promise((resolve) => {
-    // Check if modal should be skipped (from settings)
-    const skipClarification = localStorage.getItem('depot.skipClarificationModal');
-    if (skipClarification === 'true') {
-      resolve({ proceed: true, context: '', quoteCount: 'auto' });
-      return;
-    }
-
-    const modal = document.getElementById('clarificationModal');
-    const multipleQuotesSection = document.getElementById('multipleQuotesSection');
-    const clarificationContext = document.getElementById('clarificationContext');
-    const quoteCountBtns = document.querySelectorAll('.quote-count-btn');
-
-    // Detect if multiple quotes are mentioned
-    const hasMultipleQuotes = detectMultipleQuotesInTranscript();
-    if (hasMultipleQuotes) {
-      multipleQuotesSection.style.display = 'block';
-    } else {
-      multipleQuotesSection.style.display = 'none';
-    }
-
-    // Reset form
-    clarificationContext.value = '';
-    clarificationData.quoteCount = 'auto';
-
-    // Update active button
-    quoteCountBtns.forEach(btn => {
-      btn.classList.remove('active');
-      if (btn.dataset.count === 'auto') {
-        btn.classList.add('active');
-      }
-    });
-
-    modal.style.display = 'flex';
-    clarificationModalActive = true;
-
-    // Handle quote count button clicks
-    const handleQuoteCountClick = (e) => {
-      if (e.target.classList.contains('quote-count-btn')) {
-        quoteCountBtns.forEach(btn => btn.classList.remove('active'));
-        e.target.classList.add('active');
-        clarificationData.quoteCount = e.target.dataset.count;
-      }
-    };
-
-    // Close/Skip handlers
-    const closeModal = (proceed) => {
-      modal.style.display = 'none';
-      clarificationModalActive = false;
-
-      // Clean up event listeners
-      multipleQuotesSection.removeEventListener('click', handleQuoteCountClick);
-
-      resolve({
-        proceed,
-        context: clarificationContext.value.trim(),
-        quoteCount: clarificationData.quoteCount
-      });
-    };
-
-    // Attach event listeners
-    multipleQuotesSection.addEventListener('click', handleQuoteCountClick);
-
-    document.getElementById('closeClarificationBtn').onclick = () => closeModal(false);
-    document.getElementById('skipClarificationBtn').onclick = () => closeModal(true);
-    document.getElementById('proceedWithClarificationBtn').onclick = () => closeModal(true);
-
-    // Close on background click
-    modal.onclick = (e) => {
-      if (e.target === modal) {
-        closeModal(false);
-      }
-    };
-  });
-}
-
-async function sendTextWithClarification() {
-  const result = await showClarificationModal();
-
-  if (!result.proceed) {
-    console.log('User cancelled clarification modal');
-    return;
-  }
-
-  // Store clarification context for the request
-  if (result.context) {
-    window.__clarificationContext = result.context;
-  }
-  if (result.quoteCount && result.quoteCount !== 'auto') {
-    window.__requestedQuoteCount = result.quoteCount;
-  }
-
-  // Proceed with original sendText
-  await sendText();
-
-  // Clean up
-  delete window.__clarificationContext;
-  delete window.__requestedQuoteCount;
-}
-
-sendTextBtn.onclick = sendTextWithClarification;
+sendTextBtn.onclick = sendText;
 if (startLiveBtn) startLiveBtn.onclick = startLiveSession;
 if (pauseLiveBtn) pauseLiveBtn.onclick = () => togglePauseResumeLive();
 if (finishLiveBtn) finishLiveBtn.onclick = () => { finishLiveSession(); };
@@ -4510,613 +3514,6 @@ if (startLiveBtn) {
 }
 
 // ============================================================================
-// PHOTO MODAL HANDLERS
-// ============================================================================
-
-const photoModal = document.getElementById("photoModal");
-const closePhotoModalBtn = document.getElementById("closePhotoModalBtn");
-const savePhotoBtn = document.getElementById("savePhotoBtn");
-const deletePhotoBtn = document.getElementById("deletePhotoBtn");
-const addMarkerBtn = document.getElementById("addMarkerBtn");
-const drawLineBtn = document.getElementById("drawLineBtn");
-const drawArrowBtn = document.getElementById("drawArrowBtn");
-const drawRectBtn = document.getElementById("drawRectBtn");
-const clearAnnotationsBtn = document.getElementById("clearAnnotationsBtn");
-
-// Helper function to get coordinates from mouse or touch event
-function getEventCoords(e, rect) {
-  const clientX = e.clientX !== undefined ? e.clientX : (e.touches?.[0]?.clientX || e.changedTouches?.[0]?.clientX);
-  const clientY = e.clientY !== undefined ? e.clientY : (e.touches?.[0]?.clientY || e.changedTouches?.[0]?.clientY);
-  return {
-    x: clientX - rect.left,
-    y: clientY - rect.top
-  };
-}
-
-// Close modal
-if (closePhotoModalBtn) {
-  closePhotoModalBtn.addEventListener('click', () => {
-    if (photoModal) {
-      photoModal.classList.remove('active');
-    }
-  });
-}
-
-// Save photo changes
-if (savePhotoBtn) {
-  savePhotoBtn.addEventListener('click', () => {
-    const photoId = photoModal?.dataset.photoId;
-    if (!photoId) return;
-
-    const photo = sessionPhotos.find(p => p.id === photoId);
-    if (!photo) return;
-
-    // Update section and description
-    const sectionSelect = document.getElementById("photoSectionSelect");
-    const descriptionInput = document.getElementById("photoDescriptionInput");
-
-    if (sectionSelect) {
-      photo.section = sectionSelect.value;
-    }
-
-    if (descriptionInput) {
-      photo.description = descriptionInput.value.trim();
-    }
-
-    // Update locations and distances
-    updateLocationsFromPhotos();
-    renderPhotoGallery();
-    renderDistances();
-    exposeStateToWindow();
-
-    // Close modal
-    photoModal.classList.remove('active');
-    setStatus("Photo updated");
-  });
-}
-
-// Delete photo
-if (deletePhotoBtn) {
-  deletePhotoBtn.addEventListener('click', () => {
-    const photoId = photoModal?.dataset.photoId;
-    if (!photoId) return;
-
-    const confirmed = confirm("Delete this photo?");
-    if (!confirmed) return;
-
-    // Remove photo from array
-    const index = sessionPhotos.findIndex(p => p.id === photoId);
-    if (index >= 0) {
-      sessionPhotos.splice(index, 1);
-    }
-
-    // Update UI
-    updateLocationsFromPhotos();
-    renderPhotoGallery();
-    renderDistances();
-    exposeStateToWindow();
-
-    // Close modal
-    photoModal.classList.remove('active');
-    setStatus("Photo deleted");
-  });
-}
-
-// Add marker to photo
-if (addMarkerBtn) {
-  addMarkerBtn.addEventListener('click', () => {
-    const canvas = document.getElementById("photoCanvas");
-    const photoId = photoModal?.dataset.photoId;
-    if (!canvas || !photoId) return;
-
-    const photo = sessionPhotos.find(p => p.id === photoId);
-    if (!photo) return;
-
-    const label = prompt("Enter marker label (e.g., 'Boiler', 'Gas meter', 'Flue terminal'):");
-    if (!label) return;
-
-    // Set up one-time click/touch handler on canvas
-    const handleClick = (e) => {
-      e.preventDefault(); // Prevent default touch behavior
-      const rect = canvas.getBoundingClientRect();
-      const coords = getEventCoords(e, rect);
-      const x = coords.x / canvas.width;
-      const y = coords.y / canvas.height;
-
-      // Add marker
-      if (!photo.markers) photo.markers = [];
-      photo.markers.push({
-        id: `marker-${Date.now()}`,
-        label,
-        x,
-        y
-      });
-
-      // Redraw canvas
-      const img = new Image();
-      img.onload = () => {
-        const ctx = canvas.getContext("2d");
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(img, 0, 0);
-        drawPhotoAnnotations(canvas, photo);
-      };
-      img.src = photo.base64;
-
-      // Remove click/touch handlers
-      canvas.removeEventListener('click', handleClick);
-      canvas.removeEventListener('touchend', handleClick);
-      canvas.style.cursor = 'crosshair';
-      setStatus("Marker added");
-    };
-
-    canvas.style.cursor = 'crosshair';
-    setStatus("Click on the photo to place the marker");
-    canvas.addEventListener('click', handleClick, { once: true });
-    canvas.addEventListener('touchend', handleClick, { once: true });
-  });
-}
-
-// Draw Line button
-if (drawLineBtn) {
-  drawLineBtn.addEventListener('click', () => {
-    const canvas = document.getElementById("photoCanvas");
-    const photoId = photoModal?.dataset.photoId;
-    if (!canvas || !photoId) return;
-
-    const photo = sessionPhotos.find(p => p.id === photoId);
-    if (!photo) return;
-
-    let startPoint = null;
-    const tempCanvas = document.createElement('canvas');
-    tempCanvas.width = canvas.width;
-    tempCanvas.height = canvas.height;
-    tempCanvas.style.position = 'absolute';
-    tempCanvas.style.top = '0';
-    tempCanvas.style.left = '0';
-    tempCanvas.style.pointerEvents = 'none';
-    canvas.parentElement.style.position = 'relative';
-    canvas.parentElement.appendChild(tempCanvas);
-
-    // First click: set start point
-    const handleFirstClick = (e) => {
-      e.preventDefault();
-      const rect = canvas.getBoundingClientRect();
-      const coords = getEventCoords(e, rect);
-      startPoint = {
-        x: coords.x / canvas.width,
-        y: coords.y / canvas.height
-      };
-      canvas.style.cursor = 'crosshair';
-      setStatus("Click where the line should end");
-      canvas.removeEventListener('click', handleFirstClick);
-      canvas.removeEventListener('touchend', handleFirstClick);
-      canvas.addEventListener('click', handleSecondClick);
-      canvas.addEventListener('touchend', handleSecondClick);
-      canvas.addEventListener('mousemove', handleMouseMove);
-      canvas.addEventListener('touchmove', handleTouchMove);
-    };
-
-    // Mouse/touch move: show preview line
-    const handleMouseMove = (e) => {
-      if (!startPoint) return;
-      const rect = canvas.getBoundingClientRect();
-      const currentX = e.clientX - rect.left;
-      const currentY = e.clientY - rect.top;
-
-      const tempCtx = tempCanvas.getContext('2d');
-      tempCtx.clearRect(0, 0, tempCanvas.width, tempCanvas.height);
-      tempCtx.strokeStyle = 'rgba(255, 0, 0, 0.7)';
-      tempCtx.lineWidth = 3;
-      tempCtx.setLineDash([5, 5]);
-      tempCtx.beginPath();
-      tempCtx.moveTo(startPoint.x * canvas.width, startPoint.y * canvas.height);
-      tempCtx.lineTo(currentX, currentY);
-      tempCtx.stroke();
-      tempCtx.setLineDash([]);
-    };
-
-    const handleTouchMove = (e) => {
-      if (!startPoint) return;
-      e.preventDefault();
-      const rect = canvas.getBoundingClientRect();
-      const coords = getEventCoords(e, rect);
-
-      const tempCtx = tempCanvas.getContext('2d');
-      tempCtx.clearRect(0, 0, tempCanvas.width, tempCanvas.height);
-      tempCtx.strokeStyle = 'rgba(255, 0, 0, 0.7)';
-      tempCtx.lineWidth = 3;
-      tempCtx.setLineDash([5, 5]);
-      tempCtx.beginPath();
-      tempCtx.moveTo(startPoint.x * canvas.width, startPoint.y * canvas.height);
-      tempCtx.lineTo(coords.x, coords.y);
-      tempCtx.stroke();
-      tempCtx.setLineDash([]);
-    };
-
-    // Second click: complete the line
-    const handleSecondClick = (e) => {
-      e.preventDefault();
-      const rect = canvas.getBoundingClientRect();
-      const coords = getEventCoords(e, rect);
-      const endPoint = {
-        x: coords.x / canvas.width,
-        y: coords.y / canvas.height
-      };
-
-      // Add annotation
-      if (!photo.annotations) photo.annotations = [];
-      photo.annotations.push({
-        id: `line-${Date.now()}`,
-        type: 'line',
-        x1: startPoint.x,
-        y1: startPoint.y,
-        x2: endPoint.x,
-        y2: endPoint.y,
-        color: 'red',
-        width: 3
-      });
-
-      // Cleanup
-      canvas.removeEventListener('click', handleSecondClick);
-      canvas.removeEventListener('touchend', handleSecondClick);
-      canvas.removeEventListener('mousemove', handleMouseMove);
-      canvas.removeEventListener('touchmove', handleTouchMove);
-      canvas.style.cursor = 'default';
-      if (tempCanvas.parentElement) {
-        tempCanvas.parentElement.removeChild(tempCanvas);
-      }
-
-      // Redraw canvas with new annotation
-      const img = new Image();
-      img.onload = () => {
-        const ctx = canvas.getContext("2d");
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(img, 0, 0);
-        drawPhotoAnnotations(canvas, photo);
-      };
-      img.src = photo.base64;
-
-      setStatus("Line added");
-    };
-
-    canvas.style.cursor = 'crosshair';
-    setStatus("Click where the line should start");
-    canvas.addEventListener('click', handleFirstClick);
-    canvas.addEventListener('touchend', handleFirstClick);
-  });
-}
-
-// Draw Arrow button
-if (drawArrowBtn) {
-  drawArrowBtn.addEventListener('click', () => {
-    const canvas = document.getElementById("photoCanvas");
-    const photoId = photoModal?.dataset.photoId;
-    if (!canvas || !photoId) return;
-
-    const photo = sessionPhotos.find(p => p.id === photoId);
-    if (!photo) return;
-
-    let startPoint = null;
-    const tempCanvas = document.createElement('canvas');
-    tempCanvas.width = canvas.width;
-    tempCanvas.height = canvas.height;
-    tempCanvas.style.position = 'absolute';
-    tempCanvas.style.top = '0';
-    tempCanvas.style.left = '0';
-    tempCanvas.style.pointerEvents = 'none';
-    canvas.parentElement.style.position = 'relative';
-    canvas.parentElement.appendChild(tempCanvas);
-
-    const handleFirstClick = (e) => {
-      e.preventDefault();
-      const rect = canvas.getBoundingClientRect();
-      const coords = getEventCoords(e, rect);
-      startPoint = {
-        x: coords.x / canvas.width,
-        y: coords.y / canvas.height
-      };
-      canvas.style.cursor = 'crosshair';
-      setStatus("Click where the arrow should point");
-      canvas.removeEventListener('click', handleFirstClick);
-      canvas.removeEventListener('touchend', handleFirstClick);
-      canvas.addEventListener('click', handleSecondClick);
-      canvas.addEventListener('touchend', handleSecondClick);
-      canvas.addEventListener('mousemove', handleMouseMove);
-      canvas.addEventListener('touchmove', handleTouchMove);
-    };
-
-    const handleMouseMove = (e) => {
-      if (!startPoint) return;
-      const rect = canvas.getBoundingClientRect();
-      const coords = getEventCoords(e, rect);
-      const currentX = coords.x;
-      const currentY = coords.y;
-
-      const tempCtx = tempCanvas.getContext('2d');
-      tempCtx.clearRect(0, 0, tempCanvas.width, tempCanvas.height);
-      tempCtx.strokeStyle = 'rgba(255, 0, 0, 0.7)';
-      tempCtx.lineWidth = 3;
-      tempCtx.setLineDash([5, 5]);
-
-      const x1 = startPoint.x * canvas.width;
-      const y1 = startPoint.y * canvas.height;
-
-      // Draw line
-      tempCtx.beginPath();
-      tempCtx.moveTo(x1, y1);
-      tempCtx.lineTo(currentX, currentY);
-      tempCtx.stroke();
-
-      // Draw arrowhead preview
-      const angle = Math.atan2(currentY - y1, currentX - x1);
-      const arrowLength = 15;
-      tempCtx.beginPath();
-      tempCtx.moveTo(currentX, currentY);
-      tempCtx.lineTo(
-        currentX - arrowLength * Math.cos(angle - Math.PI / 6),
-        currentY - arrowLength * Math.sin(angle - Math.PI / 6)
-      );
-      tempCtx.moveTo(currentX, currentY);
-      tempCtx.lineTo(
-        currentX - arrowLength * Math.cos(angle + Math.PI / 6),
-        currentY - arrowLength * Math.sin(angle + Math.PI / 6)
-      );
-      tempCtx.stroke();
-      tempCtx.setLineDash([]);
-    };
-
-    const handleTouchMove = (e) => {
-      if (!startPoint) return;
-      e.preventDefault();
-      const rect = canvas.getBoundingClientRect();
-      const coords = getEventCoords(e, rect);
-      const currentX = coords.x;
-      const currentY = coords.y;
-
-      const tempCtx = tempCanvas.getContext('2d');
-      tempCtx.clearRect(0, 0, tempCanvas.width, tempCanvas.height);
-      tempCtx.strokeStyle = 'rgba(255, 0, 0, 0.7)';
-      tempCtx.lineWidth = 3;
-      tempCtx.setLineDash([5, 5]);
-
-      const x1 = startPoint.x * canvas.width;
-      const y1 = startPoint.y * canvas.height;
-
-      // Draw line
-      tempCtx.beginPath();
-      tempCtx.moveTo(x1, y1);
-      tempCtx.lineTo(currentX, currentY);
-      tempCtx.stroke();
-
-      // Draw arrowhead preview
-      const angle = Math.atan2(currentY - y1, currentX - x1);
-      const arrowLength = 15;
-      tempCtx.beginPath();
-      tempCtx.moveTo(currentX, currentY);
-      tempCtx.lineTo(
-        currentX - arrowLength * Math.cos(angle - Math.PI / 6),
-        currentY - arrowLength * Math.sin(angle - Math.PI / 6)
-      );
-      tempCtx.moveTo(currentX, currentY);
-      tempCtx.lineTo(
-        currentX - arrowLength * Math.cos(angle + Math.PI / 6),
-        currentY - arrowLength * Math.sin(angle + Math.PI / 6)
-      );
-      tempCtx.stroke();
-      tempCtx.setLineDash([]);
-    };
-
-    const handleSecondClick = (e) => {
-      e.preventDefault();
-      const rect = canvas.getBoundingClientRect();
-      const coords = getEventCoords(e, rect);
-      const endPoint = {
-        x: coords.x / canvas.width,
-        y: coords.y / canvas.height
-      };
-
-      if (!photo.annotations) photo.annotations = [];
-      photo.annotations.push({
-        id: `arrow-${Date.now()}`,
-        type: 'arrow',
-        x1: startPoint.x,
-        y1: startPoint.y,
-        x2: endPoint.x,
-        y2: endPoint.y,
-        color: 'red',
-        width: 3
-      });
-
-      canvas.removeEventListener('click', handleSecondClick);
-      canvas.removeEventListener('touchend', handleSecondClick);
-      canvas.removeEventListener('mousemove', handleMouseMove);
-      canvas.removeEventListener('touchmove', handleTouchMove);
-      canvas.style.cursor = 'default';
-      if (tempCanvas.parentElement) {
-        tempCanvas.parentElement.removeChild(tempCanvas);
-      }
-
-      const img = new Image();
-      img.onload = () => {
-        const ctx = canvas.getContext("2d");
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(img, 0, 0);
-        drawPhotoAnnotations(canvas, photo);
-      };
-      img.src = photo.base64;
-
-      setStatus("Arrow added");
-    };
-
-    canvas.style.cursor = 'crosshair';
-    setStatus("Click where the arrow should start");
-    canvas.addEventListener('click', handleFirstClick);
-    canvas.addEventListener('touchend', handleFirstClick);
-  });
-}
-
-// Draw Rectangle button
-if (drawRectBtn) {
-  drawRectBtn.addEventListener('click', () => {
-    const canvas = document.getElementById("photoCanvas");
-    const photoId = photoModal?.dataset.photoId;
-    if (!canvas || !photoId) return;
-
-    const photo = sessionPhotos.find(p => p.id === photoId);
-    if (!photo) return;
-
-    let startPoint = null;
-    const tempCanvas = document.createElement('canvas');
-    tempCanvas.width = canvas.width;
-    tempCanvas.height = canvas.height;
-    tempCanvas.style.position = 'absolute';
-    tempCanvas.style.top = '0';
-    tempCanvas.style.left = '0';
-    tempCanvas.style.pointerEvents = 'none';
-    canvas.parentElement.style.position = 'relative';
-    canvas.parentElement.appendChild(tempCanvas);
-
-    const handleFirstClick = (e) => {
-      e.preventDefault();
-      const rect = canvas.getBoundingClientRect();
-      const coords = getEventCoords(e, rect);
-      startPoint = {
-        x: coords.x / canvas.width,
-        y: coords.y / canvas.height
-      };
-      canvas.style.cursor = 'crosshair';
-      setStatus("Click opposite corner of rectangle");
-      canvas.removeEventListener('click', handleFirstClick);
-      canvas.removeEventListener('touchend', handleFirstClick);
-      canvas.addEventListener('click', handleSecondClick);
-      canvas.addEventListener('touchend', handleSecondClick);
-      canvas.addEventListener('mousemove', handleMouseMove);
-      canvas.addEventListener('touchmove', handleTouchMove);
-    };
-
-    const handleMouseMove = (e) => {
-      if (!startPoint) return;
-      const rect = canvas.getBoundingClientRect();
-      const coords = getEventCoords(e, rect);
-
-      const tempCtx = tempCanvas.getContext('2d');
-      tempCtx.clearRect(0, 0, tempCanvas.width, tempCanvas.height);
-      tempCtx.strokeStyle = 'rgba(255, 0, 0, 0.7)';
-      tempCtx.lineWidth = 3;
-      tempCtx.setLineDash([5, 5]);
-
-      const x = Math.min(startPoint.x * canvas.width, coords.x);
-      const y = Math.min(startPoint.y * canvas.height, coords.y);
-      const width = Math.abs(coords.x - startPoint.x * canvas.width);
-      const height = Math.abs(coords.y - startPoint.y * canvas.height);
-
-      tempCtx.strokeRect(x, y, width, height);
-      tempCtx.setLineDash([]);
-    };
-
-    const handleTouchMove = (e) => {
-      if (!startPoint) return;
-      e.preventDefault();
-      const rect = canvas.getBoundingClientRect();
-      const coords = getEventCoords(e, rect);
-
-      const tempCtx = tempCanvas.getContext('2d');
-      tempCtx.clearRect(0, 0, tempCanvas.width, tempCanvas.height);
-      tempCtx.strokeStyle = 'rgba(255, 0, 0, 0.7)';
-      tempCtx.lineWidth = 3;
-      tempCtx.setLineDash([5, 5]);
-
-      const x = Math.min(startPoint.x * canvas.width, coords.x);
-      const y = Math.min(startPoint.y * canvas.height, coords.y);
-      const width = Math.abs(coords.x - startPoint.x * canvas.width);
-      const height = Math.abs(coords.y - startPoint.y * canvas.height);
-
-      tempCtx.strokeRect(x, y, width, height);
-      tempCtx.setLineDash([]);
-    };
-
-    const handleSecondClick = (e) => {
-      e.preventDefault();
-      const rect = canvas.getBoundingClientRect();
-      const coords = getEventCoords(e, rect);
-      const endPoint = {
-        x: coords.x / canvas.width,
-        y: coords.y / canvas.height
-      };
-
-      if (!photo.annotations) photo.annotations = [];
-      photo.annotations.push({
-        id: `rect-${Date.now()}`,
-        type: 'rectangle',
-        x1: startPoint.x,
-        y1: startPoint.y,
-        x2: endPoint.x,
-        y2: endPoint.y,
-        color: 'red',
-        width: 3
-      });
-
-      canvas.removeEventListener('click', handleSecondClick);
-      canvas.removeEventListener('touchend', handleSecondClick);
-      canvas.removeEventListener('mousemove', handleMouseMove);
-      canvas.removeEventListener('touchmove', handleTouchMove);
-      canvas.style.cursor = 'default';
-      if (tempCanvas.parentElement) {
-        tempCanvas.parentElement.removeChild(tempCanvas);
-      }
-
-      const img = new Image();
-      img.onload = () => {
-        const ctx = canvas.getContext("2d");
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(img, 0, 0);
-        drawPhotoAnnotations(canvas, photo);
-      };
-      img.src = photo.base64;
-
-      setStatus("Rectangle added");
-    };
-
-    canvas.style.cursor = 'crosshair';
-    setStatus("Click first corner of rectangle");
-    canvas.addEventListener('click', handleFirstClick);
-    canvas.addEventListener('touchend', handleFirstClick);
-  });
-}
-
-// Clear all annotations
-if (clearAnnotationsBtn) {
-  clearAnnotationsBtn.addEventListener('click', () => {
-    const photoId = photoModal?.dataset.photoId;
-    if (!photoId) return;
-
-    const photo = sessionPhotos.find(p => p.id === photoId);
-    if (!photo) return;
-
-    const confirmed = confirm("Clear all markers and annotations from this photo?");
-    if (!confirmed) return;
-
-    // Clear arrays
-    photo.markers = [];
-    photo.annotations = [];
-
-    // Redraw canvas
-    const canvas = document.getElementById("photoCanvas");
-    if (canvas) {
-      const img = new Image();
-      img.onload = () => {
-        const ctx = canvas.getContext("2d");
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(img, 0, 0);
-      };
-      img.src = photo.base64;
-    }
-
-    setStatus("Annotations cleared");
-  });
-}
-
-// ============================================================================
 // ENHANCED FINISH SESSION
 // ============================================================================
 
@@ -5191,7 +3588,6 @@ if (newJobBtn) {
     lastCheckedItems = Array.isArray(snap.checkedItems) ? snap.checkedItems : [];
     lastMissingInfo = Array.isArray(snap.missingInfo) ? snap.missingInfo : [];
     lastCustomerSummary = snap.customerSummary || "";
-    lastQuoteNotes = Array.isArray(snap.quoteNotes) ? normaliseQuoteVariants(snap.quoteNotes) : [];
 
     await ensureSectionSchema();
     const normalisedFromAutosave = normaliseSectionsFromResponse({ sections: lastRawSections }, SECTION_SCHEMA);
@@ -5235,38 +3631,6 @@ if (transcriptInput) {
 
 // Initial render
 renderTranscriptDisplay();
-
-// Checklist interactions (manual toggling)
-if (clarificationsEl) {
-  clarificationsEl.addEventListener('click', (event) => {
-    const target = event.target.closest('.checklist-item');
-    if (!target || !clarificationsEl.contains(target)) return;
-
-    const itemId = target.dataset.itemId;
-    if (!itemId) return;
-
-    const isDone = target.classList.contains('done');
-    const icon = target.querySelector('.icon');
-    const updatedSet = new Set(lastCheckedItems.map(String));
-
-    if (isDone) {
-      updatedSet.delete(itemId);
-      target.classList.remove('done');
-      if (icon) icon.textContent = '⭕';
-    } else {
-      updatedSet.add(itemId);
-      target.classList.add('done');
-      if (icon) icon.textContent = '✅';
-    }
-
-    lastCheckedItems = Array.from(updatedSet);
-    const checklistSearchInput = document.getElementById('checklistSearchInput');
-    if (checklistSearchInput) {
-      checklistSearchInput.dispatchEvent(new Event('input'));
-    }
-    exposeStateToWindow();
-  });
-}
 
 // Allow agent responses to be appended directly to the transcript
 window.addEventListener('appendAgentTranscript', (event) => {
@@ -5381,22 +3745,9 @@ initAgentMode();
 // Initialize what3words
 initWhat3Words();
 
-// Initialize structured form
-initStructuredForm();
-
-// Initialize CloudSense survey form
-if (typeof window.initCloudSenseSurveyForm === 'function') {
-  window.initCloudSenseSurveyForm();
-}
-
-
-
 // Expose functions for external integrations
 window.refreshUiFromState = refreshUiFromState;
 window.saveToLocalStorage = autoSaveSessionToLocal;
-window.renderPhotoGallery = renderPhotoGallery;
-window.renderDistances = renderDistances;
-window.updateLocationsFromPhotos = updateLocationsFromPhotos;
 
 // Agent suggestions are always available by default
 const agentSuggestionsPanel = document.getElementById('agentSuggestionsPanel');

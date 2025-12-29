@@ -10,11 +10,11 @@
       --bg: #e7eaef;
       --card: linear-gradient(145deg, #f4f6f8 0%, #dde2e7 50%, #f4f6f8 100%);
       --border: #b5bcc7;
-      --accent: #2f855a;
-      --accent-hover: #276749;
-      --accent-soft: #c9e4d4;
-      --success: #2f855a;
-      --success-soft: #e6f4ec;
+      --accent: #2563eb;
+      --accent-hover: #1d4ed8;
+      --accent-soft: #bfdbfe;
+      --success: #2563eb;
+      --success-soft: #dbeafe;
       --muted: #6b7280;
       --danger: #d14343;
       --warning: #b7791f;
@@ -23,10 +23,10 @@
       --shadow-md: 0 4px 10px rgba(0,0,0,0.12);
       --shadow-lg: 0 10px 18px rgba(0,0,0,0.16);
       --shadow-xl: 0 18px 28px rgba(0,0,0,0.18);
-      --screen-glow: 0 0 12px rgba(79, 209, 197, 0.35);
+      --screen-glow: 0 0 12px rgba(37, 99, 235, 0.35);
       --metal-shine: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.35) 50%, rgba(255,255,255,0) 100%);
       --button-inset: inset 1px 1px 3px rgba(255,255,255,0.65), inset -3px -3px 6px rgba(0,0,0,0.08);
-      --screen-bg: linear-gradient(180deg, #eef2f7 0%, #d8dee6 100%);
+      --screen-bg: linear-gradient(180deg, #b8bfc7 0%, #a0a8b0 100%);
       --bg-secondary: #dfe3e8;
       --text: #1f2937;
     }
@@ -203,7 +203,7 @@
       left: 0;
       right: 0;
       height: 2px;
-      background: linear-gradient(90deg, transparent, rgba(16, 185, 129, 0.5), transparent);
+      background: linear-gradient(90deg, transparent, rgba(37, 99, 235, 0.5), transparent);
     }
     .card::after {
       content: '';
@@ -248,14 +248,14 @@
       font-size: .75rem;
       min-height: 120px;
       background: var(--screen-bg);
-      color: var(--accent);
+      color: #000000;
       font-family: 'Courier New', 'Consolas', monospace;
       box-shadow: inset 1px 1px 3px rgba(0,0,0,0.5);
     }
     textarea:focus {
       outline: none;
       border-color: var(--accent);
-      box-shadow: inset 1px 1px 3px rgba(0,0,0,0.5), 0 0 10px rgba(16, 185, 129, 0.3);
+      box-shadow: inset 1px 1px 3px rgba(0,0,0,0.5), 0 0 10px rgba(37, 99, 235, 0.3);
     }
     button {
       border: 2px solid var(--border);
@@ -460,7 +460,7 @@
       pointer-events: none;
     }
     .edit-section-btn-inline {
-      background: linear-gradient(145deg, #34d399 0%, #10b981 50%, #34d399 100%);
+      background: linear-gradient(145deg, #60a5fa 0%, #2563eb 50%, #60a5fa 100%);
       background-size: 200% 100%;
     }
     .tweak-section-btn-main:hover, .edit-section-btn-inline:hover {
@@ -477,7 +477,7 @@
         var(--shadow-md),
         inset 0 1px 0 rgba(255,255,255,0.5),
         inset 0 -1px 0 rgba(0,0,0,0.3),
-        0 0 20px rgba(16, 185, 129, 0.5);
+        0 0 20px rgba(37, 99, 235, 0.5);
     }
     .tweak-section-btn-main svg, .edit-section-btn-inline svg {
       flex-shrink: 0;
@@ -1329,6 +1329,8 @@
       resize: none;
       min-height: 40px;
       max-height: 100px;
+      background: var(--screen-bg);
+      color: #000000;
     }
     .agent-chat-input:focus {
       outline: none;
@@ -1760,11 +1762,13 @@
       line-height: 1.5;
       resize: vertical;
       transition: all 0.2s ease;
+      background: var(--screen-bg);
+      color: #000000;
     }
     .tweak-input-section textarea:focus {
       outline: none;
       border-color: var(--accent);
-      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
     }
     .tweak-examples {
       margin-top: 12px;
@@ -1978,13 +1982,14 @@
       font-weight: 600;
       font-family: monospace;
       text-align: center;
-      color: var(--accent);
+      background: var(--screen-bg);
+      color: #000000;
       transition: all 0.2s ease;
     }
     .w3w-input:focus {
       outline: none;
       border-color: var(--accent);
-      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
     }
     .w3w-copy-btn {
       background: var(--accent);

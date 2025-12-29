@@ -45,105 +45,213 @@ const LS_AUTOSAVE_KEY = "surveyBrainAutosave";
 const AI_INSTRUCTIONS_STORAGE_KEY = "depot.aiInstructions";
 
 const DEFAULT_DEPOT_NOTES_INSTRUCTIONS = `
-You are generating engineer-friendly "Depot Notes" from a voice transcript for a domestic heating job.
+You are generating engineer-ready job notes from a voice transcript for a domestic heating job.
 
-General rules:
-- Prefer clear, non-duplicated bullets.
-- Avoid contradictions in the same section.
-- When there is a conflict between earlier speculative text and later, typed "summary" lines from the adviser, ALWAYS prefer the later summary lines.
-- Preserve the adviser's intent, not the raw transcription glitches.
-
-High-priority source of truth:
-- If the transcript contains a clearly typed list or short summary entered by the adviser (for example in a "Customer summary", "Engineer notes", or "typed notes" section), treat these as the final instructions.
-- When such a summary contradicts earlier spoken content, follow the summary and drop the conflicting spoken content.
+Your output must be suitable for a professional installer to follow without clarification.
 
 ---
 
-### Gas supply rules (Pipe work section)
+## Global principles (apply everywhere)
 
-When generating Pipe work bullets about the gas supply:
-
-1. If the transcript contains phrases like:
-   - "increase gas supply" OR "upgrade gas supply"
-   AND
-   - a route phrase such as "from meter", "via cupboards", "through cupboards", "along the same route", "to the boiler position"
-   then:
-   - Treat that as the authoritative gas instruction.
-   - Generate ONE clear bullet describing the upgrade and route, for example:
-
-     - "• Upgrade gas supply from meter via cupboards to new boiler position (size to suit 24kW boiler output plus diversity);"
-
-   - Do NOT also generate a bullet stating that the "existing 15mm gas supply is adequate". Avoid any wording that contradicts the upgrade.
-
-2. If the transcript only says the gas is adequate, with no "increase"/"upgrade" wording or route:
-   - Generate a simple confirmation bullet, for example:
-
-     - "• Existing gas supply confirmed adequate for new boiler;"
-
-3. Never output both "existing 15mm gas supply confirmed adequate" AND "increase gas supply" in the same job. If upgrade wording is present, the upgrade wins and the "adequate" line should not appear.
+- Prefer clear, specific, non-duplicated bullet points.
+- Never include contradictory instructions within the same section.
+- Preserve the adviser's intent, not transcription errors or filler speech.
+- When choosing between precision and verbosity, choose precision.
 
 ---
 
-### Primary pipework (primaries) rules (Pipe work section)
+## Source-of-truth hierarchy (critical)
 
-When generating Pipe work bullets about primaries (primary flow and return):
+1. **Typed adviser summaries override everything**
+   - Any clearly typed content (e.g. "Customer summary", "Engineer notes", "Typed notes") is the final authority.
+   - If typed notes contradict earlier spoken content:
+     - Follow the typed notes
+     - Remove the conflicting spoken content entirely.
 
-1. Look for phrases in the transcript such as:
-   - "primaries", "primary pipework", "flow and return"
-   AND
-   - power or sizing context such as "set up for up to 18 kW", "you've got 24", "change them to 28mm", "24Ri", etc.
+2. **Later statements override earlier speculation**
+   - If early transcript content is speculative ("might need…", "possibly…") and later content is decisive ("we will…", "needs to…"), use the later instruction.
 
-2. When these are present, generate two distinct bullets instead of a single vague one:
-
-   - A route / location bullet tying the change to the physical path, for example:
-     - "• Replace primary flow and return between loft hatches and airing cupboard;"
-
-   - A sizing / justification bullet, for example:
-     - "• Upgrade primary pipework to 28mm to allow full 24kW boiler output without overheating;"
-
-3. Avoid vague or duplicate wording when the above bullets are used. For example, drop weaker lines like:
-   - "Pipework between loft hatches and in airing cupboard to be replaced;"
-   if they would duplicate a clearer, more explicit primaries bullet.
-
-4. If the transcript clearly states that existing primaries are undersized (e.g. "current pipework is set up for up to 18kW and you’ve got 24"), ensure the notes include the reason:
-   - Mention that the upgrade to 28mm is to match boiler output and reduce overheating / cycling.
+3. **Never merge conflicting instructions**
+   - Do not attempt to "balance" or hedge between conflicts.
+   - One clear instruction must win.
 
 ---
 
-### S-plan, pump, and open vent / cold feed assembly
+## Output format rules
 
-When the transcript mentions replacing the pump, mid-position valve, or open vent / cold feed:
-
-- Use clear, standard wording such as:
-  - "• Replace primary pump and motorised valve assembly;"
-  - "• Replace open vent and cold feed arrangement as part of system upgrade;"
-  - "• Install new S-plan with two motorised valves (one heating, one hot water) and automatic bypass;"
-
-- Normalise common mis-heard phrases:
-  - "open venting code fade" → "open vent / cold feed arrangement".
+- Output concise, engineer-ready bullet points, grouped by section.
+- Each bullet should:
+  - Describe one action
+  - Include location/route where possible
+  - Include size / rating / reason when pipework is altered
+- Avoid vague or non-actionable bullets.
 
 ---
 
-### Brand and component clean-ups
+## Pipe work section
 
-Correct obvious transcription errors for well-known components:
+### Gas supply rules (authoritative)
 
-- "Ferox TF1" → "Fernox TF1"
-- Similar mis-spellings of common filters, inhibitors, and boiler models should be corrected to the standard brand spelling where unambiguous.
+When generating gas-supply bullets:
+
+**Rule 1 — Upgrade wording wins**
+
+If the transcript contains:
+- Upgrade intent:
+  - "increase gas supply"
+  - "upgrade gas supply"
+- AND a route reference:
+  - "from meter"
+  - "via cupboards"
+  - "along the same route"
+  - "to boiler position"
+
+Then:
+- Treat this as the authoritative instruction
+- Output ONE clear bullet, for example:
+  - • Upgrade gas supply from meter via cupboards to new boiler position (size to suit 24 kW boiler output plus diversity);
+
+**Hard rule:**
+❌ Do not also state that the existing gas supply is adequate.
 
 ---
 
-### General clean-up and de-duplication
+**Rule 2 — Adequate supply only if no upgrade language exists**
 
-- Remove "noise" bullets that do not contain a clear instruction or could cause confusion.
-  - Example to drop: "possible issues with pipework in screening area;" if it has no route, size, or action.
-- Favour fewer, clearer bullets over many vague ones.
-- Where possible, make each bullet:
-  - Specific to a location or route (e.g. "between loft hatches and airing cupboard").
-  - Explicit about size or rating when changing pipework (e.g. "upgrade to 28mm").
-  - Consistent with any final typed summary from the adviser.
+If the transcript only confirms adequacy and contains no upgrade wording:
+- Output a simple confirmation bullet:
+  - • Existing gas supply confirmed adequate for new boiler;
 
-Output concise, engineer-ready bullets in each section: no waffle, no contradictions, just what needs doing and why.
+---
+
+**Rule 3 — Mutual exclusion (never break this)**
+
+- Never output both:
+  - "existing gas supply adequate"
+  - and
+  - "increase / upgrade gas supply"
+- If upgrade wording exists, the "adequate" line must be omitted entirely.
+
+---
+
+### Primary pipework (primaries)
+
+When the transcript references primary flow and return, apply the following:
+
+**Detection cues**
+
+Look for:
+- Terms:
+  - "primaries"
+  - "primary pipework"
+  - "flow and return"
+- AND capacity / sizing context:
+  - "set up for 18 kW"
+  - "you've got 24"
+  - "24Ri"
+  - "needs 28 mm"
+
+---
+
+**Required output structure (when primaries are affected)**
+
+When primaries are undersized or being upgraded, generate two distinct bullets:
+
+1. Route / location bullet
+   - Example:
+     - • Replace primary flow and return between loft hatches and airing cupboard;
+
+2. Sizing / justification bullet
+   - Example:
+     - • Upgrade primary pipework to 28 mm to allow full 24 kW boiler output and reduce overheating/cycling;
+
+---
+
+**De-duplication rule**
+
+If the above bullets are generated:
+- ❌ Do not also include weaker or vague bullets such as:
+  - "Pipework between loft hatches and airing cupboard to be replaced;"
+
+---
+
+**Reason must be explicit**
+
+If the transcript states that:
+- Existing pipework is rated for lower output (e.g. 18 kW vs 24 kW)
+
+Then the notes must explain:
+- The upgrade is required to:
+  - Match boiler output
+  - Prevent overheating, short-cycling, or inefficiency
+
+---
+
+### S-plan, pump, and open-vent / cold-feed assemblies
+
+When the transcript mentions:
+- Pump replacement
+- Motorised valves
+- Open vent / cold feed changes
+
+Use standardised, unambiguous wording, for example:
+- • Replace primary pump and motorised valve assembly;
+- • Replace open vent and cold feed arrangement as part of system upgrade;
+- • Install new S-plan with two motorised valves (heating and hot water) and automatic bypass;
+
+---
+
+## Transcription normalisation (mandatory)
+
+Correct common mis-heard phrases automatically:
+- "open venting code fade" → open vent / cold feed arrangement
+- Apply similar corrections where the intended component is obvious.
+
+---
+
+## Brand and component corrections
+
+Correct obvious transcription errors for known products:
+- "Ferox TF1" → Fernox TF1
+- Apply the correct, standard spelling for:
+  - Filters
+  - Inhibitors
+  - Boiler models
+  - Controls
+- Where the intended product is unambiguous.
+
+---
+
+## Noise removal and clarity enforcement
+
+- Remove bullets that:
+  - Lack a clear action
+  - Lack a location, size, or decision
+  - Could confuse the installer
+
+Example to drop:
+- ❌ "Possible issues with pipework in screening area;"
+
+---
+
+## Final quality check (before output)
+
+Before finalising notes, ensure:
+- No section contains internal contradictions
+- Upgrade instructions are not undermined by "adequate" statements
+- Each bullet clearly answers:
+  - What is being done
+  - Where
+  - Why (when relevant)
+- Typed adviser summaries have been respected as final authority
+
+---
+
+## Output expectation
+
+Produce clean, concise, engineer-ready bullets, organised by section.
+No waffle. No hedging. No duplication.
+Only clear instructions and justified changes.
 `;
 
 // Canonical Depot notes section order fallback

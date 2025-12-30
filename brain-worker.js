@@ -655,6 +655,7 @@ IMPORTANT:
   // Try OpenAI first, fall back to Gemini, then Anthropic if it fails
   let response;
   let lastError;
+  let apiProvider = null;
 
   if (openaiKey) {
     try {
@@ -696,6 +697,7 @@ IMPORTANT:
       }
 
       response = content.trim();
+      apiProvider = "OpenAI";
       console.log("OpenAI call successful");
     } catch (err) {
       console.error("OpenAI call failed:", String(err));
@@ -714,6 +716,7 @@ IMPORTANT:
         userContent,
         0.5
       );
+      apiProvider = "Gemini";
       console.log("Gemini call successful");
     } catch (err) {
       console.error("Gemini call failed:", String(err));
@@ -732,6 +735,7 @@ IMPORTANT:
         userContent,
         0.5
       );
+      apiProvider = "Anthropic";
       console.log("Anthropic call successful");
     } catch (err) {
       console.error("Anthropic call failed:", String(err));
@@ -805,6 +809,7 @@ Do not include any explanation outside the JSON.`;
   // Try OpenAI first, fall back to Gemini, then Anthropic if it fails
   let trimmedContent;
   let lastError;
+  let apiProvider = null;
 
   if (openaiKey) {
     try {
@@ -850,6 +855,7 @@ Do not include any explanation outside the JSON.`;
         throw new Error("OpenAI model content was empty");
       }
 
+      apiProvider = "OpenAI";
       console.log("OpenAI call successful");
     } catch (err) {
       console.error("OpenAI call failed:", String(err));
@@ -868,6 +874,7 @@ Do not include any explanation outside the JSON.`;
         JSON.stringify(userPayload),
         0.3
       );
+      apiProvider = "Gemini";
       console.log("Gemini call successful");
     } catch (err) {
       console.error("Gemini call failed:", String(err));
@@ -886,6 +893,7 @@ Do not include any explanation outside the JSON.`;
         JSON.stringify(userPayload),
         0.3
       );
+      apiProvider = "Anthropic";
       console.log("Anthropic call successful");
     } catch (err) {
       console.error("Anthropic call failed:", String(err));
@@ -916,10 +924,13 @@ Do not include any explanation outside the JSON.`;
     jsonOut.naturalLanguage = naturalLanguage;
   }
 
+  // Add API provider metadata
   return {
     section: jsonOut.section,
     plainText: jsonOut.plainText,
-    naturalLanguage: jsonOut.naturalLanguage
+    naturalLanguage: jsonOut.naturalLanguage,
+    processedBy: apiProvider,
+    processedAt: new Date().toISOString()
   };
 }
 

@@ -1872,15 +1872,43 @@ Do not include any explanation outside the JSON.`
 
       try {
         // Load worker URL
-        const { loadWorkerEndpoint } = await import('./src/app/worker-config.js');
-        const workerUrl = loadWorkerEndpoint({ fallback: true });
+        let workerUrl;
+        try {
+          const { loadWorkerEndpoint } = await import('./src/app/worker-config.js');
+          workerUrl = loadWorkerEndpoint({ fallback: true });
+        } catch (importErr) {
+          console.error('Failed to load worker-config:', importErr);
+          workerUrl = 'https://depot-voice-notes.martinbibb.workers.dev';
+        }
+
+        console.log('Using worker URL:', workerUrl);
 
         // Check basic health
-        const healthResponse = await fetch(`${workerUrl}/health`);
+        const healthResponse = await fetch(`${workerUrl}/health`, {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json'
+          }
+        });
+
+        if (!healthResponse.ok) {
+          throw new Error(`Health endpoint returned ${healthResponse.status}: ${healthResponse.statusText}`);
+        }
+
         const healthData = await healthResponse.json();
 
         // Check auth health
-        const authHealthResponse = await fetch(`${workerUrl}/auth/health`);
+        const authHealthResponse = await fetch(`${workerUrl}/auth/health`, {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json'
+          }
+        });
+
+        if (!authHealthResponse.ok) {
+          throw new Error(`Auth health endpoint returned ${authHealthResponse.status}: ${authHealthResponse.statusText}`);
+        }
+
         const authHealthData = await authHealthResponse.json();
 
         const status = authHealthData.status || 'unknown';
@@ -1914,21 +1942,41 @@ ${authHealthData.database?.error ? `Error: ${authHealthData.database.error}` : '
 
         resultDiv.innerHTML = html;
       } catch (err) {
+        console.error('API Status Check Error:', err);
+
+        // Get more detailed error information
+        let errorDetails = err.message || String(err);
+        let errorType = 'Unknown Error';
+
+        if (err.name === 'TypeError' && err.message.includes('Failed to fetch')) {
+          errorType = 'Network Error';
+          errorDetails = 'Failed to connect to the worker. The worker may not be deployed or CORS is blocking the request.';
+        } else if (err.message.includes('JSON')) {
+          errorType = 'Response Parse Error';
+          errorDetails = 'The worker responded but the response was not valid JSON.';
+        }
+
         resultDiv.innerHTML = `
           <div class="api-status-result">
-            <h4>❌ Connection Error</h4>
-            <pre>${err.message}
+            <h4>❌ ${errorType}</h4>
+            <pre>${errorDetails}
 
 Possible causes:
 1. Worker URL is incorrect
-2. Worker is not deployed
+2. Worker is not deployed yet
 3. CORS is blocking the request
 4. Network connectivity issues
 
 Try:
-- Verify the worker URL
-- Deploy with: wrangler deploy
-- Check browser console for errors</pre>
+- Verify the worker URL is correct
+- Deploy with: npx wrangler deploy
+- Check browser console for detailed errors
+- Test the worker at: https://depot-voice-notes.martinbibb.workers.dev/health
+
+Debug Info:
+Error Name: ${err.name || 'N/A'}
+Error Message: ${err.message || 'N/A'}
+Stack: ${err.stack ? err.stack.substring(0, 200) + '...' : 'N/A'}</pre>
           </div>
         `;
       } finally {

@@ -109,7 +109,11 @@ function interceptWorkerResponses() {
       // Update processed transcript if available
       if (response.fullTranscript || response.transcript) {
         const transcript = response.fullTranscript || response.transcript;
-        ui.updateProcessedTranscript(transcript);
+        const metadata = {
+          processedBy: response.processedBy,
+          processedAt: response.processedAt
+        };
+        ui.updateProcessedTranscript(transcript, metadata);
         transcriptUpdated = true;
       }
 

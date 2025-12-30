@@ -167,7 +167,7 @@ export function cleanupAudioLevelMeter() {
 }
 
 // Processed Transcript Functions
-export function updateProcessedTranscript(text) {
+export function updateProcessedTranscript(text, metadata = {}) {
   if (!processedTranscriptDisplay) return;
 
   if (!text || text.trim() === '') {
@@ -175,11 +175,28 @@ export function updateProcessedTranscript(text) {
     return;
   }
 
+  // Build metadata header if available
+  let metadataHtml = '';
+  if (metadata.processedBy || metadata.processedAt) {
+    const provider = metadata.processedBy || 'Unknown';
+    const timestamp = metadata.processedAt
+      ? new Date(metadata.processedAt).toLocaleString()
+      : '';
+    metadataHtml = `
+      <div style="padding: 6px 8px; background: linear-gradient(145deg, #1f2937 0%, #111827 100%); border-radius: 6px; margin-bottom: 8px; font-size: 0.7rem; color: var(--muted); border: 1px solid var(--border);">
+        <strong style="color: var(--accent);">Processed by:</strong> ${escapeHtml(provider)}
+        ${timestamp ? `<span style="margin-left: 12px;">•</span> <strong style="color: var(--accent); margin-left: 8px;">Time:</strong> ${escapeHtml(timestamp)}` : ''}
+      </div>
+    `;
+  }
+
   // Split into lines and format
   const lines = text.split('\n').filter(line => line.trim());
-  processedTranscriptDisplay.innerHTML = lines
+  const transcriptHtml = lines
     .map(line => `<div class="transcript-line">${escapeHtml(line)}</div>`)
     .join('');
+
+  processedTranscriptDisplay.innerHTML = metadataHtml + transcriptHtml;
 
   // Auto-scroll to bottom
   processedTranscriptDisplay.scrollTop = processedTranscriptDisplay.scrollHeight;

@@ -457,6 +457,52 @@
     .rule-instructions .hint {
       margin: 0;
     }
+    .api-status-result {
+      background: linear-gradient(145deg, #1f2937 0%, #111827 100%);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px;
+      margin-top: 12px;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    .api-status-result h4 {
+      margin: 12px 0 6px 0;
+      font-size: 0.8rem;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .api-status-result pre {
+      color: var(--muted);
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      font-size: 0.7rem;
+      line-height: 1.5;
+      margin: 4px 0;
+    }
+    .api-status-badge {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: var(--radius);
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-left: 8px;
+    }
+    .api-status-badge.ok {
+      background: var(--accent);
+      color: white;
+    }
+    .api-status-badge.degraded {
+      background: #f59e0b;
+      color: white;
+    }
+    .api-status-badge.error {
+      background: var(--danger);
+      color: white;
+    }
   </style>
 </head>
 <body>
@@ -513,6 +559,26 @@
         This setting controls the format used when exporting notes, sessions, and automatic/AI notes.
         JSON exports include all data in a structured format, while CSV exports are optimized for spreadsheet applications.
       </p>
+    </section>
+
+    <!-- API Status Section -->
+    <section class="card" style="grid-column: 1 / -1;">
+      <div class="card-header">
+        <h2>API Status</h2>
+        <span>Worker health and connectivity</span>
+      </div>
+
+      <div class="toolbar">
+        <button id="checkApiBtn" class="secondary">🔍 Check API Status</button>
+        <button id="clearApiBtn" class="secondary">🗑️ Clear Results</button>
+      </div>
+
+      <p class="hint">
+        Check the health and connectivity of the brain worker API. This monitors database connections,
+        JWT configuration, and overall system status.
+      </p>
+
+      <div id="apiStatusResult"></div>
     </section>
 
     <!-- AI Instructions Configuration -->
@@ -1793,6 +1859,110 @@ Do not include any explanation outside the JSON.`
         status.innerHTML = `<strong>Error:</strong> ${result.error}`;
         status.classList.add('error');
       }
+    });
+
+    // --- API Status Check ---
+    async function checkAPIStatus() {
+      const resultDiv = document.getElementById('apiStatusResult');
+      const btn = document.getElementById('checkApiBtn');
+
+      btn.disabled = true;
+      btn.textContent = 'Checking...';
+      resultDiv.innerHTML = '<div class="api-status-result"><pre>Checking API health...</pre></div>';
+
+      try {
+        // Load worker URL
+        const { loadWorkerEndpoint } = await import('./src/app/worker-config.js');
+        const workerUrl = loadWorkerEndpoint({ fallback: true });
+
+        // Check basic health
+        const healthResponse = await fetch(`${workerUrl}/health`);
+        const healthData = await healthResponse.json();
+
+        // Check auth health
+        const authHealthResponse = await fetch(`${workerUrl}/auth/health`);
+        const authHealthData = await authHealthResponse.json();
+
+        const status = authHealthData.status || 'unknown';
+        const statusClass = status === 'ok' ? 'ok' : status === 'degraded' ? 'degraded' : 'error';
+
+        let html = `
+          <div class="api-status-result">
+            <h4>🏥 Health Check Results</h4>
+            <p><strong>Status:</strong> <span class="api-status-badge ${statusClass}">${status}</span></p>
+            <p><strong>Worker URL:</strong> ${workerUrl}</p>
+            <p><strong>Timestamp:</strong> ${authHealthData.timestamp || 'N/A'}</p>
+
+            <h4 style="margin-top: 16px;">💾 Database</h4>
+            <pre>Connected: ${authHealthData.database?.connected ? '✅ Yes' : '❌ No'}
+Tables Exist: ${authHealthData.database?.tablesExist ? '✅ Yes (3/3)' : '❌ No'}
+Tables Found: ${authHealthData.database?.tables?.join(', ') || 'None'}
+${authHealthData.database?.error ? `Error: ${authHealthData.database.error}` : ''}</pre>
+
+            <h4 style="margin-top: 16px;">🔐 JWT Configuration</h4>
+            <pre>JWT Secret: ${authHealthData.jwt?.configured ? '✅ Configured' : '❌ Not Configured'}</pre>
+
+            ${authHealthData.error ? `<h4 style="margin-top: 16px;">❌ Error</h4><pre>${authHealthData.error}</pre>` : ''}
+
+            <h4 style="margin-top: 16px;">📋 Recommendations</h4>
+            <pre>${getAPIRecommendations(authHealthData)}</pre>
+
+            <h4 style="margin-top: 16px;">📄 Full Response</h4>
+            <pre>${JSON.stringify(authHealthData, null, 2)}</pre>
+          </div>
+        `;
+
+        resultDiv.innerHTML = html;
+      } catch (err) {
+        resultDiv.innerHTML = `
+          <div class="api-status-result">
+            <h4>❌ Connection Error</h4>
+            <pre>${err.message}
+
+Possible causes:
+1. Worker URL is incorrect
+2. Worker is not deployed
+3. CORS is blocking the request
+4. Network connectivity issues
+
+Try:
+- Verify the worker URL
+- Deploy with: wrangler deploy
+- Check browser console for errors</pre>
+          </div>
+        `;
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '🔍 Check API Status';
+      }
+    }
+
+    function getAPIRecommendations(health) {
+      const recs = [];
+
+      if (!health.database?.connected) {
+        recs.push('❌ Database not connected - Check D1 binding in wrangler.toml');
+      }
+
+      if (!health.database?.tablesExist) {
+        recs.push('❌ Auth tables missing - Try registering a user to auto-create tables');
+      }
+
+      if (!health.jwt?.configured) {
+        recs.push('❌ JWT secret not set - Run: wrangler secret put JWT_SECRET');
+      }
+
+      if (health.status === 'ok') {
+        recs.push('✅ All systems operational!');
+      }
+
+      return recs.length > 0 ? recs.join('\n') : 'No issues detected';
+    }
+
+    document.getElementById('checkApiBtn')?.addEventListener('click', checkAPIStatus);
+
+    document.getElementById('clearApiBtn')?.addEventListener('click', () => {
+      document.getElementById('apiStatusResult').innerHTML = '';
     });
 
     // --- Boot ---

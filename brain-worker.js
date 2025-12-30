@@ -1831,6 +1831,7 @@ Always preserve boiler/cylinder make & model exactly as spoken.
   // Try OpenAI first, fall back to Gemini, then Anthropic if it fails
   let trimmedContent;
   let lastError;
+  let apiProvider = null;
 
   if (openaiKey) {
     try {
@@ -1876,6 +1877,7 @@ Always preserve boiler/cylinder make & model exactly as spoken.
         throw new Error("OpenAI model content was empty");
       }
 
+      apiProvider = "OpenAI";
       console.log("OpenAI call successful");
     } catch (err) {
       console.error("OpenAI call failed:", String(err));
@@ -1894,6 +1896,7 @@ Always preserve boiler/cylinder make & model exactly as spoken.
         JSON.stringify(userPayload),
         0.2
       );
+      apiProvider = "Gemini";
       console.log("Gemini call successful");
     } catch (err) {
       console.error("Gemini call failed:", String(err));
@@ -1912,6 +1915,7 @@ Always preserve boiler/cylinder make & model exactly as spoken.
         JSON.stringify(userPayload),
         0.2
       );
+      apiProvider = "Anthropic";
       console.log("Anthropic call successful");
     } catch (err) {
       console.error("Anthropic call failed:", String(err));
@@ -1939,6 +1943,10 @@ Always preserve boiler/cylinder make & model exactly as spoken.
   if (typeof jsonOut.customerSummary !== "string") jsonOut.customerSummary = "";
 
   jsonOut.sections = normaliseSectionsFromModel(jsonOut.sections, activeSchemaInfo);
+
+  // Add API provider metadata
+  jsonOut.processedBy = apiProvider;
+  jsonOut.processedAt = new Date().toISOString();
 
   return jsonOut;
 }

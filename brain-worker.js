@@ -18,6 +18,58 @@ export default {
         return handleOptions();
       }
 
+      // Root path - API information
+      if (request.method === "GET" && url.pathname === "/") {
+        return jsonResponse({
+          name: "Depot Voice Notes API",
+          version: "1.0.0",
+          status: "online",
+          endpoints: {
+            health: {
+              path: "/health",
+              method: "GET",
+              description: "Basic health check"
+            },
+            authHealth: {
+              path: "/auth/health",
+              method: "GET",
+              description: "Authentication system health check"
+            },
+            text: {
+              path: "/text",
+              method: "POST",
+              description: "Process transcript text and generate depot notes"
+            },
+            audio: {
+              path: "/audio",
+              method: "POST",
+              description: "Transcribe audio and generate depot notes"
+            },
+            agentChat: {
+              path: "/agent-chat",
+              method: "POST",
+              description: "Chat with AI agent about survey details"
+            },
+            tweakSection: {
+              path: "/tweak-section",
+              method: "POST",
+              description: "Improve a specific section with AI"
+            },
+            query: {
+              path: "/query",
+              method: "POST",
+              description: "Query product database"
+            },
+            presentation: {
+              path: "/generate-presentation",
+              method: "POST",
+              description: "Generate presentation recommendations"
+            }
+          },
+          documentation: "https://github.com/martinbibb-cmd/Depot-voice-notes"
+        }, 200);
+      }
+
       if (request.method === "GET" && url.pathname === "/health") {
         return jsonResponse({
           status: "ok",

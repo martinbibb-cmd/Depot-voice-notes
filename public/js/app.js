@@ -11,10 +11,12 @@ const el = {
   transcript:   $('[data-ui="transcript-out"]')|| $('#out'),
   micBtn:       $('[data-ui="mic-start"]'),
   sendBtn:      $('[data-ui="send-notes"]'),
+  shareBtn:     $('[data-ui="share-notes"]'),
 };
 
 function setStatus(t){ if(el.workerStatus) el.workerStatus.textContent = t; console.log('[worker]', t); }
 function showErr(t){ if(el.workerError){ el.workerError.hidden=false; el.workerError.textContent=t; } console.error('[worker:error]', t); }
+function showSuccess(t){ console.log('[success]', t); }
 
 async function ensureMicPermission(){
   if(!navigator.mediaDevices?.getUserMedia) return false;
@@ -106,6 +108,44 @@ async function boot(){
       // 🔗 Keep your existing Cloudflare Worker URL:
       // fetch(CF_URL, { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ text }) })
       //   .then(r=>r.json()).then(j=>console.log('sent', j)).catch(e=>console.error('send failed', e));
+    });
+  }
+
+  if(el.shareBtn){
+    el.shareBtn.addEventListener('click', async ()=>{
+      const text = (el.transcript?.value || '').trim();
+      if(!text){
+        showErr('No notes to share');
+        return;
+      }
+      
+      // Check if Web Share API is supported
+      if(navigator.share){
+        try{
+          await navigator.share({
+            title: 'Depot Voice Notes',
+            text: text,
+          });
+          console.log('[share] success');
+        }catch(err){
+          // User cancelled or share failed
+          if(err.name !== 'AbortError'){
+            console.error('[share] error', err);
+            showErr('Share failed: ' + err.message);
+          }
+        }
+      }else{
+        // Fallback: copy to clipboard
+        try{
+          await navigator.clipboard.writeText(text);
+          showSuccess('Notes copied to clipboard');
+          // Still show alert for user visibility since there's no other UI feedback
+          alert('Notes copied to clipboard!');
+        }catch(err){
+          console.error('[share:clipboard] error', err);
+          showErr('Share not supported and clipboard copy failed');
+        }
+      }
     });
   }
 }

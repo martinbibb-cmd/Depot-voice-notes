@@ -16,6 +16,7 @@ const el = {
 
 function setStatus(t){ if(el.workerStatus) el.workerStatus.textContent = t; console.log('[worker]', t); }
 function showErr(t){ if(el.workerError){ el.workerError.hidden=false; el.workerError.textContent=t; } console.error('[worker:error]', t); }
+function showSuccess(t){ console.log('[success]', t); }
 
 async function ensureMicPermission(){
   if(!navigator.mediaDevices?.getUserMedia) return false;
@@ -137,7 +138,8 @@ async function boot(){
         // Fallback: copy to clipboard
         try{
           await navigator.clipboard.writeText(text);
-          console.log('[share] copied to clipboard');
+          showSuccess('Notes copied to clipboard');
+          // Still show alert for user visibility since there's no other UI feedback
           alert('Notes copied to clipboard!');
         }catch(err){
           console.error('[share:clipboard] error', err);

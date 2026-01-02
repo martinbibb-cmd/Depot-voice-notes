@@ -4,8 +4,19 @@
   <meta charset="utf-8" />
   <title>Depot • Voice Notes</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Voice notes capture tool for depot/site surveys with dictation and transcription" />
+  
+  <!-- PWA Configuration -->
+  <link rel="manifest" href="./manifest.json" />
+  <meta name="theme-color" content="#2563eb" />
+  <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png" />
+  <link rel="icon" type="image/png" sizes="512x512" href="./icon-512.png" />
+  
   <!-- iOS PWA/audio friendliness -->
   <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="Depot Notes" />
+  <link rel="apple-touch-icon" href="./icon-192.png" />
   <meta name="mobile-web-app-capable" content="yes" />
   <style>
     .banner { padding:.5rem .75rem; border-radius:8px; margin:.5rem 0; }
@@ -28,6 +39,7 @@
   <div class="row" style="margin:.5rem 0 1rem">
     <button data-ui="mic-start" aria-label="Start microphone">🎙️ Start</button>
     <button data-ui="send-notes">Send notes</button>
+    <button data-ui="share-notes" aria-label="Share notes">📤 Share</button>
   </div>
 
   <label for="out">Live transcript / summary</label>

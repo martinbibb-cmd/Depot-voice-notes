@@ -36,17 +36,15 @@ test('Heating vocabulary: corrects "flu" to "flue"', async (t) => {
   let capturedTranscript = null;
 
   globalThis.fetch = async (url, options) => {
-    if (url.includes('openai.com')) {
-      const body = JSON.parse(options.body);
-      const userMessage = JSON.parse(body.messages[1].content);
-      capturedTranscript = userMessage.transcript;
-      
-      return new Response(
-        JSON.stringify({ choices: [{ message: { content: createMockAIResponse(capturedTranscript) } }] }),
-        { status: 200, headers: { 'Content-Type': 'application/json' } }
-      );
-    }
-    return new Response('Not found', { status: 404 });
+    assert.equal(url, 'https://api.openai.com/v1/chat/completions');
+    const body = JSON.parse(options.body);
+    const userMessage = JSON.parse(body.messages[1].content);
+    capturedTranscript = userMessage.transcript;
+    
+    return new Response(
+      JSON.stringify({ choices: [{ message: { content: createMockAIResponse(capturedTranscript) } }] }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } }
+    );
   };
 
   t.after(() => {
@@ -72,7 +70,7 @@ test('Heating vocabulary: does not change "flu" when followed by "jab"', async (
   let capturedTranscript = null;
 
   globalThis.fetch = async (url, options) => {
-    if (url.includes('openai.com')) {
+    assert.equal(url, 'https://api.openai.com/v1/chat/completions');
       const body = JSON.parse(options.body);
       const userMessage = JSON.parse(body.messages[1].content);
       capturedTranscript = userMessage.transcript;
@@ -81,8 +79,7 @@ test('Heating vocabulary: does not change "flu" when followed by "jab"', async (
         JSON.stringify({ choices: [{ message: { content: createMockAIResponse(capturedTranscript) } }] }),
         { status: 200, headers: { 'Content-Type': 'application/json' } }
       );
-    }
-    return new Response('Not found', { status: 404 });
+    
   };
 
   t.after(() => {
@@ -107,7 +104,7 @@ test('Heating vocabulary: corrects TRV variations', async (t) => {
   let capturedTranscript = null;
 
   globalThis.fetch = async (url, options) => {
-    if (url.includes('openai.com')) {
+    assert.equal(url, 'https://api.openai.com/v1/chat/completions');
       const body = JSON.parse(options.body);
       const userMessage = JSON.parse(body.messages[1].content);
       capturedTranscript = userMessage.transcript;
@@ -116,8 +113,7 @@ test('Heating vocabulary: corrects TRV variations', async (t) => {
         JSON.stringify({ choices: [{ message: { content: createMockAIResponse(capturedTranscript) } }] }),
         { status: 200, headers: { 'Content-Type': 'application/json' } }
       );
-    }
-    return new Response('Not found', { status: 404 });
+    
   };
 
   t.after(() => {
@@ -143,7 +139,7 @@ test('Heating vocabulary: corrects combi boiler variations', async (t) => {
   let capturedTranscript = null;
 
   globalThis.fetch = async (url, options) => {
-    if (url.includes('openai.com')) {
+    assert.equal(url, 'https://api.openai.com/v1/chat/completions');
       const body = JSON.parse(options.body);
       const userMessage = JSON.parse(body.messages[1].content);
       capturedTranscript = userMessage.transcript;
@@ -152,8 +148,7 @@ test('Heating vocabulary: corrects combi boiler variations', async (t) => {
         JSON.stringify({ choices: [{ message: { content: createMockAIResponse(capturedTranscript) } }] }),
         { status: 200, headers: { 'Content-Type': 'application/json' } }
       );
-    }
-    return new Response('Not found', { status: 404 });
+    
   };
 
   t.after(() => {
@@ -179,7 +174,7 @@ test('Heating vocabulary: corrects brand names', async (t) => {
   let capturedTranscript = null;
 
   globalThis.fetch = async (url, options) => {
-    if (url.includes('openai.com')) {
+    assert.equal(url, 'https://api.openai.com/v1/chat/completions');
       const body = JSON.parse(options.body);
       const userMessage = JSON.parse(body.messages[1].content);
       capturedTranscript = userMessage.transcript;
@@ -188,8 +183,7 @@ test('Heating vocabulary: corrects brand names', async (t) => {
         JSON.stringify({ choices: [{ message: { content: createMockAIResponse(capturedTranscript) } }] }),
         { status: 200, headers: { 'Content-Type': 'application/json' } }
       );
-    }
-    return new Response('Not found', { status: 404 });
+    
   };
 
   t.after(() => {
@@ -216,7 +210,7 @@ test('kW corrections: fixes "4030" to "30kW"', async (t) => {
   let capturedTranscript = null;
 
   globalThis.fetch = async (url, options) => {
-    if (url.includes('openai.com')) {
+    assert.equal(url, 'https://api.openai.com/v1/chat/completions');
       const body = JSON.parse(options.body);
       const userMessage = JSON.parse(body.messages[1].content);
       capturedTranscript = userMessage.transcript;
@@ -225,8 +219,7 @@ test('kW corrections: fixes "4030" to "30kW"', async (t) => {
         JSON.stringify({ choices: [{ message: { content: createMockAIResponse(capturedTranscript) } }] }),
         { status: 200, headers: { 'Content-Type': 'application/json' } }
       );
-    }
-    return new Response('Not found', { status: 404 });
+    
   };
 
   t.after(() => {
@@ -252,7 +245,7 @@ test('kW corrections: normalizes "30 kw" to "30kW"', async (t) => {
   let capturedTranscript = null;
 
   globalThis.fetch = async (url, options) => {
-    if (url.includes('openai.com')) {
+    assert.equal(url, 'https://api.openai.com/v1/chat/completions');
       const body = JSON.parse(options.body);
       const userMessage = JSON.parse(body.messages[1].content);
       capturedTranscript = userMessage.transcript;
@@ -261,8 +254,7 @@ test('kW corrections: normalizes "30 kw" to "30kW"', async (t) => {
         JSON.stringify({ choices: [{ message: { content: createMockAIResponse(capturedTranscript) } }] }),
         { status: 200, headers: { 'Content-Type': 'application/json' } }
       );
-    }
-    return new Response('Not found', { status: 404 });
+    
   };
 
   t.after(() => {
@@ -289,7 +281,7 @@ test('kW corrections: adds kW to numbers followed by boiler context', async (t) 
   let capturedTranscript = null;
 
   globalThis.fetch = async (url, options) => {
-    if (url.includes('openai.com')) {
+    assert.equal(url, 'https://api.openai.com/v1/chat/completions');
       const body = JSON.parse(options.body);
       const userMessage = JSON.parse(body.messages[1].content);
       capturedTranscript = userMessage.transcript;
@@ -298,8 +290,7 @@ test('kW corrections: adds kW to numbers followed by boiler context', async (t) 
         JSON.stringify({ choices: [{ message: { content: createMockAIResponse(capturedTranscript) } }] }),
         { status: 200, headers: { 'Content-Type': 'application/json' } }
       );
-    }
-    return new Response('Not found', { status: 404 });
+    
   };
 
   t.after(() => {
@@ -325,7 +316,7 @@ test('kW corrections: flags unusual boiler ratings outside 12-45kW range', async
   let capturedSanityNotes = null;
 
   globalThis.fetch = async (url, options) => {
-    if (url.includes('openai.com')) {
+    assert.equal(url, 'https://api.openai.com/v1/chat/completions');
       const body = JSON.parse(options.body);
       const userMessage = JSON.parse(body.messages[1].content);
       capturedSanityNotes = userMessage.sanityNotes;
@@ -334,8 +325,7 @@ test('kW corrections: flags unusual boiler ratings outside 12-45kW range', async
         JSON.stringify({ choices: [{ message: { content: createMockAIResponse('test') } }] }),
         { status: 200, headers: { 'Content-Type': 'application/json' } }
       );
-    }
-    return new Response('Not found', { status: 404 });
+    
   };
 
   t.after(() => {
@@ -365,7 +355,7 @@ test('Pipe size normalization: still works with new changes', async (t) => {
   let capturedTranscript = null;
 
   globalThis.fetch = async (url, options) => {
-    if (url.includes('openai.com')) {
+    assert.equal(url, 'https://api.openai.com/v1/chat/completions');
       const body = JSON.parse(options.body);
       const userMessage = JSON.parse(body.messages[1].content);
       capturedTranscript = userMessage.transcript;
@@ -374,8 +364,7 @@ test('Pipe size normalization: still works with new changes', async (t) => {
         JSON.stringify({ choices: [{ message: { content: createMockAIResponse(capturedTranscript) } }] }),
         { status: 200, headers: { 'Content-Type': 'application/json' } }
       );
-    }
-    return new Response('Not found', { status: 404 });
+    
   };
 
   t.after(() => {
@@ -401,7 +390,7 @@ test('Combined corrections: handles multiple issues in one transcript', async (t
   let capturedTranscript = null;
 
   globalThis.fetch = async (url, options) => {
-    if (url.includes('openai.com')) {
+    assert.equal(url, 'https://api.openai.com/v1/chat/completions');
       const body = JSON.parse(options.body);
       const userMessage = JSON.parse(body.messages[1].content);
       capturedTranscript = userMessage.transcript;
@@ -410,8 +399,7 @@ test('Combined corrections: handles multiple issues in one transcript', async (t
         JSON.stringify({ choices: [{ message: { content: createMockAIResponse(capturedTranscript) } }] }),
         { status: 200, headers: { 'Content-Type': 'application/json' } }
       );
-    }
-    return new Response('Not found', { status: 404 });
+    
   };
 
   t.after(() => {

@@ -1530,7 +1530,7 @@ function applyTranscriptionSanityChecks(transcript) {
     if (num >= 1200 && num <= 4545) {
       // Try to extract a sensible kW value
       const lastTwoDigits = num % 100;
-      const firstDigits = Math.floor(num / 100);
+      const leadingDigits = Math.floor(num / 100);
       
       // If last two digits are in valid boiler range (12-45)
       if (lastTwoDigits >= 12 && lastTwoDigits <= 45) {
@@ -1538,10 +1538,10 @@ function applyTranscriptionSanityChecks(transcript) {
         return `${lastTwoDigits}kW`;
       }
       
-      // If first digits are in valid boiler range
-      if (firstDigits >= 12 && firstDigits <= 45) {
-        sanityNotes.push(`Corrected probable kW mishearing: ${match} → ${firstDigits}kW`);
-        return `${firstDigits}kW`;
+      // If leading digits are in valid boiler range
+      if (leadingDigits >= 12 && leadingDigits <= 45) {
+        sanityNotes.push(`Corrected probable kW mishearing: ${match} → ${leadingDigits}kW`);
+        return `${leadingDigits}kW`;
       }
     }
     

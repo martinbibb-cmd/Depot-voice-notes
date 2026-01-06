@@ -1464,6 +1464,110 @@ function applyTranscriptionSanityChecks(transcript) {
   const sanityNotes = [];
   let sanitisedTranscript = transcript;
 
+  // Heating industry glossary - correct common mishearings
+  const heatingGlossary = [
+    // Flu/Flue correction (always "flue" unless followed by "jab" or "shot")
+    { pattern: /\b(flu|flew)\b(?!\s+(jab|shot|vaccination|vaccine))/gi, replacement: 'flue', description: 'flu/flew to flue' },
+    
+    // TRV variations
+    { pattern: /\b(tee\s*are\s*vee|t\s*r\s*v|tee\s*arr\s*vee|tea\s*are\s*vee)\b/gi, replacement: 'TRV', description: 'T-R-V spelling variations' },
+    { pattern: /\bteear[a-z]*\b/gi, replacement: 'TRV', description: 'teearvee to TRV' },
+    
+    // Combi boiler variations
+    { pattern: /\b(con\s*bee|combination\s+boiler|combo)\b/gi, replacement: 'combi', description: 'combination boiler variations' },
+    
+    // Lockshield variations
+    { pattern: /\b(lox\s*field|lock\s*field|lock\s*shield)\b/gi, replacement: 'lockshield', description: 'lockshield variations' },
+    
+    // Condensate
+    { pattern: /\b(conden[cs]ate|condensat)\b/gi, replacement: 'condensate', description: 'condensate spelling' },
+    
+    // Common brand corrections
+    { pattern: /\b(ferox|ferro[xs]|fernocks?)\b/gi, replacement: 'Fernox', description: 'Fernox brand' },
+    { pattern: /\b(wor[cs]e?ster|worcestor|worchester)\b/gi, replacement: 'Worcester', description: 'Worcester brand' },
+    { pattern: /\b(vaill?ant|valiant)\b/gi, replacement: 'Vaillant', description: 'Vaillant brand' },
+    { pattern: /\b(ideal\s*logic|ideallogic)\b/gi, replacement: 'Ideal Logic', description: 'Ideal Logic brand' },
+    
+    // Open vent and cold feed
+    { pattern: /\b(open\s+vent(?:ing)?\s+co[a-z]*\s+f[a-z]+|open\s+vent\s+and\s+cold\s+f[a-z]+)\b/gi, replacement: 'open vent and cold feed', description: 'open vent and cold feed' },
+    
+    // Expansion vessel
+    { pattern: /\b(expansion\s+ves[a-z]*|expan[a-z]+\s+vessel)\b/gi, replacement: 'expansion vessel', description: 'expansion vessel' },
+    
+    // Heat exchanger
+    { pattern: /\b(heat\s+exchang[a-z]*)\b/gi, replacement: 'heat exchanger', description: 'heat exchanger' },
+    
+    // Powerflush
+    { pattern: /\b(power\s*flush|powerflush)\b/gi, replacement: 'powerflush', description: 'powerflush' }
+  ];
+
+  // Apply heating glossary corrections
+  heatingGlossary.forEach(({ pattern, replacement, description }) => {
+    const originalTranscript = sanitisedTranscript;
+    sanitisedTranscript = sanitisedTranscript.replace(pattern, (match) => {
+      // Preserve the original case if it was all caps or title case
+      if (match === match.toUpperCase() && match.length > 1) {
+        return replacement.toUpperCase();
+      }
+      if (match[0] === match[0].toUpperCase()) {
+        return replacement.charAt(0).toUpperCase() + replacement.slice(1);
+      }
+      return replacement;
+    });
+    
+    if (originalTranscript !== sanitisedTranscript) {
+      sanityNotes.push(`Corrected heating terminology: ${description}`);
+    }
+  });
+
+  // Number-unit logic for kW corrections
+  // Pattern 1: "4030" or similar mistakes -> "30kW" (range: 12-45kW)
+  sanitisedTranscript = sanitisedTranscript.replace(/\b([1-9]\d{3,4})\b/g, (match, numStr) => {
+    const num = Number(numStr);
+    
+    // Check if it looks like a mishearing of kW rating (e.g., "4030" for "forty thirty" = "30kW")
+    // Common patterns: 4030 -> 30, 2418 -> 18, 3024 -> 24, etc.
+    if (num >= 1200 && num <= 4545) {
+      // Try to extract a sensible kW value
+      const lastTwoDigits = num % 100;
+      const leadingDigits = Math.floor(num / 100);
+      
+      // If last two digits are in valid boiler range (12-45)
+      if (lastTwoDigits >= 12 && lastTwoDigits <= 45) {
+        sanityNotes.push(`Corrected probable kW mishearing: ${match} → ${lastTwoDigits}kW`);
+        return `${lastTwoDigits}kW`;
+      }
+      
+      // If leading digits are in valid boiler range
+      if (leadingDigits >= 12 && leadingDigits <= 45) {
+        sanityNotes.push(`Corrected probable kW mishearing: ${match} → ${leadingDigits}kW`);
+        return `${leadingDigits}kW`;
+      }
+    }
+    
+    return match;
+  });
+
+  // Pattern 2: Number followed by "kay", "kw", "kilowatt" etc. -> normalize to "kW"
+  sanitisedTranscript = sanitisedTranscript.replace(/(\d+)\s*(k[wy]?|kay|kilowatt[s]?|kilo[- ]?watt[s]?)\b/gi, (match, num, unit) => {
+    const kwValue = Number(num);
+    
+    // Sanity check: typical domestic boiler range is 12-45kW
+    // If outside this range, flag it but still format
+    if (kwValue < 12 || kwValue > 45) {
+      sanityNotes.push(`Unusual boiler power rating detected: ${kwValue}kW (typical range is 12-45kW)`);
+    }
+    
+    return `${kwValue}kW`;
+  });
+
+  // Pattern 3: Catch numbers in the 12-45 range followed by context suggesting power rating
+  sanitisedTranscript = sanitisedTranscript.replace(/\b(1[2-9]|[23]\d|4[0-5])\s+(boiler|output|rated|power)\b/gi, (match, num, context) => {
+    sanityNotes.push(`Added kW unit to boiler power rating: ${num}kW`);
+    return `${num}kW ${context}`;
+  });
+
+  // Pipe size normalization
   sanitisedTranscript = sanitisedTranscript.replace(/(\d{1,2})\s*mm/gi, (match, sizeStr) => {
     const size = Number(sizeStr);
     if (allowedPipeSizes.includes(size)) return `${size}mm`;

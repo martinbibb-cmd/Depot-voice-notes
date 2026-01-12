@@ -3386,8 +3386,6 @@ function updateSpeakerLabel(segmentIndex, newSpeaker) {
   // Save the change
   saveInlineTranscriptEdit();
 }
-  saveInlineTranscriptEdit();
-}
 
 // Update transcript display whenever the input changes
 const originalUpdateTextarea = updateTextareaFromBuffers;

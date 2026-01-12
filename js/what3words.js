@@ -149,7 +149,7 @@ function handlePastedAddress(text, pasteBox, statusDiv, modal) {
       pasteToDeliveryAndOfficeNotes(trimmedText);
 
       // Show success message
-      statusDiv.innerHTML = '✓ Added to Delivery notes and Office notes!';
+      statusDiv.innerHTML = '✓ Added to Delivery notes and Disruption notes!';
 
       // Close modal and popup after 1.5 seconds
       setTimeout(() => {

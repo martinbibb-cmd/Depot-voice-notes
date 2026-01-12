@@ -3312,7 +3312,9 @@ function renderTranscriptDisplay() {
       btn.addEventListener('click', (e) => {
         const segmentIndex = parseInt(e.target.dataset.segmentIndex);
         const flagType = e.target.dataset.flag;
-        updateSpeakerLabel(segmentIndex, flagType);
+        if (!isNaN(segmentIndex) && segmentIndex >= 0 && flagType) {
+          updateSpeakerLabel(segmentIndex, flagType);
+        }
       });
     });
   }
@@ -3367,6 +3369,7 @@ function saveInlineTranscriptEdit() {
 // Update speaker label
 function updateSpeakerLabel(segmentIndex, newSpeaker) {
   if (!transcriptDisplay) return;
+  if (isNaN(segmentIndex) || segmentIndex < 0) return;
 
   const lines = transcriptDisplay.querySelectorAll('.transcript-line');
   if (segmentIndex >= lines.length) return;
@@ -3374,13 +3377,15 @@ function updateSpeakerLabel(segmentIndex, newSpeaker) {
   const line = lines[segmentIndex];
   const speakerSpan = line.querySelector('.transcript-speaker');
   
-  if (speakerSpan) {
+  if (speakerSpan && newSpeaker) {
     const capitalizedSpeaker = newSpeaker.charAt(0).toUpperCase() + newSpeaker.slice(1);
     speakerSpan.textContent = `${capitalizedSpeaker}:`;
     speakerSpan.dataset.speaker = capitalizedSpeaker;
   }
 
   // Save the change
+  saveInlineTranscriptEdit();
+}
   saveInlineTranscriptEdit();
 }
 

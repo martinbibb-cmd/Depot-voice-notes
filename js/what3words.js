@@ -72,7 +72,7 @@ function createW3WModal() {
       </div>
       <div class="w3w-modal-footer">
         <div class="w3w-footer-info">
-          Address will be automatically added to Delivery notes and Office notes
+          Address will be automatically added to Delivery notes and Disruption notes
         </div>
       </div>
     </div>
@@ -256,7 +256,7 @@ function validateW3WAddress(address) {
 }
 
 /**
- * Paste what3words address to Delivery notes and Office notes sections
+ * Paste what3words address to Delivery notes and Disruption notes sections
  */
 function pasteToDeliveryAndOfficeNotes(address) {
   if (!address) return;
@@ -271,12 +271,12 @@ function pasteToDeliveryAndOfficeNotes(address) {
   // Get the current sections from the app state
   const sections = window.lastSections || window.APP_STATE?.sections || [];
 
-  // Find Delivery notes and Office notes sections
+  // Find Delivery notes and Disruption notes sections
   const deliveryIndex = sections.findIndex(s =>
     s.section?.toLowerCase().includes('delivery') && s.section?.toLowerCase().includes('note')
   );
-  const officeIndex = sections.findIndex(s =>
-    s.section?.toLowerCase().includes('office') && s.section?.toLowerCase().includes('note')
+  const disruptionIndex = sections.findIndex(s =>
+    s.section?.toLowerCase().includes('disruption')
   );
 
   const locationText = `Location: ${normalizedAddress}`;
@@ -309,9 +309,9 @@ function pasteToDeliveryAndOfficeNotes(address) {
     }
   }
 
-  // Update Office notes
-  if (officeIndex !== -1) {
-    const section = sections[officeIndex];
+  // Update Disruption notes
+  if (disruptionIndex !== -1) {
+    const section = sections[disruptionIndex];
     const plainText = section.plainText || '';
     const naturalLanguage = section.naturalLanguage || '';
 
@@ -356,7 +356,7 @@ function pasteToDeliveryAndOfficeNotes(address) {
       window.saveToLocalStorage();
     }
 
-    console.log('what3words address added to Delivery notes and Office notes:', normalizedAddress);
+    console.log('what3words address added to Delivery notes and Disruption notes:', normalizedAddress);
   }
 }
 

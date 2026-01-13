@@ -2511,8 +2511,13 @@ function updateTextareaFromBuffers() {
   const interim = interimTranscript.trim();
   const parts = [];
   if (committed) parts.push(committed);
-  if (interim) parts.push(interim);
-  const combined = parts.join(parts.length > 1 ? " " : "");
+  if (interim) {
+    // Show interim text as unformatted (will be formatted when it becomes final)
+    parts.push(interim);
+  }
+  // Use newline if committed has formatted lines, otherwise space
+  const separator = (committed.includes('[') && committed.includes(']')) ? '\n' : ' ';
+  const combined = parts.join(parts.length > 1 ? separator : "");
   transcriptInput.value = combined.trim();
   // Update the display to show real-time transcription
   if (typeof renderTranscriptDisplay === 'function') {
@@ -2566,9 +2571,19 @@ if (SpeechRec) {
       const text = r[0].transcript ? r[0].transcript.trim() : "";
       if (!text) continue;
       if (r.isFinal) {
+        // Format as chat message with timestamp and current speaker
+        const timestamp = new Date().toLocaleTimeString('en-US', {
+          hour12: false,
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit'
+        });
+        const speakerLabel = (typeof currentSpeaker !== 'undefined') ? currentSpeaker : 'Expert';
+        const formattedLine = `[${timestamp}] ${speakerLabel}: ${text}`;
+
         committedTranscript = committedTranscript
-          ? `${committedTranscript} ${text}`.replace(/\s+/g, " ").trim()
-          : text;
+          ? `${committedTranscript}\n${formattedLine}`
+          : formattedLine;
         interimTranscript = "";
         sawFinal = true;
         console.log("Final transcript:", text);
@@ -3285,8 +3300,8 @@ function renderTranscriptDisplay() {
           <span class="transcript-timestamp">[${seg.timestamp}]</span>
           <span class="transcript-speaker" data-speaker="${escapeHtml(seg.speaker)}">${escapeHtml(seg.speaker)}:</span>
           <span class="transcript-text" contenteditable="true" data-segment-index="${idx}">${escapeHtml(seg.text)}</span>
-          <button class="flag-speaker-btn" data-flag="expert" data-segment-index="${idx}" title="Flag as Expert">👷 Expert</button>
-          <button class="flag-speaker-btn" data-flag="customer" data-segment-index="${idx}" title="Flag as Customer">👤 Customer</button>
+          <button class="flag-speaker-btn" contenteditable="false" data-flag="expert" data-segment-index="${idx}" title="Flag as Expert">👷 Expert</button>
+          <button class="flag-speaker-btn" contenteditable="false" data-flag="customer" data-segment-index="${idx}" title="Flag as Customer">👤 Customer</button>
         </div>
       `;
     });
@@ -3841,6 +3856,113 @@ window.addEventListener('appendAgentTranscript', (event) => {
   renderTranscriptDisplay();
   autoSaveSessionToLocal();
 });
+
+// ============================================================================
+// SPEAKER SELECTION FUNCTIONALITY
+// ============================================================================
+
+// Track current speaker for chat-style input
+let currentSpeaker = 'Expert'; // Default to Expert
+
+// Get speaker selection buttons
+const selectExpertBtn = document.getElementById('selectExpertBtn');
+const selectCustomerBtn = document.getElementById('selectCustomerBtn');
+
+// Handle speaker selection
+function setCurrentSpeaker(speaker) {
+  currentSpeaker = speaker;
+
+  // Update button states
+  if (selectExpertBtn && selectCustomerBtn) {
+    if (speaker === 'Expert') {
+      selectExpertBtn.classList.add('active');
+      selectCustomerBtn.classList.remove('active');
+    } else {
+      selectCustomerBtn.classList.add('active');
+      selectExpertBtn.classList.remove('active');
+    }
+  }
+
+  console.log('Current speaker set to:', currentSpeaker);
+}
+
+// Add event listeners to speaker buttons
+if (selectExpertBtn) {
+  selectExpertBtn.addEventListener('click', () => {
+    setCurrentSpeaker('Expert');
+  });
+}
+
+if (selectCustomerBtn) {
+  selectCustomerBtn.addEventListener('click', () => {
+    setCurrentSpeaker('Customer');
+  });
+}
+
+// Helper function to format timestamp
+function getCurrentTimestamp() {
+  return new Date().toLocaleTimeString('en-US', {
+    hour12: false,
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  });
+}
+
+// Helper function to append a chat message to transcript
+function appendChatMessage(text, speaker = null) {
+  if (!text || !transcriptInput) return;
+
+  const speakerLabel = speaker || currentSpeaker;
+  const timestamp = getCurrentTimestamp();
+  const formattedLine = `[${timestamp}] ${speakerLabel}: ${text.trim()}`;
+  const existing = transcriptInput.value.trim();
+
+  transcriptInput.value = existing ? `${existing}\n${formattedLine}` : formattedLine;
+  committedTranscript = transcriptInput.value.trim();
+
+  renderTranscriptDisplay();
+  autoSaveSessionToLocal();
+}
+
+// Chat message input handling
+const chatMessageInput = document.getElementById('chatMessageInput');
+const sendChatMessageBtn = document.getElementById('sendChatMessageBtn');
+
+function sendChatMessage() {
+  if (!chatMessageInput) return;
+
+  const message = chatMessageInput.value.trim();
+  if (!message) return;
+
+  // Append the message with current speaker
+  appendChatMessage(message);
+
+  // Clear the input
+  chatMessageInput.value = '';
+
+  // Focus back on the input
+  chatMessageInput.focus();
+
+  console.log('Chat message sent:', message, 'as', currentSpeaker);
+}
+
+// Send button click
+if (sendChatMessageBtn) {
+  sendChatMessageBtn.addEventListener('click', () => {
+    sendChatMessage();
+  });
+}
+
+// Enter key to send
+if (chatMessageInput) {
+  chatMessageInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendChatMessage();
+    }
+  });
+}
 
 // Transcript Editing Functionality
 const editTranscriptBtn = document.getElementById('editTranscriptBtn');

@@ -932,6 +932,102 @@
       color: rgba(255,255,255,0.9);
       animation: pulse 2s ease-in-out infinite;
     }
+    /* Speaker Selection */
+    .speaker-selection-container {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 12px;
+      padding: 12px;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .speaker-buttons {
+      display: flex;
+      gap: 8px;
+    }
+    .speaker-select-btn {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      padding: 12px;
+      background: linear-gradient(180deg, #f8f9fa 0%, #e9ecef 100%);
+      border: 2px solid #cbd5e0;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 0.85rem;
+      color: #475569;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+    }
+    .speaker-select-btn:hover {
+      background: linear-gradient(180deg, #ffffff 0%, #f1f3f5 100%);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 8px rgba(0,0,0,0.12);
+    }
+    .speaker-select-btn.active {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border-color: #5a67d8;
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+    .speaker-select-btn.active:hover {
+      background: linear-gradient(135deg, #5a67d8 0%, #6b46a0 100%);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 16px rgba(102, 126, 234, 0.5);
+    }
+    .speaker-select-btn span:first-child {
+      font-size: 1.5rem;
+    }
+    /* Chat Input */
+    .chat-input-container {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+      padding: 10px;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .chat-message-input {
+      flex: 1;
+      padding: 10px 12px;
+      background: white;
+      border: 2px solid #e2e8f0;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      color: #1e293b;
+      transition: all 0.2s ease;
+    }
+    .chat-message-input:focus {
+      outline: none;
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+    .send-chat-btn {
+      padding: 10px 20px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-weight: 600;
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+    }
+    .send-chat-btn:hover {
+      background: linear-gradient(135deg, #5a67d8 0%, #6b46a0 100%);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+    .send-chat-btn:active {
+      transform: translateY(0);
+    }
     /* Transcript Panels */
     .transcript-panels {
       display: grid;
@@ -2199,6 +2295,21 @@
             <span id="chunkIntervalDisplay" class="small" style="margin-left: 8px; color: var(--muted);">Chunk: --s</span>
           </div>
 
+          <!-- Speaker Selection -->
+          <div class="speaker-selection-container">
+            <span style="font-weight: 600; font-size: 0.9rem;">Speaking as:</span>
+            <div class="speaker-buttons">
+              <button id="selectExpertBtn" class="speaker-select-btn active" data-speaker="expert">
+                <span>👷</span>
+                <span>Expert</span>
+              </button>
+              <button id="selectCustomerBtn" class="speaker-select-btn" data-speaker="customer">
+                <span>👤</span>
+                <span>Customer</span>
+              </button>
+            </div>
+          </div>
+
           <div class="audio-control-buttons">
             <button id="skipBackwardBtn" class="audio-btn" disabled>
               <span>⏮️</span>
@@ -2251,6 +2362,11 @@
             </div>
             <div id="transcriptDisplay" class="transcript-scroll-box"></div>
             <textarea id="transcriptInput" placeholder="Or type/paste notes here..." style="display: none;"></textarea>
+            <!-- Chat Input Box -->
+            <div class="chat-input-container">
+              <input type="text" id="chatMessageInput" class="chat-message-input" placeholder="Type a message...">
+              <button id="sendChatMessageBtn" class="send-chat-btn">Send</button>
+            </div>
           </div>
           <div class="statusbar" id="statusBar">Idle (Online • Manual)</div>
           <div style="display: flex; gap: 12px; margin-top: 6px; font-size: 0.65rem; color: #64748b;">

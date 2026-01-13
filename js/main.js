@@ -3279,16 +3279,44 @@ function renderTranscriptDisplay() {
   } else {
     // Render with diarisation
     let html = '';
-    segments.forEach(seg => {
+    segments.forEach((seg, idx) => {
       html += `
-        <div class="transcript-line">
+        <div class="transcript-line" data-segment-index="${idx}">
           <span class="transcript-timestamp">[${seg.timestamp}]</span>
-          <span class="transcript-speaker">${escapeHtml(seg.speaker)}:</span>
-          <span>${escapeHtml(seg.text)}</span>
+          <span class="transcript-speaker" data-speaker="${escapeHtml(seg.speaker)}">${escapeHtml(seg.speaker)}:</span>
+          <span class="transcript-text" contenteditable="true" data-segment-index="${idx}">${escapeHtml(seg.text)}</span>
+          <button class="flag-speaker-btn" data-flag="expert" data-segment-index="${idx}" title="Flag as Expert">👷 Expert</button>
+          <button class="flag-speaker-btn" data-flag="customer" data-segment-index="${idx}" title="Flag as Customer">👤 Customer</button>
         </div>
       `;
     });
     transcriptDisplay.innerHTML = html;
+
+    // Add event listeners for inline editing
+    const editableSpans = transcriptDisplay.querySelectorAll('.transcript-text');
+    editableSpans.forEach(span => {
+      span.addEventListener('blur', () => {
+        saveInlineTranscriptEdit();
+      });
+      span.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          span.blur();
+        }
+      });
+    });
+
+    // Add event listeners for speaker flag buttons
+    const flagBtns = transcriptDisplay.querySelectorAll('.flag-speaker-btn');
+    flagBtns.forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const segmentIndex = parseInt(e.target.dataset.segmentIndex);
+        const flagType = e.target.dataset.flag;
+        if (!isNaN(segmentIndex) && segmentIndex >= 0 && flagType) {
+          updateSpeakerLabel(segmentIndex, flagType);
+        }
+      });
+    });
   }
 
   // Auto-scroll to bottom
@@ -3304,6 +3332,59 @@ function escapeHtml(text) {
   const div = document.createElement('div');
   div.textContent = text;
   return div.innerHTML;
+}
+
+// Save inline transcript edits
+function saveInlineTranscriptEdit() {
+  if (!transcriptDisplay) return;
+
+  const segments = [];
+  const lines = transcriptDisplay.querySelectorAll('.transcript-line');
+  
+  lines.forEach(line => {
+    const timestamp = line.querySelector('.transcript-timestamp')?.textContent.replace(/[\[\]]/g, '') || '00:00';
+    const speaker = line.querySelector('.transcript-speaker')?.dataset.speaker || 'Speaker';
+    const text = line.querySelector('.transcript-text')?.textContent.trim() || '';
+    
+    if (text) {
+      segments.push(`[${timestamp}] ${speaker}: ${text}`);
+    }
+  });
+
+  const newTranscript = segments.join('\n');
+  transcriptInput.value = newTranscript;
+  committedTranscript = newTranscript.trim();
+
+  // Mark as manually edited
+  transcriptWasManuallyEdited = true;
+  if (transcriptEditedBadge) {
+    transcriptEditedBadge.style.display = 'inline-flex';
+  }
+
+  // Auto-save the changes
+  autoSaveSessionToLocal();
+  console.log('Transcript inline edit saved');
+}
+
+// Update speaker label
+function updateSpeakerLabel(segmentIndex, newSpeaker) {
+  if (!transcriptDisplay) return;
+  if (isNaN(segmentIndex) || segmentIndex < 0) return;
+
+  const lines = transcriptDisplay.querySelectorAll('.transcript-line');
+  if (segmentIndex >= lines.length) return;
+
+  const line = lines[segmentIndex];
+  const speakerSpan = line.querySelector('.transcript-speaker');
+  
+  if (speakerSpan && newSpeaker) {
+    const capitalizedSpeaker = newSpeaker.charAt(0).toUpperCase() + newSpeaker.slice(1);
+    speakerSpan.textContent = `${capitalizedSpeaker}:`;
+    speakerSpan.dataset.speaker = capitalizedSpeaker;
+  }
+
+  // Save the change
+  saveInlineTranscriptEdit();
 }
 
 // Update transcript display whenever the input changes

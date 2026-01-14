@@ -1522,29 +1522,48 @@ function applyTranscriptionSanityChecks(transcript) {
 
   // Number-unit logic for kW corrections
   // Pattern 1: "4030" or similar mistakes -> "30kW" (range: 12-45kW)
-  sanitisedTranscript = sanitisedTranscript.replace(/\b([1-9]\d{3,4})\b/g, (match, numStr) => {
+  // BUT: Respect model identifiers like "4000 series", "8000 series", "Vaillant 4000", etc.
+  sanitisedTranscript = sanitisedTranscript.replace(/\b([1-9]\d{3,4})\b/g, (match, numStr, offset, fullText) => {
     const num = Number(numStr);
-    
+
+    // Check context: if this is a model identifier, don't convert
+    // Look ahead for model-related keywords
+    const afterMatch = fullText.slice(offset + match.length, offset + match.length + 30);
+    const beforeMatch = fullText.slice(Math.max(0, offset - 30), offset);
+
+    const modelKeywords = /\b(series|model|range|ecotec|plus|compact|advance|pro|max|elite|logic|combi|system|regular)\b/i;
+    const brandKeywords = /\b(vaillant|worcester|ideal|baxi|viessmann|bosch|valliant|worchester)\b/i;
+
+    // Don't convert if followed by model keywords or preceded by brand names
+    if (modelKeywords.test(afterMatch) || brandKeywords.test(beforeMatch)) {
+      return match;
+    }
+
+    // Special case: 4000, 8000, etc. even numbers ending in 000 are often model series
+    if (num % 1000 === 0 && num >= 1000 && num <= 9000) {
+      return match;
+    }
+
     // Check if it looks like a mishearing of kW rating (e.g., "4030" for "forty thirty" = "30kW")
     // Common patterns: 4030 -> 30, 2418 -> 18, 3024 -> 24, etc.
     if (num >= 1200 && num <= 4545) {
       // Try to extract a sensible kW value
       const lastTwoDigits = num % 100;
       const leadingDigits = Math.floor(num / 100);
-      
+
       // If last two digits are in valid boiler range (12-45)
       if (lastTwoDigits >= 12 && lastTwoDigits <= 45) {
         sanityNotes.push(`Corrected probable kW mishearing: ${match} → ${lastTwoDigits}kW`);
         return `${lastTwoDigits}kW`;
       }
-      
+
       // If leading digits are in valid boiler range
       if (leadingDigits >= 12 && leadingDigits <= 45) {
         sanityNotes.push(`Corrected probable kW mishearing: ${match} → ${leadingDigits}kW`);
         return `${leadingDigits}kW`;
       }
     }
-    
+
     return match;
   });
 
@@ -1605,12 +1624,42 @@ Your output must be suitable for a professional installer to follow without clar
 
 ---
 
-## Global principles (apply everywhere)
+## THE GOLDEN RULES (MANDATORY)
 
-- Prefer clear, specific, non-duplicated bullet points.
-- Never include contradictory instructions within the same section.
-- Preserve the adviser's intent, not transcription errors or filler speech.
-- When choosing between precision and verbosity, choose precision.
+### A. One fact = one bullet
+If two bullets say the same thing in different words, delete one.
+
+❌ "Remove old boiler"
+❌ "Take out existing boiler"
+✅ "Remove existing regular boiler (kitchen)"
+
+### B. Only record what is confirmed
+If it's not confirmed, mark it as TBC or move it to Missing Information.
+
+❌ "25–40kW boiler"
+✅ "Worcester Bosch combi boiler – output TBC (likely ~25kW)"
+
+### C. No justifications, no storytelling
+Notes are not a transcript. They are instructions, not explanations.
+
+❌ "Customer said they wanted it because…"
+✅ "Customer requires single appliance for DHW + heating"
+
+### D. Remove duplication across sections
+Each fact should live in one place only.
+
+Example:
+• Boiler removal → New boiler and controls
+• Parking → Restrictions to work
+• Access → Customer actions
+
+### E. Use engineering language, not sales language
+This keeps it factual and auditable.
+
+❌ "Nice clear display"
+❌ "Really good boiler"
+✅ "Digital user interface"
+✅ "Smart time & temperature control"
 
 ---
 
@@ -1628,6 +1677,60 @@ Your output must be suitable for a professional installer to follow without clar
 3. **Never merge conflicting instructions**
    - Do not attempt to "balance" or hedge between conflicts.
    - One clear instruction must win.
+
+---
+
+## 5-STEP FILTER (Run every bullet through this)
+
+1. **Is it factual?**
+   If not → delete.
+
+2. **Is it already stated elsewhere?**
+   If yes → delete the weaker version.
+
+3. **Is it actionable or critical?**
+   If not → delete.
+
+4. **Is it vague?**
+   If yes → rewrite.
+
+   ❌ "May need"
+   ❌ "Possibly"
+   ❌ "Should be fine"
+   ✅ "External flue terminal sealing by third party required"
+
+5. **Is it the right section?**
+   If not → move it.
+
+---
+
+## HANDLING UNCERTAINTY
+
+Never bury uncertainty inside bullets. Use explicit markers:
+• TBC = to be confirmed
+• Client dependent
+• Third-party dependent
+
+Example:
+• Gas meter relocation date – TBC (British Gas)
+• External flue sealing – third party required
+• Boiler output – TBC after heat loss
+
+---
+
+## TRANSCRIPT → NOTES CONVERSION RULES
+
+| Transcript Type | Action |
+|----------------|--------|
+| Rambling       | Delete |
+| Jokes          | Delete |
+| Justification  | Delete |
+| Repetition     | Delete |
+| Decisions      | Keep   |
+| Constraints    | Keep   |
+| Dependencies   | Keep   |
+| Risks          | Keep   |
+| Permissions    | Keep   |
 
 ---
 
@@ -1785,6 +1888,118 @@ Correct obvious transcription errors for known products:
 
 Example to drop:
 - ❌ "Possible issues with pipework in screening area;"
+
+---
+
+## SECTION-BY-SECTION PURPOSE (Sanity-check every bullet)
+
+### Needs
+**Purpose:** Why the customer is doing this
+**Should only answer:** What problem is this solving?
+
+Example:
+• Existing appliances inoperative
+• Single appliance preferred
+• Improved efficiency required
+• Simplified maintenance required
+
+**Do NOT include:** Technical details, work steps, or actions
+
+---
+
+### System Characteristics
+**Purpose:** What exists + what will exist
+• Existing: what is there now
+• New: what will replace it
+
+**Do NOT include:** Work steps, actions, flue info, pipe routes, building work
+
+---
+
+### New Boiler and Controls
+**Purpose:** What you are installing
+• Appliance make/model
+• Controls
+• Filters
+• Cleaning
+
+**Do NOT include:** Pipe routes, flues, building work
+
+---
+
+### Flue
+**Purpose:** Only flue facts
+• Terminal position
+• Kits used
+• Modifications
+• Making good
+
+**Do NOT include:** Boiler info, pipework
+
+---
+
+### Pipework
+**Purpose:** Only services
+• Gas
+• Heating flow/return
+• Hot/cold
+• Condensate
+
+**Do NOT include:** Boiler info, flue info
+
+---
+
+### Disruption
+**Purpose:** Mess, noise, dust, making good
+• Holes
+• Boxing
+• Redecoration impact
+• Access disruption
+
+**Do NOT include:** Technical work details
+
+---
+
+### Restrictions to Work
+**Purpose:** What might stop or delay you
+• Parking
+• Permissions
+• Access times
+• Other trades
+
+**Do NOT include:** Customer actions (belongs in Customer Actions)
+
+---
+
+### External Hazards
+**Purpose:** Safety + site risks
+• Pets
+• Asbestos
+• Confined spaces
+• Fragile surfaces
+
+**Do NOT include:** Work restrictions or customer actions
+
+---
+
+### Customer Actions
+**Purpose:** What the customer must do
+• Clear cupboards
+• Provide access
+• Remove items
+
+**Do NOT include:** Work restrictions or hazards
+
+---
+
+### Office Notes
+**Purpose:** Admin coordination
+• Utilities
+• Permissions
+• Third parties
+• Scheduling logic
+
+**Do NOT include:** Engineering details or customer actions
 
 ---
 

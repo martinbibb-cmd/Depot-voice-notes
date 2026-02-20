@@ -26,6 +26,16 @@ export default {
         }, 200);
       }
 
+      // AI API key status check
+      if (request.method === "GET" && url.pathname === "/api-key-status") {
+        return jsonResponse({
+          gemini: !!env.GEMINI_API_KEY,
+          openai: !!env.OPENAI_API_KEY,
+          anthropic: !!env.ANTHROPIC_API_KEY,
+          timestamp: new Date().toISOString()
+        }, 200);
+      }
+
       // Detailed auth system health check
       if (request.method === "GET" && url.pathname === "/auth/health") {
         const health = {

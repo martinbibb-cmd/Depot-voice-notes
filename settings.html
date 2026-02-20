@@ -1883,8 +1883,19 @@ Do not include any explanation outside the JSON.`
         const authHealthResponse = await fetch(`${workerUrl}/auth/health`);
         const authHealthData = await authHealthResponse.json();
 
+        // Check AI API key status
+        let aiKeyData = { gemini: null, openai: null, anthropic: null };
+        try {
+          const aiKeyResponse = await fetch(`${workerUrl}/api-key-status`);
+          aiKeyData = await aiKeyResponse.json();
+        } catch (err) {
+          console.warn('Could not fetch AI API key status:', err);
+        }
+
         const status = authHealthData.status || 'unknown';
         const statusClass = status === 'ok' ? 'ok' : status === 'degraded' ? 'degraded' : 'error';
+
+        const aiKeyIcon = (v) => v === true ? '✅ Configured' : v === false ? '❌ Not Configured' : '❓ Unknown';
 
         let html = `
           <div class="api-status-result">
@@ -1892,6 +1903,11 @@ Do not include any explanation outside the JSON.`
             <p><strong>Status:</strong> <span class="api-status-badge ${statusClass}">${status}</span></p>
             <p><strong>Worker URL:</strong> ${workerUrl}</p>
             <p><strong>Timestamp:</strong> ${authHealthData.timestamp || 'N/A'}</p>
+
+            <h4 style="margin-top: 16px;">🤖 AI API Keys</h4>
+            <pre>Gemini:    ${aiKeyIcon(aiKeyData.gemini)}
+OpenAI:    ${aiKeyIcon(aiKeyData.openai)}
+Anthropic: ${aiKeyIcon(aiKeyData.anthropic)}</pre>
 
             <h4 style="margin-top: 16px;">💾 Database</h4>
             <pre>Connected: ${authHealthData.database?.connected ? '✅ Yes' : '❌ No'}
@@ -1905,7 +1921,7 @@ ${authHealthData.database?.error ? `Error: ${authHealthData.database.error}` : '
             ${authHealthData.error ? `<h4 style="margin-top: 16px;">❌ Error</h4><pre>${authHealthData.error}</pre>` : ''}
 
             <h4 style="margin-top: 16px;">📋 Recommendations</h4>
-            <pre>${getAPIRecommendations(authHealthData)}</pre>
+            <pre>${getAPIRecommendations(authHealthData, aiKeyData)}</pre>
 
             <h4 style="margin-top: 16px;">📄 Full Response</h4>
             <pre>${JSON.stringify(authHealthData, null, 2)}</pre>
@@ -1937,7 +1953,7 @@ Try:
       }
     }
 
-    function getAPIRecommendations(health) {
+    function getAPIRecommendations(health, aiKeys = {}) {
       const recs = [];
 
       if (!health.database?.connected) {
@@ -1950,6 +1966,14 @@ Try:
 
       if (!health.jwt?.configured) {
         recs.push('❌ JWT secret not set - Run: wrangler secret put JWT_SECRET');
+      }
+
+      if (aiKeys.gemini === false && aiKeys.openai === false && aiKeys.anthropic === false) {
+        recs.push('❌ No AI API keys configured - Set at least one: wrangler secret put GEMINI_API_KEY / OPENAI_API_KEY / ANTHROPIC_API_KEY');
+      } else {
+        if (aiKeys.gemini === false) recs.push('⚠️ Gemini API key not set - Run: wrangler secret put GEMINI_API_KEY');
+        if (aiKeys.openai === false) recs.push('⚠️ OpenAI API key not set - Run: wrangler secret put OPENAI_API_KEY');
+        if (aiKeys.anthropic === false) recs.push('⚠️ Anthropic API key not set - Run: wrangler secret put ANTHROPIC_API_KEY');
       }
 
       if (health.status === 'ok') {

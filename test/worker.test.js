@@ -28,7 +28,7 @@ test('POST /text forwards structured payload and normalises model output', async
   let receivedRequestBody;
 
   globalThis.fetch = async (url, options) => {
-    assert.equal(url, 'https://api.openai.com/v1/chat/completions');
+    assert.match(url, /^https:\/\/generativelanguage\.googleapis\.com\/v1beta\/models\/gemini-1\.5-pro:generateContent\?key=/);
     receivedRequestBody = JSON.parse(options.body);
     const content = JSON.stringify({
       sections: [
@@ -44,7 +44,7 @@ test('POST /text forwards structured payload and normalises model output', async
       customerSummary: 0
     });
     return new Response(
-      JSON.stringify({ choices: [{ message: { content } }] }),
+      JSON.stringify({ candidates: [{ content: { parts: [{ text: content }] } }] }),
       {
         status: 200,
         headers: { 'Content-Type': 'application/json' }
@@ -73,7 +73,7 @@ test('POST /text forwards structured payload and normalises model output', async
     body: JSON.stringify(requestBody)
   });
 
-  const response = await worker.fetch(request, { OPENAI_API_KEY: 'test-key' }, {});
+  const response = await worker.fetch(request, { GEMINI_API_KEY: 'test-key' }, {});
   assert.equal(response.status, 200);
   const body = await parseJson(response);
 
@@ -99,12 +99,13 @@ test('POST /text forwards structured payload and normalises model output', async
   assert.deepEqual(body.missingInfo, []);
   assert.equal(body.customerSummary, '');
 
-  assert(receivedRequestBody, 'expected OpenAI request body');
-  assert.equal(receivedRequestBody.model, 'gpt-4.1');
-  assert(Array.isArray(receivedRequestBody.messages));
-  const userMessage = receivedRequestBody.messages?.[1]?.content;
-  assert(userMessage, 'expected user payload to be sent');
-  const parsedUser = JSON.parse(userMessage);
+  assert(receivedRequestBody, 'expected Gemini request body');
+  assert(Array.isArray(receivedRequestBody.contents));
+  const combinedText = receivedRequestBody.contents?.[0]?.parts?.[0]?.text;
+  assert(combinedText, 'expected combined content to be sent');
+  const userPayloadStart = combinedText.lastIndexOf('\n\n');
+  assert(userPayloadStart >= 0, 'expected separator between system and user content');
+  const parsedUser = JSON.parse(combinedText.slice(userPayloadStart + 2));
   assert.equal(parsedUser.transcript, transcript);
   assert.deepEqual(parsedUser.alreadyCaptured, [{
     section: 'Needs',
@@ -124,7 +125,7 @@ test('POST /text forwards structured payload and normalises model output', async
   );
 });
 
-test('POST /text surfaces OpenAI errors as model_error 5xx', async (t) => {
+test('POST /text surfaces Gemini errors as model_error 5xx', async (t) => {
   globalThis.fetch = async () => new Response('failure', { status: 500 });
 
   t.after(() => {
@@ -137,10 +138,10 @@ test('POST /text surfaces OpenAI errors as model_error 5xx', async (t) => {
     body: JSON.stringify({ transcript: 'Something went wrong.' })
   });
 
-  const response = await worker.fetch(request, { OPENAI_API_KEY: 'test-key' }, {});
+  const response = await worker.fetch(request, { GEMINI_API_KEY: 'test-key' }, {});
   assert.equal(response.status, 500);
   const body = await parseJson(response);
   assert.equal(body.error, 'model_error');
-  assert.match(body.message, /chat\.completions 500/);
+  assert.match(body.message, /gemini\.generateContent 500/);
 });
 

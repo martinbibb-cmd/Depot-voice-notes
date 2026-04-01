@@ -662,13 +662,31 @@ IMPORTANT:
     sanityNotes: context.sanityNotes || []
   });
 
-  // Try OpenAI first, fall back to Gemini, then Anthropic if it fails
+  // Try Gemini first, fall back to OpenAI, then Anthropic if it fails
   let response;
   let lastError;
 
-  if (openaiKey) {
+  if (geminiKey) {
     try {
-      console.log("Attempting to call OpenAI for agent chat...");
+      console.log("Attempting to call Gemini for agent chat...");
+      response = await callGeminiChat(
+        geminiKey,
+        systemPrompt,
+        userContent,
+        0.5
+      );
+      console.log("Gemini call successful");
+    } catch (err) {
+      console.error("Gemini call failed:", String(err));
+      lastError = err;
+      response = null;
+    }
+  }
+
+  // Fall back to OpenAI if Gemini failed or wasn't available
+  if (!response && openaiKey) {
+    try {
+      console.log("Falling back to OpenAI for agent chat...");
       const body = {
         model: "gpt-4.1",
         temperature: 0.5,
@@ -714,25 +732,7 @@ IMPORTANT:
     }
   }
 
-  // Fall back to Gemini if OpenAI failed or wasn't available
-  if (!response && geminiKey) {
-    try {
-      console.log("Falling back to Gemini for agent chat...");
-      response = await callGeminiChat(
-        geminiKey,
-        systemPrompt,
-        userContent,
-        0.5
-      );
-      console.log("Gemini call successful");
-    } catch (err) {
-      console.error("Gemini call failed:", String(err));
-      lastError = err;
-      response = null;
-    }
-  }
-
-  // Fall back to Anthropic if OpenAI and Gemini failed or weren't available
+  // Fall back to Anthropic if Gemini and OpenAI failed or weren't available
   if (!response && anthropicKey) {
     try {
       console.log("Falling back to Anthropic for agent chat...");
@@ -812,13 +812,31 @@ Do not include any explanation outside the JSON.`;
     instructions
   };
 
-  // Try OpenAI first, fall back to Gemini, then Anthropic if it fails
+  // Try Gemini first, fall back to OpenAI, then Anthropic if it fails
   let trimmedContent;
   let lastError;
 
-  if (openaiKey) {
+  if (geminiKey) {
     try {
-      console.log("Attempting to call OpenAI for section tweak...");
+      console.log("Attempting to call Gemini for section tweak...");
+      trimmedContent = await callGeminiChat(
+        geminiKey,
+        systemPrompt,
+        JSON.stringify(userPayload),
+        0.3
+      );
+      console.log("Gemini call successful");
+    } catch (err) {
+      console.error("Gemini call failed:", String(err));
+      lastError = err;
+      trimmedContent = null;
+    }
+  }
+
+  // Fall back to OpenAI if Gemini failed or wasn't available
+  if (!trimmedContent && openaiKey) {
+    try {
+      console.log("Falling back to OpenAI for section tweak...");
       const body = {
         model: "gpt-4.1",
         temperature: 0.3,
@@ -868,25 +886,7 @@ Do not include any explanation outside the JSON.`;
     }
   }
 
-  // Fall back to Gemini if OpenAI failed or wasn't available
-  if (!trimmedContent && geminiKey) {
-    try {
-      console.log("Falling back to Gemini for section tweak...");
-      trimmedContent = await callGeminiChat(
-        geminiKey,
-        systemPrompt,
-        JSON.stringify(userPayload),
-        0.3
-      );
-      console.log("Gemini call successful");
-    } catch (err) {
-      console.error("Gemini call failed:", String(err));
-      lastError = err;
-      trimmedContent = null;
-    }
-  }
-
-  // Fall back to Anthropic if OpenAI and Gemini failed or weren't available
+  // Fall back to Anthropic if Gemini and OpenAI failed or weren't available
   if (!trimmedContent && anthropicKey) {
     try {
       console.log("Falling back to Anthropic for section tweak...");
@@ -1167,13 +1167,31 @@ Make it personal, specific, and conversational.`.trim();
     }))
   };
 
-  // Try OpenAI first, fall back to Gemini, then Anthropic if it fails
+  // Try Gemini first, fall back to OpenAI, then Anthropic if it fails
   let trimmedContent;
   let lastError;
 
-  if (openaiKey) {
+  if (geminiKey) {
     try {
-      console.log("Attempting to call OpenAI for presentation generation...");
+      console.log("Attempting to call Gemini for presentation generation...");
+      trimmedContent = await callGeminiChat(
+        geminiKey,
+        systemPrompt,
+        JSON.stringify(userPayload),
+        0.7
+      );
+      console.log("Gemini call successful");
+    } catch (err) {
+      console.error("Gemini call failed:", String(err));
+      lastError = err;
+      trimmedContent = null;
+    }
+  }
+
+  // Fall back to OpenAI if Gemini failed or wasn't available
+  if (!trimmedContent && openaiKey) {
+    try {
+      console.log("Falling back to OpenAI for presentation generation...");
       const body = {
         model: "gpt-4.1",
         temperature: 0.7,
@@ -1219,25 +1237,7 @@ Make it personal, specific, and conversational.`.trim();
     }
   }
 
-  // Fall back to Gemini if OpenAI failed or wasn't available
-  if (!trimmedContent && geminiKey) {
-    try {
-      console.log("Falling back to Gemini for presentation generation...");
-      trimmedContent = await callGeminiChat(
-        geminiKey,
-        systemPrompt,
-        JSON.stringify(userPayload),
-        0.7
-      );
-      console.log("Gemini call successful");
-    } catch (err) {
-      console.error("Gemini call failed:", String(err));
-      lastError = err;
-      trimmedContent = null;
-    }
-  }
-
-  // Fall back to Anthropic if OpenAI and Gemini failed or weren't available
+  // Fall back to Anthropic if Gemini and OpenAI failed or weren't available
   if (!trimmedContent && anthropicKey) {
     try {
       console.log("Falling back to Anthropic for presentation generation...");
@@ -2160,14 +2160,33 @@ Always preserve boiler/cylinder make & model exactly as spoken.
     sanityNotes
   };
 
-  // Try OpenAI first, fall back to Gemini, then Anthropic if it fails
+  // Try Gemini first, fall back to OpenAI, then Anthropic if it fails
   let trimmedContent;
   let lastError;
   let apiProvider = null;
 
-  if (openaiKey) {
+  if (geminiKey) {
     try {
-      console.log("Attempting to call OpenAI for notes model...");
+      console.log("Attempting to call Gemini for notes model...");
+      trimmedContent = await callGeminiChat(
+        geminiKey,
+        systemPrompt,
+        JSON.stringify(userPayload),
+        0.2
+      );
+      apiProvider = "Gemini";
+      console.log("Gemini call successful");
+    } catch (err) {
+      console.error("Gemini call failed:", String(err));
+      lastError = err;
+      trimmedContent = null;
+    }
+  }
+
+  // Fall back to OpenAI if Gemini failed or wasn't available
+  if (!trimmedContent && openaiKey) {
+    try {
+      console.log("Falling back to OpenAI for notes model...");
       const body = {
         model: "gpt-4.1",
         temperature: 0.2,
@@ -2218,26 +2237,7 @@ Always preserve boiler/cylinder make & model exactly as spoken.
     }
   }
 
-  // Fall back to Gemini if OpenAI failed or wasn't available
-  if (!trimmedContent && geminiKey) {
-    try {
-      console.log("Falling back to Gemini for notes model...");
-      trimmedContent = await callGeminiChat(
-        geminiKey,
-        systemPrompt,
-        JSON.stringify(userPayload),
-        0.2
-      );
-      apiProvider = "Gemini";
-      console.log("Gemini call successful");
-    } catch (err) {
-      console.error("Gemini call failed:", String(err));
-      lastError = err;
-      trimmedContent = null;
-    }
-  }
-
-  // Fall back to Anthropic if OpenAI and Gemini failed or weren't available
+  // Fall back to Anthropic if Gemini and OpenAI failed or weren't available
   if (!trimmedContent && anthropicKey) {
     try {
       console.log("Falling back to Anthropic for notes model...");

@@ -912,7 +912,7 @@ Do not include any explanation outside the JSON.`;
   try {
     jsonOut = JSON.parse(trimmedContent);
   } catch (err) {
-    throw new Error(`Model content was not valid JSON: ${String(err)} :: ${content}`);
+    throw new Error(`Model content was not valid JSON: ${String(err)} :: ${trimmedContent}`);
   }
 
   // Safety defaults
@@ -1539,7 +1539,10 @@ function applyTranscriptionSanityChecks(transcript) {
     // Check context: if this is a model identifier, don't convert
     // Look ahead for model-related keywords
     const afterMatch = fullText.slice(offset + match.length, offset + match.length + 30);
-    const beforeMatch = fullText.slice(Math.max(0, offset - 30), offset);
+    // Use a narrower 15-char window for brand checks so that a brand name several
+    // words before the number (e.g. "Worcester combi with 4024") does not prevent
+    // conversion, while still catching immediate patterns like "Worcester 4000".
+    const beforeMatch = fullText.slice(Math.max(0, offset - 15), offset);
 
     const modelKeywords = /\b(series|model|range|ecotec|plus|compact|advance|pro|max|elite|logic|combi|system|regular)\b/i;
     const brandKeywords = /\b(vaillant|worcester|ideal|baxi|viessmann|bosch|valliant|worchester)\b/i;
@@ -2261,7 +2264,7 @@ Always preserve boiler/cylinder make & model exactly as spoken.
   try {
     jsonOut = JSON.parse(trimmedContent);
   } catch (err) {
-    throw new Error(`Model content was not valid JSON: ${String(err)} :: ${content}`);
+    throw new Error(`Model content was not valid JSON: ${String(err)} :: ${trimmedContent}`);
   }
 
   // Safety defaults
@@ -2369,8 +2372,8 @@ function normaliseSectionsFromModel(rawSections, schemaInfo) {
 
   return normalised;
 }
-import schemaConfig from "./depot.output.schema.json" assert { type: "json" };
-import checklistConfig from "./checklist.config.json" assert { type: "json" };
+import schemaConfig from "./depot.output.schema.json" with { type: "json" };
+import checklistConfig from "./checklist.config.json" with { type: "json" };
 
 const FUTURE_PLANS_NAME = "Future plans";
 const FUTURE_PLANS_DESCRIPTION = "Notes about any future work or follow-on visits.";

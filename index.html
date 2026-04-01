@@ -2734,7 +2734,7 @@
       ];
 
       try {
-        const workerUrl = loadWorkerEndpoint({ fallback: true });
+        const workerUrl = loadWorkerEndpoint();
         const res = await fetch(`${workerUrl}/api-key-status`);
         const data = await res.json();
 

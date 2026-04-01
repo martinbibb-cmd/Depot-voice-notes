@@ -1873,7 +1873,7 @@ Do not include any explanation outside the JSON.`
       try {
         // Load worker URL
         const { loadWorkerEndpoint } = await import('./src/app/worker-config.js');
-        const workerUrl = loadWorkerEndpoint({ fallback: true });
+        const workerUrl = loadWorkerEndpoint();
 
         // Check basic health
         const healthResponse = await fetch(`${workerUrl}/health`);

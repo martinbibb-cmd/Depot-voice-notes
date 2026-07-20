@@ -2300,8 +2300,8 @@
 
   <main>
     <div class="column main-left">
-      <!-- Audio Control Panel -->
-      <div class="audio-control-panel">
+      <!-- Browser recording is intentionally hidden; use Apple Voice Memos and paste the transcript. -->
+      <div class="audio-control-panel" hidden>
         <div class="audio-controls-wrapper">
           <div class="audio-status-bar">
             <div class="audio-status-indicator">
@@ -2391,24 +2391,24 @@
         <div class="card transcript-panel">
           <div class="card-title">
             <div>
-              Live Transcript
+              Apple Voice Memos Transcript
               <span class="transcript-panel-badge live" id="liveTranscriptBadge">● LIVE</span>
               <span class="transcript-edited-badge" id="transcriptEditedBadge" style="display: none;">✏️ EDITED</span>
             </div>
-            <span class="small">On-board speech recognition</span>
+            <span class="small">Paste transcript or typed notes, then process</span>
           </div>
           <div class="transcript-container">
             <div style="margin-bottom: 10px;">
               <button id="sendTextBtn" style="width: 100%; padding: 10px; font-size: 0.85rem; font-weight: 700;">🤖 process</button>
             </div>
             <div class="search-bar">
-              <input type="text" id="transcriptSearch" class="search-input" placeholder="Search live...">
+              <input type="text" id="transcriptSearch" class="search-input" placeholder="Search notes...">
               <button id="searchPrevBtn" class="search-nav-btn" disabled>← Prev</button>
               <button id="searchNextBtn" class="search-nav-btn" disabled>Next →</button>
               <button id="editTranscriptBtn" class="search-nav-btn" style="margin-left: auto;">✏️ Edit</button>
             </div>
             <div id="transcriptDisplay" class="transcript-scroll-box"></div>
-            <textarea id="transcriptInput" placeholder="Or type/paste notes here..." style="display: none;"></textarea>
+            <textarea id="transcriptInput" placeholder="Paste Apple Voice Memos transcript or type bullet notes here..."></textarea>
             <!-- Chat Input Box -->
             <div class="chat-input-container">
               <input type="text" id="chatMessageInput" class="chat-message-input" placeholder="Type a message...">
@@ -2522,7 +2522,6 @@
   </details>
 
   <input id="loadSessionInput" type="file" accept=".depotvoice.json,application/json" style="display:none;">
-  <input id="importAudioInput" type="file" accept="audio/*" style="display:none;">
 
   <!-- Session Menu Modal -->
   <div id="sessionMenuModal" class="modal-overlay">
@@ -2533,7 +2532,6 @@
       </div>
       <div style="display: flex; flex-direction: column; gap: 12px; margin-top: 16px;">
         <button id="newJobBtn" class="danger-btn" style="width: 100%; padding: 14px; font-size: 0.9rem;">🆕 New session</button>
-        <button id="importAudioBtn" class="pill-secondary" style="width: 100%; padding: 14px; font-size: 0.9rem;">🎵 Import audio</button>
         <button id="loadSessionBtn" class="pill-secondary" style="width: 100%; padding: 14px; font-size: 0.9rem;">📂 Load session</button>
       </div>
     </div>
@@ -2555,7 +2553,7 @@
               <input type="checkbox" id="saveFullSession" value="session">
               <div class="option-details">
                 <span class="option-title">Full Session</span>
-                <span class="option-description">Complete session with transcript, notes, checklist, and audio</span>
+                <span class="option-description">Complete session with transcript, notes, and checklist</span>
               </div>
             </label>
             <label class="save-option-item">
@@ -2591,31 +2589,11 @@
             </label>
             <label class="format-option-item">
               <input type="radio" name="saveFormat" value="csv" id="saveFormatCSV">
-              <span>CSV (spreadsheet format, no audio)</span>
+              <span>CSV (spreadsheet format)</span>
             </label>
             <label class="format-option-item">
               <input type="radio" name="saveFormat" value="txt" id="saveFormatTXT">
-              <span>TXT (plain text format, no audio)</span>
-            </label>
-          </div>
-        </div>
-
-        <div class="save-section">
-          <h3>Audio export (optional):</h3>
-          <div class="save-options">
-            <label class="save-option-item">
-              <input type="checkbox" id="saveAudioWav" value="audio-wav">
-              <div class="option-details">
-                <span class="option-title">Save as WAV</span>
-                <span class="option-description">Export audio in WAV format</span>
-              </div>
-            </label>
-            <label class="save-option-item">
-              <input type="checkbox" id="saveAudioMp3" value="audio-mp3">
-              <div class="option-details">
-                <span class="option-title">Save as MP3/WebM</span>
-                <span class="option-description">Export audio in recorded format (WebM/MP4/M4A)</span>
-              </div>
+              <span>TXT (plain text format)</span>
             </label>
           </div>
         </div>
@@ -2676,19 +2654,9 @@
         <p id="finishSessionTime" class="small"></p>
       </div>
 
-      <div class="modal-section" id="finishAudioSection" style="display: none;">
-        <h3>Audio Recording</h3>
-        <audio id="finishAudioPlayer" class="audio-player" controls style="width: 100%;"></audio>
-      </div>
-
       <div class="modal-section">
         <h3>Full Transcript</h3>
         <div id="finishTranscript" class="transcript-scroll-box" style="max-height: 200px;"></div>
-      </div>
-
-      <div class="modal-section">
-        <h3>Customer Summary</h3>
-        <p id="finishCustomerSummary" class="small"></p>
       </div>
 
       <div class="modal-section">

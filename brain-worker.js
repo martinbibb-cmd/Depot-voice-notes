@@ -124,10 +124,6 @@ export default {
         return handleText(request, env);
       }
 
-      if (request.method === "POST" && url.pathname === "/audio") {
-        return handleAudio(request, env);
-      }
-
       if (request.method === "POST" && url.pathname === "/bug-report") {
         return handleBugReport(request, env);
       }
@@ -234,51 +230,6 @@ async function handleText(request, env) {
     return jsonResponse(result, 200);
   } catch (err) {
     console.error("handleText model error:", err);
-    return jsonResponse(
-      { error: "model_error", message: String(err) },
-      500
-    );
-  }
-}
-
-/* ---------- /audio ---------- */
-
-async function handleAudio(request, env) {
-  const contentType = request.headers.get("Content-Type") || "";
-
-  if (!contentType.startsWith("audio/") && !contentType.startsWith("application/octet-stream")) {
-    return jsonResponse(
-      { error: "bad_request", message: "audio content-type required" },
-      400
-    );
-  }
-
-  const audioData = await request.arrayBuffer();
-
-  try {
-    const transcript = await transcribeAudio(env, audioData, contentType);
-    const { sanitisedTranscript, sanityNotes } = applyTranscriptionSanityChecks(transcript);
-    const result = await callNotesModel(env, {
-      transcript: sanitisedTranscript,
-      checklistItems: [],
-      depotSections: [],
-      alreadyCaptured: [],
-      expectedSections: [],
-      sectionHints: {},
-      forceStructured: true,
-      sanityNotes
-    });
-    return jsonResponse(
-      {
-        ...result,
-        transcript: sanitisedTranscript,
-        fullTranscript: transcript,
-        sanityNotes
-      },
-      200
-    );
-  } catch (err) {
-    console.error("handleAudio error:", err);
     return jsonResponse(
       { error: "model_error", message: String(err) },
       500
@@ -931,34 +882,6 @@ Do not include any explanation outside the JSON.`;
     plainText: jsonOut.plainText,
     naturalLanguage: jsonOut.naturalLanguage
   };
-}
-
-/* ---------- OpenAI helpers ---------- */
-
-async function transcribeAudio(env, audioBuffer, mime) {
-  const apiKey = env.OPENAI_API_KEY;
-  if (!apiKey) throw new Error("OPENAI_API_KEY not configured");
-
-  const form = new FormData();
-  const file = new File([audioBuffer], "audio.webm", { type: mime || "audio/webm" });
-  form.append("file", file);
-  form.append("model", "whisper-1");
-
-  const res = await fetch("https://api.openai.com/v1/audio/transcriptions", {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${apiKey}`
-    },
-    body: form
-  });
-
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`transcription error ${res.status}: ${text}`);
-  }
-
-  const data = await res.json();
-  return data.text || "";
 }
 
 async function handleQuery(request, env) {
@@ -1639,6 +1562,15 @@ Your output must be suitable for a professional installer to follow without clar
 
 ## THE GOLDEN RULES (MANDATORY)
 
+### Required note structure
+Every set of notes must answer these four job questions, but keep the existing depot section names:
+- What is coming out
+- What is going in
+- What work is involved
+- What has been agreed with the customer
+
+Use the relevant existing section for each fact. Do not create new sections.
+
 ### A. One fact = one bullet
 If two bullets say the same thing in different words, delete one.
 
@@ -1750,11 +1682,15 @@ Example:
 ## Output format rules
 
 - Output concise, engineer-ready bullet points, grouped by section.
+- Notes must be bullet point only. Do not write paragraphs.
+- Keep every section in the supplied order and use the same section names.
+- Keep bullets short: one clear fact, normally under 14 words.
 - Each bullet should:
   - Describe one action
   - Include location/route where possible
   - Include size / rating / reason when pipework is altered
 - Avoid vague or non-actionable bullets.
+- Do not add sales wording, narrative, background story, or repeated explanations.
 
 ---
 
@@ -2095,7 +2031,7 @@ Your job is to:
 1. Decide which checklist ids are clearly satisfied by the transcript.
 2. Write depot notes grouped into the given section names.
 3. Suggest a small list of materials/parts.
-4. Write a short customer-friendly summary of the job.
+4. Do not write a customer summary.
 5. ACTIVELY ANALYZE the live transcript and ASK QUESTIONS about missing or unclear information.
 6. SANITY CHECK transcription details and correct obvious errors using context and standard dimensions (pipework sizes should be 8/10mm, 15mm, 22mm, 28mm, or 35mm; avoid improbable sizes by normalising to the nearest standard size).
 7. Prefer the most recent reference material versions (e.g., the latest pricebook, such as November 2025) if multiple versions are available.
@@ -2117,6 +2053,20 @@ REAL-TIME QUESTION GENERATION:
 - Target questions appropriately: "expert" for surveyor to investigate, "customer" for customer to answer.
 - Be proactive - if the transcript mentions something vague (e.g., "the boiler is old"), ask for specifics (e.g., "What is the make and model of the existing boiler?").
 - If critical information for a section is missing, ask about it even if the section hasn't been fully discussed yet.
+- Keep missingInfo short. Ask only the questions that would materially tighten the job notes.
+
+BULLET FORMAT:
+- plainText must be semicolon-separated bullets with no paragraphs.
+- naturalLanguage must also be bullet-style. Do not write a narrative paragraph.
+- Each section should only contain confirmed facts that belong in that section.
+- If a section has no confirmed notes, use an empty string for both fields.
+- Use these subheadings inside sections where supported by the transcript:
+  - # Coming out #
+  - # Going in #
+  - # Involved #
+  - # Agreed #
+- Put customer agreements/actions only in the Customer actions section under # Agreed #. Do not repeat customer agreements in technical sections or Office notes.
+- If a section has bullets but no specific subheading is obvious, put them under # Involved #.
 
 You MUST respond with ONLY valid JSON matching this shape:
 
@@ -2125,8 +2075,8 @@ You MUST respond with ONLY valid JSON matching this shape:
   "sections": [
     {
       "section": "<one of the depot section names>",
-      "plainText": "Short semi-bullet summary; clauses separated by semicolons;",
-      "naturalLanguage": "Human sentence description for depot notes."
+      "plainText": "# Coming out #; Short bullet; # Going in #; Another short bullet;",
+      "naturalLanguage": "# Coming out #\n- Short bullet\n# Going in #\n- Another short bullet"
     }
   ],
   "materials": [
@@ -2139,8 +2089,7 @@ You MUST respond with ONLY valid JSON matching this shape:
   ],
   "missingInfo": [
     { "target": "expert | customer", "question": "Short question if anything important is unclear." }
-  ],
-  "customerSummary": "2–4 sentence summary suitable to show the customer."
+  ]
 }
 
 Do not wrap the JSON in backticks or markdown.
@@ -2272,7 +2221,7 @@ Always preserve boiler/cylinder make & model exactly as spoken.
   if (!Array.isArray(jsonOut.materials)) jsonOut.materials = [];
   if (!Array.isArray(jsonOut.checkedItems)) jsonOut.checkedItems = [];
   if (!Array.isArray(jsonOut.missingInfo)) jsonOut.missingInfo = [];
-  if (typeof jsonOut.customerSummary !== "string") jsonOut.customerSummary = "";
+  delete jsonOut.customerSummary;
 
   jsonOut.sections = normaliseSectionsFromModel(jsonOut.sections, activeSchemaInfo);
 
@@ -2322,6 +2271,64 @@ function normaliseSectionHints(value) {
   return out;
 }
 
+function splitNoteBullets(value) {
+  if (value == null) return [];
+  return String(value)
+    .replace(/\r/g, "\n")
+    .split(/\n|;|(?:^|\s)[•*]\s+/g)
+    .map((line) => line
+      .replace(/^\s*[-•*]\s+/, "")
+      .replace(/\s+/g, " ")
+      .trim()
+    )
+    .filter(Boolean)
+    .filter((line) => !/^no additional notes\.?$/i.test(line));
+}
+
+function isNoteSubheading(line) {
+  return /^#\s*(Coming out|Going in|Involved|Agreed)\s*#$/i.test(String(line || "").trim());
+}
+
+function normaliseNoteSubheading(line) {
+  const match = String(line || "").trim().match(/^#\s*(Coming out|Going in|Involved|Agreed)\s*#$/i);
+  if (!match) return "";
+  const name = match[1].toLowerCase().replace(/^\w/, (char) => char.toUpperCase());
+  return `# ${name} #`;
+}
+
+function uniqueShortBullets(...values) {
+  const seen = new Set();
+  const bullets = [];
+  values.flatMap(splitNoteBullets).forEach((line) => {
+    if (isNoteSubheading(line)) {
+      const heading = normaliseNoteSubheading(line);
+      if (bullets[bullets.length - 1] !== heading) bullets.push(heading);
+      return;
+    }
+    const cleaned = line.replace(/\.$/, "").trim();
+    if (!cleaned) return;
+    const key = cleaned.toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    bullets.push(cleaned);
+  });
+  return bullets;
+}
+
+function formatPlainBullets(bullets) {
+  if (!bullets.length) return "";
+  const withHeading = bullets.some(isNoteSubheading) ? bullets : ["# Involved #", ...bullets];
+  return `${withHeading.join("; ")};`;
+}
+
+function formatDisplayBullets(bullets) {
+  if (!bullets.length) return "";
+  const withHeading = bullets.some(isNoteSubheading) ? bullets : ["# Involved #", ...bullets];
+  return withHeading
+    .map((line) => isNoteSubheading(line) ? normaliseNoteSubheading(line) : `- ${line}`)
+    .join("\n");
+}
+
 function resolveCanonicalSectionName(name, schemaInfo) {
   const key = normaliseSectionKey(name);
   if (!key) return null;
@@ -2343,14 +2350,16 @@ function normaliseSectionsFromModel(rawSections, schemaInfo) {
     const resolved = resolveCanonicalSectionName(rawName, schemaInfo);
     if (!resolved) return;
     if (map.has(resolved)) return;
-    const plainText = typeof entry.plainText === "string" ? entry.plainText : String(entry.plainText || "");
-    const naturalLanguage = typeof entry.naturalLanguage === "string"
+    const rawPlainText = typeof entry.plainText === "string" ? entry.plainText : String(entry.plainText || "");
+    const rawNaturalLanguage = typeof entry.naturalLanguage === "string"
       ? entry.naturalLanguage
       : String(entry.naturalLanguage || entry.summary || "");
+    const primaryBullets = uniqueShortBullets(rawPlainText);
+    const bullets = primaryBullets.length ? primaryBullets : uniqueShortBullets(rawNaturalLanguage);
     map.set(resolved, {
       section: resolved,
-      plainText,
-      naturalLanguage
+      plainText: formatPlainBullets(bullets),
+      naturalLanguage: formatDisplayBullets(bullets)
     });
   });
 
@@ -2361,8 +2370,8 @@ function normaliseSectionsFromModel(rawSections, schemaInfo) {
     missing.push(name);
     return {
       section: name,
-      plainText: "• No additional notes;",
-      naturalLanguage: "No additional notes."
+      plainText: "",
+      naturalLanguage: ""
     };
   });
 

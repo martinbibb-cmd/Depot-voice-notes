@@ -122,17 +122,16 @@ let WORKER_URL = loadWorkerEndpoint();
 // --- ELEMENTS ---
 const sendTextBtn = document.getElementById("sendTextBtn");
 const transcriptInput = document.getElementById("transcriptInput");
-const customerSummaryEl = document.getElementById("customerSummary");
 const clarificationsEl = document.getElementById("clarifications");
 const sectionsListEl = document.getElementById("sectionsList");
 const statusBar = document.getElementById("statusBar");
-const startLiveBtn = document.getElementById("startLiveBtn");
-const pauseLiveBtn = document.getElementById("pauseLiveBtn");
-const finishLiveBtn = document.getElementById("finishLiveBtn");
+const startLiveBtn = null;
+const pauseLiveBtn = null;
+const finishLiveBtn = null;
 const loadSessionBtn = document.getElementById("loadSessionBtn");
 const loadSessionInput = document.getElementById("loadSessionInput");
-const importAudioBtn = document.getElementById("importAudioBtn");
-const importAudioInput = document.getElementById("importAudioInput");
+const importAudioBtn = null;
+const importAudioInput = null;
 const newJobBtn = document.getElementById("newJobBtn");
 const clearAllBtn = document.getElementById("clearAllBtn");
 const partsListEl = document.getElementById("partsList");
@@ -184,9 +183,6 @@ function exposeStateToWindow() {
   window.__depotLastMaterials = lastMaterials;
   window.__depotLastCheckedItems = lastCheckedItems;
   window.__depotLastMissingInfo = lastMissingInfo;
-  window.__depotLastCustomerSummary = lastCustomerSummary;
-  window.__depotSessionAudioChunks = sessionAudioChunks;
-  window.__depotLastAudioMime = lastAudioMime;
   window.__depotAppState = APP_STATE;
   window.lastSections = lastSections; // Expose for what3words and other integrations
 }
@@ -197,7 +193,6 @@ function updateAppStateSnapshot() {
   APP_STATE.materials = Array.isArray(lastMaterials) ? [...lastMaterials] : [];
   APP_STATE.checkedItems = Array.isArray(lastCheckedItems) ? [...lastCheckedItems] : [];
   APP_STATE.missingInfo = Array.isArray(lastMissingInfo) ? [...lastMissingInfo] : [];
-  APP_STATE.customerSummary = lastCustomerSummary || "";
   APP_STATE.fullTranscript = (transcriptInput?.value || "").trim();
   APP_STATE.transcriptText = APP_STATE.fullTranscript;
 }
@@ -212,7 +207,6 @@ function buildStateSnapshot() {
       sections: clonedSections,
       missingInfo: Array.isArray(lastMissingInfo) ? [...lastMissingInfo] : [],
       checkedItems: Array.isArray(lastCheckedItems) ? [...lastCheckedItems] : [],
-      customerSummary: lastCustomerSummary || ""
     },
     transcriptText: APP_STATE.fullTranscript,
     fullTranscript: APP_STATE.fullTranscript
@@ -228,8 +222,7 @@ function autoSaveSessionToLocal() {
       (Array.isArray(lastRawSections) && lastRawSections.length) ||
       (Array.isArray(lastMaterials) && lastMaterials.length) ||
       (Array.isArray(lastCheckedItems) && lastCheckedItems.length) ||
-      (Array.isArray(lastMissingInfo) && lastMissingInfo.length) ||
-      (lastCustomerSummary && lastCustomerSummary.trim());
+      (Array.isArray(lastMissingInfo) && lastMissingInfo.length);
 
     if (!hasContent) {
       localStorage.removeItem(LS_AUTOSAVE_KEY);
@@ -1454,6 +1447,9 @@ function stripPreamble(line){
   s = s.replace(/\bwill need to\b/gi, "required to");
   return s.trim();
 }
+function isNoteSubheading(line) {
+  return /^#\s*(Coming out|Going in|Involved|Agreed)\s*#$/i.test(String(line || "").trim());
+}
 function bulletify(lines){
   const out=[];
   for (let raw of lines){
@@ -1654,10 +1650,6 @@ async function loadChecklistConfigIntoState() {
 // This allows placeholder sections (schema headings) to appear before any worker output arrives.
 function refreshUiFromState() {
   // 1) Customer summary (removed from UI, kept for data persistence)
-  if (customerSummaryEl) {
-    customerSummaryEl.textContent = lastCustomerSummary || "(none)";
-  }
-
   // 2) Render sections from the canonical state
   let resolved = Array.isArray(lastSections) ? lastSections : [];
   if (!resolved.length && getCanonicalSectionNames().length) {
@@ -1803,7 +1795,6 @@ function applyVoiceResult(result) {
 
   const prevSections = cloneDeep(lastRawSections || []);
   const prevMaterials = Array.isArray(lastMaterials) ? lastMaterials.slice() : [];
-  const prevSummary = lastCustomerSummary;
   const prevChecked = Array.isArray(lastCheckedItems) ? lastCheckedItems.slice() : [];
   const prevMissing = Array.isArray(lastMissingInfo) ? lastMissingInfo.slice() : [];
 
@@ -1847,18 +1838,7 @@ function applyVoiceResult(result) {
     lastMissingInfo = prevMissing;
   }
 
-  const summaryCandidate =
-    typeof result.customerSummary === "string"
-      ? result.customerSummary
-      : typeof result.summary === "string"
-        ? result.summary
-        : null;
-  if (summaryCandidate !== null) {
-    lastCustomerSummary = summaryCandidate;
-    updated = true;
-  } else {
-    lastCustomerSummary = prevSummary;
-  }
+  lastCustomerSummary = "";
 
   if (updated) {
     clearVoiceError();
@@ -1913,71 +1893,7 @@ async function sendText() {
   }
 }
 
-async function sendAudio(blob) {
-  setStatus("Uploading audio…");
-  clearVoiceError();
-  try {
-    const schemaSnapshot = await ensureSectionSchema();
-    const baseUrl = requireWorkerBaseUrl();
-
-    // Wrap with retry logic for audio uploads
-    const res = await retryWithBackoff(
-      async () => {
-        const response = await fetch(baseUrl + "/audio", {
-          method: "POST",
-          headers: { "Content-Type": blob.type || "audio/webm" },
-          body: blob
-        });
-
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-
-        return response;
-      },
-      {
-        maxRetries: 4,
-        onRetry: (info) => {
-          setStatus(`Retry ${info.attempt}/${info.maxRetries} uploading audio...`);
-          console.log(`Retrying audio upload (attempt ${info.attempt}/${info.maxRetries})`);
-        }
-      }
-    );
-
-    const raw = await res.text();
-    let data;
-    try {
-      data = JSON.parse(raw);
-    } catch (e) {
-      console.error("Voice worker returned non-JSON:", raw);
-      const parseError = new Error("AI response wasn't in the expected format. Please try again.");
-      parseError.voiceMessage = parseError.message;
-      throw parseError;
-    }
-    setWorkerDebugPayload(data);
-    normaliseSectionsFromResponse(data, schemaSnapshot);
-    if (data.fullTranscript || data.transcript) {
-      const transcriptText = data.fullTranscript || data.transcript;
-      transcriptInput.value = transcriptText;
-      committedTranscript = transcriptText.trim();
-      lastSentTranscript = committedTranscript;
-      updateTranscriptDisplay();
-    }
-    applyVoiceResult(data);
-    setStatus("Audio processed.");
-  } catch (err) {
-    console.error(err);
-    const errorInfo = categorizeError(err);
-    const message = err && err.voiceMessage
-      ? err.voiceMessage
-      : errorInfo.userMessage || ("Voice AI failed: " + (err && err.message ? err.message : "Unknown error"));
-    showVoiceError(message);
-    setStatus("Audio failed.");
-    throw err;
-  }
-}
-
-// --- EXPORT / SESSION / AUDIO IMPORT ---
+// --- EXPORT / SESSION ---
 // NOTE: Export button has been replaced by the unified Save menu
 // The old exportBtn handler has been removed - use saveMenuBtn instead
 
@@ -2107,21 +2023,8 @@ async function saveSessionToFile() {
     sections: lastRawSections,
     materials: lastMaterials,
     checkedItems: lastCheckedItems,
-    missingInfo: lastMissingInfo,
-    customerSummary: lastCustomerSummary
+    missingInfo: lastMissingInfo
   };
-
-  if (sessionAudioChunks && sessionAudioChunks.length > 0) {
-    try {
-      const mime = lastAudioMime || (mediaRecorder && mediaRecorder.mimeType) || "audio/webm";
-      const audioBlob = new Blob(sessionAudioChunks, { type: mime });
-      const base64 = await blobToBase64(audioBlob);
-      session.audioMime = mime;
-      session.audioBase64 = base64;
-    } catch (err) {
-      console.warn("Failed to attach audio to session", err);
-    }
-  }
 
   const format = getExportFormat();
   const defaultName = "depot-voice-session";
@@ -2133,13 +2036,6 @@ async function saveSessionToFile() {
   let fileBlob, filename;
 
   if (format === 'csv') {
-    // Note: CSV format cannot include audio data
-    if (session.audioBase64) {
-      const includeAudioWarning = confirm(
-        "CSV format cannot include audio data. The session will be saved without audio. Continue?"
-      );
-      if (!includeAudioWarning) return;
-    }
     const csvContent = sessionToSingleCSV(session);
     fileBlob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     filename = `${safeName}-${ts}.csv`;
@@ -2162,15 +2058,9 @@ async function saveSessionToFile() {
 // NOTE: saveSessionBtn has been replaced by the unified Save menu
 // The old saveSessionBtn.onclick handler has been removed - use saveMenuBtn instead
 
-importAudioBtn.onclick = () => importAudioInput.click();
-importAudioInput.onchange = async (e) => {
-  const file = e.target.files && e.target.files[0];
-  if (!file) return;
-  try {
-    await sendAudio(file);
-  } catch (_) {}
-  importAudioInput.value = "";
-};
+if (importAudioBtn && importAudioInput) {
+  importAudioBtn.hidden = true;
+}
 
 loadSessionBtn.onclick = () => loadSessionInput.click();
 loadSessionInput.onchange = async (e) => {
@@ -2187,21 +2077,9 @@ loadSessionInput.onchange = async (e) => {
     lastMaterials = Array.isArray(session.materials) ? session.materials : [];
     lastCheckedItems = Array.isArray(session.checkedItems) ? session.checkedItems : [];
     lastMissingInfo = Array.isArray(session.missingInfo) ? session.missingInfo : [];
-    lastCustomerSummary = session.customerSummary || "";
-    if (session.audioBase64) {
-      try {
-        const mime = session.audioMime || "audio/webm";
-        const audioBlob = base64ToBlob(session.audioBase64, mime);
-        sessionAudioChunks = [audioBlob];
-        lastAudioMime = mime || audioBlob.type || "audio/webm";
-      } catch (audioErr) {
-        console.warn("Failed to restore audio from session", audioErr);
-        sessionAudioChunks = [];
-      }
-    } else {
-      sessionAudioChunks = [];
-      lastAudioMime = null;
-    }
+    lastCustomerSummary = "";
+    sessionAudioChunks = [];
+    lastAudioMime = null;
     mediaStream = null;
     mediaRecorder = null;
     await ensureSectionSchema();
@@ -2232,8 +2110,7 @@ if (duplicateSessionBtn) {
         (Array.isArray(lastRawSections) && lastRawSections.length > 0) ||
         (Array.isArray(lastMaterials) && lastMaterials.length > 0) ||
         (Array.isArray(lastCheckedItems) && lastCheckedItems.length > 0) ||
-        (Array.isArray(lastMissingInfo) && lastMissingInfo.length > 0) ||
-        (lastCustomerSummary && lastCustomerSummary.trim());
+        (Array.isArray(lastMissingInfo) && lastMissingInfo.length > 0);
 
       if (!hasContent) {
         showVoiceError("No content to duplicate. Create some notes first.");
@@ -2248,22 +2125,8 @@ if (duplicateSessionBtn) {
         sections: JSON.parse(JSON.stringify(lastRawSections)),
         materials: JSON.parse(JSON.stringify(lastMaterials)),
         checkedItems: JSON.parse(JSON.stringify(lastCheckedItems)),
-        missingInfo: JSON.parse(JSON.stringify(lastMissingInfo)),
-        customerSummary: lastCustomerSummary
+        missingInfo: JSON.parse(JSON.stringify(lastMissingInfo))
       };
-
-      // Duplicate audio if present
-      if (sessionAudioChunks && sessionAudioChunks.length > 0) {
-        try {
-          const mime = lastAudioMime || "audio/webm";
-          const audioBlob = new Blob(sessionAudioChunks, { type: mime });
-          const base64 = await blobToBase64(audioBlob);
-          duplicatedSession.audioMime = mime;
-          duplicatedSession.audioBase64 = base64;
-        } catch (audioErr) {
-          console.warn("Failed to duplicate audio", audioErr);
-        }
-      }
 
       // Generate filename
       const ts = new Date().toISOString().replace(/[:.]/g, "-");
@@ -2811,7 +2674,7 @@ document.addEventListener("visibilitychange", () => {
             lastMaterials = Array.isArray(snap.materials) ? snap.materials : [];
             lastCheckedItems = Array.isArray(snap.checkedItems) ? snap.checkedItems : [];
             lastMissingInfo = Array.isArray(snap.missingInfo) ? snap.missingInfo : [];
-            lastCustomerSummary = snap.customerSummary || "";
+            lastCustomerSummary = "";
             syncSectionsState(lastRawSections);
             refreshUiFromState();
           }
@@ -3323,11 +3186,6 @@ function showFinishSessionModal() {
   }
 
   // Populate customer summary
-  const finishCustomerSummary = document.getElementById('finishCustomerSummary');
-  if (finishCustomerSummary) {
-    finishCustomerSummary.textContent = lastCustomerSummary || '(none)';
-  }
-
   // Populate checklist
   const finishChecklist = document.getElementById('finishChecklist');
   if (finishChecklist) {
@@ -3580,7 +3438,7 @@ if (newJobBtn) {
     lastMaterials = Array.isArray(snap.materials) ? snap.materials : [];
     lastCheckedItems = Array.isArray(snap.checkedItems) ? snap.checkedItems : [];
     lastMissingInfo = Array.isArray(snap.missingInfo) ? snap.missingInfo : [];
-    lastCustomerSummary = snap.customerSummary || "";
+    lastCustomerSummary = "";
 
     await ensureSectionSchema();
     const normalisedFromAutosave = normaliseSectionsFromResponse({ sections: lastRawSections }, SECTION_SCHEMA);

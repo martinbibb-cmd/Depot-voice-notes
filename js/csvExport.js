@@ -79,9 +79,7 @@ export function sessionToMultipleCSVs(session) {
     ['Field', 'Value'],
     ['Version', session.version],
     ['Created At', session.createdAt],
-    ['Full Transcript', escapeCSVValue(session.fullTranscript)],
-    ['Customer Summary', escapeCSVValue(session.customerSummary)],
-    ['Has Audio', session.audioBase64 ? 'Yes' : 'No']
+    ['Full Transcript', escapeCSVValue(session.fullTranscript)]
   ];
   csvs.info = mainInfo.map(row => row.join(',')).join('\n');
 
@@ -160,14 +158,6 @@ export function sessionToSingleCSV(session) {
     session.missingInfo.forEach(item => {
       lines.push(escapeCSVValue(item));
     });
-    lines.push('');
-  }
-
-  // Customer Summary
-  if (session.customerSummary) {
-    lines.push('# CUSTOMER SUMMARY');
-    lines.push('Summary');
-    lines.push(escapeCSVValue(session.customerSummary));
     lines.push('');
   }
 

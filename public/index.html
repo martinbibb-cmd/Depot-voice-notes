@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <title>Depot • Voice Notes</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="description" content="Voice notes capture tool for depot/site surveys with dictation and transcription" />
+  <meta name="description" content="Depot/site survey notes tool for pasted transcripts and typed notes" />
   
   <!-- PWA Configuration -->
   <link rel="manifest" href="./manifest.json" />
@@ -37,13 +37,12 @@
   <div class="banner warn" data-ui="worker-error" hidden>Worker error will appear here…</div>
 
   <div class="row" style="margin:.5rem 0 1rem">
-    <button data-ui="mic-start" aria-label="Start microphone">🎙️ Start</button>
     <button data-ui="send-notes">Send notes</button>
     <button data-ui="share-notes" aria-label="Share notes">📤 Share</button>
   </div>
 
-  <label for="out">Live transcript / summary</label>
-  <textarea id="out" data-ui="transcript-out" placeholder="Speak, or paste notes here…"></textarea>
+  <label for="out">Apple Voice Memos transcript / typed notes</label>
+  <textarea id="out" data-ui="transcript-out" placeholder="Paste Apple Voice Memos transcript or type bullet notes here…"></textarea>
 
   <!-- Scripts: base-path first -->
   <script type="module" src="./js/app.js"></script>

@@ -27,10 +27,6 @@ const saveFormatJSON = document.getElementById('saveFormatJSON');
 const saveFormatCSV = document.getElementById('saveFormatCSV');
 const saveFormatTXT = document.getElementById('saveFormatTXT');
 
-// Audio export checkboxes
-const saveAudioWavCheckbox = document.getElementById('saveAudioWav');
-const saveAudioMp3Checkbox = document.getElementById('saveAudioMp3');
-
 // Filename input
 const saveFilenameInput = document.getElementById('saveFilename');
 const SESSION_NAME_KEY = 'depot.currentSessionName';
@@ -80,9 +76,7 @@ function getSelectedOptions() {
     fullSession: saveFullSessionCheckbox && saveFullSessionCheckbox.checked,
     depotNotes: saveDepotNotesCheckbox && saveDepotNotesCheckbox.checked,
     aiNotes: saveAINotesCheckbox && saveAINotesCheckbox.checked,
-    transcript: saveTranscriptCheckbox && saveTranscriptCheckbox.checked,
-    audioWav: saveAudioWavCheckbox && saveAudioWavCheckbox.checked,
-    audioMp3: saveAudioMp3Checkbox && saveAudioMp3Checkbox.checked
+    transcript: saveTranscriptCheckbox && saveTranscriptCheckbox.checked
   };
 }
 
@@ -136,10 +130,6 @@ function getAppData() {
   const lastMaterials = window.__depotLastMaterials || [];
   const lastCheckedItems = window.__depotLastCheckedItems || [];
   const lastMissingInfo = window.__depotLastMissingInfo || [];
-  const lastCustomerSummary = window.__depotLastCustomerSummary || '';
-  const sessionAudioChunks = window.__depotSessionAudioChunks || [];
-  const lastAudioMime = window.__depotLastAudioMime || null;
-
   return {
     fullTranscript,
     sections,
@@ -147,9 +137,7 @@ function getAppData() {
     materials: lastMaterials,
     checkedItems: lastCheckedItems,
     missingInfo: lastMissingInfo,
-    customerSummary: lastCustomerSummary,
-    audioChunks: sessionAudioChunks,
-    audioMime: lastAudioMime
+    customerSummary: ''
   };
 }
 
@@ -188,22 +176,13 @@ async function saveSelected() {
       await saveTranscript(appData, filename, format, timestamp);
     }
 
-    // Handle audio export options
-    if (options.audioWav) {
-      await saveAudioWav(appData, filename, timestamp);
-    }
-
-    if (options.audioMp3) {
-      await saveAudioNative(appData, filename, timestamp);
-    }
-
     // Hide modal and show success
     hideSaveMenu();
 
     // Show feedback
     const statusBar = document.getElementById('statusBar');
     if (statusBar) {
-      const count = [options.fullSession, options.depotNotes, options.aiNotes, options.transcript, options.audioWav, options.audioMp3].filter(Boolean).length;
+      const count = [options.fullSession, options.depotNotes, options.aiNotes, options.transcript].filter(Boolean).length;
       statusBar.textContent = `Saved ${count} file(s) successfully`;
       setTimeout(() => {
         statusBar.textContent = 'Idle (Online • Manual)';
@@ -226,27 +205,8 @@ async function saveFullSession(appData, filename, format, timestamp) {
     sections: appData.sections,
     materials: appData.materials,
     checkedItems: appData.checkedItems,
-    missingInfo: appData.missingInfo,
-    customerSummary: appData.customerSummary
+    missingInfo: appData.missingInfo
   };
-
-  // Include audio if available and format is JSON
-  if (format === 'json' && appData.audioChunks && appData.audioChunks.length > 0) {
-    try {
-      const mime = appData.audioMime || 'audio/webm';
-      const audioBlob = new Blob(appData.audioChunks, { type: mime });
-      const base64 = await blobToBase64(audioBlob);
-      session.audioMime = mime;
-      session.audioBase64 = base64;
-    } catch (err) {
-      console.warn('Failed to attach audio to session', err);
-    }
-  } else if ((format === 'csv' || format === 'txt') && appData.audioChunks && appData.audioChunks.length > 0) {
-    const includeAudioWarning = confirm(
-      `${format.toUpperCase()} format cannot include audio data. The session will be saved without audio. Continue?`
-    );
-    if (!includeAudioWarning) return;
-  }
 
   let blob, finalFilename;
 
@@ -416,14 +376,6 @@ function sessionToText(session) {
     });
     text += '===END===\n';
     hasContent = true;
-  }
-
-  if (session.customerSummary) {
-    if (hasContent) text += '\n';
-    text += '📝 Customer Summary\n';
-    text += '===CONTENT===\n';
-    text += session.customerSummary + '\n';
-    text += '===END===\n';
   }
 
   return text;

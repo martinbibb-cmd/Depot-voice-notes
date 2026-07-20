@@ -1,21 +1,21 @@
 {
   "sections": [
-    { "name": "Needs", "description": "" },
-    { "name": "Working at heights", "description": "" },
-    { "name": "System characteristics", "description": "" },
-    { "name": "Components that require assistance", "description": "" },
-    { "name": "Restrictions to work", "description": "" },
-    { "name": "External hazards", "description": "" },
-    { "name": "Delivery notes", "description": "" },
-    { "name": "Office notes", "description": "" },
+    { "name": "Needs", "description": "Customer reason for the job and confirmed outcome required. Do not include install steps." },
+    { "name": "Working at heights", "description": "Ladders, scaffold, roof, flue height, or access-at-height requirements only." },
+    { "name": "System characteristics", "description": "Existing system and proposed system at a high level: what is coming out and what is going in." },
+    { "name": "Components that require assistance", "description": "Heavy, awkward, asbestos-risk, roof, cylinder, tank, or other items needing extra labour or specialist help." },
+    { "name": "Restrictions to work", "description": "Access, parking, time limits, permissions, other trades, or anything that may delay the job." },
+    { "name": "External hazards", "description": "Site safety hazards outside or around the work area." },
+    { "name": "Delivery notes", "description": "Where to deliver materials, parking/unloading, access route, and customer availability." },
+    { "name": "Office notes", "description": "Admin, scheduling, utilities, third parties, permissions, and anything agreed with the customer that office must know." },
     {
       "name": "New boiler and controls",
-      "description": "Keep it simple: what is being removed, what is being installed, which controls stay or change, where everything sits, and include cylinders, tanks, sealed system kits, and radiators when relevant."
+      "description": "Keep it simple: what is coming out, what is going in, controls, filters, system protection, position, and agreed appliance details."
     },
-    { "name": "Flue", "description": "" },
-    { "name": "Pipe work", "description": "" },
-    { "name": "Disruption", "description": "" },
-    { "name": "Customer actions", "description": "" },
-    { "name": "Future plans", "description": "Notes about any future work or follow-on visits." }
+    { "name": "Flue", "description": "Flue route, terminal, plume kit, roof/wall work, making good, and any customer agreement about flue position." },
+    { "name": "Pipe work", "description": "Gas, heating, hot/cold, condensate, route, sizes, upgrades, isolation, and reason for changes." },
+    { "name": "Disruption", "description": "Mess, lifting floors, drilling, boxing, making good, decoration, water off, heating off, and customer impact." },
+    { "name": "Customer actions", "description": "What the customer has agreed to do before or during the job." },
+    { "name": "Future plans", "description": "Future work, follow-on visits, deferred items, and anything explicitly not included now." }
   ]
 }

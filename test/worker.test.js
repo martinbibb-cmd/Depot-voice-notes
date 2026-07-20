@@ -82,14 +82,14 @@ test('POST /text forwards structured payload and normalises model output', async
     if (name === 'New boiler and controls') {
       return {
         section: name,
-        plainText: 'Replace with Worcester 15Ri',
-        naturalLanguage: 'We will replace the boiler and fit Hive.'
+        plainText: '# Involved #; Replace with Worcester 15Ri;',
+        naturalLanguage: '# Involved #\n- Replace with Worcester 15Ri'
       };
     }
     return {
       section: name,
-      plainText: '• No additional notes;',
-      naturalLanguage: 'No additional notes.'
+      plainText: '',
+      naturalLanguage: ''
     };
   });
 
@@ -97,7 +97,7 @@ test('POST /text forwards structured payload and normalises model output', async
   assert.deepEqual(body.materials, []);
   assert.deepEqual(body.checkedItems, []);
   assert.deepEqual(body.missingInfo, []);
-  assert.equal(body.customerSummary, '');
+  assert.equal('customerSummary' in body, false);
 
   assert(receivedRequestBody, 'expected Gemini request body');
   assert(Array.isArray(receivedRequestBody.contents));

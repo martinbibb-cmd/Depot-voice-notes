@@ -1,7 +1,7 @@
 {
   "name": "Depot Voice Notes",
   "short_name": "Depot Notes",
-  "description": "Voice notes capture tool for depot/site surveys with dictation and transcription",
+  "description": "Depot/site survey notes tool for pasted transcripts and typed notes",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#ffffff",

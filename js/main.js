@@ -1810,7 +1810,7 @@ function applyVoiceResult(result) {
       ? result.depotNotes.sections
       : [];
   const { merged: mergedSections, incomingCount: incomingSectionsCount } = mergeSectionsPreservingRequired(
-    prevSections,
+    [],
     sectionsCandidateRaw
   );
   const prevSectionsJson = JSON.stringify(prevSections);

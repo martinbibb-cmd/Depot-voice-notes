@@ -2060,6 +2060,8 @@ BULLET FORMAT:
 - naturalLanguage must also be bullet-style. Do not write a narrative paragraph.
 - Each section should only contain confirmed facts that belong in that section.
 - If a section has no confirmed notes, use an empty string for both fields.
+- Never write absence notes such as "No mention of...", "No information on...", "No details provided", "Not discussed", or "No future plans mentioned". Leave the section empty instead.
+- Do not restate the same job fact in different words. Keep the clearest one.
 - Use these subheadings inside sections where supported by the transcript:
   - # Coming out #
   - # Going in #
@@ -2282,11 +2284,15 @@ function splitNoteBullets(value) {
       .trim()
     )
     .filter(Boolean)
-    .filter((line) => !/^no additional notes\.?$/i.test(line));
+    .filter((line) => !isAbsenceNote(line));
 }
 
 function isNoteSubheading(line) {
   return /^#\s*(Coming out|Going in|Involved|Agreed)\s*#$/i.test(String(line || "").trim());
+}
+
+function isAbsenceNote(line) {
+  return /^(no\s+(mention|information|details?|discussion|additional|future plans?|customer actions?|delivery instructions?|site hazards?|components?)\b|not\s+(mentioned|discussed|specified)\b|there\s+(was|were)\s+no\b)/i.test(String(line || "").trim());
 }
 
 function normaliseNoteSubheading(line) {

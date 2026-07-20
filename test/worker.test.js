@@ -145,3 +145,52 @@ test('POST /text surfaces Gemini errors as model_error 5xx', async (t) => {
   assert.match(body.message, /gemini\.generateContent 500/);
 });
 
+test('POST /text removes absence notes and keeps headed bullets', async (t) => {
+  globalThis.fetch = async () => {
+    const content = JSON.stringify({
+      sections: [
+        {
+          section: 'Flue',
+          plainText: 'No mention of flue route; # Involved #; Route new flue through loft and out gable;',
+          naturalLanguage: ''
+        },
+        {
+          section: 'Future plans',
+          plainText: 'No future plans mentioned.',
+          naturalLanguage: ''
+        }
+      ],
+      materials: [],
+      checkedItems: [],
+      missingInfo: [],
+      customerSummary: 'Should be removed'
+    });
+    return new Response(
+      JSON.stringify({ candidates: [{ content: { parts: [{ text: content }] } }] }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } }
+    );
+  };
+
+  t.after(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  const request = new Request('https://example.com/text', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ transcript: 'Route new flue through loft and out gable.' })
+  });
+
+  const response = await worker.fetch(request, { GEMINI_API_KEY: 'test-key' }, {});
+  assert.equal(response.status, 200);
+  const body = await parseJson(response);
+
+  const flue = body.sections.find((section) => section.section === 'Flue');
+  const future = body.sections.find((section) => section.section === 'Future plans');
+  assert.equal(flue.plainText, '# Involved #; Route new flue through loft and out gable;');
+  assert.equal(flue.naturalLanguage, '# Involved #\n- Route new flue through loft and out gable');
+  assert.equal(future.plainText, '');
+  assert.equal(future.naturalLanguage, '');
+  assert.equal('customerSummary' in body, false);
+});
+

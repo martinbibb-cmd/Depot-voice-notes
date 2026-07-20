@@ -1,5 +1,5 @@
 // Service worker for PWA support with caching
-const CACHE_NAME = 'depot-voice-notes-v2';
+const CACHE_NAME = 'depot-voice-notes-v3';
 const urlsToCache = [
   './',
   './index.html',

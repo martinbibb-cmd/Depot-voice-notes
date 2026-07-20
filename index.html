@@ -2312,24 +2312,11 @@
             <span class="small">Paste transcript or typed notes, then process</span>
           </div>
           <div class="transcript-container">
-            <div style="margin-bottom: 10px;">
-              <button id="sendTextBtn" style="width: 100%; padding: 10px; font-size: 0.85rem; font-weight: 700;">🤖 process</button>
+            <textarea id="transcriptInput" class="transcript-scroll-box" placeholder="Paste Apple Voice Memos transcript or type notes here..." style="display: block; width: 100%; min-height: 220px; resize: vertical;"></textarea>
+            <div style="margin-top: 10px;">
+              <button id="sendTextBtn" style="width: 100%; padding: 10px; font-size: 0.85rem; font-weight: 700;">Process notes</button>
             </div>
-            <div class="search-bar">
-              <input type="text" id="transcriptSearch" class="search-input" placeholder="Search notes...">
-              <button id="searchPrevBtn" class="search-nav-btn" disabled>← Prev</button>
-              <button id="searchNextBtn" class="search-nav-btn" disabled>Next →</button>
-              <button id="editTranscriptBtn" class="search-nav-btn" style="margin-left: auto;">✏️ Edit</button>
-            </div>
-            <div id="transcriptDisplay" class="transcript-scroll-box"></div>
-            <textarea id="transcriptInput" placeholder="Paste Apple Voice Memos transcript or type bullet notes here..."></textarea>
-            <!-- Chat Input Box -->
-            <div class="chat-input-container">
-              <input type="text" id="chatMessageInput" class="chat-message-input" placeholder="Type a message...">
-              <button id="sendChatMessageBtn" class="send-chat-btn">Send</button>
-            </div>
-          </div>
-          <div class="statusbar" id="statusBar">Idle (Online • Manual)</div>
+          </div>`r`n          <div class="statusbar" id="statusBar">Idle (Online • Manual)</div>
           <div style="display: flex; gap: 12px; margin-top: 6px; font-size: 0.65rem; color: #64748b;">
             <span id="networkStatus" title="Network connection status">🌐 <span id="networkStatusText">Online</span></span>
             <span id="storageStatus" title="Storage usage">💾 <span id="storageStatusText">--</span></span>

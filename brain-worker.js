@@ -2329,6 +2329,29 @@ function formatDisplayBullets(bullets) {
     .join("\n");
 }
 
+function filterSectionBullets(sectionName, bullets) {
+  const isCustomerActions = normaliseSectionKey(sectionName) === normaliseSectionKey("Customer actions");
+  let currentHeading = "";
+  const filtered = [];
+
+  bullets.forEach((line) => {
+    if (isNoteSubheading(line)) {
+      currentHeading = normaliseNoteSubheading(line);
+      if (currentHeading === "# Agreed #" && !isCustomerActions) return;
+      filtered.push(currentHeading);
+      return;
+    }
+    if (currentHeading === "# Agreed #" && !isCustomerActions) return;
+    filtered.push(line);
+  });
+
+  return filtered.filter((line, index, arr) => {
+    if (!isNoteSubheading(line)) return true;
+    const next = arr[index + 1];
+    return Boolean(next && !isNoteSubheading(next));
+  });
+}
+
 function resolveCanonicalSectionName(name, schemaInfo) {
   const key = normaliseSectionKey(name);
   if (!key) return null;
@@ -2355,7 +2378,10 @@ function normaliseSectionsFromModel(rawSections, schemaInfo) {
       ? entry.naturalLanguage
       : String(entry.naturalLanguage || entry.summary || "");
     const primaryBullets = uniqueShortBullets(rawPlainText);
-    const bullets = primaryBullets.length ? primaryBullets : uniqueShortBullets(rawNaturalLanguage);
+    const bullets = filterSectionBullets(
+      resolved,
+      primaryBullets.length ? primaryBullets : uniqueShortBullets(rawNaturalLanguage)
+    );
     map.set(resolved, {
       section: resolved,
       plainText: formatPlainBullets(bullets),

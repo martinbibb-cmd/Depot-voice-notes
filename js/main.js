@@ -1455,6 +1455,10 @@ function bulletify(lines){
   for (let raw of lines){
     const t = stripPreamble(raw);
     if (!t) continue;
+    if (isNoteSubheading(t)) {
+      out.push(t);
+      continue;
+    }
     out.push("• " + ensureSemi(t));
   }
   return out.join("\n");

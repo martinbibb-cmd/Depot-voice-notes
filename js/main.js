@@ -1636,7 +1636,14 @@ function renderChecklist(container, checkedIds, missingInfoFromServer) {
     container.appendChild(header);
 
     items.forEach((item) => {
-      const selectedOutcome = item.outcomes.find((outcome) => outcome.id === CHECKLIST_SELECTIONS[item.id]);
+      const rawSelection = CHECKLIST_SELECTIONS[item.id];
+      const selectedOutcomeId = typeof rawSelection === "string"
+        ? rawSelection
+        : rawSelection && rawSelection.outcome;
+      const selectedDetail = rawSelection && typeof rawSelection === "object"
+        ? String(rawSelection.detail || "")
+        : "";
+      const selectedOutcome = item.outcomes.find((outcome) => outcome.id === selectedOutcomeId);
       const div = document.createElement("div");
       div.className = "clar-chip checklist-item" + (selectedOutcome ? " done" : "");
       div.dataset.group = groupName;
@@ -1671,19 +1678,46 @@ function renderChecklist(container, checkedIds, missingInfoFromServer) {
           button.style.color = "white";
         }
         button.addEventListener("click", () => {
-          if (CHECKLIST_SELECTIONS[item.id] === outcome.id) {
+          const current = CHECKLIST_SELECTIONS[item.id];
+          const currentOutcome = typeof current === "string" ? current : current && current.outcome;
+          if (currentOutcome === outcome.id) {
             delete CHECKLIST_SELECTIONS[item.id];
           } else {
-            CHECKLIST_SELECTIONS[item.id] = outcome.id;
+            CHECKLIST_SELECTIONS[item.id] = outcome.detailPrompt
+              ? { outcome: outcome.id, detail: "" }
+              : outcome.id;
           }
           persistChecklistSelections();
-          lastCheckedItems = Object.entries(CHECKLIST_SELECTIONS).map(([id, outcomeId]) => `${id}:${outcomeId}`);
+          lastCheckedItems = Object.entries(CHECKLIST_SELECTIONS).map(([id, selection]) => {
+            const outcomeId = typeof selection === "string" ? selection : selection && selection.outcome;
+            return `${id}:${outcomeId || ""}`;
+          });
           renderChecklist(clarificationsEl, lastCheckedItems, lastMissingInfo);
           debouncedAutoSave();
         });
         options.appendChild(button);
       });
       div.appendChild(options);
+
+      if (selectedOutcome && selectedOutcome.detailPrompt) {
+        const detailInput = document.createElement("textarea");
+        detailInput.className = "notes-input";
+        detailInput.rows = 2;
+        detailInput.placeholder = selectedOutcome.detailPrompt;
+        detailInput.value = selectedDetail;
+        detailInput.style.marginTop = "8px";
+        detailInput.addEventListener("input", () => {
+          CHECKLIST_SELECTIONS[item.id] = {
+            outcome: selectedOutcome.id,
+            detail: detailInput.value
+          };
+          persistChecklistSelections();
+          renderScopeRecap();
+          debouncedAutoSave();
+        });
+        div.appendChild(detailInput);
+      }
+
       container.appendChild(div);
     });
   });

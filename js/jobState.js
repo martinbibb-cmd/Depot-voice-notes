@@ -56,6 +56,7 @@ function normaliseOutcome(item, outcome) {
     section: cleanText(outcome.section || outcome.depotSection || item.section || item.depotSection),
     plainText: cleanText(outcome.plainText),
     naturalLanguage: cleanText(outcome.naturalLanguage),
+    detailPrompt: cleanText(outcome.detailPrompt),
     tags: Array.isArray(outcome.tags) ? outcome.tags.map(cleanText).filter(Boolean) : [],
     quoteScope: cleanText(outcome.quoteScope || "base"),
     materials: Array.isArray(outcome.materials) ? outcome.materials : []
@@ -73,6 +74,7 @@ function fallbackOutcome(item) {
     section: cleanText(item.section || item.depotSection),
     plainText,
     naturalLanguage,
+    detailPrompt: cleanText(item.detailPrompt),
     tags: Array.isArray(item.tags) ? item.tags.map(cleanText).filter(Boolean) : [],
     quoteScope: "base",
     materials: Array.isArray(item.materials) ? item.materials : []
@@ -107,6 +109,12 @@ export function selectedOutcomeForItem(item, selections = {}) {
   return item.outcomes.find((outcome) => outcome.id === outcomeId) || null;
 }
 
+export function selectedDetailForItem(item, selections = {}) {
+  const raw = selections[item.id];
+  if (!raw || typeof raw !== "object") return "";
+  return cleanText(raw.detail);
+}
+
 function addSectionLine(map, sectionName, line) {
   const section = cleanText(sectionName);
   const text = cleanText(line);
@@ -118,14 +126,15 @@ function addSectionLine(map, sectionName, line) {
   }
 }
 
-function lineForOutcome(outcome) {
+function lineForOutcome(outcome, detail = "") {
   const text = cleanText(outcome.plainText || outcome.label);
   if (!text) return "";
+  const scopedText = detail ? `${text} - ${detail}` : text;
   if (outcome.quoteScope && outcome.quoteScope !== "base") {
     const scopeLabel = outcome.quoteScope.replace(/^option\b/i, "Option");
-    return `${scopeLabel} - ${text}`;
+    return `${scopeLabel} - ${scopedText}`;
   }
-  return text;
+  return scopedText;
 }
 
 export function buildDeterministicScope(checklistItems, selections = {}) {
@@ -138,18 +147,20 @@ export function buildDeterministicScope(checklistItems, selections = {}) {
   items.forEach((item) => {
     const outcome = selectedOutcomeForItem(item, selections);
     if (!outcome) return;
+    const detail = selectedDetailForItem(item, selections);
     selectedItems.push({
       id: item.id,
       label: item.label,
       group: item.group,
       outcomeId: outcome.id,
       outcomeLabel: outcome.label,
+      detail,
       state: outcome.state,
       quoteScope: outcome.quoteScope,
       section: outcome.section
     });
     outcome.tags.forEach((tag) => tags.add(tag));
-    addSectionLine(sectionsMap, outcome.section, lineForOutcome(outcome));
+    addSectionLine(sectionsMap, outcome.section, lineForOutcome(outcome, detail));
     outcome.materials.forEach((material) => materials.push(material));
   });
 
@@ -179,7 +190,8 @@ export function buildRecap(scope, dictatedText = "") {
   (scope?.selectedItems || []).forEach((item) => {
     const key = item.section || "Unassigned";
     if (!selectedBySection.has(key)) selectedBySection.set(key, []);
-    selectedBySection.get(key).push(`${item.label}: ${item.outcomeLabel}`);
+    const detail = item.detail ? ` - ${item.detail}` : "";
+    selectedBySection.get(key).push(`${item.label}: ${item.outcomeLabel}${detail}`);
   });
 
   return {

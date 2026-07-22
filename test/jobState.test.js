@@ -140,6 +140,44 @@ test("does not ask unnecessary questions when selected scope is complete enough"
   assert.deepEqual(detectConfirmationQuestions(scope), []);
 });
 
+test("keeps partial radiator pipework extent with the selected outcome", () => {
+  const scope = scopeFor({
+    radiator_pipework_scope: {
+      outcome: "upgrade_selected_runs",
+      detail: "ensuite and lounge radiator runs from branch point above airing cupboard, no wall drops"
+    }
+  });
+
+  assert.equal(
+    sectionLines(scope, "Pipe work"),
+    "Upgrade selected radiator pipework - ensuite and lounge radiator runs from branch point above airing cupboard, no wall drops;"
+  );
+  assert.deepEqual(buildRecap(scope).selectedBySection, [
+    {
+      section: "Pipe work",
+      items: [
+        "Radiator pipework: Upgrade selected radiator runs - ensuite and lounge radiator runs from branch point above airing cupboard, no wall drops"
+      ]
+    }
+  ]);
+});
+
+test("keeps multiple cylinder quote alternatives separate", () => {
+  const scope = scopeFor({
+    quote_option_a_cylinder: {
+      outcome: "smart_cylinder",
+      detail: "Mixergy smart cylinder in airing cupboard"
+    },
+    quote_option_b_cylinder: "standard_unvented",
+    quote_option_c_cylinder: "exclude_cylinder"
+  });
+
+  assert.equal(
+    sectionLines(scope, "System characteristics"),
+    "Option A - Include smart cylinder - Mixergy smart cylinder in airing cupboard; Option B - Include standard unvented cylinder; Option C - Exclude cylinder works;"
+  );
+});
+
 test("deterministic selected facts remain available to override AI output", () => {
   const scope = scopeFor({
     gas_supply_scope: "retain_22mm"

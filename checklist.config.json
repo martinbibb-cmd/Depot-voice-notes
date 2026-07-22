@@ -17,6 +17,29 @@
   ],
   "items": [
     {
+      "id": "boiler_replacement_scope",
+      "group": "Boiler & controls",
+      "section": "New boiler and controls",
+      "label": "Boiler replacement",
+      "hint": "Makes and models are optional; add them only when useful.",
+      "outcomes": [
+        {
+          "id": "same_position",
+          "state": "included",
+          "label": "Replace boiler in existing position",
+          "plainText": "Install replacement boiler in existing position",
+          "detailPrompt": "Optional existing/new boiler detail, e.g. 24 RI to modern 24 RI."
+        },
+        {
+          "id": "new_position",
+          "state": "included",
+          "label": "Relocate boiler",
+          "plainText": "Install replacement boiler in new position",
+          "detailPrompt": "New position and any route/access notes."
+        }
+      ]
+    },
+    {
       "id": "gas_supply_scope",
       "group": "Pipework",
       "section": "Pipe work",
@@ -117,7 +140,28 @@
           "state": "included",
           "label": "Fit smart control",
           "plainText": "Fit smart control",
+          "detailPrompt": "Optional control detail, e.g. Hive included as upgrade.",
           "materials": [{ "category": "Controls", "item": "Smart heating control kit", "qty": 1, "notes": "" }]
+        }
+      ]
+    },
+    {
+      "id": "bypass_scope",
+      "group": "Boiler & controls",
+      "section": "New boiler and controls",
+      "label": "Automatic bypass",
+      "outcomes": [
+        {
+          "id": "fit",
+          "state": "included",
+          "label": "Fit automatic bypass",
+          "plainText": "Fit automatic bypass"
+        },
+        {
+          "id": "not_required",
+          "state": "not_required",
+          "label": "Automatic bypass not required",
+          "plainText": "Automatic bypass not required"
         }
       ]
     },
@@ -147,6 +191,56 @@
           "label": "Cylinder work as separate quote",
           "plainText": "Cylinder work to be priced separately",
           "quoteScope": "option A"
+        }
+      ]
+    },
+    {
+      "id": "quote_option_a_cylinder",
+      "group": "Quote options",
+      "section": "System characteristics",
+      "label": "Option A cylinder",
+      "hint": "Use only when issuing alternative quote options.",
+      "outcomes": [
+        {
+          "id": "smart_cylinder",
+          "state": "separate_quote",
+          "label": "Include smart cylinder",
+          "plainText": "Include smart cylinder",
+          "quoteScope": "option A",
+          "detailPrompt": "Optional cylinder/control detail, e.g. Mixergy in airing cupboard."
+        }
+      ]
+    },
+    {
+      "id": "quote_option_b_cylinder",
+      "group": "Quote options",
+      "section": "System characteristics",
+      "label": "Option B cylinder",
+      "hint": "Use only when issuing alternative quote options.",
+      "outcomes": [
+        {
+          "id": "standard_unvented",
+          "state": "separate_quote",
+          "label": "Include standard unvented cylinder",
+          "plainText": "Include standard unvented cylinder",
+          "quoteScope": "option B",
+          "detailPrompt": "Optional location or like-for-like notes."
+        }
+      ]
+    },
+    {
+      "id": "quote_option_c_cylinder",
+      "group": "Quote options",
+      "section": "System characteristics",
+      "label": "Option C cylinder",
+      "hint": "Use only when issuing alternative quote options.",
+      "outcomes": [
+        {
+          "id": "exclude_cylinder",
+          "state": "separate_quote",
+          "label": "Exclude cylinder works",
+          "plainText": "Exclude cylinder works",
+          "quoteScope": "option C"
         }
       ]
     },
@@ -223,7 +317,8 @@
           "id": "external_condensate",
           "state": "included",
           "label": "Install external condensate",
-          "plainText": "Install external condensate"
+          "plainText": "Install external condensate",
+          "detailPrompt": "Route, pipe size, lagging, and termination detail."
         },
         {
           "id": "builder_soakaway",
@@ -231,6 +326,7 @@
           "label": "Builder-required condensate soakaway",
           "section": "Customer actions",
           "plainText": "Customer to arrange builder for condensate soakaway",
+          "detailPrompt": "Builder name, soakaway position, excavation, tile/access detail.",
           "tags": ["specialist:builder"]
         }
       ]
@@ -240,18 +336,34 @@
       "group": "Pipework",
       "section": "Pipe work",
       "label": "Radiator pipework",
+      "hint": "Use selected-runs when only part of the system is being upgraded.",
       "outcomes": [
         {
           "id": "retain",
-          "state": "included",
-          "label": "Retain radiator pipework",
+          "state": "not_required",
+          "label": "No radiator pipework changes",
           "plainText": "Retain existing radiator pipework"
         },
         {
-          "id": "upgrade",
+          "id": "upgrade_selected_runs",
           "state": "included",
-          "label": "Upgrade radiator pipework",
-          "plainText": "Upgrade radiator pipework"
+          "label": "Upgrade selected radiator runs",
+          "plainText": "Upgrade selected radiator pipework",
+          "detailPrompt": "Which radiators, from where to where, pipe size, and any access notes."
+        },
+        {
+          "id": "upgrade_all_accessible",
+          "state": "included",
+          "label": "Upgrade all accessible radiator pipework",
+          "plainText": "Upgrade all accessible radiator pipework"
+        },
+        {
+          "id": "customer_arranging_access",
+          "state": "customer_arranging",
+          "label": "Customer arranging access",
+          "section": "Customer actions",
+          "plainText": "Customer to arrange access for radiator pipework",
+          "detailPrompt": "Flooring, boxing, building work, or room-specific access needed."
         }
       ]
     },

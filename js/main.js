@@ -131,6 +131,9 @@ const sendTextBtn = document.getElementById("sendTextBtn");
 const transcriptInput = document.getElementById("transcriptInput");
 const clarificationsEl = document.getElementById("clarifications");
 const scopeRecapEl = document.getElementById("scopeRecap");
+const confirmRecapBtn = document.getElementById("confirmRecapBtn");
+const refineRecapBtn = document.getElementById("refineRecapBtn");
+const reprocessRecapBtn = document.getElementById("reprocessRecapBtn");
 const sectionsListEl = document.getElementById("sectionsList");
 const statusBar = document.getElementById("statusBar");
 const startLiveBtn = null;
@@ -185,6 +188,7 @@ let schemaLoaded = false;
 let CHECKLIST_SOURCE = [];
 let CHECKLIST_ITEMS = [];
 let CHECKLIST_SELECTIONS = safeParseJSON(localStorage.getItem(CHECKLIST_SELECTIONS_STORAGE_KEY), {}) || {};
+let recapConfirmed = false;
 
 // Expose state to window for save menu access
 function exposeStateToWindow() {
@@ -1435,6 +1439,15 @@ function renderScopeRecap() {
     return;
   }
 
+  const stage = document.createElement("div");
+  stage.className = "small";
+  stage.style.marginBottom = "8px";
+  stage.style.fontWeight = "700";
+  stage.textContent = recapConfirmed
+    ? "Confirmed. Final notes can be generated."
+    : "Review this interpretation before generating Depot notes.";
+  scopeRecapEl.appendChild(stage);
+
   recap.selectedBySection.forEach((section) => {
     const wrapper = document.createElement("div");
     wrapper.className = "section-item";
@@ -1467,6 +1480,7 @@ function renderScopeRecap() {
       if (transcriptInput) {
         transcriptInput.value = pre.textContent.trim();
         committedTranscript = transcriptInput.value.trim();
+        recapConfirmed = false;
         debouncedAutoSave();
       }
     });
@@ -1687,6 +1701,7 @@ function renderChecklist(container, checkedIds, missingInfoFromServer) {
               ? { outcome: outcome.id, detail: "" }
               : outcome.id;
           }
+          recapConfirmed = false;
           persistChecklistSelections();
           lastCheckedItems = Object.entries(CHECKLIST_SELECTIONS).map(([id, selection]) => {
             const outcomeId = typeof selection === "string" ? selection : selection && selection.outcome;
@@ -1711,6 +1726,7 @@ function renderChecklist(container, checkedIds, missingInfoFromServer) {
             outcome: selectedOutcome.id,
             detail: detailInput.value
           };
+          recapConfirmed = false;
           persistChecklistSelections();
           renderScopeRecap();
           debouncedAutoSave();
@@ -1968,7 +1984,8 @@ function applyVoiceResult(result) {
   refreshUiFromState();
 }
 
-async function sendText() {
+async function sendText(options = {}) {
+  const confirmed = Boolean(options.confirmed);
   const transcript = transcriptInput.value.trim();
   const deterministicScope = getCurrentDeterministicScope();
   const confirmationQuestions = detectConfirmationQuestions(deterministicScope);
@@ -1982,6 +1999,16 @@ async function sendText() {
   }
 
   if (!transcript && !deterministicScope.sections.length) return;
+
+  if (!confirmed) {
+    recapConfirmed = false;
+    renderScopeRecap();
+    setStatus("Review recap, then confirm or refine.");
+    return;
+  }
+
+  recapConfirmed = true;
+  renderScopeRecap();
 
   if (!transcript && deterministicScope.sections.length) {
     applyVoiceResult({
@@ -2867,6 +2894,7 @@ function resetSessionState() {
   interimTranscript = "";
   lastSentTranscript = "";
   transcriptInput.value = "";
+  recapConfirmed = false;
   sessionAudioChunks = [];
   lastAudioMime = null;
   lastRawSections = [];
@@ -2888,7 +2916,26 @@ function resetSessionState() {
   transcriptInput.focus?.();
 }
 
-sendTextBtn.onclick = sendText;
+sendTextBtn.onclick = () => sendText({ confirmed: false });
+if (confirmRecapBtn) {
+  confirmRecapBtn.onclick = () => sendText({ confirmed: true });
+}
+if (refineRecapBtn) {
+  refineRecapBtn.onclick = () => {
+    recapConfirmed = false;
+    transcriptInput.focus?.();
+    setStatus("Refine the text or checklist, then reprocess recap.");
+  };
+}
+if (reprocessRecapBtn) {
+  reprocessRecapBtn.onclick = () => {
+    recapConfirmed = false;
+    renderScopeRecap();
+    renderChecklist(clarificationsEl, lastCheckedItems, lastMissingInfo);
+    setStatus("Recap reprocessed. Review, then confirm.");
+    debouncedAutoSave();
+  };
+}
 if (startLiveBtn) startLiveBtn.onclick = startLiveSession;
 if (pauseLiveBtn) pauseLiveBtn.onclick = () => togglePauseResumeLive();
 if (finishLiveBtn) finishLiveBtn.onclick = () => { finishLiveSession(); };
@@ -2912,6 +2959,7 @@ transcriptInput.addEventListener("input", () => {
   if (liveState !== "running") {
     committedTranscript = transcriptInput.value.trim();
   }
+  recapConfirmed = false;
   renderChecklist(clarificationsEl, lastCheckedItems, lastMissingInfo);
 });
 loadStaticConfig().catch((err) => {

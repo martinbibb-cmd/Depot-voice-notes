@@ -2309,14 +2309,15 @@
               <span class="transcript-panel-badge live" id="liveTranscriptBadge">● LIVE</span>
               <span class="transcript-edited-badge" id="transcriptEditedBadge" style="display: none;">✏️ EDITED</span>
             </div>
-            <span class="small">Paste transcript or typed notes, then process</span>
+            <span class="small">Paste transcript or typed notes, then build the recap</span>
           </div>
           <div class="transcript-container">
             <textarea id="transcriptInput" class="transcript-scroll-box" placeholder="Paste Apple Voice Memos transcript or type notes here..." style="display: block; width: 100%; min-height: 220px; resize: vertical;"></textarea>
             <div style="margin-top: 10px;">
-              <button id="sendTextBtn" style="width: 100%; padding: 10px; font-size: 0.85rem; font-weight: 700;">Process notes</button>
+              <button id="sendTextBtn" style="width: 100%; padding: 10px; font-size: 0.85rem; font-weight: 700;">Build recap</button>
             </div>
-          </div>`r`n          <div class="statusbar" id="statusBar">Idle (Online • Manual)</div>
+          </div>
+          <div class="statusbar" id="statusBar">Idle (Online • Manual)</div>
           <div style="display: flex; gap: 12px; margin-top: 6px; font-size: 0.65rem; color: #64748b;">
             <span id="networkStatus" title="Network connection status">🌐 <span id="networkStatusText">Online</span></span>
             <span id="storageStatus" title="Storage usage">💾 <span id="storageStatusText">--</span></span>
@@ -2339,11 +2340,16 @@
 
       <div class="card" id="scopeRecapCard">
         <div class="card-title">
-          Scope recap
-          <span class="small">Selected logic + dictated additions</span>
+          I think you said this
+          <span class="small">Confirm, refine, then reprocess</span>
         </div>
         <div id="scopeRecap" class="sections-list">
           <span class="small">Select checklist outcomes or paste notes to build a recap.</span>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px;">
+          <button id="confirmRecapBtn" style="padding: 10px; font-size: 0.78rem; font-weight: 700;">Confirm &amp; generate</button>
+          <button id="refineRecapBtn" class="pill-secondary" style="padding: 10px; font-size: 0.78rem;">Refine text</button>
+          <button id="reprocessRecapBtn" class="pill-secondary" style="grid-column: 1 / -1; padding: 10px; font-size: 0.78rem;">Reprocess recap</button>
         </div>
       </div>
 

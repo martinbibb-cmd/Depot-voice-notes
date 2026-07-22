@@ -17,160 +17,294 @@
   ],
   "items": [
     {
-      "id": "system_type_recorded",
+      "id": "gas_supply_scope",
+      "group": "Pipework",
+      "section": "Pipe work",
+      "label": "Gas supply",
+      "hint": "Select the actual scope, not just that it was checked.",
+      "outcomes": [
+        {
+          "id": "retain_22mm",
+          "state": "included",
+          "label": "Retain existing 22 mm gas supply",
+          "plainText": "Retain existing 22 mm gas supply",
+          "tags": ["gas:retain"]
+        },
+        {
+          "id": "upgrade",
+          "state": "included",
+          "label": "Upgrade gas supply",
+          "plainText": "Upgrade gas supply",
+          "tags": ["gas:upgrade"]
+        },
+        {
+          "id": "unresolved",
+          "state": "unresolved",
+          "label": "Gas supply unresolved",
+          "plainText": "Gas supply route or sizing unresolved",
+          "tags": ["gas:unresolved"]
+        }
+      ]
+    },
+    {
+      "id": "system_clean_scope",
+      "group": "Boiler & controls",
+      "section": "New boiler and controls",
+      "label": "System clean",
+      "outcomes": [
+        {
+          "id": "powerflush",
+          "state": "included",
+          "label": "Powerflush system",
+          "plainText": "Powerflush heating system",
+          "materials": [{ "category": "System clean", "item": "System power flush", "qty": 1, "notes": "" }]
+        },
+        {
+          "id": "mains_flush",
+          "state": "included",
+          "label": "Mains flush system",
+          "plainText": "Mains flush heating system"
+        },
+        {
+          "id": "not_required",
+          "state": "not_required",
+          "label": "Flush not required",
+          "plainText": "System flush not required"
+        }
+      ]
+    },
+    {
+      "id": "filter_scope",
+      "group": "Boiler & controls",
+      "section": "New boiler and controls",
+      "label": "Magnetic filter",
+      "outcomes": [
+        {
+          "id": "fit_filter",
+          "state": "included",
+          "label": "Fit magnetic filter",
+          "plainText": "Fit magnetic filter",
+          "materials": [{ "category": "Filter", "item": "Magnetic system filter", "qty": 1, "notes": "" }]
+        },
+        {
+          "id": "not_required",
+          "state": "not_required",
+          "label": "Filter not required",
+          "plainText": "Magnetic filter not required"
+        }
+      ]
+    },
+    {
+      "id": "controls_scope",
+      "group": "Boiler & controls",
+      "section": "New boiler and controls",
+      "label": "Controls",
+      "outcomes": [
+        {
+          "id": "retain_existing",
+          "state": "included",
+          "label": "Retain existing controls",
+          "plainText": "Retain existing controls"
+        },
+        {
+          "id": "fit_timer",
+          "state": "included",
+          "label": "Fit additional timer",
+          "plainText": "Fit additional timer"
+        },
+        {
+          "id": "fit_smart_control",
+          "state": "included",
+          "label": "Fit smart control",
+          "plainText": "Fit smart control",
+          "materials": [{ "category": "Controls", "item": "Smart heating control kit", "qty": 1, "notes": "" }]
+        }
+      ]
+    },
+    {
+      "id": "cylinder_scope",
       "group": "System",
-      "section": "New boiler and controls",
-      "depotSection": "New boiler and controls",
-      "label": "Existing & new system type recorded",
-      "hint": "Combi / system / regular, location, cylinder / store.",
-      "plainText": "Existing and proposed heating system types, locations and any cylinders or stores have been documented.",
-      "naturalLanguage": "We have confirmed the existing and proposed system types, their locations and whether any cylinder or store is involved.",
-      "materials": []
-    },
-    {
-      "id": "smart_control_offered",
-      "group": "Boiler & controls",
-      "section": "New boiler and controls",
-      "depotSection": "New boiler and controls",
-      "label": "Smart control offered / status noted",
-      "hint": "Hive / Nest / other smart, or keeping existing controls.",
-      "plainText": "Smart heating controls discussed and outcome recorded.",
-      "naturalLanguage": "Smart heating controls such as Hive or Nest have been discussed with the customer and the chosen option recorded.",
-      "materials": [
+      "section": "System characteristics",
+      "label": "Cylinder",
+      "outcomes": [
         {
-          "category": "Controls",
-          "item": "Smart heating control kit",
-          "qty": 1,
-          "notes": "Final model to suit customer preference"
+          "id": "retain",
+          "state": "included",
+          "label": "Retain existing cylinder",
+          "plainText": "Retain existing cylinder",
+          "tags": ["cylinder:retain"]
+        },
+        {
+          "id": "remove",
+          "state": "included",
+          "label": "Remove existing cylinder",
+          "plainText": "Remove existing cylinder",
+          "tags": ["cylinder:remove"]
+        },
+        {
+          "id": "separate_quote",
+          "state": "separate_quote",
+          "label": "Cylinder work as separate quote",
+          "plainText": "Cylinder work to be priced separately",
+          "quoteScope": "option A"
         }
       ]
     },
     {
-      "id": "mag_filter_discussed",
-      "group": "Boiler & controls",
-      "section": "New boiler and controls",
-      "depotSection": "New boiler and controls",
-      "label": "Magnetic / dirt filter discussed",
-      "hint": "Either being fitted or explicitly not required.",
-      "plainText": "Magnetic system filter provision recorded.",
-      "naturalLanguage": "Provision of a magnetic system filter has been recorded.",
-      "materials": [
+      "id": "final_system_type",
+      "group": "System",
+      "section": "System characteristics",
+      "label": "Final system type",
+      "outcomes": [
         {
-          "category": "Filter",
-          "item": "Magnetic system filter",
-          "qty": 1,
-          "notes": "Pipe size to suit installation"
+          "id": "combi",
+          "state": "included",
+          "label": "Combi final scope",
+          "plainText": "Final scope is combi system"
+        },
+        {
+          "id": "vented",
+          "state": "included",
+          "label": "Vented final scope",
+          "plainText": "Final scope is vented system",
+          "tags": ["system:vented"]
+        },
+        {
+          "id": "unvented",
+          "state": "included",
+          "label": "Unvented final scope",
+          "plainText": "Final scope is unvented system",
+          "tags": ["system:unvented"]
         }
       ]
     },
     {
-      "id": "system_clean_flush_considered",
-      "group": "Boiler & controls",
-      "section": "New boiler and controls",
-      "depotSection": "New boiler and controls",
-      "label": "System clean / flush considered",
-      "hint": "Power flush, mains flush, or decision that no flush is needed.",
-      "plainText": "System clean or flush requirement captured.",
-      "naturalLanguage": "A system clean or flush requirement has been captured for the installation.",
-      "materials": [
-        {
-          "category": "System clean",
-          "item": "System power flush",
-          "qty": 1,
-          "notes": "Scope to suit radiator count"
-        }
-      ]
-    },
-    {
-      "id": "gas_pipe_size_run_checked",
-      "group": "Pipework & condensate",
-      "section": "Pipe work",
-      "depotSection": "Pipe work",
-      "label": "Gas pipe size / run checked",
-      "hint": "Confirmed adequate or noted for upgrade.",
-      "plainText": "Gas supply route and sizing confirmed for boiler demand.",
-      "naturalLanguage": "The gas supply route and sizing have been checked to ensure suitability for the new boiler demand.",
-      "materials": []
-    },
-    {
-      "id": "condensate_route_checked",
-      "group": "Pipework & condensate",
-      "section": "Pipe work",
-      "depotSection": "Pipe work",
-      "label": "Condensate route + freeze risk checked",
-      "hint": "Internal vs external, pump, upsizing, or freeze protection.",
-      "plainText": "Condensate discharge route assessed and freeze protection noted.",
-      "naturalLanguage": "The condensate route has been assessed and any freeze protection or pumping requirements recorded.",
-      "materials": [
-        {
-          "category": "Condensate",
-          "item": "Condensate upgrade materials",
-          "qty": 1,
-          "notes": "Upsize to 32mm or add pump/lagging as required"
-        }
-      ]
-    },
-    {
-      "id": "flue_route_terminal_discussed",
+      "id": "flue_scope",
       "group": "Flue",
       "section": "Flue",
-      "depotSection": "Flue",
-      "label": "Flue route / terminal discussed",
-      "hint": "Direction, vertical/horizontal, turret, plume kit, clearances.",
-      "plainText": "Flue route, termination and any plume management recorded.",
-      "naturalLanguage": "The flue route, termination and any plume management requirements have been recorded.",
-      "materials": [
+      "label": "Flue",
+      "outcomes": [
         {
-          "category": "Flue",
-          "item": "Boiler flue kit",
-          "qty": 1,
-          "notes": "Orientation and length to suit installation"
+          "id": "existing_position",
+          "state": "included",
+          "label": "Replace flue in existing position",
+          "plainText": "Replace flue in existing position",
+          "materials": [{ "category": "Flue", "item": "Boiler flue kit", "qty": 1, "notes": "Existing position" }]
+        },
+        {
+          "id": "new_position",
+          "state": "included",
+          "label": "Route flue to new position",
+          "plainText": "Route flue to new position",
+          "materials": [{ "category": "Flue", "item": "Boiler flue kit", "qty": 1, "notes": "New route" }]
+        },
+        {
+          "id": "plume_kit",
+          "state": "included",
+          "label": "Fit plume kit",
+          "plainText": "Fit plume kit",
+          "materials": [{ "category": "Flue", "item": "Plume management kit", "qty": 1, "notes": "" }]
         }
       ]
     },
     {
-      "id": "access_working_at_height_checked",
-      "group": "Access / working at height",
-      "section": "Working at heights",
-      "depotSection": "Working at heights",
-      "label": "Access / working at height checked",
-      "hint": "Ladders, loft access, tower, boards, headroom.",
-      "plainText": "Working at height requirements captured for access equipment.",
-      "naturalLanguage": "Working at height access requirements such as ladders, loft boarding or towers have been captured.",
-      "materials": []
+      "id": "condensate_scope",
+      "group": "Pipework",
+      "section": "Pipe work",
+      "label": "Condensate",
+      "outcomes": [
+        {
+          "id": "reuse_existing",
+          "state": "included",
+          "label": "Reuse existing condensate",
+          "plainText": "Reuse existing condensate route"
+        },
+        {
+          "id": "external_condensate",
+          "state": "included",
+          "label": "Install external condensate",
+          "plainText": "Install external condensate"
+        },
+        {
+          "id": "builder_soakaway",
+          "state": "customer_arranging",
+          "label": "Builder-required condensate soakaway",
+          "section": "Customer actions",
+          "plainText": "Customer to arrange builder for condensate soakaway",
+          "tags": ["specialist:builder"]
+        }
+      ]
     },
     {
-      "id": "hazards_asbestos_site_risks_noted",
-      "group": "Hazards / site conditions",
-      "section": "External hazards",
-      "depotSection": "External hazards",
-      "label": "Hazards / asbestos / site risks noted",
-      "hint": "Asbestos presence/absence, confined space, pets, trip risks.",
-      "plainText": "Site hazards including asbestos, pets or restricted spaces noted.",
-      "naturalLanguage": "Site hazards including asbestos, pets or restricted spaces have been noted for the installation team.",
-      "materials": []
+      "id": "radiator_pipework_scope",
+      "group": "Pipework",
+      "section": "Pipe work",
+      "label": "Radiator pipework",
+      "outcomes": [
+        {
+          "id": "retain",
+          "state": "included",
+          "label": "Retain radiator pipework",
+          "plainText": "Retain existing radiator pipework"
+        },
+        {
+          "id": "upgrade",
+          "state": "included",
+          "label": "Upgrade radiator pipework",
+          "plainText": "Upgrade radiator pipework"
+        }
+      ]
     },
     {
-      "id": "parking_permit_access_checked",
-      "group": "Parking / access",
+      "id": "specialist_work_scope",
+      "group": "Restrictions",
       "section": "Restrictions to work",
-      "depotSection": "Restrictions to work",
-      "label": "Parking / permit / access for van checked",
-      "hint": "Driveway, street parking, permits, restrictions.",
-      "plainText": "Parking arrangements and any permit requirements recorded.",
-      "naturalLanguage": "Parking arrangements and any permit requirements have been recorded.",
-      "materials": []
+      "label": "Specialist work",
+      "outcomes": [
+        {
+          "id": "none",
+          "state": "not_required",
+          "label": "No specialist work required",
+          "plainText": "No specialist work required",
+          "tags": ["specialist:none"]
+        },
+        {
+          "id": "builder_required",
+          "state": "customer_arranging",
+          "label": "Specialist builder required",
+          "section": "Customer actions",
+          "plainText": "Customer to arrange specialist builder",
+          "tags": ["specialist:builder"]
+        },
+        {
+          "id": "separate_quote",
+          "state": "separate_quote",
+          "label": "Specialist work as separate quote",
+          "plainText": "Specialist work to be priced separately",
+          "quoteScope": "option B"
+        }
+      ]
     },
     {
-      "id": "customer_actions_preworks_recorded",
-      "group": "Customer actions",
-      "section": "Customer actions",
-      "depotSection": "Customer actions",
-      "label": "Customer actions / pre-works recorded",
-      "hint": "Cupboards, furniture, decorating, pets, clearing space.",
-      "plainText": "Customer actions agreed ahead of installation have been recorded.",
-      "naturalLanguage": "Customer actions agreed ahead of installation have been recorded for follow-up.",
-      "materials": []
+      "id": "parking_scope",
+      "group": "Access",
+      "section": "Restrictions to work",
+      "label": "Parking",
+      "outcomes": [
+        {
+          "id": "driveway",
+          "state": "included",
+          "label": "Driveway parking available",
+          "plainText": "Driveway parking available"
+        },
+        {
+          "id": "permits_required",
+          "state": "customer_arranging",
+          "label": "Customer arranging parking permits",
+          "section": "Customer actions",
+          "plainText": "Customer to arrange parking permits"
+        }
+      ]
     }
   ]
 }

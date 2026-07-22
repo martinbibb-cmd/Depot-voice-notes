@@ -214,11 +214,13 @@ async function handleText(request, env) {
   const expectedSections = normaliseExpectedSections(payload.expectedSections);
   const sectionHints = normaliseSectionHints(payload.sectionHints);
   const forceStructured = Boolean(payload.forceStructured);
+  const deterministicScope = normaliseDeterministicScope(payload.deterministicScope);
 
   try {
     const result = await callNotesModel(env, {
       transcript: sanitisedTranscript,
       checklistItems,
+      deterministicScope,
       depotSections: payload.depotSections,
       alreadyCaptured,
       expectedSections,
@@ -1996,6 +1998,7 @@ async function callNotesModel(env, payload) {
   const {
     transcript,
     checklistItems: rawChecklistItems = [],
+    deterministicScope = { selectedItems: [], sections: [], materials: [], tags: [] },
     depotSections: depotSectionsRaw = [],
     alreadyCaptured = [],
     sectionHints = {},
@@ -2028,13 +2031,23 @@ ${sectionListText}
 Always return all of these sections, even if a section has no notes. Use the exact names and order.
 
 Your job is to:
-1. Decide which checklist ids are clearly satisfied by the transcript.
-2. Write depot notes grouped into the given section names.
+1. Tidy dictated or typed job-specific text into short depot bullets.
+2. Place dictated additions into the correct existing Depot section names.
 3. Suggest a small list of materials/parts.
 4. Do not write a customer summary.
-5. ACTIVELY ANALYZE the live transcript and ASK QUESTIONS about missing or unclear information.
-6. SANITY CHECK transcription details and correct obvious errors using context and standard dimensions (pipework sizes should be 8/10mm, 15mm, 22mm, 28mm, or 35mm; avoid improbable sizes by normalising to the nearest standard size).
+5. Ask confirmation questions only for genuine ambiguity, contradiction, or incomplete information that blocks accurate job notes.
+6. SANITY CHECK transcription details, but never change a checklist-selected technical term without asking a confirmation question first.
 7. Prefer the most recent reference material versions (e.g., the latest pricebook, such as November 2025) if multiple versions are available.
+
+CHECKLIST SOURCE OF TRUTH:
+- deterministicScope contains facts selected by the surveyor in the checklist.
+- Treat deterministicScope.sections as locked confirmed scope. Do not contradict, remove, rename, or reinterpret these facts.
+- Logic-generated facts override the transcript and any model interpretation.
+- If transcript text conflicts with deterministicScope, ask a confirmation question in missingInfo instead of changing the selected fact.
+- Do not infer a complete technical specification from the transcript.
+- Makes, models, dimensions, and product names are optional. Do not ask for them unless the transcript creates a genuine contradiction or the selected scope depends on them.
+- Do not recommend products or add compliance conclusions, hazards, or risks that the surveyor did not state.
+- Keep base scope separate from option A, option B, and option C. Do not flatten alternatives into one installation scope.
 
 CRITICAL DEDUPLICATION RULES:
 - If alreadyCaptured contains information for a section, DO NOT repeat that information.
@@ -2049,10 +2062,11 @@ REAL-TIME QUESTION GENERATION:
 - As you process the live transcript, identify what information is MISSING or UNCLEAR.
 - Generate specific, actionable questions in the missingInfo array to help complete the survey.
 - Questions should be directly relevant to what's being discussed in the current transcript.
-- Ask about details that would be needed to complete the depot sections or checklist items.
+- Ask only about details that materially change the confirmed scope or customer actions.
 - Target questions appropriately: "expert" for surveyor to investigate, "customer" for customer to answer.
-- Be proactive - if the transcript mentions something vague (e.g., "the boiler is old"), ask for specifics (e.g., "What is the make and model of the existing boiler?").
-- If critical information for a section is missing, ask about it even if the section hasn't been fully discussed yet.
+- Do not ask merely because optional details are absent.
+- Do not ask for make, model, serial number, dimensions, or product preference unless it is necessary to resolve a contradiction.
+- Do not repeat questions already answered by deterministicScope.
 - Keep missingInfo short. Ask only the questions that would materially tighten the job notes.
 
 BULLET FORMAT:
@@ -2103,6 +2117,7 @@ Always preserve boiler/cylinder make & model exactly as spoken.
   const userPayload = {
     transcript,
     checklistItems,
+    deterministicScope,
     depotSections: activeSchemaInfo.schema,
     alreadyCaptured,
     expectedSections: activeSchemaInfo.names,
@@ -2285,6 +2300,18 @@ function splitNoteBullets(value) {
     )
     .filter(Boolean)
     .filter((line) => !isAbsenceNote(line));
+}
+
+function normaliseDeterministicScope(value) {
+  if (!value || typeof value !== "object") {
+    return { selectedItems: [], sections: [], materials: [], tags: [] };
+  }
+  return {
+    selectedItems: Array.isArray(value.selectedItems) ? value.selectedItems : [],
+    sections: normaliseCapturedSections(value.sections),
+    materials: Array.isArray(value.materials) ? value.materials : [],
+    tags: Array.isArray(value.tags) ? value.tags.map(tag => String(tag || "").trim()).filter(Boolean) : []
+  };
 }
 
 function isNoteSubheading(line) {

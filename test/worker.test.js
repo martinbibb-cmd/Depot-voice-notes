@@ -64,6 +64,18 @@ test('POST /text forwards structured payload and normalises model output', async
     sectionHints: { hive: 'New boiler and controls' },
     forceStructured: true,
     checklistItems: [],
+    deterministicScope: {
+      selectedItems: [{
+        id: 'gas_supply_scope',
+        label: 'Gas supply',
+        outcomeId: 'retain_22mm',
+        outcomeLabel: 'Retain 22 mm',
+        section: 'Gas'
+      }],
+      sections: [{ section: 'Gas', plainText: 'Retain existing 22 mm gas supply;', naturalLanguage: '' }],
+      materials: [],
+      tags: ['gas:retain']
+    },
     depotSections: defaultSections
   };
 
@@ -115,6 +127,19 @@ test('POST /text forwards structured payload and normalises model output', async
   assert.deepEqual(parsedUser.expectedSections, expectedSectionOrder);
   assert.equal(parsedUser.sectionHints.hive, 'New boiler and controls');
   assert.equal(parsedUser.forceStructured, true);
+  assert.deepEqual(parsedUser.deterministicScope.sections, [{
+    section: 'Gas',
+    plainText: 'Retain existing 22 mm gas supply;',
+    naturalLanguage: ''
+  }]);
+  assert.match(
+    combinedText,
+    /deterministicScope contains facts selected by the surveyor in the checklist/
+  );
+  assert.match(
+    combinedText,
+    /Do not ask for make, model, serial number, dimensions, or product preference unless it is necessary to resolve a contradiction/
+  );
   const expectedChecklistIds = (checklistConfig.items || [])
     .map((item) => item && item.id)
     .filter(Boolean);

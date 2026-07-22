@@ -36,22 +36,29 @@ import {
   resetChecklistFilters
 } from "./checklistEnhancements.js";
 import { getAiNotes } from "./uiEnhancements.js";
+import {
+  normaliseChecklistItems,
+  buildDeterministicScope,
+  detectConfirmationQuestions,
+  buildRecap
+} from "./jobState.js";
 
 // --- CONFIG / STORAGE KEYS ---
 const SECTION_STORAGE_KEY = "depot.sectionSchema";
 const LEGACY_SECTION_STORAGE_KEY = "surveybrain-schema";
 const CHECKLIST_STORAGE_KEY = "depot.checklistConfig";
+const CHECKLIST_SELECTIONS_STORAGE_KEY = "depot.checklistSelections";
 const LS_AUTOSAVE_KEY = "surveyBrainAutosave";
 const AI_INSTRUCTIONS_STORAGE_KEY = "depot.aiInstructions";
 
 const DEFAULT_DEPOT_NOTES_INSTRUCTIONS = `
 ## ENGINEER-ONLY JOB NOTES RULES
 
-1. ACTIONABLE BULLETS ONLY: Every line must start with a verb (Remove, Install, Upgrade, Check).
-2. ARSE COVERING: Explicitly include risks (e.g., "Customer advised of possible floorboard damage", "Existing wiring may not meet current regs").
-3. ZERO FILLER: Delete all "The customer said...", "It appears that...", or "I recommend...".
-4. NO REPETITION: If it's in the 'Boiler' section, do not repeat it in 'Office Notes'.
-5. FORMAT: One fact per bullet. Keep it under 10 words per line where possible.
+1. ACTIONABLE BULLETS ONLY: Use short factual bullets such as Remove, Install, Retain, Fit, Powerflush, Upgrade.
+2. CONFIRMED FACTS ONLY: Do not add risks, compliance conclusions, recommendations, makes, models, dimensions, or product choices unless stated by the surveyor or selected in the checklist.
+3. ZERO FILLER: Delete all "The customer said...", "It appears that...", "I recommend...", and sales-style wording.
+4. NO REPETITION: Do not repeat the same fact in more than one Depot section.
+5. FORMAT: One fact or action per bullet. Leave sections empty when there is no confirmed note.
 `;
 // Canonical Depot notes section order fallback
 const DEFAULT_DEPOT_SECTION_ORDER = [
@@ -123,6 +130,7 @@ let WORKER_URL = loadWorkerEndpoint();
 const sendTextBtn = document.getElementById("sendTextBtn");
 const transcriptInput = document.getElementById("transcriptInput");
 const clarificationsEl = document.getElementById("clarifications");
+const scopeRecapEl = document.getElementById("scopeRecap");
 const sectionsListEl = document.getElementById("sectionsList");
 const statusBar = document.getElementById("statusBar");
 const startLiveBtn = null;
@@ -176,6 +184,7 @@ let SECTION_KEY_LOOKUP = new Map();
 let schemaLoaded = false;
 let CHECKLIST_SOURCE = [];
 let CHECKLIST_ITEMS = [];
+let CHECKLIST_SELECTIONS = safeParseJSON(localStorage.getItem(CHECKLIST_SELECTIONS_STORAGE_KEY), {}) || {};
 
 // Expose state to window for save menu access
 function exposeStateToWindow() {
@@ -192,6 +201,7 @@ function updateAppStateSnapshot() {
   APP_STATE.notes = lastSections;
   APP_STATE.materials = Array.isArray(lastMaterials) ? [...lastMaterials] : [];
   APP_STATE.checkedItems = Array.isArray(lastCheckedItems) ? [...lastCheckedItems] : [];
+  APP_STATE.checklistSelections = { ...CHECKLIST_SELECTIONS };
   APP_STATE.missingInfo = Array.isArray(lastMissingInfo) ? [...lastMissingInfo] : [];
   APP_STATE.fullTranscript = (transcriptInput?.value || "").trim();
   APP_STATE.transcriptText = APP_STATE.fullTranscript;
@@ -207,6 +217,7 @@ function buildStateSnapshot() {
       sections: clonedSections,
       missingInfo: Array.isArray(lastMissingInfo) ? [...lastMissingInfo] : [],
       checkedItems: Array.isArray(lastCheckedItems) ? [...lastCheckedItems] : [],
+      checklistSelections: { ...CHECKLIST_SELECTIONS },
     },
     transcriptText: APP_STATE.fullTranscript,
     fullTranscript: APP_STATE.fullTranscript
@@ -222,7 +233,8 @@ function autoSaveSessionToLocal() {
       (Array.isArray(lastRawSections) && lastRawSections.length) ||
       (Array.isArray(lastMaterials) && lastMaterials.length) ||
       (Array.isArray(lastCheckedItems) && lastCheckedItems.length) ||
-      (Array.isArray(lastMissingInfo) && lastMissingInfo.length);
+      (Array.isArray(lastMissingInfo) && lastMissingInfo.length) ||
+      Object.keys(CHECKLIST_SELECTIONS).length;
 
     if (!hasContent) {
       localStorage.removeItem(LS_AUTOSAVE_KEY);
@@ -1326,22 +1338,7 @@ function stopAudioCapture() {
 }
 
 function normaliseChecklistConfig(items) {
-  if (items && typeof items === "object" && !Array.isArray(items) && Array.isArray(items.items)) {
-    return normaliseChecklistConfig(items.items);
-  }
-  if (!Array.isArray(items)) return [];
-  return items.map(item => {
-    if (!item) return null;
-    const id = item.id != null ? String(item.id).trim() : "";
-    if (!id) return null;
-    return {
-      id,
-      group: item.group || item.category || "Checklist",
-      section: item.section || item.sectionName || "",
-      label: item.label || item.name || id,
-      hint: item.hint || item.description || ""
-    };
-  }).filter(Boolean);
+  return normaliseChecklistItems(items);
 }
 
 function deriveSectionHints() {
@@ -1409,9 +1406,74 @@ function buildVoiceRequestPayload(transcript, schema = SECTION_SCHEMA) {
     sectionHints: deriveSectionHints(),
     forceStructured: true,
     checklistItems: CHECKLIST_SOURCE,
+    deterministicScope: buildDeterministicScope(CHECKLIST_ITEMS, CHECKLIST_SELECTIONS),
     depotSections: canonicalSchema,
     depotNotesInstructions: loadDepotNotesInstructions()
   };
+}
+
+function getCurrentDeterministicScope() {
+  return buildDeterministicScope(CHECKLIST_ITEMS, CHECKLIST_SELECTIONS);
+}
+
+function persistChecklistSelections() {
+  try {
+    localStorage.setItem(CHECKLIST_SELECTIONS_STORAGE_KEY, JSON.stringify(CHECKLIST_SELECTIONS));
+  } catch (err) {
+    console.warn("Failed to save checklist selections", err);
+  }
+}
+
+function renderScopeRecap() {
+  if (!scopeRecapEl) return;
+  const scope = getCurrentDeterministicScope();
+  const recap = buildRecap(scope, transcriptInput?.value || "");
+  scopeRecapEl.innerHTML = "";
+
+  if (!recap.selectedBySection.length && !recap.dictatedAdditions) {
+    scopeRecapEl.innerHTML = `<span class="small">Select checklist outcomes or paste notes to build a recap.</span>`;
+    return;
+  }
+
+  recap.selectedBySection.forEach((section) => {
+    const wrapper = document.createElement("div");
+    wrapper.className = "section-item";
+    const heading = document.createElement("h4");
+    heading.textContent = section.section;
+    wrapper.appendChild(heading);
+    const list = document.createElement("ul");
+    list.style.margin = "4px 0 0 16px";
+    list.style.padding = "0";
+    section.items.forEach((item) => {
+      const li = document.createElement("li");
+      li.textContent = item;
+      list.appendChild(li);
+    });
+    wrapper.appendChild(list);
+    scopeRecapEl.appendChild(wrapper);
+  });
+
+  if (recap.dictatedAdditions) {
+    const wrapper = document.createElement("div");
+    wrapper.className = "section-item";
+    const heading = document.createElement("h4");
+    heading.textContent = "Dictated additions";
+    const pre = document.createElement("pre");
+    pre.contentEditable = "true";
+    pre.role = "textbox";
+    pre.ariaLabel = "Edit dictated additions";
+    pre.textContent = recap.dictatedAdditions;
+    pre.addEventListener("input", () => {
+      if (transcriptInput) {
+        transcriptInput.value = pre.textContent.trim();
+        committedTranscript = transcriptInput.value.trim();
+        debouncedAutoSave();
+      }
+    });
+    wrapper.appendChild(heading);
+    wrapper.appendChild(pre);
+    scopeRecapEl.appendChild(wrapper);
+  }
 }
 
 function normaliseSectionsFromResponse(data, _schema = SECTION_SCHEMA) {
@@ -1545,69 +1607,83 @@ function postProcessSections(sections) {
 }
 
 function renderChecklist(container, checkedIds, missingInfoFromServer) {
-  const checkedSet = new Set((checkedIds || []).map(String));
-  const questions = Array.isArray(missingInfoFromServer) ? missingInfoFromServer : [];
+  const scope = getCurrentDeterministicScope();
+  const contradictionQuestions = detectConfirmationQuestions(scope);
+  const questions = contradictionQuestions.length
+    ? contradictionQuestions
+    : (Array.isArray(missingInfoFromServer) ? missingInfoFromServer : []);
   container.innerHTML = "";
 
-  if (!CHECKLIST_ITEMS.length && !checkedSet.size && !questions.length) {
+  if (!CHECKLIST_ITEMS.length && !questions.length) {
     container.innerHTML = `<span class="small">No checklist items.</span>`;
+    renderScopeRecap();
     return;
   }
 
   const byGroup = new Map();
-  const knownIds = new Set();
-  CHECKLIST_ITEMS.forEach(item => {
+  CHECKLIST_ITEMS.forEach((item) => {
     const group = item.group || "Checklist";
     const arr = byGroup.get(group) || [];
-    knownIds.add(String(item.id));
-    arr.push({
-      id: item.id,
-      section: item.section || "",
-      label: item.label || item.id,
-      hint: item.hint || "",
-      done: checkedSet.has(String(item.id))
-    });
+    arr.push(item);
     byGroup.set(group, arr);
   });
-
-  const unknownFromAi = Array.from(checkedSet).filter(id => id && !knownIds.has(id));
-  if (unknownFromAi.length) {
-    const arr = unknownFromAi.map(id => ({
-      id,
-      section: "",
-      label: String(id),
-      hint: "",
-      done: true
-    }));
-    byGroup.set("Other (from AI)", arr);
-  }
-
-  if (!byGroup.size && !questions.length) {
-    container.innerHTML = `<span class="small">No checklist items.</span>`;
-    return;
-  }
 
   [...byGroup.entries()].forEach(([groupName, items]) => {
     const header = document.createElement("div");
     header.className = "check-group-title";
-    header.dataset.group = groupName; // Tag header with group
+    header.dataset.group = groupName;
     header.innerHTML = `<span>${groupName}</span><span>${items[0].section || ""}</span>`;
     container.appendChild(header);
 
-    items.forEach(item => {
+    items.forEach((item) => {
+      const selectedOutcome = item.outcomes.find((outcome) => outcome.id === CHECKLIST_SELECTIONS[item.id]);
       const div = document.createElement("div");
-      div.className = "clar-chip checklist-item" + (item.done ? " done" : "");
-      div.dataset.group = groupName; // Tag with group for filtering
-      div.innerHTML = `
-        <span class="icon">${item.done ? "✅" : "⭕"}</span>
-        <span class="label">
-          ${item.label}
-          <span class="hint">
-            ${item.hint || ""}
-            ${item.section ? ` • <strong>${item.section}</strong>` : ""}
-          </span>
+      div.className = "clar-chip checklist-item" + (selectedOutcome ? " done" : "");
+      div.dataset.group = groupName;
+
+      const label = document.createElement("span");
+      label.className = "label";
+      label.innerHTML = `
+        ${item.label}
+        <span class="hint">
+          ${item.hint || ""}
+          ${item.section ? ` &bull; <strong>${item.section}</strong>` : ""}
         </span>
       `;
+      div.appendChild(label);
+
+      const options = document.createElement("div");
+      options.style.display = "flex";
+      options.style.flexWrap = "wrap";
+      options.style.gap = "6px";
+      options.style.marginTop = "6px";
+      item.outcomes.forEach((outcome) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "pill-secondary";
+        button.dataset.checklistId = item.id;
+        button.dataset.outcomeId = outcome.id;
+        button.textContent = outcome.label;
+        button.style.padding = "6px 8px";
+        button.style.fontSize = "0.68rem";
+        if (selectedOutcome && selectedOutcome.id === outcome.id) {
+          button.style.background = "var(--accent)";
+          button.style.color = "white";
+        }
+        button.addEventListener("click", () => {
+          if (CHECKLIST_SELECTIONS[item.id] === outcome.id) {
+            delete CHECKLIST_SELECTIONS[item.id];
+          } else {
+            CHECKLIST_SELECTIONS[item.id] = outcome.id;
+          }
+          persistChecklistSelections();
+          lastCheckedItems = Object.entries(CHECKLIST_SELECTIONS).map(([id, outcomeId]) => `${id}:${outcomeId}`);
+          renderChecklist(clarificationsEl, lastCheckedItems, lastMissingInfo);
+          debouncedAutoSave();
+        });
+        options.appendChild(button);
+      });
+      div.appendChild(options);
       container.appendChild(div);
     });
   });
@@ -1616,9 +1692,9 @@ function renderChecklist(container, checkedIds, missingInfoFromServer) {
     const sep = document.createElement("div");
     sep.className = "small";
     sep.style.marginTop = "6px";
-    sep.textContent = "Additional questions:";
+    sep.textContent = "Confirmation needed:";
     container.appendChild(sep);
-    questions.forEach(q => {
+    questions.forEach((q) => {
       const div = document.createElement("div");
       div.className = "clar-chip";
       div.dataset.target = q.target || "expert";
@@ -1627,13 +1703,13 @@ function renderChecklist(container, checkedIds, missingInfoFromServer) {
     });
   }
 
-  // Initialize checklist search and filter UI (only once)
-  if (!container.querySelector('.checklist-filter')) {
+  if (!container.querySelector(".checklist-filter")) {
     initChecklistSearch(container);
     populateGroupFilter(CHECKLIST_ITEMS);
   }
-}
 
+  renderScopeRecap();
+}
 async function loadChecklistConfigIntoState() {
   try {
     CHECKLIST_SOURCE = await loadChecklistConfig();
@@ -1860,8 +1936,31 @@ function applyVoiceResult(result) {
 
 async function sendText() {
   const transcript = transcriptInput.value.trim();
-  if (!transcript) return;
-  setStatus("Sending text…");
+  const deterministicScope = getCurrentDeterministicScope();
+  const confirmationQuestions = detectConfirmationQuestions(deterministicScope);
+
+  if (confirmationQuestions.length) {
+    lastMissingInfo = confirmationQuestions;
+    renderChecklist(clarificationsEl, lastCheckedItems, lastMissingInfo);
+    showVoiceError("Resolve the confirmation questions before generating Depot notes.");
+    setStatus("Confirmation needed.");
+    return;
+  }
+
+  if (!transcript && !deterministicScope.sections.length) return;
+
+  if (!transcript && deterministicScope.sections.length) {
+    applyVoiceResult({
+      sections: deterministicScope.sections,
+      materials: deterministicScope.materials,
+      checkedItems: deterministicScope.selectedItems.map((item) => `${item.id}:${item.outcomeId}`),
+      missingInfo: []
+    });
+    setStatus("Done.");
+    return;
+  }
+
+  setStatus("Sending text...");
   clearVoiceError();
   try {
     const schemaSnapshot = await ensureSectionSchema();
@@ -1882,6 +1981,14 @@ async function sendText() {
     }
     setWorkerDebugPayload(data);
     normaliseSectionsFromResponse(data, schemaSnapshot);
+    const combined = mergeSectionsPreservingRequired(deterministicScope.sections, data.sections || []);
+    data.sections = combined.merged;
+    data.materials = [
+      ...deterministicScope.materials,
+      ...(Array.isArray(data.materials) ? data.materials : [])
+    ];
+    data.checkedItems = deterministicScope.selectedItems.map((item) => `${item.id}:${item.outcomeId}`);
+    data.missingInfo = [];
     applyVoiceResult(data);
     setStatus("Done.");
     committedTranscript = transcript;
@@ -1896,7 +2003,6 @@ async function sendText() {
     setStatus("Text send failed.");
   }
 }
-
 // --- EXPORT / SESSION ---
 // NOTE: Export button has been replaced by the unified Save menu
 // The old exportBtn handler has been removed - use saveMenuBtn instead
@@ -2027,6 +2133,7 @@ async function saveSessionToFile() {
     sections: lastRawSections,
     materials: lastMaterials,
     checkedItems: lastCheckedItems,
+    checklistSelections: { ...CHECKLIST_SELECTIONS },
     missingInfo: lastMissingInfo
   };
 
@@ -2080,6 +2187,10 @@ loadSessionInput.onchange = async (e) => {
     lastRawSections = Array.isArray(session.sections) ? session.sections : [];
     lastMaterials = Array.isArray(session.materials) ? session.materials : [];
     lastCheckedItems = Array.isArray(session.checkedItems) ? session.checkedItems : [];
+    CHECKLIST_SELECTIONS = session.checklistSelections && typeof session.checklistSelections === "object"
+      ? { ...session.checklistSelections }
+      : {};
+    persistChecklistSelections();
     lastMissingInfo = Array.isArray(session.missingInfo) ? session.missingInfo : [];
     lastCustomerSummary = "";
     sessionAudioChunks = [];
@@ -2129,6 +2240,7 @@ if (duplicateSessionBtn) {
         sections: JSON.parse(JSON.stringify(lastRawSections)),
         materials: JSON.parse(JSON.stringify(lastMaterials)),
         checkedItems: JSON.parse(JSON.stringify(lastCheckedItems)),
+        checklistSelections: { ...CHECKLIST_SELECTIONS },
         missingInfo: JSON.parse(JSON.stringify(lastMissingInfo))
       };
 
@@ -2727,6 +2839,8 @@ function resetSessionState() {
   lastSections = [];
   lastMaterials = [];
   lastCheckedItems = [];
+  CHECKLIST_SELECTIONS = {};
+  persistChecklistSelections();
   lastMissingInfo = [];
   lastCustomerSummary = "";
   localStorage.removeItem(LS_AUTOSAVE_KEY);
@@ -3441,6 +3555,10 @@ if (newJobBtn) {
     lastRawSections = Array.isArray(snap.sections) ? snap.sections : [];
     lastMaterials = Array.isArray(snap.materials) ? snap.materials : [];
     lastCheckedItems = Array.isArray(snap.checkedItems) ? snap.checkedItems : [];
+    CHECKLIST_SELECTIONS = snap.checklistSelections && typeof snap.checklistSelections === "object"
+      ? { ...snap.checklistSelections }
+      : {};
+    persistChecklistSelections();
     lastMissingInfo = Array.isArray(snap.missingInfo) ? snap.missingInfo : [];
     lastCustomerSummary = "";
 

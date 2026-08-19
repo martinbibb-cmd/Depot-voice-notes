@@ -2301,6 +2301,21 @@
   <main>
     <div class="column main-left">
       <!-- Transcript Panels -->
+      <div class="card" id="specCheckTransferCard">
+        <div class="card-title">
+          SpecCheck captures
+          <span class="small">Bring the field capture into this notes workflow</span>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <button id="specCheckPairButton">Pair iPhone</button>
+          <strong id="specCheckPairingCode" style="font-size:1.4rem;letter-spacing:.16em;"></strong>
+          <button id="specCheckRefreshButton" class="pill-secondary">Refresh</button>
+        </div>
+        <div id="specCheckStatus" class="small" style="margin-top:8px;">Transfers happen only when sent explicitly from SpecCheck.</div>
+        <div id="specCheckVisits" style="margin-top:8px;"></div>
+        <pre id="specCheckEvidence" hidden style="white-space:pre-wrap;background:var(--surface-2,#f5f5f5);padding:10px;border-radius:8px;max-height:220px;overflow:auto;"></pre>
+        <div id="specCheckPhotos" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;margin-top:8px;"></div>
+      </div>
       <div class="transcript-panels">
         <div class="card transcript-panel">
           <div class="card-title">
@@ -2606,6 +2621,7 @@
   <script type="module" src="./js/uiEnhancements.js"></script>
   <script type="module" src="./js/main.js"></script>
   <script type="module" src="./js/mainIntegration.js"></script>
+  <script type="module" src="./js/specCheckImport.js"></script>
 
   <!-- API Status Bar -->
   <script type="module">

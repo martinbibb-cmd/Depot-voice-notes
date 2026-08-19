@@ -7,11 +7,17 @@ import {
   handleRequestReset,
   handleResetPassword
 } from './auth-handlers.js';
+import { handleSpecCheckTransfer } from './speccheck-transfer.js';
 
 export default {
   async fetch(request, env, ctx) {
     try {
       const url = new URL(request.url);
+
+      if (url.pathname.startsWith('/spec-check/')) {
+        const transferResponse = await handleSpecCheckTransfer(request, env, url);
+        if (transferResponse) return transferResponse;
+      }
 
       // CORS / preflight
       if (request.method === "OPTIONS") {
@@ -155,8 +161,8 @@ export default {
 function corsHeaders(extra = {}) {
   return {
     "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization, X-SpecCheck-Device, X-Photo-Caption, X-Photo-Subject",
     "Content-Type": "application/json",
     ...extra
   };

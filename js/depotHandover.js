@@ -106,19 +106,27 @@ function renderReadOnly(container, source, copy = true) {
   container.replaceChildren(); source.forEach(note => {
     const card = document.createElement('div'); card.className = 'note'; const head = document.createElement('div'); head.className = 'note-head';
     const title = document.createElement('strong'); title.textContent = note.name; head.append(title);
-    if (copy) { const button = document.createElement('button'); button.textContent = 'Copy'; button.onclick = () => navigator.clipboard.writeText(note.text); head.append(button); }
-    const body = document.createElement('div'); body.style.whiteSpace = 'pre-wrap'; body.textContent = note.text; card.append(head, body); container.append(card);
+    const depotText = depotCopyText(note.text);
+    if (copy) { const button = document.createElement('button'); button.textContent = 'Copy'; button.onclick = async () => { await navigator.clipboard.writeText(depotText); button.textContent = 'Copied'; setTimeout(() => button.textContent = 'Copy', 1200); }; head.append(button); }
+    const body = document.createElement('div'); body.className = 'copybox'; body.textContent = copy ? depotText : note.text; card.append(head, body); container.append(card);
   });
 }
+function depotCopyText(text) {
+  return text.split(/\n|;/).map(line => line.replace(/^\s*[•-]\s*/, '').trim()).filter(Boolean).map(line => `${line};`).join('\n');
+}
 function handover() {
-  const customerNames = /Needs|Customer actions|Disruption|Future plans/i;
-  renderReadOnly($('customerNotes'), notes.filter(note => customerNames.test(note.name)));
+  const customerExcluded = /Office notes/i;
+  const customerSource = notes.filter(note => !customerExcluded.test(note.name));
+  renderReadOnly($('customerNotes'), customerSource.length ? customerSource : notes);
   renderReadOnly($('engineerNotes'), notes); show(4);
 }
 function printOnly(id, title) {
-  const content = $(id).innerHTML; const win = open('', '_blank');
-  win.document.write(`<!doctype html><title>${title}</title><style>body{font:15px/1.45 Arial;max-width:800px;margin:35px auto}h1{font-size:24px}.note{margin:18px 0;break-inside:avoid}.note-head button{display:none}.note strong{font-size:17px}.note div:last-child{white-space:pre-wrap}</style><h1>${title}</h1>${content}`);
-  win.document.close(); win.focus(); win.print();
+  const printArea = $('printArea');
+  printArea.innerHTML = `<h1>${title}</h1>${$(id).innerHTML}`;
+  const cleanup = () => { printArea.replaceChildren(); removeEventListener('afterprint', cleanup); };
+  addEventListener('afterprint', cleanup);
+  window.print();
+  setTimeout(cleanup, 3000);
 }
 
 $('pairBtn').onclick = () => pair().catch(error => status(error.message, true)); $('refreshBtn').onclick = refresh;
@@ -128,4 +136,3 @@ $('backCapture').onclick = () => show(1); $('backDraft').onclick = () => show(2)
 $('printCustomer').onclick = () => printOnly('customerDocument', 'Customer summary'); $('printEngineer').onclick = () => printOnly('engineerDocument', 'Engineer works');
 $('logoutBtn').onclick = () => { clearAuthToken(); location.href = 'login.html'; };
 refresh();
-

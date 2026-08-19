@@ -18,8 +18,9 @@
     .note{border:1px solid var(--line);border-radius:12px;padding:14px;margin:10px 0}.note textarea{min-height:92px}.note-head{display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:8px}.badge{background:var(--soft);border-radius:999px;padding:4px 9px;font-size:12px}
     .compare{display:grid;grid-template-columns:1fr 1fr;gap:14px}.source{white-space:pre-wrap;max-height:420px;overflow:auto;background:var(--soft);padding:14px;border-radius:10px}.checkline{display:flex;align-items:flex-start;gap:9px;margin:9px 0}.checkline input{width:auto;margin-top:4px}
     .hidden{display:none!important}.status{padding:10px 0;color:var(--muted)}.error{color:#a40000}.photos{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px}.photos img{width:100%;height:110px;object-fit:contain;background:var(--soft);border-radius:8px}
+    #printArea{display:none}.copybox{white-space:pre-wrap;background:var(--soft);border:1px solid var(--line);padding:12px;border-radius:9px}
     @media(max-width:650px){.compare{grid-template-columns:1fr}.steps{font-size:11px}.bar{padding:12px 14px}section{padding:16px}}
-    @media print{header,.steps,.no-print{display:none!important}body,main{background:#fff;padding:0}section{border:0;padding:0}.note{break-inside:avoid}.note textarea{border:0;padding:0;min-height:0;height:auto}}
+    @media print{body>*{display:none!important}#printArea{display:block!important;background:#fff;color:#111;padding:0 18mm}#printArea .note{break-inside:avoid;border:0;padding:0;margin:14px 0}#printArea button{display:none!important}}
   </style>
 </head>
 <body>
@@ -57,6 +58,7 @@
     <div class="row no-print"><button id="backCheck">Back to check</button></div>
   </section>
 </main>
+<div id="printArea"></div>
 <script type="module" src="./js/depotHandover.js"></script>
 </body>
 </html>

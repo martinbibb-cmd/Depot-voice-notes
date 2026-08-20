@@ -1,16 +1,19 @@
 import { clearAuthToken, getAuthToken } from '../src/auth/auth-client.js';
 import { confirmedChecklistItems, initialiseChecklist, restoreChecklists, serialiseChecklists } from './confirmationState.js';
 import { communicationSafeguards, mergeSafeguards, unresolvedSafeguards } from './handoverSafeguards.js';
+import { inferredPrimaryRequirement, pipeRequirement, suggestPackage } from './breezePackages.js';
 
 const WORKER = 'https://depot-voice-notes.martinbibb.workers.dev';
 const $ = id => document.getElementById(id);
 let notes = [];
 let surveyPhotos = [];
+let surveyRooms = [];
 let interpretation = null;
 let selectedOption = null;
 const optionDrafts = new Map();
 const optionChecklists = new Map();
 let currentVisitId = null;
+let transferPayload = null;
 let handoverDocuments = { customer: [], engineer: [] };
 
 if (!getAuthToken()) location.href = 'login.html';
@@ -60,22 +63,42 @@ function evidenceOf(payload) {
   add('CAPTURED FACTS', (payload.facts || []).map(x => `${x.subject}: ${x.text}`));
   add('WATER PRESSURE AND FLOW', (payload.waterPressureTests || []).map(x => [x.testPoint, x.standingPressureBar != null ? `standing ${x.standingPressureBar} bar` : '', x.dynamicPressureBar != null ? `dynamic ${x.dynamicPressureBar} bar` : '', x.flowLitresPerMinute != null ? `${x.flowLitresPerMinute} litres/min` : '', x.note].filter(Boolean).join(' — ')));
   add('ROOMS', (payload.rooms || []).map(x => `${x.name} (${x.floor || 'floor not named'}): ${x.wallCount || 0} walls, ${(x.routes || []).length} routes, ${(x.radiators || []).length} radiators`));
+  const pipe = pipeRequirement(payload.pipeRuns || []);
+  add('MEASURED PIPE REQUIREMENT', pipe.runs.map(run => `${run.label}: ${run.physicalMetres.toFixed(1)} m route ×${run.multiplier} → ${run.roundedMetres} m / ${run.saleLengths} × 2 m sale lengths`));
   return groups.join('\n\n');
 }
 async function openCapture(id) {
   try {
     status('Opening complete capture…'); const visit = await api(`/spec-check/visits/${id}`);
     currentVisitId = id;
+    transferPayload = visit.payload;
     const saved = await api(`/spec-check/visits/${id}/processing-state`);
     interpretation = saved.interpretation;
     optionChecklists.clear();
     restoreChecklists(saved.checklists).forEach((value, key) => optionChecklists.set(key, value));
     $('transcript').value = transcriptOf(visit.payload);
     const evidence = evidenceOf(visit.payload); $('capturedEvidence').textContent = evidence; $('capturedEvidence').classList.toggle('hidden', !evidence);
-    await loadPhotos(id, visit.photos); await api(`/spec-check/visits/${id}/consume`, { method: 'POST', body: '{}' });
+    await loadPhotos(id, visit.photos); renderRooms(visit.payload.rooms || []); await api(`/spec-check/visits/${id}/consume`, { method: 'POST', body: '{}' });
     status(`Opened ${visit.nickname}: ${$('transcript').value.split(/\s+/).filter(Boolean).length} transcript words and ${visit.photos.length} photos.`);
   } catch (error) { status(error.message, true); }
 }
+function renderRooms(rooms) {
+  surveyRooms = rooms; $('roomGallery').replaceChildren();
+  rooms.forEach(room => $('roomGallery').append(roomFigure(room)));
+}
+function roomFigure(room) {
+  const figure = document.createElement('figure'); figure.style.margin = '0';
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', roomViewBox(room)); svg.style.cssText = 'width:100%;height:180px;background:#f4f4f4;border-radius:8px';
+  (room.walls || []).forEach(wall => svg.append(svgLine(wall.start, wall.end, '#111', .06)));
+  const colours = { heatingFlowReturn:'#d64545', primaryFlowReturn:'#e07b2d', hotWater:'#d64545', coldWater:'#2575d8', gas:'#d9a514', condensate:'#555', pressureReliefDischarge:'#7d3cb5' };
+  (room.routes || []).filter(route => route.view === 'plan').forEach(route => (route.points || []).slice(1).forEach((point, index) => svg.append(svgLine(route.points[index], point, colours[route.service] || '#555', .045))));
+  (room.radiators || []).filter(item => item.view === 'plan').forEach(item => { const rect = document.createElementNS(svg.namespaceURI, 'rect'); rect.setAttribute('x', item.centre.horizontalMetres - item.widthMetres / 2); rect.setAttribute('y', item.centre.verticalMetres - .12); rect.setAttribute('width', item.widthMetres); rect.setAttribute('height', .24); rect.setAttribute('fill', '#fff'); rect.setAttribute('stroke', '#111'); rect.setAttribute('stroke-width', '.035'); svg.append(rect); });
+  const caption = document.createElement('figcaption'); caption.textContent = `${room.name} · ${room.floor || 'Floor not named'} · ${(room.walls || []).length} walls`;
+  figure.append(svg, caption); return figure;
+}
+function svgLine(start, end, colour, width) { const line = document.createElementNS('http://www.w3.org/2000/svg', 'line'); line.setAttribute('x1', start.horizontalMetres); line.setAttribute('y1', start.verticalMetres); line.setAttribute('x2', end.horizontalMetres); line.setAttribute('y2', end.verticalMetres); line.setAttribute('stroke', colour); line.setAttribute('stroke-width', width); line.setAttribute('stroke-linecap', 'round'); return line; }
+function roomViewBox(room) { const points = (room.walls || []).flatMap(w => [w.start,w.end]); if (!points.length) return '0 0 4 4'; const xs = points.map(p => p.horizontalMetres), ys = points.map(p => p.verticalMetres); const minX=Math.min(...xs)-.3,minY=Math.min(...ys)-.3,w=Math.max(.6,Math.max(...xs)-Math.min(...xs)+.6),h=Math.max(.6,Math.max(...ys)-Math.min(...ys)+.6); return `${minX} ${minY} ${w} ${h}`; }
 async function loadPhotos(visitId, photos) {
   $('photoGallery').replaceChildren();
   surveyPhotos.forEach(photo => { if (photo.src?.startsWith('blob:')) URL.revokeObjectURL(photo.src); });
@@ -118,8 +141,31 @@ async function aiCheck() {
       await persistProcessingState();
     }
     renderInterpretation();
+    renderBreezeSuggestion();
     $('aiCheckStatus').textContent = `${interpretation.options.length} independent proposal option${interpretation.options.length === 1 ? '' : 's'} identified.`;
   } catch (error) { $('aiCheckStatus').textContent = error.message; $('aiCheckStatus').className = 'status error'; }
+}
+
+function renderBreezeSuggestion() {
+  const panel = $('breezeSuggestion');
+  panel.replaceChildren();
+  const heading = document.createElement('h3'); heading.textContent = 'Breeze package check'; panel.append(heading);
+  const native = pipeRequirement(transferPayload?.pipeRuns || []);
+  (interpretation?.options || []).forEach((option, index) => {
+    const inferred = inferredPrimaryRequirement(option, transferPayload?.pipeRuns || []);
+    const runs = [...native.runs, ...(inferred ? [inferred] : [])];
+    const required = runs.reduce((sum, run) => sum + run.saleLengths, 0);
+    const suggested = suggestPackage(option, required);
+    const optionHeading = document.createElement('h4'); optionHeading.textContent = `Option ${index + 1}: ${option.title}`; panel.append(optionHeading);
+    const list = document.createElement('ul');
+    runs.forEach(run => { const item = document.createElement('li'); item.textContent = `${run.label}: ${run.physicalMetres.toFixed(1)} m route ×${run.multiplier} = ${run.roundedMetres} m (${run.saleLengths} × 2 m sale lengths)`; list.append(item); });
+    const total = document.createElement('li'); total.textContent = `Total pipe requirement: ${required} × 2 m sale lengths`; list.append(total); panel.append(list);
+    const result = document.createElement('strong');
+    result.textContent = suggested ? `Suggested pack: ${suggested.description}. Check ${suggested.possibleAdditionalSaleLengths} additional 2 m sale lengths are included.` : 'No pack suggested safely yet. The proposal must state the boiler/system change and whether its position changes.';
+    panel.append(result);
+  });
+  const caveat = document.createElement('p'); caveat.className = 'hint'; caveat.textContent = 'Based on the recorded survey only. This does not verify Breeze.'; panel.append(caveat);
+  panel.classList.remove('hidden');
 }
 function renderInterpretation() {
   const container = $('checkNotes'); container.replaceChildren();
@@ -293,6 +339,10 @@ function renderReadOnly(container, source, copy = true) {
       const heading = document.createElement('h3'); heading.textContent = 'Other site photographs'; container.append(heading);
       remaining.forEach(photo => container.append(photoFigure(photo)));
     }
+    if (surveyRooms.length) {
+      const heading = document.createElement('h3'); heading.textContent = 'Captured rooms and routes'; container.append(heading);
+      surveyRooms.forEach(room => container.append(roomFigure(room)));
+    }
   }
 }
 function photoSection(subject = '') {
@@ -339,7 +389,7 @@ async function handover() {
 }
 async function anotherSurvey() {
   notes = [];
-  interpretation = null; selectedOption = null; currentVisitId = null; handoverDocuments = { customer: [], engineer: [] }; optionDrafts.clear(); optionChecklists.clear();
+  interpretation = null; selectedOption = null; currentVisitId = null; transferPayload = null; handoverDocuments = { customer: [], engineer: [] }; optionDrafts.clear(); optionChecklists.clear();
   $('transcript').value = '';
   $('capturedEvidence').textContent = '';
   $('capturedEvidence').classList.add('hidden');
@@ -353,6 +403,7 @@ async function anotherSurvey() {
   });
   $('photoGallery').replaceChildren();
   surveyPhotos = [];
+  surveyRooms = []; $('roomGallery').replaceChildren();
   $('optionActions').replaceChildren();
   $('confirmationItems').replaceChildren();
   $('aiCheckStatus').textContent = '';
@@ -417,8 +468,24 @@ async function printOnly(id, title) {
       doc.setFont('helvetica', 'bold'); doc.setFontSize(12); doc.text('Other site photographs', 16, y); y += 7;
       for (const photo of remaining) y = await addPhotoToPDF(doc, photo, y);
     }
+    if (surveyRooms.length) {
+      if (y > 250) { doc.addPage(); y = 18; }
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(12); doc.text('Captured rooms and routes', 16, y); y += 7;
+      for (const room of surveyRooms) y = await addRoomToPDF(doc, room, y);
+    }
   }
   doc.save(`${title.toLowerCase().replace(/\s+/g, '-')}.pdf`);
+}
+async function addRoomToPDF(doc, room, y) {
+  const figure = roomFigure(room), svg = figure.querySelector('svg');
+  const source = new XMLSerializer().serializeToString(svg);
+  const image = new Image(); image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(source)}`;
+  await image.decode().catch(() => {});
+  const canvas = document.createElement('canvas'); canvas.width = 1200; canvas.height = 800;
+  const context = canvas.getContext('2d'); context.fillStyle = '#fff'; context.fillRect(0, 0, canvas.width, canvas.height); context.drawImage(image, 0, 0, canvas.width, canvas.height);
+  if (y + 100 > 286) { doc.addPage(); y = 18; }
+  doc.addImage(canvas.toDataURL('image/png'), 'PNG', 16, y, 178, 100); y += 105;
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.text(`${room.name} · ${room.floor || 'Floor not named'}`, 16, y); return y + 7;
 }
 async function addPhotoToPDF(doc, photo, y) {
   if (!photo.image.complete) await photo.image.decode().catch(() => {});

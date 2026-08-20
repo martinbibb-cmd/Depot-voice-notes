@@ -163,8 +163,8 @@ export async function handleSpecCheckTransfer(request, env, url = new URL(reques
   if (request.method === 'GET' && url.pathname === '/spec-check/visits') {
     const user = await pwaUser(request, env);
     if (!user) return json({ error: 'unauthorised' }, 401);
-    const rows = await env.DB.prepare(`SELECT id, nickname, photo_count, created_on_device_at, created_at, expires_at
-      FROM speccheck_visits WHERE user_id = ? AND status = 'pending' AND expires_at > ?
+    const rows = await env.DB.prepare(`SELECT id, nickname, photo_count, created_on_device_at, created_at, expires_at, status
+      FROM speccheck_visits WHERE user_id = ? AND status IN ('pending', 'consumed') AND expires_at > ?
       ORDER BY created_at DESC`).bind(user.userId, new Date().toISOString()).all();
     return json({ visits: rows.results || [] });
   }

@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <title>Depot Notes</title>
   <link rel="manifest" href="manifest.json">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <style>
     :root{color-scheme:light;--ink:#111;--muted:#696969;--line:#d8d8d8;--paper:#fff;--soft:#f3f3f3}
     *{box-sizing:border-box} body{margin:0;background:#f7f7f7;color:var(--ink);font:16px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
@@ -52,7 +53,7 @@
 
   <section id="handoverStep" class="hidden">
     <h2>Handover</h2><p class="hint">Copy individual Depot sections, or print the customer and engineer documents separately.</p>
-    <div class="row no-print"><button id="printCustomer">Print / save customer summary</button><button id="printEngineer" class="primary">Print / save engineer works</button></div>
+    <div class="row no-print"><button id="printCustomer">Save customer summary PDF</button><button id="printEngineer" class="primary">Save engineer works PDF</button></div>
     <div id="customerDocument"><h3>Customer summary</h3><div id="customerNotes"></div></div>
     <div id="engineerDocument"><h3>Engineer works</h3><div id="engineerNotes"></div></div>
     <div class="row no-print"><button id="backCheck">Back to check</button></div>

@@ -749,7 +749,8 @@ IMPORTANT RULES:
 - Only modify what the user asks to improve
 - Keep the technical accuracy and detail level
 - Do not add information that wasn't requested
-- Correct any obvious transcription errors using the context provided, especially standard pipe sizes (8/10mm, 15mm, 22mm, 28mm, 35mm) and other common measurements. Normalise improbable values to the nearest sensible standard size.
+- Treat the supplied source evidence as immutable. Never correct or normalise a number, unit, direction, brand, component or uncertain term.
+- The requested edit may change wording or ask for more supported detail, but it must not introduce a fact absent from the supplied source evidence.
 
 You MUST respond with ONLY valid JSON matching this shape:
 
@@ -1401,6 +1402,16 @@ function applyTranscriptionSanityChecks(transcript) {
     return { sanitisedTranscript: "", sanityNotes: [] };
   }
 
+  // The transcript is source evidence. Earlier versions rewrote brands,
+  // dimensions, ratings and any "nn mm" value before extraction. That turned
+  // 150 mm into a standard pipe size and could promote a Whisper guess into a
+  // precise product. Preserve the evidence verbatim; uncertainty belongs in
+  // review, never in a silent normalisation pass.
+  return { sanitisedTranscript: transcript.trim(), sanityNotes: [] };
+
+  /* Legacy normalisation code retained below temporarily for audit history,
+     but deliberately unreachable. */
+
   const allowedPipeSizes = [8, 10, 15, 22, 28, 35];
   const sanityNotes = [];
   let sanitisedTranscript = transcript;
@@ -2024,7 +2035,12 @@ async function callNotesModel(env, payload) {
     .join("\n");
 
   // Fetch reference materials from database
-  const referenceMaterials = await fetchReferenceMaterials(env, transcript);
+  // A SpecCheck/custom handover request is grounded only in its supplied
+  // visit evidence. Pricebooks and reference materials previously leaked
+  // unrelated catalogue language (for example "matrix") into site facts.
+  const referenceMaterials = customInstructions.trim()
+    ? ""
+    : await fetchReferenceMaterials(env, transcript);
 
   // IMPORTANT: we do NOT use response_format here.
   // Instead we *ask* for JSON and parse it ourselves.
@@ -2055,7 +2071,11 @@ CHECKLIST SOURCE OF TRUTH:
 - Do not recommend products or add compliance conclusions, hazards, or risks that the surveyor did not state.
 - Keep base scope separate from option A, option B, and option C. Do not flatten alternatives into one installation scope.
 
-CRITICAL DEDUPLICATION RULES:
+CRITICAL SOURCE AND DEDUPLICATION RULES:
+- The chronological transcript is immutable evidence. Copy every number, unit, direction, brand and component name exactly; never silently correct or replace one.
+- A discussed option is not the chosen plan. Retain only the latest explicitly supported decision. Exclude rejected or superseded brands and routes.
+- Do not convert analogies, guesses, explanations or catalogue knowledge into facts.
+- Describe the work directly: for example "Replace existing regular boiler in the same location." Do not organise output as "coming out" or "going in".
 - If alreadyCaptured contains information for a section, DO NOT repeat that information.
 - Only add NEW information from the current transcript that isn't already captured.
 - Do NOT rephrase or reword existing captured information - completely skip it.
@@ -2082,13 +2102,8 @@ BULLET FORMAT:
 - If a section has no confirmed notes, use an empty string for both fields.
 - Never write absence notes such as "No mention of...", "No information on...", "No details provided", "Not discussed", or "No future plans mentioned". Leave the section empty instead.
 - Do not restate the same job fact in different words. Keep the clearest one.
-- Use these subheadings inside sections where supported by the transcript:
-  - # Coming out #
-  - # Going in #
-  - # Involved #
-  - # Agreed #
-- Put customer agreements/actions only in the Customer actions section under # Agreed #. Do not repeat customer agreements in technical sections or Office notes.
-- If a section has bullets but no specific subheading is obvious, put them under # Involved #.
+- Do not use "Coming out", "Going in", "Involved" or "Agreed" subheadings.
+- Put customer agreements/actions only in the Customer actions section. Do not repeat them in technical sections or Office notes.
 
 You MUST respond with ONLY valid JSON matching this shape:
 
@@ -2097,8 +2112,8 @@ You MUST respond with ONLY valid JSON matching this shape:
   "sections": [
     {
       "section": "<one of the depot section names>",
-      "plainText": "# Coming out #; Short bullet; # Going in #; Another short bullet;",
-      "naturalLanguage": "# Coming out #\n- Short bullet\n# Going in #\n- Another short bullet"
+      "plainText": "Replace existing regular boiler in the same location; Route flue vertically above lintel then horizontally through wall;",
+      "naturalLanguage": "- Replace existing regular boiler in the same location\n- Route flue vertically above lintel then horizontally through wall"
     }
   ],
   "materials": [

@@ -34,7 +34,7 @@ async function refresh() {
       const row = document.createElement('div'); row.className = 'capture';
       row.innerHTML = `<span><strong></strong><small></small></span>`;
       row.querySelector('strong').textContent = visit.nickname;
-      row.querySelector('small').textContent = `${visit.photo_count || 0} sanitised photos · ${new Date(visit.created_at).toLocaleString()}`;
+      row.querySelector('small').textContent = `${visit.photo_count || 0} sanitised photos · ${visit.status === 'consumed' ? 'previously opened · ' : ''}${new Date(visit.created_at).toLocaleString()}`;
       const button = document.createElement('button'); button.textContent = 'Open'; button.onclick = () => openCapture(visit.id);
       row.append(button); $('captures').append(row);
     }); status('Choose the survey you want to process.');
@@ -82,7 +82,7 @@ async function draft() {
     const result = await api('/text', { method: 'POST', body: JSON.stringify({
       transcript: [transcript, captured].filter(Boolean).join('\n\n'), expectedSections,
       depotSections: expectedSections.map(name => ({ name })), forceStructured: true, checklistItems: [],
-      depotNotesInstructions: 'Create terse installation handover notes. One supported fact, route, instruction, constraint or customer agreement per bullet. Represent the latest supported state in the chronological transcript. Remove superseded guesses. Keep genuinely unresolved matters explicit. Exclude sales conversation, pricing, explanations and manufacturer opinion. Never invent a brand, component, measurement, customer agreement or technical conclusion.'
+      depotNotesInstructions: 'Create terse installation handover notes explaining the work directly, for example: Replace existing regular boiler in the same location. One supported fact, route, instruction, constraint or customer agreement per bullet. The chronological transcript is immutable source evidence: preserve every number, unit, direction, component and brand exactly. Represent the latest explicitly supported state. Remove superseded guesses, rejected brands and search-state hypotheses. Keep genuinely unresolved matters explicit. Exclude sales conversation, pricing, analogies, explanations, catalogue/reference knowledge and manufacturer opinion. Never invent or silently correct a brand, component, measurement, customer agreement or technical conclusion. Do not use Coming out, Going in, Involved or Agreed headings.'
     }) });
     notes = (result.sections || []).filter(section => (section.plainText || section.naturalLanguage || '').trim()).map(section => ({ name: section.section, text: bullets(section.plainText || section.naturalLanguage) }));
     renderEditableNotes(); $('draftStatus').textContent = `${notes.length} concise sections created from the captured evidence.`;
@@ -95,7 +95,22 @@ function renderEditableNotes() {
     const head = document.createElement('div'); head.className = 'note-head'; const title = document.createElement('strong'); title.textContent = note.name;
     const remove = document.createElement('button'); remove.textContent = 'Remove'; remove.onclick = () => { notes.splice(index, 1); renderEditableNotes(); };
     const area = document.createElement('textarea'); area.value = note.text; area.oninput = () => note.text = area.value;
-    head.append(title, remove); card.append(head, area); $('notes').append(card);
+    const promptRow = document.createElement('div'); promptRow.className = 'row'; promptRow.style.marginTop = '8px';
+    const prompt = document.createElement('input'); prompt.placeholder = 'Ask AI: add detail, correct this, or clarify wording'; prompt.style.flex = '1';
+    const improve = document.createElement('button'); improve.textContent = 'Improve';
+    improve.onclick = async () => {
+      if (!prompt.value.trim()) return;
+      improve.disabled = true; improve.textContent = 'Checking…';
+      try {
+        const result = await api('/tweak-section', { method: 'POST', body: JSON.stringify({
+          section: { section: note.name, plainText: depotCopyText(note.text), naturalLanguage: note.text },
+          instructions: `${prompt.value.trim()}\n\nUse only facts supported by this source evidence. Preserve all numbers, units, directions, uncertainty and chosen/rejected status exactly. SOURCE EVIDENCE:\n${$('transcript').value}\n${$('capturedEvidence').textContent}`
+        }) });
+        note.text = bullets(result.plainText || result.naturalLanguage || note.text); area.value = note.text; prompt.value = '';
+      } catch (error) { $('draftStatus').textContent = error.message; }
+      finally { improve.disabled = false; improve.textContent = 'Improve'; }
+    };
+    promptRow.append(prompt, improve); head.append(title, remove); card.append(head, area, promptRow); $('notes').append(card);
   });
 }
 function prepareCheck() {
@@ -121,12 +136,20 @@ function handover() {
   renderReadOnly($('engineerNotes'), notes); show(4);
 }
 function printOnly(id, title) {
-  const printArea = $('printArea');
-  printArea.innerHTML = `<h1>${title}</h1>${$(id).innerHTML}`;
-  const cleanup = () => { printArea.replaceChildren(); removeEventListener('afterprint', cleanup); };
-  addEventListener('afterprint', cleanup);
-  window.print();
-  setTimeout(cleanup, 3000);
+  const jsPDF = window.jspdf?.jsPDF;
+  if (!jsPDF) { alert('PDF support has not loaded. Check the connection and try again.'); return; }
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  let y = 18; doc.setFont('helvetica', 'bold'); doc.setFontSize(18); doc.text(title, 16, y); y += 11;
+  const source = id === 'customerDocument' ? notes.filter(note => !/Office notes/i.test(note.name)) : notes;
+  source.forEach(note => {
+    if (y > 270) { doc.addPage(); y = 18; }
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(12); doc.text(note.name, 16, y); y += 6;
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
+    const lines = doc.splitTextToSize(note.text.replace(/^•\s*/gm, ''), 178);
+    for (const line of lines) { if (y > 282) { doc.addPage(); y = 18; } doc.text(line, 16, y); y += 5; }
+    y += 3;
+  });
+  doc.save(`${title.toLowerCase().replace(/\s+/g, '-')}.pdf`);
 }
 
 $('pairBtn').onclick = () => pair().catch(error => status(error.message, true)); $('refreshBtn').onclick = refresh;

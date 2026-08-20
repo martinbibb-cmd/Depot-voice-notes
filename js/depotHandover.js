@@ -1,4 +1,5 @@
 import { clearAuthToken, getAuthToken } from '../src/auth/auth-client.js';
+import { confirmedChecklistItems, initialiseChecklist, restoreChecklists, serialiseChecklists } from './confirmationState.js';
 
 const WORKER = 'https://depot-voice-notes.martinbibb.workers.dev';
 const $ = id => document.getElementById(id);
@@ -7,6 +8,8 @@ let surveyPhotos = [];
 let interpretation = null;
 let selectedOption = null;
 const optionDrafts = new Map();
+const optionChecklists = new Map();
+let currentVisitId = null;
 
 if (!getAuthToken()) location.href = 'login.html';
 
@@ -21,7 +24,7 @@ async function api(path, options = {}) {
 }
 function status(message, error = false) { $('captureStatus').textContent = message; $('captureStatus').className = `status${error ? ' error' : ''}`; }
 function show(step) {
-  ['captureStep','checkStep','draftStep','handoverStep'].forEach((id, index) => $(id).classList.toggle('hidden', index + 1 !== step));
+  ['captureStep','checkStep','confirmStep','draftStep','handoverStep'].forEach((id, index) => $(id).classList.toggle('hidden', index + 1 !== step));
   document.querySelectorAll('.step').forEach(el => el.classList.toggle('active', Number(el.dataset.step) === step));
   scrollTo({ top: 0, behavior: 'smooth' });
 }
@@ -60,6 +63,11 @@ function evidenceOf(payload) {
 async function openCapture(id) {
   try {
     status('Opening complete capture…'); const visit = await api(`/spec-check/visits/${id}`);
+    currentVisitId = id;
+    const saved = await api(`/spec-check/visits/${id}/processing-state`);
+    interpretation = saved.interpretation;
+    optionChecklists.clear();
+    restoreChecklists(saved.checklists).forEach((value, key) => optionChecklists.set(key, value));
     $('transcript').value = transcriptOf(visit.payload);
     const evidence = evidenceOf(visit.payload); $('capturedEvidence').textContent = evidence; $('capturedEvidence').classList.toggle('hidden', !evidence);
     await loadPhotos(id, visit.photos); await api(`/spec-check/visits/${id}/consume`, { method: 'POST', body: '{}' });
@@ -103,7 +111,10 @@ async function aiCheck() {
   $('aiCheckStatus').textContent = 'Checking the complete transcript and reconciling the latest supported survey state…';
   try {
     const captured = $('capturedEvidence').textContent.trim();
-    interpretation = await api('/interpret', { method: 'POST', body: JSON.stringify({ transcript, capturedEvidence: captured }) });
+    if (!interpretation) {
+      interpretation = await api('/interpret', { method: 'POST', body: JSON.stringify({ transcript, capturedEvidence: captured }) });
+      await persistProcessingState();
+    }
     renderInterpretation();
     $('aiCheckStatus').textContent = `${interpretation.options.length} independent proposal option${interpretation.options.length === 1 ? '' : 's'} identified.`;
   } catch (error) { $('aiCheckStatus').textContent = error.message; $('aiCheckStatus').className = 'status error'; }
@@ -125,24 +136,82 @@ function renderInterpretation() {
   const actions = $('optionActions'); actions.replaceChildren();
   interpretation.options.forEach((option, index) => {
     const button = document.createElement('button'); button.className = index === 0 ? 'primary' : '';
-    button.textContent = `Generate Option ${index + 1} notes`;
-    button.onclick = () => generateOption(option, index);
+    button.textContent = `Review Option ${index + 1} additional works`;
+    button.onclick = () => prepareConfirmation(option, index);
     actions.append(button);
   });
 }
-async function generateOption(option, index) {
+async function persistProcessingState() {
+  if (!currentVisitId || !interpretation) return;
+  await api(`/spec-check/visits/${currentVisitId}/processing-state`, { method: 'PUT', body: JSON.stringify({
+    interpretation, checklists: serialiseChecklists(optionChecklists)
+  }) });
+}
+async function prepareConfirmation(option, index) {
   selectedOption = { ...option, number: index + 1 };
+  show(3); $('confirmationStatus').textContent = `Preparing Option ${index + 1}…`;
+  try {
+    if (!optionChecklists.has(option.id)) {
+      const result = await api('/confirmation-checklist', { method: 'POST', body: JSON.stringify({ interpretation, proposal: option }) });
+      optionChecklists.set(option.id, initialiseChecklist(optionChecklists.get(option.id), {
+        proposalOptionId: option.id, generatedAt: new Date().toISOString(), items: result.items || []
+      }));
+      await persistProcessingState();
+    }
+    renderConfirmation();
+  } catch (error) { $('confirmationStatus').textContent = error.message; $('confirmationStatus').className = 'status error'; }
+}
+function renderConfirmation() {
+  const state = optionChecklists.get(selectedOption.id) || { items: [] };
+  $('confirmationItems').replaceChildren();
+  state.items.filter(item => !item.removed).forEach(item => {
+    const row = document.createElement('div'); row.className = 'confirmation';
+    const checkbox = document.createElement('input'); checkbox.type = 'checkbox'; checkbox.checked = Boolean(item.checked);
+    checkbox.onchange = () => { item.checked = checkbox.checked; checklistChanged(); };
+    const content = document.createElement('div'); const text = document.createElement('textarea'); text.value = item.text;
+    text.onchange = () => { item.text = text.value.trim(); checklistChanged(); };
+    const reason = document.createElement('small'); reason.textContent = [item.reason, item.evidenceRelation].filter(Boolean).join(' · ');
+    content.append(text, reason);
+    const remove = document.createElement('button'); remove.textContent = 'Remove suggestion'; remove.onclick = () => {
+      item.removed = true; item.checked = false; optionChecklists.set(selectedOption.id, state);
+      renderConfirmation(); checklistChanged();
+    };
+    row.append(checkbox, content, remove); $('confirmationItems').append(row);
+  });
+  const visible = state.items.filter(item => !item.removed);
+  const checked = visible.filter(item => item.checked).length;
+  $('confirmationStatus').className = 'status';
+  $('confirmationStatus').textContent = `Option ${selectedOption.number}: ${visible.length} focused suggestions · ${checked} confirmed.`;
+}
+function checklistChanged() {
+  if (selectedOption) optionDrafts.delete(selectedOption.id);
+  persistProcessingState().catch(error => $('confirmationStatus').textContent = error.message);
+}
+async function addManualConfirmation() {
+  const text = $('manualConfirmationText').value.trim(); if (!text || !selectedOption) return;
+  const state = optionChecklists.get(selectedOption.id) || { proposalOptionId: selectedOption.id, items: [] };
+  state.items.push({ id: `manual-${crypto.randomUUID()}`, originalText: text, text, reason: 'Added by surveyor', evidenceRelation: '',
+    targetSection: $('manualConfirmationSection').value, checked: true, manual: true });
+  optionChecklists.set(selectedOption.id, state); $('manualConfirmationText').value = ''; optionDrafts.delete(selectedOption.id); renderConfirmation(); await persistProcessingState();
+}
+async function generateOption() {
+  const option = selectedOption;
+  const index = option.number - 1;
   if (optionDrafts.has(option.id)) {
     notes = structuredClone(optionDrafts.get(option.id)); beginDraft(); return;
   }
-  $('aiCheckStatus').textContent = `Writing Option ${index + 1} from the canonical interpretation…`;
+  $('confirmationStatus').textContent = `Writing Option ${index + 1} from confirmed information…`;
   try {
-    const evidence = { sharedFacts: interpretation.sharedFacts, selectedProposal: option,
+    const confirmedItems = confirmedChecklistItems(optionChecklists.get(option.id));
+    const relevantWantsNeeds = interpretation.sharedFacts.filter(item => /want|need|preference|priority|customer/i.test(item.category || ''));
+    const confirmedAccessDisruptionEvidence = interpretation.sharedFacts.filter(item => /access|disruption|boxing|floor|furniture|decoration/i.test(`${item.category || ''} ${item.text || ''}`));
+    const evidence = { sharedFacts: interpretation.sharedFacts, selectedProposal: option, relevantWantsNeeds,
+      confirmedAccessDisruptionEvidence, confirmedChecklistItems: confirmedItems,
       historicalFacts: interpretation.historicalFacts, uncertainties: interpretation.uncertainties };
     const result = await api('/text', { method: 'POST', body: JSON.stringify({
       transcript: JSON.stringify(evidence), expectedSections,
       depotSections: expectedSections.map(name => ({ name })), forceStructured: true, checklistItems: [],
-      depotNotesInstructions: 'Write terse installation handover notes for selectedProposal only. SharedFacts may be used where relevant. HistoricalFacts are context only and must not become proposed work. Preserve uncertainties explicitly. Do not introduce another proposal, rejected alternative, recommendation, measurement, brand or component. Explain the work directly; do not use Coming out, Going in, Involved or Agreed headings.'
+      depotNotesInstructions: 'Write terse installation handover notes for selectedProposal only. SharedFacts and relevantWantsNeeds may be used where relevant. Do not infer enabling, access, disruption, making-good or customer-preparation consequences from technical work during final writing. A pipe route alone is not evidence that lifting, drilling, visible pipework, boxing or decoration disturbance is confirmed. Such consequences may enter only when explicitly stated in confirmedAccessDisruptionEvidence or confirmedChecklistItems. Never include an unchecked, removed or absent suggestion. Place confirmedChecklistItems in their targetSection. HistoricalFacts are context only and must not become proposed work. Preserve uncertainties explicitly. Do not introduce another proposal, rejected alternative, recommendation, measurement, brand or component. Explain the work directly; do not use Coming out, Going in, Involved or Agreed headings.'
     }) });
     notes = orderedNotes((result.sections || []).filter(section => (section.plainText || section.naturalLanguage || '').trim())
       .map(section => ({ name: section.section, text: bullets(section.plainText || section.naturalLanguage) })));
@@ -182,7 +251,7 @@ function beginDraft() {
   renderEditableNotes();
   $('draftStatus').className = 'status';
   $('draftStatus').textContent = `Option ${selectedOption?.number || ''}: ${selectedOption?.title || ''} — ${notes.length} sections ready to edit.`;
-  show(3);
+  show(4);
 }
 function renderReadOnly(container, source, copy = true) {
   container.replaceChildren(); const placedPhotos = new Set(); orderedNotes(source).forEach(note => {
@@ -225,11 +294,11 @@ function handover() {
   const customerExcluded = /Office notes/i;
   const customerSource = notes.filter(note => !customerExcluded.test(note.name));
   renderReadOnly($('customerNotes'), customerSource.length ? customerSource : notes);
-  renderReadOnly($('engineerNotes'), notes); show(4);
+  renderReadOnly($('engineerNotes'), notes); show(5);
 }
 async function anotherSurvey() {
   notes = [];
-  interpretation = null; selectedOption = null; optionDrafts.clear();
+  interpretation = null; selectedOption = null; currentVisitId = null; optionDrafts.clear(); optionChecklists.clear();
   $('transcript').value = '';
   $('capturedEvidence').textContent = '';
   $('capturedEvidence').classList.add('hidden');
@@ -244,6 +313,7 @@ async function anotherSurvey() {
   $('photoGallery').replaceChildren();
   surveyPhotos = [];
   $('optionActions').replaceChildren();
+  $('confirmationItems').replaceChildren();
   $('aiCheckStatus').textContent = '';
   $('draftStatus').textContent = '';
   show(1);
@@ -316,9 +386,11 @@ async function addPhotoToPDF(doc, photo, y) {
 }
 
 $('pairBtn').onclick = () => pair().catch(error => status(error.message, true)); $('refreshBtn').onclick = refresh;
-$('importTextBtn').onclick = () => $('textFile').click(); $('textFile').onchange = async event => { const file = event.target.files[0]; if (file) $('transcript').value = await file.text(); };
+$('importTextBtn').onclick = () => $('textFile').click(); $('textFile').onchange = async event => { const file = event.target.files[0]; if (file) { $('transcript').value = await file.text(); currentVisitId = null; interpretation = null; optionChecklists.clear(); } };
 $('draftBtn').onclick = aiCheck; $('handoverBtn').onclick = handover;
-$('backCapture').onclick = () => show(1); $('backCheck').onclick = () => show(2); $('backDraft').onclick = () => show(3);
+$('backCapture').onclick = () => show(1); $('backInterpretation').onclick = () => show(2); $('backCheck').onclick = () => show(3); $('backDraft').onclick = () => show(4);
+$('addConfirmationBtn').onclick = () => addManualConfirmation().catch(error => $('confirmationStatus').textContent = error.message);
+$('writeOptionBtn').onclick = () => generateOption().catch(error => $('confirmationStatus').textContent = error.message);
 $('anotherSurvey').onclick = () => anotherSurvey().catch(error => status(error.message, true));
 $('savePhotosBtn').onclick = () => saveAllPhotos().catch(error => status(error.message, true));
 $('downloadNotesBtn').onclick = downloadOptionNotes;

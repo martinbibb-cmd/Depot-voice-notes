@@ -11,24 +11,25 @@
     *{box-sizing:border-box} body{margin:0;background:#f7f7f7;color:var(--ink);font:16px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
     header{position:sticky;top:0;z-index:5;background:rgba(255,255,255,.94);backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
     .bar{max-width:920px;margin:auto;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px}.bar h1{font-size:20px;margin:0}
-    main{max-width:920px;margin:0 auto;padding:22px 16px 80px}.steps{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:22px}.step{border-bottom:3px solid var(--line);padding:8px 3px;color:var(--muted);font-size:13px}.step.active{border-color:#111;color:#111;font-weight:700}
+    main{max-width:920px;margin:0 auto;padding:22px 16px 80px}.steps{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:22px}.step{border-bottom:3px solid var(--line);padding:8px 3px;color:var(--muted);font-size:13px}.step.active{border-color:#111;color:#111;font-weight:700}
     section{background:var(--paper);border:1px solid var(--line);border-radius:16px;padding:20px;margin:0 0 16px}h2{margin:0 0 5px;font-size:22px}h3{margin:18px 0 8px}.hint{color:var(--muted);margin:0 0 16px}.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
     button{appearance:none;border:1px solid #111;background:#fff;color:#111;border-radius:999px;padding:10px 16px;font:inherit;font-weight:650;cursor:pointer}button.primary{background:#111;color:#fff}button:disabled{opacity:.35;cursor:default}
-    textarea,input{width:100%;border:1px solid #aaa;border-radius:10px;padding:12px;font:inherit;background:#fff}textarea{min-height:220px;resize:vertical}.code{font-size:28px;letter-spacing:.18em;font-weight:800}
+    textarea,input,select{width:100%;border:1px solid #aaa;border-radius:10px;padding:12px;font:inherit;background:#fff}textarea{min-height:220px;resize:vertical}.code{font-size:28px;letter-spacing:.18em;font-weight:800}
     .capture{display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--line);padding:11px 0}.capture:first-child{border:0}.capture small{display:block;color:var(--muted)}
     .note{border:1px solid var(--line);border-radius:12px;padding:14px;margin:10px 0}.note textarea{min-height:92px}.note-head{display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:8px}.badge{background:var(--soft);border-radius:999px;padding:4px 9px;font-size:12px}
+    .confirmation{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:start;border-bottom:1px solid var(--line);padding:12px 0}.confirmation:last-child{border:0}.confirmation input[type=checkbox]{width:22px;height:22px;margin-top:8px}.confirmation textarea{min-height:58px}.confirmation small{display:block;color:var(--muted);margin-top:4px}.add-confirmation{display:grid;grid-template-columns:1fr 190px auto;gap:8px;margin-top:14px}
     .compare{display:grid;grid-template-columns:1fr 1fr;gap:14px}.source{white-space:pre-wrap;max-height:420px;overflow:auto;background:var(--soft);padding:14px;border-radius:10px}.checkline{display:flex;align-items:flex-start;gap:9px;margin:9px 0}.checkline input{width:auto;margin-top:4px}
     .hidden{display:none!important}.status{padding:10px 0;color:var(--muted)}.error{color:#a40000}.photos{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px}.photos img{width:100%;height:110px;object-fit:contain;background:var(--soft);border-radius:8px}
     #engineerNotes figure{margin:10px 0 18px;padding:10px;border:1px solid var(--line);border-radius:12px}#engineerNotes figure img{display:block;width:100%;max-height:520px;object-fit:contain;background:var(--soft);border-radius:8px}#engineerNotes figcaption{margin-top:7px;color:var(--muted)}
     #printArea{display:none}.copybox{white-space:pre-wrap;background:var(--soft);border:1px solid var(--line);padding:12px;border-radius:9px}
-    @media(max-width:650px){.compare{grid-template-columns:1fr}.steps{font-size:11px}.bar{padding:12px 14px}section{padding:16px}}
+    @media(max-width:650px){.compare{grid-template-columns:1fr}.steps{font-size:11px}.bar{padding:12px 14px}section{padding:16px}.add-confirmation{grid-template-columns:1fr}.confirmation{grid-template-columns:auto 1fr}.confirmation button{grid-column:2}}
     @media print{body>*{display:none!important}#printArea{display:block!important;background:#fff;color:#111;padding:0 18mm}#printArea .note{break-inside:avoid;border:0;padding:0;margin:14px 0}#printArea button{display:none!important}}
   </style>
 </head>
 <body>
 <header><div class="bar"><h1>Depot Notes</h1><button id="logoutBtn">Log out</button></div></header>
 <main>
-  <div class="steps"><div class="step active" data-step="1">1 Capture</div><div class="step" data-step="2">2 AI check</div><div class="step" data-step="3">3 Draft</div><div class="step" data-step="4">4 Handover</div></div>
+  <div class="steps"><div class="step active" data-step="1">1 Capture</div><div class="step" data-step="2">2 Interpret</div><div class="step" data-step="3">3 Confirm</div><div class="step" data-step="4">4 Draft</div><div class="step" data-step="5">5 Handover</div></div>
 
   <section id="captureStep">
     <h2>Bring in the survey</h2><p class="hint">Open a SpecCheck capture, or paste a transcript. Nothing is organised until you ask.</p>
@@ -48,10 +49,17 @@
     <div class="row no-print"><button id="backCapture">Back to transcript</button></div>
   </section>
 
+  <section id="confirmStep" class="hidden">
+    <h2>Possible additional works</h2><p class="hint">This job may include the following. Confirm only those that apply. Unticked suggestions will not enter the notes.</p>
+    <div id="confirmationStatus" class="status"></div><div id="confirmationItems"></div>
+    <div class="add-confirmation no-print"><input id="manualConfirmationText" placeholder="Add a missing item"><select id="manualConfirmationSection"><option>Restrictions to work</option><option>Disruption</option><option>Customer actions</option></select><button id="addConfirmationBtn">Add item</button></div>
+    <div class="row no-print" style="margin-top:14px"><button id="backInterpretation">Back to interpretation</button><button class="primary" id="writeOptionBtn">Create option notes</button></div>
+  </section>
+
   <section id="draftStep" class="hidden">
     <h2>Draft installation notes</h2><p class="hint">The AI-checked survey information is editable. Ask AI to add detail, correct or clarify wording against the source; the copy-over sections stay in their fixed order.</p>
     <div id="draftStatus" class="status"></div><div id="notes"></div>
-    <div class="row no-print"><button id="backCheck">Back to interpretation</button><button id="downloadNotesBtn">Download option notes</button><button class="primary" id="handoverBtn">Create handover</button></div>
+    <div class="row no-print"><button id="backCheck">Back to confirmations</button><button id="downloadNotesBtn">Download option notes</button><button class="primary" id="handoverBtn">Create handover</button></div>
   </section>
 
   <section id="handoverStep" class="hidden">

@@ -58,6 +58,31 @@ test('POST /interpret separates shared evidence, independent options, history an
   assert.match(modelInput.capturedEvidence, /Garden tap/);
 });
 
+test('POST /confirmation-checklist produces bounded unconfirmed proposal-specific suggestions', async (t) => {
+  let combinedText = '';
+  globalThis.fetch = async (_url, options) => {
+    const request = JSON.parse(options.body); combinedText = request.contents[0].parts[0].text;
+    return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify({ items: [
+      { description: 'Remove and refit boiler boxing', reason: 'Boiler is within removable boxing', evidenceRelation: 'Shared access fact', targetSection: 'Restrictions to work' },
+      { description: 'Pipework may remain visible above the window', reason: 'Selected route crosses above window', evidenceRelation: 'Option 1 route', targetSection: 'Disruption' }
+    ] }) }] } }] }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  };
+  t.after(() => { globalThis.fetch = originalFetch; });
+  const interpretation = { sharedFacts: [{ category: 'Access', text: 'Boiler boxing is removable.' }] };
+  const proposal = { id: 'option-1', facts: [{ category: 'Pipe route', text: 'Route behind boiler and above window.' }] };
+  const response = await worker.fetch(new Request('https://example.com/confirmation-checklist', {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ interpretation, proposal })
+  }), { GEMINI_API_KEY: 'test-key' }, {});
+  assert.equal(response.status, 200);
+  const body = await parseJson(response);
+  assert.equal(body.items.length, 2);
+  assert(body.items.every(item => item.checked === false));
+  assert(body.items.every(item => item.manual === false));
+  assert.equal(body.items[1].targetSection, 'Disruption');
+  assert.match(combinedText, /Do not invent technical work/);
+  assert.match(combinedText, /above window/);
+});
+
 test('POST /text forwards structured payload and normalises model output', async (t) => {
   const transcript = 'Replace existing boiler and mention Hive smart control.';
   let receivedRequestBody;

@@ -134,6 +134,10 @@ export default {
         return handleInterpret(request, env);
       }
 
+      if (request.method === "POST" && url.pathname === "/confirmation-checklist") {
+        return handleConfirmationChecklist(request, env);
+      }
+
       if (request.method === "POST" && url.pathname === "/bug-report") {
         return handleBugReport(request, env);
       }
@@ -268,6 +272,42 @@ async function callInterpretationProvider(env, systemPrompt, userPayload) {
   }
   if (!content) throw new Error(`All interpretation providers failed: ${String(lastError)}`);
   return content.trim().replace(/^```json\s*/i, "").replace(/```$/i, "").trim();
+}
+
+async function handleConfirmationChecklist(request, env) {
+  const payload = await request.json().catch(() => null);
+  if (!payload?.interpretation || !payload?.proposal) {
+    return jsonResponse({ error: "bad_request", message: "interpretation and proposal required" }, 400);
+  }
+  const systemPrompt = `You generate a short confirmation checklist for one heating-survey proposal.
+Suggest only mundane enabling work, access requirements, or disruption consequences strongly connected to the supplied proposal and visit facts.
+Do not assert suggestions as facts. Do not invent technical work, components, pipe sizes, radiators, damage, permanent alterations, builder work or compliance requirements.
+Keep proposal options isolated. Return at most 8 high-value items; return fewer when evidence supports fewer.
+Focus where relevant on access to existing circuits or underfloor routes, removable boxing, surface pipework remaining visible or needing an enclosure, drilling through walls or ceilings, finishes likely to be disturbed, fixtures/furniture obstructing access, and access through adjoining rooms.
+Substantial alteration or splitting of existing heating circuits may justify an unchecked suggestion to confirm whether floor/floorboard access is required. A route across a visible wall area may justify an unchecked visible-pipework or boxing suggestion.
+Do not add generic noise, dust, system shutdown or builder-work suggestions unless something in this particular proposal makes them materially relevant.
+Allowed targetSection values are "Restrictions to work", "Disruption", and "Customer actions".
+Customer actions are suggestions only and require explicit surveyor confirmation.
+Return only JSON: {"items":[{"description":"concise possible work","reason":"short reason for suggestion","evidenceRelation":"proposal fact or shared fact it relates to","targetSection":"Restrictions to work|Disruption|Customer actions"}]}`;
+  try {
+    const raw = await callInterpretationProvider(env, systemPrompt, JSON.stringify(payload));
+    const parsed = JSON.parse(raw);
+    const allowedSections = new Set(["Restrictions to work", "Disruption", "Customer actions"]);
+    const items = (Array.isArray(parsed.items) ? parsed.items : []).slice(0, 8).map((item, index) => ({
+      id: `generated-${index + 1}`,
+      originalText: String(item?.description || "").trim(),
+      text: String(item?.description || "").trim(),
+      reason: String(item?.reason || "").trim(),
+      evidenceRelation: String(item?.evidenceRelation || "").trim(),
+      targetSection: allowedSections.has(item?.targetSection) ? item.targetSection : "Disruption",
+      checked: false,
+      manual: false
+    })).filter(item => item.text);
+    return jsonResponse({ items });
+  } catch (err) {
+    console.error("handleConfirmationChecklist model error:", err);
+    return jsonResponse({ error: "model_error", message: String(err) }, 500);
+  }
 }
 
 async function handleText(request, env) {

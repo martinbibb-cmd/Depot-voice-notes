@@ -185,6 +185,43 @@ export async function handleSpecCheckTransfer(request, env, url = new URL(reques
     return json({ ...row, payload: JSON.parse(row.payload_json), payload_json: undefined, photos: photos.results || [] });
   }
 
+  const processingMatch = url.pathname.match(/^\/spec-check\/visits\/([^/]+)\/processing-state$/);
+  if (processingMatch && (request.method === 'GET' || request.method === 'PUT')) {
+    const user = await pwaUser(request, env);
+    if (!user) return json({ error: 'unauthorised' }, 401);
+    const visit = await env.DB.prepare(`SELECT id FROM speccheck_visits
+      WHERE id = ? AND user_id = ? AND expires_at > ?`)
+      .bind(processingMatch[1], user.userId, new Date().toISOString()).first();
+    if (!visit) return json({ error: 'visit_not_found' }, 404);
+    if (request.method === 'GET') {
+      const state = await env.DB.prepare(`SELECT interpretation_json, checklists_json, updated_at
+        FROM speccheck_processing_states WHERE visit_id = ? AND user_id = ?`)
+        .bind(visit.id, user.userId).first();
+      return json(state ? {
+        interpretation: JSON.parse(state.interpretation_json),
+        checklists: JSON.parse(state.checklists_json),
+        updatedAt: state.updated_at
+      } : { interpretation: null, checklists: {} });
+    }
+    const body = await request.json().catch(() => null);
+    if (!body || typeof body.interpretation !== 'object' || Array.isArray(body.interpretation) ||
+        !body.checklists || typeof body.checklists !== 'object' || Array.isArray(body.checklists)) {
+      return json({ error: 'invalid_processing_state' }, 400);
+    }
+    const encoded = JSON.stringify(body);
+    if (new TextEncoder().encode(encoded).byteLength > MAX_PAYLOAD_BYTES) {
+      return json({ error: 'processing_state_too_large' }, 413);
+    }
+    const now = new Date().toISOString();
+    await env.DB.prepare(`INSERT INTO speccheck_processing_states
+      (visit_id, user_id, interpretation_json, checklists_json, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+      ON CONFLICT(visit_id) DO UPDATE SET interpretation_json=excluded.interpretation_json,
+        checklists_json=excluded.checklists_json, updated_at=excluded.updated_at`)
+      .bind(visit.id, user.userId, JSON.stringify(body.interpretation), JSON.stringify(body.checklists), now, now).run();
+    return json({ saved: true, updatedAt: now });
+  }
+
   const consumeMatch = url.pathname.match(/^\/spec-check\/visits\/([^/]+)\/consume$/);
   if (request.method === 'POST' && consumeMatch) {
     const user = await pwaUser(request, env);

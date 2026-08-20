@@ -17,7 +17,7 @@ async function api(path, options = {}) {
 }
 function status(message, error = false) { $('captureStatus').textContent = message; $('captureStatus').className = `status${error ? ' error' : ''}`; }
 function show(step) {
-  ['captureStep','draftStep','checkStep','handoverStep'].forEach((id, index) => $(id).classList.toggle('hidden', index + 1 !== step));
+  ['captureStep','checkStep','draftStep','handoverStep'].forEach((id, index) => $(id).classList.toggle('hidden', index + 1 !== step));
   document.querySelectorAll('.step').forEach(el => el.classList.toggle('active', Number(el.dataset.step) === step));
   scrollTo({ top: 0, behavior: 'smooth' });
 }
@@ -74,9 +74,14 @@ async function loadPhotos(visitId, photos) {
 }
 
 const expectedSections = ['Needs','System characteristics','New boiler and controls','Flue','Pipe work','Restrictions to work','Disruption','Customer actions','Future plans','Office notes'];
-async function draft() {
+async function aiCheck() {
   const transcript = $('transcript').value.trim(); if (!transcript) return status('Add or open a transcript first.', true);
-  show(2); $('draftStatus').textContent = 'Extracting supported installation facts…';
+  show(2);
+  $('checkTranscript').textContent = [$('transcript').value, $('capturedEvidence').textContent].filter(Boolean).join('\n\n');
+  $('checkNotes').replaceChildren();
+  $('useCheckedBtn').disabled = true;
+  $('aiCheckStatus').className = 'status';
+  $('aiCheckStatus').textContent = 'Checking the complete transcript and reconciling the latest supported survey state…';
   try {
     const captured = $('capturedEvidence').textContent.trim();
     const result = await api('/text', { method: 'POST', body: JSON.stringify({
@@ -85,8 +90,10 @@ async function draft() {
       depotNotesInstructions: 'Create terse installation handover notes explaining the work directly, for example: Replace existing regular boiler in the same location. One supported fact, route, instruction, constraint or customer agreement per bullet. The chronological transcript is immutable source evidence: preserve every number, unit, direction, component and brand exactly. CAPTURED FACTS are only a secondary index and may contain stale machine-generated candidates from an older app build: discard any that are not independently supported by the transcript or a direct measurement/note, and always prefer the latest supported transcript state where they conflict. Represent the latest explicitly supported state. Remove superseded guesses, rejected brands and search-state hypotheses. Keep genuinely unresolved matters explicit. Exclude sales conversation, pricing, analogies, explanations, catalogue/reference knowledge and manufacturer opinion. Never invent or silently correct a brand, component, measurement, customer agreement or technical conclusion. Do not use Coming out, Going in, Involved or Agreed headings.'
     }) });
     notes = (result.sections || []).filter(section => (section.plainText || section.naturalLanguage || '').trim()).map(section => ({ name: section.section, text: bullets(section.plainText || section.naturalLanguage) }));
-    renderEditableNotes(); $('draftStatus').textContent = `${notes.length} concise sections created from the captured evidence.`;
-  } catch (error) { $('draftStatus').textContent = error.message; $('draftStatus').className = 'status error'; }
+    renderReadOnly($('checkNotes'), notes, false);
+    $('aiCheckStatus').textContent = `${notes.length} supported sections extracted and reconciled against the transcript.`;
+    $('useCheckedBtn').disabled = notes.length === 0;
+  } catch (error) { $('aiCheckStatus').textContent = error.message; $('aiCheckStatus').className = 'status error'; }
 }
 function bullets(text) { return text.replace(/# Involved #;?/gi, '').split(/;|\n/).map(x => x.replace(/^[-•]\s*/, '').trim()).filter(Boolean).map(x => `• ${x}`).join('\n'); }
 function renderEditableNotes() {
@@ -113,9 +120,12 @@ function renderEditableNotes() {
     promptRow.append(prompt, improve); head.append(title, remove); card.append(head, area, promptRow); $('notes').append(card);
   });
 }
-function prepareCheck() {
-  notes = notes.filter(note => note.text.trim()); $('checkTranscript').textContent = [$('transcript').value, $('capturedEvidence').textContent].filter(Boolean).join('\n\n');
-  renderReadOnly($('checkNotes'), notes, false); $('verified').checked = false; $('handoverBtn').disabled = true; show(3);
+function beginDraft() {
+  notes = notes.filter(note => note.text.trim());
+  renderEditableNotes();
+  $('draftStatus').className = 'status';
+  $('draftStatus').textContent = `${notes.length} AI-checked sections ready to edit.`;
+  show(3);
 }
 function renderReadOnly(container, source, copy = true) {
   container.replaceChildren(); source.forEach(note => {
@@ -149,8 +159,8 @@ async function anotherSurvey() {
     if (image.src.startsWith('blob:')) URL.revokeObjectURL(image.src);
   });
   $('photoGallery').replaceChildren();
-  $('verified').checked = false;
-  $('handoverBtn').disabled = true;
+  $('useCheckedBtn').disabled = true;
+  $('aiCheckStatus').textContent = '';
   $('draftStatus').textContent = '';
   show(1);
   status('Looking for another SpecCheck survey…');
@@ -175,8 +185,8 @@ function printOnly(id, title) {
 
 $('pairBtn').onclick = () => pair().catch(error => status(error.message, true)); $('refreshBtn').onclick = refresh;
 $('importTextBtn').onclick = () => $('textFile').click(); $('textFile').onchange = async event => { const file = event.target.files[0]; if (file) $('transcript').value = await file.text(); };
-$('draftBtn').onclick = draft; $('checkBtn').onclick = prepareCheck; $('verified').onchange = event => $('handoverBtn').disabled = !event.target.checked; $('handoverBtn').onclick = handover;
-$('backCapture').onclick = () => show(1); $('backDraft').onclick = () => show(2); $('backCheck').onclick = () => show(3);
+$('draftBtn').onclick = aiCheck; $('useCheckedBtn').onclick = beginDraft; $('handoverBtn').onclick = handover;
+$('backCapture').onclick = () => show(1); $('backCheck').onclick = () => show(2); $('backDraft').onclick = () => show(3);
 $('anotherSurvey').onclick = () => anotherSurvey().catch(error => status(error.message, true));
 $('printCustomer').onclick = () => printOnly('customerDocument', 'Customer summary'); $('printEngineer').onclick = () => printOnly('engineerDocument', 'Engineer works');
 $('logoutBtn').onclick = () => { clearAuthToken(); location.href = 'login.html'; };

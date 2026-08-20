@@ -130,6 +130,10 @@ export default {
         return handleText(request, env);
       }
 
+      if (request.method === "POST" && url.pathname === "/interpret") {
+        return handleInterpret(request, env);
+      }
+
       if (request.method === "POST" && url.pathname === "/bug-report") {
         return handleBugReport(request, env);
       }
@@ -183,6 +187,88 @@ function jsonResponse(body, status = 200) {
 }
 
 /* ---------- /text ---------- */
+
+async function handleInterpret(request, env) {
+  const payload = await request.json().catch(() => null);
+  const transcript = typeof payload?.transcript === "string" ? payload.transcript.trim() : "";
+  const capturedEvidence = typeof payload?.capturedEvidence === "string" ? payload.capturedEvidence.trim() : "";
+  if (!transcript) return jsonResponse({ error: "bad_request", message: "transcript required" }, 400);
+  try {
+    return jsonResponse(await callInterpretationModel(env, transcript, capturedEvidence), 200);
+  } catch (err) {
+    console.error("handleInterpret model error:", err);
+    return jsonResponse({ error: "model_error", message: String(err) }, 500);
+  }
+}
+
+async function callInterpretationModel(env, transcript, capturedEvidence) {
+  const systemPrompt = `You are the interpretation pass for a heating survey capture.
+Build a canonical structured account of what the chronological visit evidence establishes. Do not write Depot notes.
+
+Rules:
+- The transcript is immutable evidence. Never alter a number, unit, direction, make, model or component name.
+- Later supported observations or decisions supersede earlier guesses. Preserve genuinely unresolved alternatives.
+- Separate shared facts, historical-only information, uncertainties, rejected/compromised ideas, and independent proposal options.
+- A proposal option must contain only facts that belong together. Never combine components from competing options.
+- Captured evidence is secondary. Ignore a captured classification unless the transcript or a direct structured measurement supports it.
+- Do not infer technical facts, compliance conclusions, product identities or recommendations.
+- Preserve damaged/uncertain Whisper terminology verbatim under uncertainties; do not invent the intended noun.
+- Identify no more than three materially distinct proposal options, in conversation order or supported preference order.
+- Exclude irrelevant chat, sales explanation, analogies and pricing.
+
+Return only JSON:
+{
+  "sharedFacts": [{"category":"short category","text":"supported fact"}],
+  "options": [{"title":"Option 1 — concise description","status":"preferred|viable|discussed","facts":[{"category":"short category","text":"proposal-specific fact"}]}],
+  "rejectedAlternatives": [{"text":"rejected or compromised idea","reason":"supported reason or empty"}],
+  "uncertainties": [{"text":"verbatim uncertain evidence","context":"safe context only"}],
+  "historicalFacts": [{"category":"short category","text":"historical fact not proposed work"}]
+}`;
+  const raw = await callInterpretationProvider(env, systemPrompt, JSON.stringify({ transcript, capturedEvidence }));
+  const parsed = JSON.parse(raw);
+  const cleanItems = value => Array.isArray(value) ? value.filter(x => x && typeof x === "object") : [];
+  const result = {
+    sharedFacts: cleanItems(parsed.sharedFacts),
+    options: cleanItems(parsed.options).slice(0, 3).map((option, index) => ({
+      id: `option-${index + 1}`,
+      title: String(option.title || `Option ${index + 1}`),
+      status: ["preferred", "viable", "discussed"].includes(option.status) ? option.status : "discussed",
+      facts: cleanItems(option.facts)
+    })),
+    rejectedAlternatives: cleanItems(parsed.rejectedAlternatives),
+    uncertainties: cleanItems(parsed.uncertainties),
+    historicalFacts: cleanItems(parsed.historicalFacts)
+  };
+  return result;
+}
+
+async function callInterpretationProvider(env, systemPrompt, userPayload) {
+  let content;
+  let lastError;
+  if (env.GEMINI_API_KEY) {
+    try { content = await callGeminiChat(env.GEMINI_API_KEY, systemPrompt, userPayload, 0.1); }
+    catch (error) { lastError = error; }
+  }
+  if (!content && env.OPENAI_API_KEY) {
+    try {
+      const response = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${env.OPENAI_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ model: "gpt-4.1", temperature: 0.1,
+          messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPayload }] })
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(`OpenAI interpretation ${response.status}`);
+      content = body?.choices?.[0]?.message?.content;
+    } catch (error) { lastError = error; }
+  }
+  if (!content && env.ANTHROPIC_API_KEY) {
+    try { content = await callAnthropicChat(env.ANTHROPIC_API_KEY, systemPrompt, userPayload, 0.1); }
+    catch (error) { lastError = error; }
+  }
+  if (!content) throw new Error(`All interpretation providers failed: ${String(lastError)}`);
+  return content.trim().replace(/^```json\s*/i, "").replace(/```$/i, "").trim();
+}
 
 async function handleText(request, env) {
   let payload;

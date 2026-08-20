@@ -23,6 +23,41 @@ async function parseJson(response) {
 
 const originalFetch = globalThis.fetch;
 
+test('POST /interpret separates shared evidence, independent options, history and uncertainty', async (t) => {
+  const transcript = 'Standing pressure is 2.5 bar. Option one retains the combi. Option two uses a system boiler and accumulator. The old system was powerflushed. The hand flute term is unclear.';
+  let modelInput;
+  globalThis.fetch = async (_url, options) => {
+    const request = JSON.parse(options.body);
+    const combined = request.contents[0].parts[0].text;
+    modelInput = JSON.parse(combined.slice(combined.lastIndexOf('\n\n') + 2));
+    return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify({
+      sharedFacts: [{ category: 'Water test', text: 'Standing pressure is 2.5 bar.' }],
+      options: [
+        { title: 'Retain combi', status: 'preferred', facts: [{ category: 'Boiler', text: 'Retain the combi.' }] },
+        { title: 'System boiler', status: 'viable', facts: [{ category: 'Boiler', text: 'Use a system boiler and accumulator.' }] }
+      ],
+      rejectedAlternatives: [],
+      uncertainties: [{ text: 'hand flute', context: 'Unclear recognised component term.' }],
+      historicalFacts: [{ category: 'System history', text: 'The old system was powerflushed.' }]
+    }) }] } }] }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  };
+  t.after(() => { globalThis.fetch = originalFetch; });
+
+  const response = await worker.fetch(new Request('https://example.com/interpret', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ transcript, capturedEvidence: '[WATER PRESSURE AND FLOW]\n- Garden tap — standing 2.5 bar' })
+  }), { GEMINI_API_KEY: 'test-key' }, {});
+  assert.equal(response.status, 200);
+  const body = await parseJson(response);
+  assert.deepEqual(body.options.map(option => option.id), ['option-1', 'option-2']);
+  assert.equal(body.options[0].facts[0].text, 'Retain the combi.');
+  assert.equal(body.options[1].facts[0].text, 'Use a system boiler and accumulator.');
+  assert.equal(body.historicalFacts[0].text, 'The old system was powerflushed.');
+  assert.equal(body.uncertainties[0].text, 'hand flute');
+  assert.equal(modelInput.transcript, transcript);
+  assert.match(modelInput.capturedEvidence, /Garden tap/);
+});
+
 test('POST /text forwards structured payload and normalises model output', async (t) => {
   const transcript = 'Replace existing boiler and mention Hive smart control.';
   let receivedRequestBody;
@@ -218,4 +253,3 @@ test('POST /text removes absence notes and keeps headed bullets', async (t) => {
   assert.equal(future.naturalLanguage, '');
   assert.equal('customerSummary' in body, false);
 });
-

@@ -136,12 +136,15 @@ export async function handleSpecCheckTransfer(request, env, url = new URL(reques
     const bytes = await request.arrayBuffer();
     if (!bytes.byteLength || bytes.byteLength > MAX_PHOTO_BYTES) return json({ error: 'invalid_photo_size' }, 413);
     const photoId = photoMatch[2];
+    const rowId = `${visit.id}:${photoId}`;
     const key = `${visit.user_id}/${visit.id}/${photoId}`;
     await env.VISIT_BUCKET.put(key, bytes, { httpMetadata: { contentType } });
     await env.DB.prepare(`INSERT INTO speccheck_photos
-      (id, visit_id, user_id, r2_key, content_type, caption, subject, byte_count, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-      .bind(photoId, visit.id, visit.user_id, key, contentType,
+      (id, source_id, visit_id, user_id, r2_key, content_type, caption, subject, byte_count, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET content_type=excluded.content_type, caption=excluded.caption,
+        subject=excluded.subject, byte_count=excluded.byte_count, created_at=excluded.created_at`)
+      .bind(rowId, photoId, visit.id, visit.user_id, key, contentType,
         request.headers.get('X-Photo-Caption'), request.headers.get('X-Photo-Subject'), bytes.byteLength,
         new Date().toISOString()).run();
     return json({ id: photoId, stored: true }, 201);
@@ -151,7 +154,7 @@ export async function handleSpecCheckTransfer(request, env, url = new URL(reques
     const user = await pwaUser(request, env);
     if (!user || !env.VISIT_BUCKET) return json({ error: 'unauthorised' }, 401);
     const photo = await env.DB.prepare(`SELECT r2_key, content_type FROM speccheck_photos
-      WHERE id = ? AND visit_id = ? AND user_id = ?`).bind(photoMatch[2], photoMatch[1], user.userId).first();
+      WHERE source_id = ? AND visit_id = ? AND user_id = ?`).bind(photoMatch[2], photoMatch[1], user.userId).first();
     if (!photo) return json({ error: 'photo_not_found' }, 404);
     const object = await env.VISIT_BUCKET.get(photo.r2_key);
     if (!object) return json({ error: 'photo_not_found' }, 404);
@@ -177,7 +180,7 @@ export async function handleSpecCheckTransfer(request, env, url = new URL(reques
       FROM speccheck_visits WHERE id = ? AND user_id = ? AND expires_at > ?`)
       .bind(visitMatch[1], user.userId, new Date().toISOString()).first();
     if (!row) return json({ error: 'visit_not_found' }, 404);
-    const photos = await env.DB.prepare(`SELECT id, caption, subject, content_type, byte_count
+    const photos = await env.DB.prepare(`SELECT source_id AS id, caption, subject, content_type, byte_count
       FROM speccheck_photos WHERE visit_id = ? ORDER BY created_at`).bind(row.id).all();
     return json({ ...row, payload: JSON.parse(row.payload_json), payload_json: undefined, photos: photos.results || [] });
   }

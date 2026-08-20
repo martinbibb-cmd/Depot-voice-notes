@@ -36,20 +36,22 @@
     <div id="captureStatus" class="status"></div><div id="captures"></div>
     <h3>Transcript</h3><textarea id="transcript" placeholder="The complete transcript appears here. You can correct recognition errors before drafting."></textarea>
     <div id="capturedEvidence" class="source hidden"></div><div id="photoGallery" class="photos"></div>
+    <div class="row no-print" style="margin-top:10px"><button id="savePhotosBtn" disabled>Save all photos to device</button></div>
     <div class="row no-print" style="margin-top:14px"><label><input id="textFile" type="file" accept="text/plain,.txt" hidden><button type="button" id="importTextBtn">Import text transcript</button></label><button class="primary" id="draftBtn">AI check survey</button></div>
   </section>
 
   <section id="checkStep" class="hidden">
     <h2>AI check against transcript</h2><p class="hint">AI reconciles the chronological conversation first: later supported decisions replace earlier guesses, while unresolved alternatives remain visible.</p>
     <div id="aiCheckStatus" class="status"></div>
-    <div class="compare"><div><h3>Source transcript</h3><div id="checkTranscript" class="source"></div></div><div><h3>Supported survey information</h3><div id="checkNotes"></div></div></div>
-    <div class="row no-print"><button id="backCapture">Back to transcript</button><button class="primary" id="useCheckedBtn" disabled>Create editable draft</button></div>
+    <div class="compare"><div><h3>Source transcript</h3><div id="checkTranscript" class="source"></div></div><div><h3>Canonical interpretation</h3><div id="checkNotes"></div></div></div>
+    <div id="optionActions" class="row no-print"></div>
+    <div class="row no-print"><button id="backCapture">Back to transcript</button></div>
   </section>
 
   <section id="draftStep" class="hidden">
-    <h2>Draft installation notes</h2><p class="hint">The AI-checked survey information is now editable. Remove anything irrelevant or ask AI to clarify wording against the source.</p>
+    <h2>Draft installation notes</h2><p class="hint">The AI-checked survey information is editable. Ask AI to add detail, correct or clarify wording against the source; the copy-over sections stay in their fixed order.</p>
     <div id="draftStatus" class="status"></div><div id="notes"></div>
-    <div class="row no-print"><button id="backCheck">Back to AI check</button><button class="primary" id="handoverBtn">Create handover</button></div>
+    <div class="row no-print"><button id="backCheck">Back to interpretation</button><button id="downloadNotesBtn">Download option notes</button><button class="primary" id="handoverBtn">Create handover</button></div>
   </section>
 
   <section id="handoverStep" class="hidden">

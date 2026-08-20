@@ -4,6 +4,9 @@ const WORKER = 'https://depot-voice-notes.martinbibb.workers.dev';
 const $ = id => document.getElementById(id);
 let notes = [];
 let surveyPhotos = [];
+let interpretation = null;
+let selectedOption = null;
+const optionDrafts = new Map();
 
 if (!getAuthToken()) location.href = 'login.html';
 
@@ -70,33 +73,80 @@ async function loadPhotos(visitId, photos) {
   for (const photo of photos) {
     const response = await fetch(`${WORKER}/spec-check/visits/${visitId}/photos/${photo.id}`, { headers: authHeaders(false) });
     if (!response.ok) continue;
+    const blob = await response.blob();
     const figure = document.createElement('figure'); const image = document.createElement('img'); const caption = document.createElement('figcaption');
-    image.src = URL.createObjectURL(await response.blob()); image.alt = photo.caption || photo.subject || 'Survey photo'; caption.textContent = photo.caption || photo.subject || '';
-    surveyPhotos.push({ image, src: image.src, caption: photo.caption || photo.subject || '', subject: photo.subject || 'Site photograph' });
-    figure.append(image, caption); $('photoGallery').append(figure);
+    image.src = URL.createObjectURL(blob); image.alt = photo.caption || photo.subject || 'Survey photo'; caption.textContent = photo.caption || photo.subject || '';
+    const saved = { image, blob, src: image.src, caption: photo.caption || photo.subject || '', subject: photo.subject || 'Site photograph' };
+    surveyPhotos.push(saved);
+    const save = document.createElement('a'); save.href = image.src; save.download = photoFilename(saved, surveyPhotos.length); save.textContent = 'Save photo'; save.className = 'no-print';
+    figure.append(image, caption, save); $('photoGallery').append(figure);
   }
+  $('savePhotosBtn').disabled = surveyPhotos.length === 0;
 }
 
 const expectedSections = ['Needs','System characteristics','New boiler and controls','Flue','Pipe work','Restrictions to work','Disruption','Customer actions','Future plans','Office notes'];
+const sectionPosition = new Map(expectedSections.map((name, index) => [name.toLowerCase(), index]));
+function orderedNotes(source) {
+  return [...source].sort((left, right) => {
+    const leftIndex = sectionPosition.get(String(left.name || '').toLowerCase()) ?? expectedSections.length;
+    const rightIndex = sectionPosition.get(String(right.name || '').toLowerCase()) ?? expectedSections.length;
+    return leftIndex - rightIndex;
+  });
+}
 async function aiCheck() {
   const transcript = $('transcript').value.trim(); if (!transcript) return status('Add or open a transcript first.', true);
   show(2);
   $('checkTranscript').textContent = [$('transcript').value, $('capturedEvidence').textContent].filter(Boolean).join('\n\n');
   $('checkNotes').replaceChildren();
-  $('useCheckedBtn').disabled = true;
+  $('optionActions').replaceChildren();
   $('aiCheckStatus').className = 'status';
   $('aiCheckStatus').textContent = 'Checking the complete transcript and reconciling the latest supported survey state…';
   try {
     const captured = $('capturedEvidence').textContent.trim();
+    interpretation = await api('/interpret', { method: 'POST', body: JSON.stringify({ transcript, capturedEvidence: captured }) });
+    renderInterpretation();
+    $('aiCheckStatus').textContent = `${interpretation.options.length} independent proposal option${interpretation.options.length === 1 ? '' : 's'} identified.`;
+  } catch (error) { $('aiCheckStatus').textContent = error.message; $('aiCheckStatus').className = 'status error'; }
+}
+function renderInterpretation() {
+  const container = $('checkNotes'); container.replaceChildren();
+  const group = (title, items, value = item => item.text) => {
+    if (!items?.length) return;
+    const card = document.createElement('div'); card.className = 'note';
+    const heading = document.createElement('strong'); heading.textContent = title;
+    const body = document.createElement('div'); body.className = 'copybox'; body.textContent = items.map(item => `• ${value(item)}`).join('\n');
+    card.append(heading, body); container.append(card);
+  };
+  group('Shared facts', interpretation.sharedFacts);
+  interpretation.options.forEach((option, index) => group(`Option ${index + 1}: ${option.title} (${option.status})`, option.facts));
+  group('Historical only', interpretation.historicalFacts);
+  group('Rejected or compromised', interpretation.rejectedAlternatives, item => [item.text, item.reason].filter(Boolean).join(' — '));
+  group('Uncertain evidence', interpretation.uncertainties, item => [item.text, item.context].filter(Boolean).join(' — '));
+  const actions = $('optionActions'); actions.replaceChildren();
+  interpretation.options.forEach((option, index) => {
+    const button = document.createElement('button'); button.className = index === 0 ? 'primary' : '';
+    button.textContent = `Generate Option ${index + 1} notes`;
+    button.onclick = () => generateOption(option, index);
+    actions.append(button);
+  });
+}
+async function generateOption(option, index) {
+  selectedOption = { ...option, number: index + 1 };
+  if (optionDrafts.has(option.id)) {
+    notes = structuredClone(optionDrafts.get(option.id)); beginDraft(); return;
+  }
+  $('aiCheckStatus').textContent = `Writing Option ${index + 1} from the canonical interpretation…`;
+  try {
+    const evidence = { sharedFacts: interpretation.sharedFacts, selectedProposal: option,
+      historicalFacts: interpretation.historicalFacts, uncertainties: interpretation.uncertainties };
     const result = await api('/text', { method: 'POST', body: JSON.stringify({
-      transcript: [transcript, captured].filter(Boolean).join('\n\n'), expectedSections,
+      transcript: JSON.stringify(evidence), expectedSections,
       depotSections: expectedSections.map(name => ({ name })), forceStructured: true, checklistItems: [],
-      depotNotesInstructions: 'Create terse installation handover notes explaining the work directly, for example: Replace existing regular boiler in the same location. One supported fact, route, instruction, constraint or customer agreement per bullet. The chronological transcript is immutable source evidence: preserve every number, unit, direction, component and brand exactly. CAPTURED FACTS are only a secondary index and may contain stale machine-generated candidates from an older app build: discard any that are not independently supported by the transcript or a direct measurement/note, and always prefer the latest supported transcript state where they conflict. Represent the latest explicitly supported state. Remove superseded guesses, rejected brands and search-state hypotheses. Keep genuinely unresolved matters explicit. Exclude sales conversation, pricing, analogies, explanations, catalogue/reference knowledge and manufacturer opinion. Never invent or silently correct a brand, component, measurement, customer agreement or technical conclusion. Do not use Coming out, Going in, Involved or Agreed headings.'
+      depotNotesInstructions: 'Write terse installation handover notes for selectedProposal only. SharedFacts may be used where relevant. HistoricalFacts are context only and must not become proposed work. Preserve uncertainties explicitly. Do not introduce another proposal, rejected alternative, recommendation, measurement, brand or component. Explain the work directly; do not use Coming out, Going in, Involved or Agreed headings.'
     }) });
-    notes = (result.sections || []).filter(section => (section.plainText || section.naturalLanguage || '').trim()).map(section => ({ name: section.section, text: bullets(section.plainText || section.naturalLanguage) }));
-    renderReadOnly($('checkNotes'), notes, false);
-    $('aiCheckStatus').textContent = `${notes.length} supported sections extracted and reconciled against the transcript.`;
-    $('useCheckedBtn').disabled = notes.length === 0;
+    notes = orderedNotes((result.sections || []).filter(section => (section.plainText || section.naturalLanguage || '').trim())
+      .map(section => ({ name: section.section, text: bullets(section.plainText || section.naturalLanguage) })));
+    optionDrafts.set(option.id, structuredClone(notes)); beginDraft();
   } catch (error) { $('aiCheckStatus').textContent = error.message; $('aiCheckStatus').className = 'status error'; }
 }
 function bullets(text) { return text.replace(/# Involved #;?/gi, '').split(/;|\n/).map(x => x.replace(/^[-•]\s*/, '').trim()).filter(Boolean).map(x => `• ${x}`).join('\n'); }
@@ -104,8 +154,10 @@ function renderEditableNotes() {
   $('notes').replaceChildren(); notes.forEach((note, index) => {
     const card = document.createElement('div'); card.className = 'note';
     const head = document.createElement('div'); head.className = 'note-head'; const title = document.createElement('strong'); title.textContent = note.name;
-    const remove = document.createElement('button'); remove.textContent = 'Remove'; remove.onclick = () => { notes.splice(index, 1); renderEditableNotes(); };
-    const area = document.createElement('textarea'); area.value = note.text; area.oninput = () => note.text = area.value;
+    const area = document.createElement('textarea'); area.value = note.text; area.oninput = () => {
+      note.text = area.value;
+      if (selectedOption) optionDrafts.set(selectedOption.id, structuredClone(notes));
+    };
     const promptRow = document.createElement('div'); promptRow.className = 'row'; promptRow.style.marginTop = '8px';
     const prompt = document.createElement('input'); prompt.placeholder = 'Ask AI: add detail, correct this, or clarify wording'; prompt.style.flex = '1';
     const improve = document.createElement('button'); improve.textContent = 'Improve';
@@ -118,21 +170,22 @@ function renderEditableNotes() {
           instructions: `${prompt.value.trim()}\n\nUse only facts supported by this source evidence. Preserve all numbers, units, directions, uncertainty and chosen/rejected status exactly. SOURCE EVIDENCE:\n${$('transcript').value}\n${$('capturedEvidence').textContent}`
         }) });
         note.text = bullets(result.plainText || result.naturalLanguage || note.text); area.value = note.text; prompt.value = '';
+        if (selectedOption) optionDrafts.set(selectedOption.id, structuredClone(notes));
       } catch (error) { $('draftStatus').textContent = error.message; }
       finally { improve.disabled = false; improve.textContent = 'Improve'; }
     };
-    promptRow.append(prompt, improve); head.append(title, remove); card.append(head, area, promptRow); $('notes').append(card);
+    promptRow.append(prompt, improve); head.append(title); card.append(head, area, promptRow); $('notes').append(card);
   });
 }
 function beginDraft() {
-  notes = notes.filter(note => note.text.trim());
+  notes = orderedNotes(notes.filter(note => note.text.trim()));
   renderEditableNotes();
   $('draftStatus').className = 'status';
-  $('draftStatus').textContent = `${notes.length} AI-checked sections ready to edit.`;
+  $('draftStatus').textContent = `Option ${selectedOption?.number || ''}: ${selectedOption?.title || ''} — ${notes.length} sections ready to edit.`;
   show(3);
 }
 function renderReadOnly(container, source, copy = true) {
-  container.replaceChildren(); const placedPhotos = new Set(); source.forEach(note => {
+  container.replaceChildren(); const placedPhotos = new Set(); orderedNotes(source).forEach(note => {
     const card = document.createElement('div'); card.className = 'note'; const head = document.createElement('div'); head.className = 'note-head';
     const title = document.createElement('strong'); title.textContent = note.name; head.append(title);
     const depotText = depotCopyText(note.text);
@@ -176,6 +229,7 @@ function handover() {
 }
 async function anotherSurvey() {
   notes = [];
+  interpretation = null; selectedOption = null; optionDrafts.clear();
   $('transcript').value = '';
   $('capturedEvidence').textContent = '';
   $('capturedEvidence').classList.add('hidden');
@@ -189,12 +243,30 @@ async function anotherSurvey() {
   });
   $('photoGallery').replaceChildren();
   surveyPhotos = [];
-  $('useCheckedBtn').disabled = true;
+  $('optionActions').replaceChildren();
   $('aiCheckStatus').textContent = '';
   $('draftStatus').textContent = '';
   show(1);
   status('Looking for another SpecCheck survey…');
   await refresh();
+}
+function photoFilename(photo, index) {
+  const safe = `${photo.subject}-${photo.caption}`.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase();
+  return `${String(index).padStart(2, '0')}-${safe || 'site-photo'}.jpg`;
+}
+async function saveAllPhotos() {
+  const files = surveyPhotos.map((photo, index) => new File([photo.blob], photoFilename(photo, index + 1), { type: photo.blob.type || 'image/jpeg' }));
+  if (navigator.canShare?.({ files })) { await navigator.share({ files, title: 'SpecCheck survey photographs' }); return; }
+  for (const photo of surveyPhotos) {
+    const link = document.createElement('a'); link.href = photo.src; link.download = photoFilename(photo, surveyPhotos.indexOf(photo) + 1); link.click();
+  }
+}
+function downloadOptionNotes() {
+  const text = orderedNotes(notes).map(note => `${note.name.toUpperCase()}\n${depotCopyText(note.text)}`).join('\n\n');
+  const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+  const link = document.createElement('a'); link.href = URL.createObjectURL(blob);
+  link.download = `option-${selectedOption?.number || 1}-depot-notes.txt`; link.click();
+  setTimeout(() => URL.revokeObjectURL(link.href), 1000);
 }
 async function printOnly(id, title) {
   const jsPDF = window.jspdf?.jsPDF;
@@ -245,9 +317,11 @@ async function addPhotoToPDF(doc, photo, y) {
 
 $('pairBtn').onclick = () => pair().catch(error => status(error.message, true)); $('refreshBtn').onclick = refresh;
 $('importTextBtn').onclick = () => $('textFile').click(); $('textFile').onchange = async event => { const file = event.target.files[0]; if (file) $('transcript').value = await file.text(); };
-$('draftBtn').onclick = aiCheck; $('useCheckedBtn').onclick = beginDraft; $('handoverBtn').onclick = handover;
+$('draftBtn').onclick = aiCheck; $('handoverBtn').onclick = handover;
 $('backCapture').onclick = () => show(1); $('backCheck').onclick = () => show(2); $('backDraft').onclick = () => show(3);
 $('anotherSurvey').onclick = () => anotherSurvey().catch(error => status(error.message, true));
+$('savePhotosBtn').onclick = () => saveAllPhotos().catch(error => status(error.message, true));
+$('downloadNotesBtn').onclick = downloadOptionNotes;
 $('printCustomer').onclick = () => printOnly('customerDocument', 'Customer summary'); $('printEngineer').onclick = () => printOnly('engineerDocument', 'Engineer works');
 $('logoutBtn').onclick = () => { clearAuthToken(); location.href = 'login.html'; };
 refresh();

@@ -432,7 +432,8 @@ function downloadOptionNotes() {
 }
 async function printOnly(id, title) {
   const jsPDF = window.jspdf?.jsPDF;
-  if (!jsPDF) { alert('PDF support has not loaded. Check the connection and try again.'); return; }
+  if (!jsPDF) throw new Error('The local PDF component did not load. Close and reopen the PWA, then try again.');
+  $('handoverStatus').className = 'status'; $('handoverStatus').textContent = `Creating ${title.toLowerCase()}…`;
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
   let y = 18; doc.setFont('helvetica', 'bold'); doc.setFontSize(18); doc.text(title, 16, y); y += 11;
   const source = id === 'customerDocument'
@@ -456,7 +457,8 @@ async function printOnly(id, title) {
     if (id === 'engineerDocument') {
       for (let index = 0; index < surveyPhotos.length; index += 1) {
         if (photoSection(surveyPhotos[index].subject) === note.name) {
-          y = await addPhotoToPDF(doc, surveyPhotos[index], y); placedPhotos.add(index);
+          try { y = await addPhotoToPDF(doc, surveyPhotos[index], y); placedPhotos.add(index); }
+          catch (error) { console.warn('Photo omitted from PDF', error); }
         }
       }
     }
@@ -466,15 +468,28 @@ async function printOnly(id, title) {
     if (remaining.length) {
       if (y > 260) { doc.addPage(); y = 18; }
       doc.setFont('helvetica', 'bold'); doc.setFontSize(12); doc.text('Other site photographs', 16, y); y += 7;
-      for (const photo of remaining) y = await addPhotoToPDF(doc, photo, y);
+      for (const photo of remaining) { try { y = await addPhotoToPDF(doc, photo, y); } catch (error) { console.warn('Photo omitted from PDF', error); } }
     }
     if (surveyRooms.length) {
       if (y > 250) { doc.addPage(); y = 18; }
       doc.setFont('helvetica', 'bold'); doc.setFontSize(12); doc.text('Captured rooms and routes', 16, y); y += 7;
-      for (const room of surveyRooms) y = await addRoomToPDF(doc, room, y);
+      for (const room of surveyRooms) { try { y = await addRoomToPDF(doc, room, y); } catch (error) { console.warn('Room plan omitted from PDF', error); } }
     }
   }
-  doc.save(`${title.toLowerCase().replace(/\s+/g, '-')}.pdf`);
+  await deliverPDF(doc, `${title.toLowerCase().replace(/\s+/g, '-')}.pdf`, title);
+  $('handoverStatus').textContent = `${title} is ready to save, print or share.`;
+}
+async function deliverPDF(doc, filename, title) {
+  const blob = doc.output('blob');
+  const file = new File([blob], filename, { type: 'application/pdf' });
+  if (navigator.canShare?.({ files: [file] })) {
+    try { await navigator.share({ files: [file], title }); return; }
+    catch (error) { if (error?.name === 'AbortError') return; }
+  }
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a'); link.href = url; link.download = filename; link.rel = 'noopener';
+  document.body.append(link); link.click(); link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 async function addRoomToPDF(doc, room, y) {
   const figure = roomFigure(room), svg = figure.querySelector('svg');
@@ -511,6 +526,7 @@ $('writeOptionBtn').onclick = () => generateOption().catch(error => $('confirmat
 $('anotherSurvey').onclick = () => anotherSurvey().catch(error => status(error.message, true));
 $('savePhotosBtn').onclick = () => saveAllPhotos().catch(error => status(error.message, true));
 $('downloadNotesBtn').onclick = downloadOptionNotes;
-$('printCustomer').onclick = () => printOnly('customerDocument', 'Your heating installation'); $('printEngineer').onclick = () => printOnly('engineerDocument', 'Engineer installation handover');
+$('printCustomer').onclick = () => printOnly('customerDocument', 'Your heating installation').catch(error => { $('handoverStatus').className = 'status error'; $('handoverStatus').textContent = `Customer PDF failed: ${error.message}`; });
+$('printEngineer').onclick = () => printOnly('engineerDocument', 'Engineer installation handover').catch(error => { $('handoverStatus').className = 'status error'; $('handoverStatus').textContent = `Engineer PDF failed: ${error.message}`; });
 $('logoutBtn').onclick = () => { clearAuthToken(); location.href = 'login.html'; };
 refresh();

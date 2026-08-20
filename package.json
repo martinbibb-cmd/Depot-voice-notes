@@ -4,7 +4,8 @@
   "type": "module",
   "dependencies": {
     "@tsndr/cloudflare-worker-jwt": "^2.2.1",
-    "bcryptjs": "^2.4.3"
+    "bcryptjs": "^2.4.3",
+    "jspdf": "^4.2.1"
   },
   "scripts": {
     "test": "node --test"

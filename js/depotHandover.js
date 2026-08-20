@@ -296,12 +296,16 @@ async function handover() {
   try {
     const confirmedItems = confirmedChecklistItems(optionChecklists.get(selectedOption.id));
     const relevantWantsNeeds = interpretation.sharedFacts.filter(item => /want|need|preference|priority|customer/i.test(item.category || ''));
+    const technicalUncertainties = interpretation.uncertainties.filter(item => {
+      const text = String(item.text || '').replace(/\[INAUDIBLE\]/gi, '').trim();
+      return text.length >= 10 && !/^unclear statement/i.test(String(item.context || ''));
+    });
     handoverDocuments = await api('/handover-documents', { method: 'POST', body: JSON.stringify({
       sharedFacts: interpretation.sharedFacts,
       selectedProposal: selectedOption,
       relevantWantsNeeds,
       confirmedChecklistItems: confirmedItems,
-      uncertainties: interpretation.uncertainties,
+      uncertainties: technicalUncertainties,
       surveyorEditedNotes: notes
     }) });
     const customerSource = handoverDocuments.customer.map(section => ({ name: section.heading, text: section.text }));

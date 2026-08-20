@@ -321,10 +321,14 @@ async function handleHandoverDocuments(request, env) {
   }
   const systemPrompt = `Create two distinct documents from a confirmed heating-survey proposal.
 Use only the supplied canonical facts, selected proposal, confirmed checklist items, surveyor-edited notes and uncertainties. Never introduce another option or infer unchecked enabling work.
+Treat each supplied fact as atomic. Do not combine an existing-system size/material/value with proposed work unless the selected proposal explicitly makes that connection.
+Do not add generic good-practice statements, manufacturer-instruction wording, efficiency/comfort benefits, access requests, preparation, system shutdown, or on-site checks merely because they are normally sensible.
 
 CUSTOMER DOCUMENT:
 - Friendly, calm and reassuring plain English.
 - Explain what is proposed, why it was specified from the customer's recorded wants/needs and property facts, what disruption to expect, and only confirmed preparation.
+- "Why" may use only relevantWantsNeeds or a selectedProposal fact that explicitly states its purpose/rationale. Do not reuse an unrelated shared existing-system fact as the rationale for proposed equipment. Do not invent a benefit or promise an improvement that the evidence does not state.
+- The Getting ready section may contain only confirmedChecklistItems whose targetSection is Customer actions, or an explicit confirmed customer action in the supplied facts/notes. If none exist, omit it.
 - Explain practical uncertainty honestly without alarming language.
 - Do not sound like a contract, quotation, compliance certificate or sales brochure.
 - Use short prose paragraphs under these headings, omitting unsupported headings: What we are proposing; Why this suits your home; What to expect during the work; Getting ready; Points still to confirm.
@@ -333,6 +337,10 @@ ENGINEER DOCUMENT:
 - Terse installation handover written for an engineer.
 - Bullet facts/instructions, not narrative prose and not the Depot/British Gas section schema.
 - Keep useful route, equipment, system, access and unresolved detail. Exclude customer sales discussion and generic explanations.
+- Preserve whether a detail describes the existing system or proposed work. Never apply an existing pipe size to a new route without explicit evidence.
+- Controls and electrical must be omitted when no specific controls/electrical work is supplied.
+- Access, enabling work, disruption and customer arrangements may use only confirmed checklist items or explicit canonical facts, never implications.
+- Unresolved points may contain only a supplied uncertainty that explicitly identifies a technical unresolved issue. Do not turn an inaudible or unclear fragment into a guessed technical problem.
 - Use these headings in this order, omitting empty ones: Job overview; Proposed installation; Pipework and routes; Controls and electrical; Access and enabling work; Disruption and customer arrangements; Unresolved points.
 - Do not turn historical work into proposed work.
 
@@ -345,12 +353,24 @@ Return only JSON:
     const engineerOrder = ["Job overview", "Proposed installation", "Pipework and routes", "Controls and electrical", "Access and enabling work", "Disruption and customer arrangements", "Unresolved points"];
     const customerMap = new Map((Array.isArray(parsed.customer) ? parsed.customer : []).map(item => [item?.heading, item]));
     const engineerMap = new Map((Array.isArray(parsed.engineer) ? parsed.engineer : []).map(item => [item?.heading, item]));
-    const customer = customerOrder.map(heading => ({ heading, text: String(customerMap.get(heading)?.text || "").trim() })).filter(item => item.text);
+    const confirmedItems = Array.isArray(payload.confirmedChecklistItems) ? payload.confirmedChecklistItems : [];
+    const suppliedUncertainties = (Array.isArray(payload.uncertainties) ? payload.uncertainties : []).filter(item => {
+      const text = String(item?.text || "").replace(/\[INAUDIBLE\]/gi, "").trim();
+      return text.length >= 10 && !/^unclear statement/i.test(String(item?.context || ""));
+    });
+    const suppliedFactsText = JSON.stringify([payload.sharedFacts, payload.selectedProposal, payload.surveyorEditedNotes]);
+    const hasCustomerPreparation = confirmedItems.some(item => item?.targetSection === "Customer actions") ||
+      (Array.isArray(payload.surveyorEditedNotes) && payload.surveyorEditedNotes.some(item => /customer actions|customer prep/i.test(item?.name || item?.section || "") && item?.text));
+    const hasUnresolved = suppliedUncertainties.length > 0 || /"category"\s*:\s*"[^"]*(unresolved|unknown|to confirm)/i.test(suppliedFactsText);
+    const hasControlsElectrical = /control|thermostat|programmer|electrical|electric|consumer unit|fused spur/i.test(suppliedFactsText);
+    const customer = customerOrder.map(heading => ({ heading, text: String(customerMap.get(heading)?.text || "").trim() }))
+      .filter(item => item.text && (item.heading !== "Getting ready" || hasCustomerPreparation) && (item.heading !== "Points still to confirm" || hasUnresolved));
     const engineer = engineerOrder.map(heading => ({
       heading,
       bullets: (Array.isArray(engineerMap.get(heading)?.bullets) ? engineerMap.get(heading).bullets : [])
         .map(value => String(value || "").trim()).filter(Boolean)
-    })).filter(item => item.bullets.length);
+    })).filter(item => item.bullets.length && (item.heading !== "Controls and electrical" || hasControlsElectrical) &&
+      (item.heading !== "Unresolved points" || hasUnresolved));
     if (!customer.length || !engineer.length) throw new Error("Handover writer returned an incomplete document");
     return jsonResponse({ customer, engineer });
   } catch (err) {

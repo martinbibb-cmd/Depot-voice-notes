@@ -105,7 +105,10 @@ test('POST /handover-documents creates friendly customer prose and ordered engin
     method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({
       sharedFacts: [{ category: 'Customer need', text: 'Improve heating circulation.' }],
       selectedProposal: { id: 'option-1', facts: [{ category: 'Boiler', text: 'Replace boiler in existing position.' }] },
-      confirmedChecklistItems: [{ text: 'Remove and refit removable boxing.', targetSection: 'Restrictions to work' }],
+      confirmedChecklistItems: [
+        { text: 'Remove and refit removable boxing.', targetSection: 'Restrictions to work' },
+        { text: 'Clear confirmed access area.', targetSection: 'Customer actions' }
+      ],
       uncertainties: []
     })
   }), { GEMINI_API_KEY: 'test-key' }, {});

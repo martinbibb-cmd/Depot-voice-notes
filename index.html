@@ -63,9 +63,10 @@
   </section>
 
   <section id="handoverStep" class="hidden">
-    <h2>Handover</h2><p class="hint">Copy individual Depot sections, or print the customer and engineer documents separately.</p>
-    <div class="row no-print"><button id="printCustomer">Save customer summary PDF</button><button id="printEngineer" class="primary">Save engineer works PDF</button></div>
-    <div id="customerDocument"><h3>Customer summary</h3><div id="customerNotes"></div></div>
+    <h2>Handover</h2><p class="hint">Two documents written for different readers: a friendly explanation for the customer and a concise technical handover for the engineer.</p>
+    <div id="handoverStatus" class="status"></div>
+    <div class="row no-print"><button id="printCustomer">Save customer document PDF</button><button id="printEngineer" class="primary">Save engineer handover PDF</button></div>
+    <div id="customerDocument"><h3>Your heating installation</h3><div id="customerNotes"></div></div>
     <div id="engineerDocument"><h3>Engineer works</h3><div id="engineerNotes"></div></div>
     <div class="row no-print"><button id="anotherSurvey" class="primary">Process another survey</button><button id="backDraft">Back to draft</button></div>
   </section>

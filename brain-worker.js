@@ -138,6 +138,10 @@ export default {
         return handleConfirmationChecklist(request, env);
       }
 
+      if (request.method === "POST" && url.pathname === "/handover-documents") {
+        return handleHandoverDocuments(request, env);
+      }
+
       if (request.method === "POST" && url.pathname === "/bug-report") {
         return handleBugReport(request, env);
       }
@@ -306,6 +310,51 @@ Return only JSON: {"items":[{"description":"concise possible work","reason":"sho
     return jsonResponse({ items });
   } catch (err) {
     console.error("handleConfirmationChecklist model error:", err);
+    return jsonResponse({ error: "model_error", message: String(err) }, 500);
+  }
+}
+
+async function handleHandoverDocuments(request, env) {
+  const payload = await request.json().catch(() => null);
+  if (!payload?.selectedProposal || !Array.isArray(payload?.sharedFacts)) {
+    return jsonResponse({ error: "bad_request", message: "confirmed proposal evidence required" }, 400);
+  }
+  const systemPrompt = `Create two distinct documents from a confirmed heating-survey proposal.
+Use only the supplied canonical facts, selected proposal, confirmed checklist items, surveyor-edited notes and uncertainties. Never introduce another option or infer unchecked enabling work.
+
+CUSTOMER DOCUMENT:
+- Friendly, calm and reassuring plain English.
+- Explain what is proposed, why it was specified from the customer's recorded wants/needs and property facts, what disruption to expect, and only confirmed preparation.
+- Explain practical uncertainty honestly without alarming language.
+- Do not sound like a contract, quotation, compliance certificate or sales brochure.
+- Use short prose paragraphs under these headings, omitting unsupported headings: What we are proposing; Why this suits your home; What to expect during the work; Getting ready; Points still to confirm.
+
+ENGINEER DOCUMENT:
+- Terse installation handover written for an engineer.
+- Bullet facts/instructions, not narrative prose and not the Depot/British Gas section schema.
+- Keep useful route, equipment, system, access and unresolved detail. Exclude customer sales discussion and generic explanations.
+- Use these headings in this order, omitting empty ones: Job overview; Proposed installation; Pipework and routes; Controls and electrical; Access and enabling work; Disruption and customer arrangements; Unresolved points.
+- Do not turn historical work into proposed work.
+
+Return only JSON:
+{"customer":[{"heading":"fixed customer heading","text":"friendly prose"}],"engineer":[{"heading":"fixed engineer heading","bullets":["concise engineer point"]}]}`;
+  try {
+    const raw = await callInterpretationProvider(env, systemPrompt, JSON.stringify(payload));
+    const parsed = JSON.parse(raw);
+    const customerOrder = ["What we are proposing", "Why this suits your home", "What to expect during the work", "Getting ready", "Points still to confirm"];
+    const engineerOrder = ["Job overview", "Proposed installation", "Pipework and routes", "Controls and electrical", "Access and enabling work", "Disruption and customer arrangements", "Unresolved points"];
+    const customerMap = new Map((Array.isArray(parsed.customer) ? parsed.customer : []).map(item => [item?.heading, item]));
+    const engineerMap = new Map((Array.isArray(parsed.engineer) ? parsed.engineer : []).map(item => [item?.heading, item]));
+    const customer = customerOrder.map(heading => ({ heading, text: String(customerMap.get(heading)?.text || "").trim() })).filter(item => item.text);
+    const engineer = engineerOrder.map(heading => ({
+      heading,
+      bullets: (Array.isArray(engineerMap.get(heading)?.bullets) ? engineerMap.get(heading).bullets : [])
+        .map(value => String(value || "").trim()).filter(Boolean)
+    })).filter(item => item.bullets.length);
+    if (!customer.length || !engineer.length) throw new Error("Handover writer returned an incomplete document");
+    return jsonResponse({ customer, engineer });
+  } catch (err) {
+    console.error("handleHandoverDocuments model error:", err);
     return jsonResponse({ error: "model_error", message: String(err) }, 500);
   }
 }

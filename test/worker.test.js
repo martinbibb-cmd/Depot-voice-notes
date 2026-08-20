@@ -83,6 +83,41 @@ test('POST /confirmation-checklist produces bounded unconfirmed proposal-specifi
   assert.match(combinedText, /above window/);
 });
 
+test('POST /handover-documents creates friendly customer prose and ordered engineer bullets', async (t) => {
+  let combinedText = '';
+  globalThis.fetch = async (_url, options) => {
+    const request = JSON.parse(options.body); combinedText = request.contents[0].parts[0].text;
+    return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify({
+      customer: [
+        { heading: 'What we are proposing', text: 'We are proposing a replacement boiler in the existing position.' },
+        { heading: 'Why this suits your home', text: 'This keeps the installation compact while improving the recorded heating problem.' },
+        { heading: 'Getting ready', text: 'Please clear the confirmed access area before the engineer arrives.' }
+      ],
+      engineer: [
+        { heading: 'Job overview', bullets: ['Replace boiler in existing position.'] },
+        { heading: 'Pipework and routes', bullets: ['Route new heating pipes behind boiler and above window.'] },
+        { heading: 'Access and enabling work', bullets: ['Remove and refit confirmed removable boxing.'] }
+      ]
+    }) }] } }] }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  };
+  t.after(() => { globalThis.fetch = originalFetch; });
+  const response = await worker.fetch(new Request('https://example.com/handover-documents', {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({
+      sharedFacts: [{ category: 'Customer need', text: 'Improve heating circulation.' }],
+      selectedProposal: { id: 'option-1', facts: [{ category: 'Boiler', text: 'Replace boiler in existing position.' }] },
+      confirmedChecklistItems: [{ text: 'Remove and refit removable boxing.', targetSection: 'Restrictions to work' }],
+      uncertainties: []
+    })
+  }), { GEMINI_API_KEY: 'test-key' }, {});
+  assert.equal(response.status, 200);
+  const body = await parseJson(response);
+  assert.deepEqual(body.customer.map(section => section.heading), ['What we are proposing', 'Why this suits your home', 'Getting ready']);
+  assert.deepEqual(body.engineer.map(section => section.heading), ['Job overview', 'Pipework and routes', 'Access and enabling work']);
+  assert.equal(body.engineer[1].bullets[0], 'Route new heating pipes behind boiler and above window.');
+  assert.match(combinedText, /not the Depot\/British Gas section schema/);
+  assert.match(combinedText, /Remove and refit removable boxing/);
+});
+
 test('POST /text forwards structured payload and normalises model output', async (t) => {
   const transcript = 'Replace existing boiler and mention Hive smart control.';
   let receivedRequestBody;

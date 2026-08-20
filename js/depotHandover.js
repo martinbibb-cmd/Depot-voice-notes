@@ -10,6 +10,7 @@ let selectedOption = null;
 const optionDrafts = new Map();
 const optionChecklists = new Map();
 let currentVisitId = null;
+let handoverDocuments = { customer: [], engineer: [] };
 
 if (!getAuthToken()) location.href = 'login.html';
 
@@ -276,9 +277,9 @@ function renderReadOnly(container, source, copy = true) {
 }
 function photoSection(subject = '') {
   const tag = subject.toLowerCase();
-  if (/boiler|user controls|system controls|electric meter|master fuse|consumer unit/.test(tag)) return 'New boiler and controls';
-  if (/manifold|cylinder|radiator|tank/.test(tag)) return 'System characteristics';
-  if (/gas meter/.test(tag)) return 'Pipe work';
+  if (/user controls|system controls|electric meter|master fuse|consumer unit/.test(tag)) return 'Controls and electrical';
+  if (/gas meter/.test(tag)) return 'Pipework and routes';
+  if (/boiler|manifold|cylinder|radiator|tank/.test(tag)) return 'Proposed installation';
   return null;
 }
 function photoFigure(photo) {
@@ -290,15 +291,29 @@ function photoFigure(photo) {
 function depotCopyText(text) {
   return text.split(/\n|;/).map(line => line.replace(/^\s*[•-]\s*/, '').trim()).filter(Boolean).map(line => `${line};`).join('\n');
 }
-function handover() {
-  const customerExcluded = /Office notes/i;
-  const customerSource = notes.filter(note => !customerExcluded.test(note.name));
-  renderReadOnly($('customerNotes'), customerSource.length ? customerSource : notes);
-  renderReadOnly($('engineerNotes'), notes); show(5);
+async function handover() {
+  show(5); $('handoverStatus').className = 'status'; $('handoverStatus').textContent = 'Writing the customer and engineer documents from confirmed information…';
+  try {
+    const confirmedItems = confirmedChecklistItems(optionChecklists.get(selectedOption.id));
+    const relevantWantsNeeds = interpretation.sharedFacts.filter(item => /want|need|preference|priority|customer/i.test(item.category || ''));
+    handoverDocuments = await api('/handover-documents', { method: 'POST', body: JSON.stringify({
+      sharedFacts: interpretation.sharedFacts,
+      selectedProposal: selectedOption,
+      relevantWantsNeeds,
+      confirmedChecklistItems: confirmedItems,
+      uncertainties: interpretation.uncertainties,
+      surveyorEditedNotes: notes
+    }) });
+    const customerSource = handoverDocuments.customer.map(section => ({ name: section.heading, text: section.text }));
+    const engineerSource = handoverDocuments.engineer.map(section => ({ name: section.heading, text: section.bullets.map(value => `• ${value}`).join('\n') }));
+    renderReadOnly($('customerNotes'), customerSource, false);
+    renderReadOnly($('engineerNotes'), engineerSource);
+    $('handoverStatus').textContent = 'Customer explanation and engineer handover are ready.';
+  } catch (error) { $('handoverStatus').className = 'status error'; $('handoverStatus').textContent = `Documents were not created: ${error.message}`; }
 }
 async function anotherSurvey() {
   notes = [];
-  interpretation = null; selectedOption = null; currentVisitId = null; optionDrafts.clear(); optionChecklists.clear();
+  interpretation = null; selectedOption = null; currentVisitId = null; handoverDocuments = { customer: [], engineer: [] }; optionDrafts.clear(); optionChecklists.clear();
   $('transcript').value = '';
   $('capturedEvidence').textContent = '';
   $('capturedEvidence').classList.add('hidden');
@@ -343,14 +358,23 @@ async function printOnly(id, title) {
   if (!jsPDF) { alert('PDF support has not loaded. Check the connection and try again.'); return; }
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
   let y = 18; doc.setFont('helvetica', 'bold'); doc.setFontSize(18); doc.text(title, 16, y); y += 11;
-  const source = id === 'customerDocument' ? notes.filter(note => !/Office notes/i.test(note.name)) : notes;
+  const source = id === 'customerDocument'
+    ? handoverDocuments.customer.map(section => ({ name: section.heading, text: section.text }))
+    : handoverDocuments.engineer.map(section => ({ name: section.heading, text: section.bullets.map(value => `• ${value}`).join('\n') }));
+  if (!source.length) { alert('Create the handover documents first.'); return; }
   const placedPhotos = new Set();
   for (const note of source) {
     if (y > 270) { doc.addPage(); y = 18; }
     doc.setFont('helvetica', 'bold'); doc.setFontSize(12); doc.text(note.name, 16, y); y += 6;
     doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
-    const lines = doc.splitTextToSize(note.text.replace(/^•\s*/gm, ''), 178);
-    for (const line of lines) { if (y > 282) { doc.addPage(); y = 18; } doc.text(line, 16, y); y += 5; }
+    const blocks = id === 'engineerDocument'
+      ? note.text.split('\n').map(line => line.replace(/^•\s*/, '').trim()).filter(Boolean).map(line => `• ${line}`)
+      : [note.text];
+    for (const block of blocks) {
+      const lines = doc.splitTextToSize(block, 178);
+      for (const line of lines) { if (y > 282) { doc.addPage(); y = 18; } doc.text(line, 16, y); y += 5; }
+      if (id === 'engineerDocument') y += 1;
+    }
     y += 3;
     if (id === 'engineerDocument') {
       for (let index = 0; index < surveyPhotos.length; index += 1) {
@@ -387,13 +411,13 @@ async function addPhotoToPDF(doc, photo, y) {
 
 $('pairBtn').onclick = () => pair().catch(error => status(error.message, true)); $('refreshBtn').onclick = refresh;
 $('importTextBtn').onclick = () => $('textFile').click(); $('textFile').onchange = async event => { const file = event.target.files[0]; if (file) { $('transcript').value = await file.text(); currentVisitId = null; interpretation = null; optionChecklists.clear(); } };
-$('draftBtn').onclick = aiCheck; $('handoverBtn').onclick = handover;
+$('draftBtn').onclick = aiCheck; $('handoverBtn').onclick = () => handover();
 $('backCapture').onclick = () => show(1); $('backInterpretation').onclick = () => show(2); $('backCheck').onclick = () => show(3); $('backDraft').onclick = () => show(4);
 $('addConfirmationBtn').onclick = () => addManualConfirmation().catch(error => $('confirmationStatus').textContent = error.message);
 $('writeOptionBtn').onclick = () => generateOption().catch(error => $('confirmationStatus').textContent = error.message);
 $('anotherSurvey').onclick = () => anotherSurvey().catch(error => status(error.message, true));
 $('savePhotosBtn').onclick = () => saveAllPhotos().catch(error => status(error.message, true));
 $('downloadNotesBtn').onclick = downloadOptionNotes;
-$('printCustomer').onclick = () => printOnly('customerDocument', 'Customer summary'); $('printEngineer').onclick = () => printOnly('engineerDocument', 'Engineer works');
+$('printCustomer').onclick = () => printOnly('customerDocument', 'Your heating installation'); $('printEngineer').onclick = () => printOnly('engineerDocument', 'Engineer installation handover');
 $('logoutBtn').onclick = () => { clearAuthToken(); location.href = 'login.html'; };
 refresh();

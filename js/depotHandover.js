@@ -323,6 +323,8 @@ function beginDraft() {
 function renderReadOnly(container, source, copy = true) {
   container.replaceChildren(); const placedPhotos = new Set(); orderedNotes(source).forEach(note => {
     const card = document.createElement('div'); card.className = 'note'; const head = document.createElement('div'); head.className = 'note-head';
+    if (note.name === 'Access and enabling work') card.classList.add('enabling');
+    if (note.name === 'Unresolved points' && !/^No (?:information|unresolved)/i.test(note.text.trim())) card.classList.add('unresolved');
     const title = document.createElement('strong'); title.textContent = note.name; head.append(title);
     const depotText = depotCopyText(note.text);
     if (copy) { const button = document.createElement('button'); button.textContent = 'Copy'; button.onclick = async () => { await navigator.clipboard.writeText(depotText); button.textContent = 'Copied'; setTimeout(() => button.textContent = 'Copy', 1200); }; head.append(button); }
@@ -357,8 +359,15 @@ function photoSection(subject = '') {
 function photoFigure(photo) {
   const figure = document.createElement('figure');
   const image = document.createElement('img'); image.src = photo.src; image.alt = photo.caption;
-  const caption = document.createElement('figcaption'); caption.textContent = `${photo.subject} — ${photo.caption}`;
+  const caption = document.createElement('figcaption'); caption.textContent = usefulPhotoCaption(photo);
   figure.append(image, caption); return figure;
+}
+function usefulPhotoCaption(photo) {
+  const subject = String(photo.subject || 'Site photograph').trim();
+  const caption = String(photo.caption || '').trim();
+  if (!caption || caption.localeCompare(subject, undefined, { sensitivity: 'accent' }) === 0) return subject;
+  if (caption.toLowerCase().startsWith(`${subject.toLowerCase()} — ${subject.toLowerCase()}`)) return caption.slice(subject.length + 3);
+  return caption.toLowerCase().startsWith(subject.toLowerCase()) ? caption : `${subject} — ${caption}`;
 }
 function depotCopyText(text) {
   return text.split(/\n|;/).map(line => line.replace(/^\s*[•-]\s*/, '').trim()).filter(Boolean).map(line => `${line};`).join('\n');
@@ -513,7 +522,7 @@ async function addPhotoToPDF(doc, photo, y) {
   canvas.getContext('2d').drawImage(photo.image, 0, 0);
   doc.addImage(canvas.toDataURL('image/jpeg', 0.88), 'JPEG', 16, y, width, height);
   y += height + 5; doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
-  const caption = doc.splitTextToSize(`${photo.subject} — ${photo.caption}`, 178);
+  const caption = doc.splitTextToSize(usefulPhotoCaption(photo), 178);
   doc.text(caption, 16, y); return y + caption.length * 4.5 + 5;
 }
 

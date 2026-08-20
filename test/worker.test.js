@@ -94,10 +94,10 @@ test('POST /handover-documents creates friendly customer prose and ordered engin
         { heading: 'Getting ready', text: 'Please clear the confirmed access area before the engineer arrives.' }
       ],
       engineer: [
-        { heading: 'Job overview', bullets: ['Replace boiler in existing position.'] },
+        { heading: 'Job overview', bullets: ['Replace boiler in existing position.', 'Use recorded controls.', 'Route flue above lintel.', 'Remove confirmed boxing.', 'This fifth overview point must be dropped.'] },
         { heading: 'Flue', bullets: ['Route flue vertically above lintel then horizontally through wall.'] },
         { heading: 'Heating, hot water and pipe routes', bullets: ['Route new heating pipes behind boiler and above window.'] },
-        { heading: 'Access and enabling work', bullets: ['Remove and refit confirmed removable boxing.'] }
+        { heading: 'Access and enabling work', bullets: ['Remove and refit confirmed removable boxing.', 'Make good where required.'] }
       ]
     }) }] } }] }), { status: 200, headers: { 'Content-Type': 'application/json' } });
   };
@@ -125,6 +125,8 @@ test('POST /handover-documents creates friendly customer prose and ordered engin
   ]);
   assert.equal(body.engineer.find(section => section.heading === 'Heating, hot water and pipe routes').bullets[0], 'Route new heating pipes behind boiler and above window.');
   assert.deepEqual(body.engineer.find(section => section.heading === 'Condensate and discharge').bullets, ['No information recorded.']);
+  assert.equal(body.engineer.find(section => section.heading === 'Job overview').bullets.length, 4);
+  assert(!body.engineer.flatMap(section => section.bullets).includes('Make good where required.'));
   assert.equal(body.customer.find(section => section.heading === 'What to expect during the work').text, 'No specific job disruption has been confirmed.');
   assert.equal(body.customer.find(section => section.heading === 'Points still to confirm').text, 'No unresolved points are currently recorded.');
   assert.match(combinedText, /not the Depot\/British Gas section schema/);

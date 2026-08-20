@@ -337,9 +337,12 @@ ENGINEER DOCUMENT:
 - Terse installation handover written for an engineer.
 - Bullet facts/instructions, not narrative prose and not the Depot/British Gas section schema.
 - Keep useful route, equipment, system, access and unresolved detail. Exclude customer sales discussion and generic explanations.
+- Job overview is a pre-start brief, not a duplicate report. Use no more than four bullets covering only the selected outcome, principal location/route and the most important confirmed access constraint. Leave dimensions and subject detail in their dedicated sections.
 - Preserve whether a detail describes the existing system or proposed work. Never apply an existing pipe size to a new route without explicit evidence.
 - Controls and electrical must say "No information recorded" when no specific controls/electrical work is supplied.
 - Access, enabling work, disruption and customer arrangements may use only confirmed checklist items or explicit canonical facts, never implications.
+- Put every confirmed floor/floorboard, furniture, boxing, drilling and other enabling item under Access and enabling work. Do not repeat it in Job overview unless it is the single most important pre-start constraint.
+- Never write "make good where required" or another open-ended making-good obligation. State the exact confirmed surface and action, or record no making-good information.
 - Unresolved points may contain only a supplied uncertainty that explicitly identifies a technical unresolved issue. Do not turn an inaudible or unclear fragment into a guessed technical problem.
 - Always return every heading in this order: Job overview; Existing system; Boiler and equipment; Flue; Condensate and discharge; Gas supply; Heating, hot water and pipe routes; Controls and electrical; Access and enabling work; Disruption and customer arrangements; Unresolved points. Use the single bullet "No information recorded." for an empty subject. Never omit a heading.
 - Flue, condensate, gas, controls and electrical are explicit installation subjects, not details to hide inside a generic section. If a confirmed checklist item says information for one is TO CONFIRM, place that point under Unresolved points rather than pretending the subject is complete.
@@ -380,7 +383,13 @@ Return only JSON:
       heading,
       bullets: (Array.isArray(engineerMap.get(heading)?.bullets) ? engineerMap.get(heading).bullets : [])
         .map(value => String(value || "").trim()).filter(Boolean)
-    })).map(item => ({ ...item, bullets: item.bullets.length ? item.bullets : ["No information recorded."] }));
+    })).map(item => {
+      let bullets = item.bullets;
+      if (item.heading === "Job overview") bullets = bullets.slice(0, 4);
+      const evidenceText = suppliedFactsText.toLowerCase();
+      bullets = bullets.filter(value => !/^make good where required\.?$/i.test(value) || evidenceText.includes("make good where required"));
+      return { ...item, bullets: bullets.length ? bullets : ["No information recorded."] };
+    });
     if (!customer.length || !engineer.length) throw new Error("Handover writer returned an incomplete document");
     return jsonResponse({ customer, engineer });
   } catch (err) {

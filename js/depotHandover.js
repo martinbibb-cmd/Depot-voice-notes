@@ -3,6 +3,7 @@ import { clearAuthToken, getAuthToken } from '../src/auth/auth-client.js';
 const WORKER = 'https://depot-voice-notes.martinbibb.workers.dev';
 const $ = id => document.getElementById(id);
 let notes = [];
+let surveyPhotos = [];
 
 if (!getAuthToken()) location.href = 'login.html';
 
@@ -64,11 +65,14 @@ async function openCapture(id) {
 }
 async function loadPhotos(visitId, photos) {
   $('photoGallery').replaceChildren();
+  surveyPhotos.forEach(photo => { if (photo.src?.startsWith('blob:')) URL.revokeObjectURL(photo.src); });
+  surveyPhotos = [];
   for (const photo of photos) {
     const response = await fetch(`${WORKER}/spec-check/visits/${visitId}/photos/${photo.id}`, { headers: authHeaders(false) });
     if (!response.ok) continue;
     const figure = document.createElement('figure'); const image = document.createElement('img'); const caption = document.createElement('figcaption');
     image.src = URL.createObjectURL(await response.blob()); image.alt = photo.caption || photo.subject || 'Survey photo'; caption.textContent = photo.caption || photo.subject || '';
+    surveyPhotos.push({ image, src: image.src, caption: photo.caption || photo.subject || '', subject: photo.subject || 'Site photograph' });
     figure.append(image, caption); $('photoGallery').append(figure);
   }
 }
@@ -128,13 +132,38 @@ function beginDraft() {
   show(3);
 }
 function renderReadOnly(container, source, copy = true) {
-  container.replaceChildren(); source.forEach(note => {
+  container.replaceChildren(); const placedPhotos = new Set(); source.forEach(note => {
     const card = document.createElement('div'); card.className = 'note'; const head = document.createElement('div'); head.className = 'note-head';
     const title = document.createElement('strong'); title.textContent = note.name; head.append(title);
     const depotText = depotCopyText(note.text);
     if (copy) { const button = document.createElement('button'); button.textContent = 'Copy'; button.onclick = async () => { await navigator.clipboard.writeText(depotText); button.textContent = 'Copied'; setTimeout(() => button.textContent = 'Copy', 1200); }; head.append(button); }
     const body = document.createElement('div'); body.className = 'copybox'; body.textContent = copy ? depotText : note.text; card.append(head, body); container.append(card);
+    if (container.id === 'engineerNotes') {
+      surveyPhotos.forEach((photo, index) => {
+        if (photoSection(photo.subject) === note.name) { container.append(photoFigure(photo)); placedPhotos.add(index); }
+      });
+    }
   });
+  if (container.id === 'engineerNotes') {
+    const remaining = surveyPhotos.filter((_, index) => !placedPhotos.has(index));
+    if (remaining.length) {
+      const heading = document.createElement('h3'); heading.textContent = 'Other site photographs'; container.append(heading);
+      remaining.forEach(photo => container.append(photoFigure(photo)));
+    }
+  }
+}
+function photoSection(subject = '') {
+  const tag = subject.toLowerCase();
+  if (/boiler|user controls|system controls|electric meter|master fuse|consumer unit/.test(tag)) return 'New boiler and controls';
+  if (/manifold|cylinder|radiator|tank/.test(tag)) return 'System characteristics';
+  if (/gas meter/.test(tag)) return 'Pipe work';
+  return null;
+}
+function photoFigure(photo) {
+  const figure = document.createElement('figure');
+  const image = document.createElement('img'); image.src = photo.src; image.alt = photo.caption;
+  const caption = document.createElement('figcaption'); caption.textContent = `${photo.subject} — ${photo.caption}`;
+  figure.append(image, caption); return figure;
 }
 function depotCopyText(text) {
   return text.split(/\n|;/).map(line => line.replace(/^\s*[•-]\s*/, '').trim()).filter(Boolean).map(line => `${line};`).join('\n');
@@ -159,6 +188,7 @@ async function anotherSurvey() {
     if (image.src.startsWith('blob:')) URL.revokeObjectURL(image.src);
   });
   $('photoGallery').replaceChildren();
+  surveyPhotos = [];
   $('useCheckedBtn').disabled = true;
   $('aiCheckStatus').textContent = '';
   $('draftStatus').textContent = '';
@@ -166,21 +196,51 @@ async function anotherSurvey() {
   status('Looking for another SpecCheck survey…');
   await refresh();
 }
-function printOnly(id, title) {
+async function printOnly(id, title) {
   const jsPDF = window.jspdf?.jsPDF;
   if (!jsPDF) { alert('PDF support has not loaded. Check the connection and try again.'); return; }
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
   let y = 18; doc.setFont('helvetica', 'bold'); doc.setFontSize(18); doc.text(title, 16, y); y += 11;
   const source = id === 'customerDocument' ? notes.filter(note => !/Office notes/i.test(note.name)) : notes;
-  source.forEach(note => {
+  const placedPhotos = new Set();
+  for (const note of source) {
     if (y > 270) { doc.addPage(); y = 18; }
     doc.setFont('helvetica', 'bold'); doc.setFontSize(12); doc.text(note.name, 16, y); y += 6;
     doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
     const lines = doc.splitTextToSize(note.text.replace(/^•\s*/gm, ''), 178);
     for (const line of lines) { if (y > 282) { doc.addPage(); y = 18; } doc.text(line, 16, y); y += 5; }
     y += 3;
-  });
+    if (id === 'engineerDocument') {
+      for (let index = 0; index < surveyPhotos.length; index += 1) {
+        if (photoSection(surveyPhotos[index].subject) === note.name) {
+          y = await addPhotoToPDF(doc, surveyPhotos[index], y); placedPhotos.add(index);
+        }
+      }
+    }
+  }
+  if (id === 'engineerDocument') {
+    const remaining = surveyPhotos.filter((_, index) => !placedPhotos.has(index));
+    if (remaining.length) {
+      if (y > 260) { doc.addPage(); y = 18; }
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(12); doc.text('Other site photographs', 16, y); y += 7;
+      for (const photo of remaining) y = await addPhotoToPDF(doc, photo, y);
+    }
+  }
   doc.save(`${title.toLowerCase().replace(/\s+/g, '-')}.pdf`);
+}
+async function addPhotoToPDF(doc, photo, y) {
+  if (!photo.image.complete) await photo.image.decode().catch(() => {});
+  if (!photo.image.naturalWidth || !photo.image.naturalHeight) return y;
+  const maxWidth = 178, maxHeight = 105;
+  const scale = Math.min(maxWidth / photo.image.naturalWidth, maxHeight / photo.image.naturalHeight);
+  const width = photo.image.naturalWidth * scale, height = photo.image.naturalHeight * scale;
+  if (y + height + 14 > 286) { doc.addPage(); y = 18; }
+  const canvas = document.createElement('canvas'); canvas.width = photo.image.naturalWidth; canvas.height = photo.image.naturalHeight;
+  canvas.getContext('2d').drawImage(photo.image, 0, 0);
+  doc.addImage(canvas.toDataURL('image/jpeg', 0.88), 'JPEG', 16, y, width, height);
+  y += height + 5; doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
+  const caption = doc.splitTextToSize(`${photo.subject} — ${photo.caption}`, 178);
+  doc.text(caption, 16, y); return y + caption.length * 4.5 + 5;
 }
 
 $('pairBtn').onclick = () => pair().catch(error => status(error.message, true)); $('refreshBtn').onclick = refresh;

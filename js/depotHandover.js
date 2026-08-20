@@ -217,6 +217,7 @@ function renderConfirmation() {
   visibleItems.forEach(item => {
     const row = document.createElement('div'); row.className = 'confirmation';
     const checkbox = document.createElement('input'); checkbox.type = 'checkbox'; checkbox.checked = Boolean(item.checked);
+    checkbox.disabled = Boolean(/Gap$/.test(item.kind || '') && item.responseOptions?.length);
     checkbox.setAttribute('aria-label', `Confirm ${item.text}`);
     checkbox.onchange = () => { item.checked = checkbox.checked; checklistChanged(); updateConfirmationStatus(state); };
     const content = document.createElement('div'); const text = document.createElement('textarea'); text.value = item.text;
@@ -225,7 +226,37 @@ function renderConfirmation() {
     const section = document.createElement('select');
     expectedSections.forEach(name => { const option = document.createElement('option'); option.textContent = name; option.value = name; section.append(option); });
     section.value = item.targetSection; section.onchange = () => { item.targetSection = section.value; checklistChanged(); };
-    content.append(text, section, reason);
+    if (/Gap$/.test(item.kind || '') && item.responseOptions?.length) {
+      const response = document.createElement('select');
+      const prompt = document.createElement('option'); prompt.value = ''; prompt.textContent = 'Choose a suggested response'; response.append(prompt);
+      item.responseOptions.forEach(value => { const choice = document.createElement('option'); choice.value = value; choice.textContent = value; response.append(choice); });
+      const manual = document.createElement('option'); manual.value = '__manual__'; manual.textContent = 'Enter manually…'; response.append(manual);
+      const matched = item.responseOptions.includes(item.text);
+      response.value = matched ? item.text : (item.checked && item.text !== item.originalText ? '__manual__' : '');
+      text.placeholder = 'Enter the confirmed survey response';
+      text.hidden = response.value !== '__manual__';
+      response.onchange = () => {
+        if (response.value === '__manual__') {
+          text.hidden = false; text.value = item.text === item.originalText ? '' : item.text; text.focus();
+          item.checked = false; checkbox.checked = false;
+        } else if (response.value) {
+          item.text = response.value; text.value = item.text; text.hidden = true;
+          item.checked = true; checkbox.checked = true;
+        } else {
+          item.text = item.originalText; text.value = item.text; text.hidden = true;
+          item.checked = false; checkbox.checked = false;
+        }
+        checklistChanged(); updateConfirmationStatus(state);
+      };
+      text.onchange = () => {
+        item.text = text.value.trim(); item.checked = Boolean(item.text); checkbox.checked = item.checked;
+        checklistChanged(); updateConfirmationStatus(state);
+      };
+      const destination = document.createElement('span'); destination.className = 'badge'; destination.textContent = item.targetSection;
+      content.append(response, text, destination, reason);
+    } else {
+      content.append(text, section, reason);
+    }
     const remove = document.createElement('button'); remove.textContent = 'Remove suggestion'; remove.onclick = () => {
       item.removed = true; item.checked = false; optionChecklists.set(selectedOption.id, state);
       renderConfirmation(); checklistChanged();

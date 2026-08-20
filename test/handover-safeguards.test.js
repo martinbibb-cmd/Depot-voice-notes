@@ -15,6 +15,7 @@ test('boiler proposal cannot look complete when flue and other core subjects are
   ] };
   const safeguards = communicationSafeguards(interpretation, proposal, []);
   assert(safeguards.some(item => item.id === 'safeguard-flue' && item.kind === 'communicationGap'));
+  assert(safeguards.find(item => item.id === 'safeguard-flue').responseOptions.includes('Reuse the existing flue route/opening.'));
   assert(safeguards.some(item => item.id === 'safeguard-flue-photo' && item.includeInNotes === false));
   assert(unresolvedSafeguards({ items: safeguards }).length >= 2);
 });
@@ -41,7 +42,8 @@ test('acknowledged photo warning remains audit-only while unresolved fact enters
 
 test('new safeguards merge without overwriting persisted surveyor choices', () => {
   const existing = { items: [{ id: 'safeguard-flue', text: 'Surveyor flue wording', checked: true }] };
-  const merged = mergeSafeguards(existing, [{ id: 'safeguard-flue', text: 'Generated wording', checked: false }, { id: 'safeguard-gas', text: 'Gas missing', checked: false }]);
+  const merged = mergeSafeguards(existing, [{ id: 'safeguard-flue', text: 'Generated wording', checked: false, responseOptions: ['Reuse route', 'Enter manually'] }, { id: 'safeguard-gas', text: 'Gas missing', checked: false }]);
   assert.equal(merged.items.find(item => item.id === 'safeguard-flue').text, 'Surveyor flue wording');
+  assert.deepEqual(merged.items.find(item => item.id === 'safeguard-flue').responseOptions, ['Reuse route', 'Enter manually']);
   assert(merged.items.some(item => item.id === 'safeguard-gas'));
 });

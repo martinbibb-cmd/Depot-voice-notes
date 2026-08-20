@@ -135,6 +135,27 @@ function handover() {
   renderReadOnly($('customerNotes'), customerSource.length ? customerSource : notes);
   renderReadOnly($('engineerNotes'), notes); show(4);
 }
+async function anotherSurvey() {
+  notes = [];
+  $('transcript').value = '';
+  $('capturedEvidence').textContent = '';
+  $('capturedEvidence').classList.add('hidden');
+  $('notes').replaceChildren();
+  $('checkTranscript').textContent = '';
+  $('checkNotes').replaceChildren();
+  $('customerNotes').replaceChildren();
+  $('engineerNotes').replaceChildren();
+  $('photoGallery').querySelectorAll('img').forEach(image => {
+    if (image.src.startsWith('blob:')) URL.revokeObjectURL(image.src);
+  });
+  $('photoGallery').replaceChildren();
+  $('verified').checked = false;
+  $('handoverBtn').disabled = true;
+  $('draftStatus').textContent = '';
+  show(1);
+  status('Looking for another SpecCheck survey…');
+  await refresh();
+}
 function printOnly(id, title) {
   const jsPDF = window.jspdf?.jsPDF;
   if (!jsPDF) { alert('PDF support has not loaded. Check the connection and try again.'); return; }
@@ -156,6 +177,7 @@ $('pairBtn').onclick = () => pair().catch(error => status(error.message, true));
 $('importTextBtn').onclick = () => $('textFile').click(); $('textFile').onchange = async event => { const file = event.target.files[0]; if (file) $('transcript').value = await file.text(); };
 $('draftBtn').onclick = draft; $('checkBtn').onclick = prepareCheck; $('verified').onchange = event => $('handoverBtn').disabled = !event.target.checked; $('handoverBtn').onclick = handover;
 $('backCapture').onclick = () => show(1); $('backDraft').onclick = () => show(2); $('backCheck').onclick = () => show(3);
+$('anotherSurvey').onclick = () => anotherSurvey().catch(error => status(error.message, true));
 $('printCustomer').onclick = () => printOnly('customerDocument', 'Customer summary'); $('printEngineer').onclick = () => printOnly('engineerDocument', 'Engineer works');
 $('logoutBtn').onclick = () => { clearAuthToken(); location.href = 'login.html'; };
 refresh();

@@ -331,17 +331,17 @@ CUSTOMER DOCUMENT:
 - The Getting ready section may contain only confirmedChecklistItems whose targetSection is Customer actions, or an explicit confirmed customer action in the supplied facts/notes. If none exist, omit it.
 - Explain practical uncertainty honestly without alarming language.
 - Do not sound like a contract, quotation, compliance certificate or sales brochure.
-- Use short prose paragraphs under these headings, omitting unsupported headings: What we are proposing; Why this suits your home; What to expect during the work; Getting ready; Points still to confirm.
+- Always return all five headings in this order: What we are proposing; Why this suits your home; What to expect during the work; Getting ready; Points still to confirm. Where nothing is confirmed, use a brief explicit statement such as "No customer preparation has been confirmed" rather than inventing content or omitting the heading.
 
 ENGINEER DOCUMENT:
 - Terse installation handover written for an engineer.
 - Bullet facts/instructions, not narrative prose and not the Depot/British Gas section schema.
 - Keep useful route, equipment, system, access and unresolved detail. Exclude customer sales discussion and generic explanations.
 - Preserve whether a detail describes the existing system or proposed work. Never apply an existing pipe size to a new route without explicit evidence.
-- Controls and electrical must be omitted when no specific controls/electrical work is supplied.
+- Controls and electrical must say "No information recorded" when no specific controls/electrical work is supplied.
 - Access, enabling work, disruption and customer arrangements may use only confirmed checklist items or explicit canonical facts, never implications.
 - Unresolved points may contain only a supplied uncertainty that explicitly identifies a technical unresolved issue. Do not turn an inaudible or unclear fragment into a guessed technical problem.
-- Use these headings in this order, omitting genuinely empty ones: Job overview; Existing system; Boiler and equipment; Flue; Condensate and discharge; Gas supply; Heating, hot water and pipe routes; Controls and electrical; Access and enabling work; Disruption and customer arrangements; Unresolved points.
+- Always return every heading in this order: Job overview; Existing system; Boiler and equipment; Flue; Condensate and discharge; Gas supply; Heating, hot water and pipe routes; Controls and electrical; Access and enabling work; Disruption and customer arrangements; Unresolved points. Use the single bullet "No information recorded." for an empty subject. Never omit a heading.
 - Flue, condensate, gas, controls and electrical are explicit installation subjects, not details to hide inside a generic section. If a confirmed checklist item says information for one is TO CONFIRM, place that point under Unresolved points rather than pretending the subject is complete.
 - Do not turn historical work into proposed work.
 
@@ -363,15 +363,24 @@ Return only JSON:
     const hasCustomerPreparation = confirmedItems.some(item => item?.targetSection === "Customer actions") ||
       (Array.isArray(payload.surveyorEditedNotes) && payload.surveyorEditedNotes.some(item => /customer actions|customer prep/i.test(item?.name || item?.section || "") && item?.text));
     const hasUnresolved = suppliedUncertainties.length > 0 || /unresolved|unknown|to confirm/i.test(suppliedFactsText);
-    const hasControlsElectrical = /control|thermostat|programmer|electrical|electric|consumer unit|fused spur/i.test(suppliedFactsText);
-    const customer = customerOrder.map(heading => ({ heading, text: String(customerMap.get(heading)?.text || "").trim() }))
-      .filter(item => item.text && (item.heading !== "Getting ready" || hasCustomerPreparation) && (item.heading !== "Points still to confirm" || hasUnresolved));
+    const customerEmptyText = {
+      "What we are proposing": "No proposed work has been recorded.",
+      "Why this suits your home": "No specific reason has been recorded.",
+      "What to expect during the work": "No specific job disruption has been confirmed.",
+      "Getting ready": "No customer preparation has been confirmed.",
+      "Points still to confirm": "No unresolved points are currently recorded."
+    };
+    const customer = customerOrder.map(heading => {
+      let text = String(customerMap.get(heading)?.text || "").trim();
+      if (heading === "Getting ready" && !hasCustomerPreparation) text = customerEmptyText[heading];
+      if (heading === "Points still to confirm" && !hasUnresolved) text = customerEmptyText[heading];
+      return { heading, text: text || customerEmptyText[heading] };
+    });
     const engineer = engineerOrder.map(heading => ({
       heading,
       bullets: (Array.isArray(engineerMap.get(heading)?.bullets) ? engineerMap.get(heading).bullets : [])
         .map(value => String(value || "").trim()).filter(Boolean)
-    })).filter(item => item.bullets.length && (item.heading !== "Controls and electrical" || hasControlsElectrical) &&
-      (item.heading !== "Unresolved points" || hasUnresolved));
+    })).map(item => ({ ...item, bullets: item.bullets.length ? item.bullets : ["No information recorded."] }));
     if (!customer.length || !engineer.length) throw new Error("Handover writer returned an incomplete document");
     return jsonResponse({ customer, engineer });
   } catch (err) {

@@ -115,9 +115,18 @@ test('POST /handover-documents creates friendly customer prose and ordered engin
   }), { GEMINI_API_KEY: 'test-key' }, {});
   assert.equal(response.status, 200);
   const body = await parseJson(response);
-  assert.deepEqual(body.customer.map(section => section.heading), ['What we are proposing', 'Why this suits your home', 'Getting ready']);
-  assert.deepEqual(body.engineer.map(section => section.heading), ['Job overview', 'Flue', 'Heating, hot water and pipe routes', 'Access and enabling work']);
-  assert.equal(body.engineer[2].bullets[0], 'Route new heating pipes behind boiler and above window.');
+  assert.deepEqual(body.customer.map(section => section.heading), [
+    'What we are proposing', 'Why this suits your home', 'What to expect during the work', 'Getting ready', 'Points still to confirm'
+  ]);
+  assert.deepEqual(body.engineer.map(section => section.heading), [
+    'Job overview', 'Existing system', 'Boiler and equipment', 'Flue', 'Condensate and discharge', 'Gas supply',
+    'Heating, hot water and pipe routes', 'Controls and electrical', 'Access and enabling work',
+    'Disruption and customer arrangements', 'Unresolved points'
+  ]);
+  assert.equal(body.engineer.find(section => section.heading === 'Heating, hot water and pipe routes').bullets[0], 'Route new heating pipes behind boiler and above window.');
+  assert.deepEqual(body.engineer.find(section => section.heading === 'Condensate and discharge').bullets, ['No information recorded.']);
+  assert.equal(body.customer.find(section => section.heading === 'What to expect during the work').text, 'No specific job disruption has been confirmed.');
+  assert.equal(body.customer.find(section => section.heading === 'Points still to confirm').text, 'No unresolved points are currently recorded.');
   assert.match(combinedText, /not the Depot\/British Gas section schema/);
   assert.match(combinedText, /Remove and refit removable boxing/);
 });

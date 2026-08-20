@@ -231,8 +231,11 @@ async function generateOption() {
       depotSections: expectedSections.map(name => ({ name })), forceStructured: true, checklistItems: [],
       depotNotesInstructions: 'Write terse installation handover notes for selectedProposal only. SharedFacts and relevantWantsNeeds may be used where relevant. Do not infer enabling, access, disruption, making-good or customer-preparation consequences from technical work during final writing. A pipe route alone is not evidence that lifting, drilling, visible pipework, boxing or decoration disturbance is confirmed. Such consequences may enter only when explicitly stated in confirmedAccessDisruptionEvidence or confirmedChecklistItems. Never include an unchecked, removed or absent suggestion. Place confirmedChecklistItems in their targetSection. HistoricalFacts are context only and must not become proposed work. Preserve uncertainties explicitly. Do not introduce another proposal, rejected alternative, recommendation, measurement, brand or component. Explain the work directly; do not use Coming out, Going in, Involved or Agreed headings.'
     }) });
-    notes = orderedNotes((result.sections || []).filter(section => (section.plainText || section.naturalLanguage || '').trim())
-      .map(section => ({ name: section.section, text: bullets(section.plainText || section.naturalLanguage) })));
+    const generatedBySection = new Map((result.sections || []).map(section => [section.section, section]));
+    notes = expectedSections.map(name => {
+      const section = generatedBySection.get(name);
+      return { name, text: bullets(section?.plainText || section?.naturalLanguage || '') };
+    });
     optionDrafts.set(option.id, structuredClone(notes)); beginDraft();
   } catch (error) { $('aiCheckStatus').textContent = error.message; $('aiCheckStatus').className = 'status error'; }
 }
@@ -265,7 +268,7 @@ function renderEditableNotes() {
   });
 }
 function beginDraft() {
-  notes = orderedNotes(notes.filter(note => note.text.trim()));
+  notes = orderedNotes(notes);
   renderEditableNotes();
   $('draftStatus').className = 'status';
   $('draftStatus').textContent = `Option ${selectedOption?.number || ''}: ${selectedOption?.title || ''} — ${notes.length} sections ready to edit.`;

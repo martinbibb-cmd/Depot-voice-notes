@@ -1,5 +1,6 @@
 import { clearAuthToken, getAuthToken } from '../src/auth/auth-client.js';
 import { confirmedChecklistItems, initialiseChecklist, restoreChecklists, serialiseChecklists } from './confirmationState.js';
+import { communicationSafeguards, mergeSafeguards, unresolvedSafeguards } from './handoverSafeguards.js';
 
 const WORKER = 'https://depot-voice-notes.martinbibb.workers.dev';
 const $ = id => document.getElementById(id);
@@ -157,32 +158,48 @@ async function prepareConfirmation(option, index) {
       optionChecklists.set(option.id, initialiseChecklist(optionChecklists.get(option.id), {
         proposalOptionId: option.id, generatedAt: new Date().toISOString(), items: result.items || []
       }));
-      await persistProcessingState();
     }
+    optionChecklists.set(option.id, mergeSafeguards(optionChecklists.get(option.id), communicationSafeguards(interpretation, option, surveyPhotos)));
+    await persistProcessingState();
     renderConfirmation();
   } catch (error) { $('confirmationStatus').textContent = error.message; $('confirmationStatus').className = 'status error'; }
 }
 function renderConfirmation() {
   const state = optionChecklists.get(selectedOption.id) || { items: [] };
   $('confirmationItems').replaceChildren();
-  state.items.filter(item => !item.removed).forEach(item => {
+  const visibleItems = state.items.filter(item => !item.removed).sort((left, right) => Number(/Gap$/.test(right.kind || '')) - Number(/Gap$/.test(left.kind || '')));
+  visibleItems.forEach(item => {
     const row = document.createElement('div'); row.className = 'confirmation';
     const checkbox = document.createElement('input'); checkbox.type = 'checkbox'; checkbox.checked = Boolean(item.checked);
-    checkbox.onchange = () => { item.checked = checkbox.checked; checklistChanged(); };
+    checkbox.setAttribute('aria-label', `Confirm ${item.text}`);
+    checkbox.onchange = () => { item.checked = checkbox.checked; checklistChanged(); updateConfirmationStatus(state); };
     const content = document.createElement('div'); const text = document.createElement('textarea'); text.value = item.text;
     text.onchange = () => { item.text = text.value.trim(); checklistChanged(); };
     const reason = document.createElement('small'); reason.textContent = [item.reason, item.evidenceRelation].filter(Boolean).join(' · ');
-    content.append(text, reason);
+    const section = document.createElement('select');
+    expectedSections.forEach(name => { const option = document.createElement('option'); option.textContent = name; option.value = name; section.append(option); });
+    section.value = item.targetSection; section.onchange = () => { item.targetSection = section.value; checklistChanged(); };
+    content.append(text, section, reason);
     const remove = document.createElement('button'); remove.textContent = 'Remove suggestion'; remove.onclick = () => {
       item.removed = true; item.checked = false; optionChecklists.set(selectedOption.id, state);
       renderConfirmation(); checklistChanged();
     };
-    row.append(checkbox, content, remove); $('confirmationItems').append(row);
+    row.append(checkbox, content);
+    if (!/Gap$/.test(item.kind || '')) row.append(remove);
+    $('confirmationItems').append(row);
   });
+  updateConfirmationStatus(state);
+}
+function updateConfirmationStatus(state) {
   const visible = state.items.filter(item => !item.removed);
   const checked = visible.filter(item => item.checked).length;
+  const gaps = unresolvedSafeguards(state);
   $('confirmationStatus').className = 'status';
-  $('confirmationStatus').textContent = `Option ${selectedOption.number}: ${visible.length} focused suggestions · ${checked} confirmed.`;
+  $('confirmationStatus').textContent = gaps.length
+    ? `${gaps.length} handover gap${gaps.length === 1 ? '' : 's'} must be recorded or explicitly carried forward as unresolved.`
+    : `Option ${selectedOption.number}: ${visible.length} focused items · ${checked} confirmed.`;
+  $('confirmationStatus').className = `status${gaps.length ? ' error' : ''}`;
+  $('writeOptionBtn').disabled = gaps.length > 0;
 }
 function checklistChanged() {
   if (selectedOption) optionDrafts.delete(selectedOption.id);
@@ -278,8 +295,10 @@ function renderReadOnly(container, source, copy = true) {
 function photoSection(subject = '') {
   const tag = subject.toLowerCase();
   if (/user controls|system controls|electric meter|master fuse|consumer unit/.test(tag)) return 'Controls and electrical';
-  if (/gas meter/.test(tag)) return 'Pipework and routes';
-  if (/boiler|manifold|cylinder|radiator|tank/.test(tag)) return 'Proposed installation';
+  if (/\bflue\b|terminal|plume/.test(tag)) return 'Flue';
+  if (/condensate|condensulate/.test(tag)) return 'Condensate and discharge';
+  if (/gas meter|gas pipe|gas supply/.test(tag)) return 'Gas supply';
+  if (/boiler|manifold|cylinder|radiator|tank/.test(tag)) return 'Boiler and equipment';
   return null;
 }
 function photoFigure(photo) {

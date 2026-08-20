@@ -341,7 +341,8 @@ ENGINEER DOCUMENT:
 - Controls and electrical must be omitted when no specific controls/electrical work is supplied.
 - Access, enabling work, disruption and customer arrangements may use only confirmed checklist items or explicit canonical facts, never implications.
 - Unresolved points may contain only a supplied uncertainty that explicitly identifies a technical unresolved issue. Do not turn an inaudible or unclear fragment into a guessed technical problem.
-- Use these headings in this order, omitting empty ones: Job overview; Proposed installation; Pipework and routes; Controls and electrical; Access and enabling work; Disruption and customer arrangements; Unresolved points.
+- Use these headings in this order, omitting genuinely empty ones: Job overview; Existing system; Boiler and equipment; Flue; Condensate and discharge; Gas supply; Heating, hot water and pipe routes; Controls and electrical; Access and enabling work; Disruption and customer arrangements; Unresolved points.
+- Flue, condensate, gas, controls and electrical are explicit installation subjects, not details to hide inside a generic section. If a confirmed checklist item says information for one is TO CONFIRM, place that point under Unresolved points rather than pretending the subject is complete.
 - Do not turn historical work into proposed work.
 
 Return only JSON:
@@ -350,7 +351,7 @@ Return only JSON:
     const raw = await callInterpretationProvider(env, systemPrompt, JSON.stringify(payload));
     const parsed = JSON.parse(raw);
     const customerOrder = ["What we are proposing", "Why this suits your home", "What to expect during the work", "Getting ready", "Points still to confirm"];
-    const engineerOrder = ["Job overview", "Proposed installation", "Pipework and routes", "Controls and electrical", "Access and enabling work", "Disruption and customer arrangements", "Unresolved points"];
+    const engineerOrder = ["Job overview", "Existing system", "Boiler and equipment", "Flue", "Condensate and discharge", "Gas supply", "Heating, hot water and pipe routes", "Controls and electrical", "Access and enabling work", "Disruption and customer arrangements", "Unresolved points"];
     const customerMap = new Map((Array.isArray(parsed.customer) ? parsed.customer : []).map(item => [item?.heading, item]));
     const engineerMap = new Map((Array.isArray(parsed.engineer) ? parsed.engineer : []).map(item => [item?.heading, item]));
     const confirmedItems = Array.isArray(payload.confirmedChecklistItems) ? payload.confirmedChecklistItems : [];
@@ -358,10 +359,10 @@ Return only JSON:
       const text = String(item?.text || "").replace(/\[INAUDIBLE\]/gi, "").trim();
       return text.length >= 10 && !/^unclear statement/i.test(String(item?.context || ""));
     });
-    const suppliedFactsText = JSON.stringify([payload.sharedFacts, payload.selectedProposal, payload.surveyorEditedNotes]);
+    const suppliedFactsText = JSON.stringify([payload.sharedFacts, payload.selectedProposal, payload.confirmedChecklistItems, payload.surveyorEditedNotes]);
     const hasCustomerPreparation = confirmedItems.some(item => item?.targetSection === "Customer actions") ||
       (Array.isArray(payload.surveyorEditedNotes) && payload.surveyorEditedNotes.some(item => /customer actions|customer prep/i.test(item?.name || item?.section || "") && item?.text));
-    const hasUnresolved = suppliedUncertainties.length > 0 || /"category"\s*:\s*"[^"]*(unresolved|unknown|to confirm)/i.test(suppliedFactsText);
+    const hasUnresolved = suppliedUncertainties.length > 0 || /unresolved|unknown|to confirm/i.test(suppliedFactsText);
     const hasControlsElectrical = /control|thermostat|programmer|electrical|electric|consumer unit|fused spur/i.test(suppliedFactsText);
     const customer = customerOrder.map(heading => ({ heading, text: String(customerMap.get(heading)?.text || "").trim() }))
       .filter(item => item.text && (item.heading !== "Getting ready" || hasCustomerPreparation) && (item.heading !== "Points still to confirm" || hasUnresolved));

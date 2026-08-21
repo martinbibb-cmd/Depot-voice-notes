@@ -1,0 +1,27 @@
+{
+  "sharedFacts": [
+    {"id":"s1","category":"Existing system","text":"Existing appliance is a system boiler and the boiler has failed.","evidenceQuote":"Existing appliance is a system boiler and the boiler has failed.","evidenceSource":"transcript","targetSection":"System characteristics"},
+    {"id":"s2","category":"Customer wants and needs","text":"Customer asked about a combi to remove stored-water equipment and gain cupboard or loft space, not primarily for efficiency.","evidenceQuote":"Customer asked about a combi to remove stored-water equipment and gain cupboard or loft space, not primarily for efficiency.","evidenceSource":"transcript","targetSection":"Needs"},
+    {"id":"s3","category":"Water flow","text":"Kitchen cold flow measured at approximately 10 L/min unrestricted.","evidenceQuote":"Kitchen cold flow measured at approximately 10 L/min unrestricted.","evidenceSource":"capturedEvidence","targetSection":"System characteristics"},
+    {"id":"s4","category":"Customer use","text":"Customer uses both bath and shower.","evidenceQuote":"Customer uses both bath and shower.","evidenceSource":"transcript","targetSection":"Needs"},
+    {"id":"s5","category":"Hazard observation","text":"No visual indication of historical asbestos board was observed in the outbuilding; this was not an asbestos survey.","evidenceQuote":"No visual indication of historical asbestos board was observed in the outbuilding; this was not an asbestos survey.","evidenceSource":"transcript","targetSection":"Restrictions to work"}
+  ],
+  "options": [
+    {"id":"option-combi","status":"rejected","facts":[
+      {"id":"c1","category":"Gas supply","text":"Existing gas supply is inadequate for the combi option and would require upgrading.","evidenceQuote":"Existing gas supply is inadequate for the combi option and would require upgrading.","evidenceSource":"transcript","targetSection":"Pipe work"},
+      {"id":"c2","category":"Hot water","text":"Existing shower suitability for the combi was questioned.","evidenceQuote":"Existing shower suitability for the combi was questioned.","evidenceSource":"transcript","targetSection":"Pipe work"}
+    ]},
+    {"id":"option-system","status":"preferred","facts":[
+      {"id":"p1","category":"Boiler","text":"Recommend like-for-like system-boiler replacement in the existing location, retaining stored hot water.","evidenceQuote":"Recommend like-for-like system-boiler replacement in the existing location, retaining stored hot water.","evidenceSource":"transcript","targetSection":"New boiler and controls"},
+      {"id":"p2","category":"Gas supply","text":"Existing gas supply is acceptable for the selected system-boiler replacement.","evidenceQuote":"Existing gas supply is acceptable for the selected system-boiler replacement.","evidenceSource":"transcript","targetSection":"Pipe work"},
+      {"id":"p3","category":"Boiler selection","text":"Vaillant was suggested due to quieter operation near the bedroom.","evidenceQuote":"Vaillant was suggested due to quieter operation near the bedroom.","evidenceSource":"transcript","targetSection":"New boiler and controls"},
+      {"id":"p4","category":"Controls","text":"Hive was discussed.","evidenceQuote":"Hive was discussed.","evidenceSource":"transcript","targetSection":"New boiler and controls"},
+      {"id":"p5","category":"Filter","text":"A magnetic filter was discussed.","evidenceQuote":"A magnetic filter was discussed.","evidenceSource":"transcript","targetSection":"Pipe work"},
+      {"id":"p6","category":"Condensate","text":"Condensate needs a new route following the existing gas route through the outbuilding to a garden soakaway.","evidenceQuote":"Condensate needs a new route following the existing gas route through the outbuilding to a garden soakaway.","evidenceSource":"transcript","targetSection":"Pipe work"},
+      {"id":"p7","category":"Flue","text":"Flue requires external access; scaffold is required because the sloping front garden prevents normal ladder access.","evidenceQuote":"Flue requires external access; scaffold is required because the sloping front garden prevents normal ladder access.","evidenceSource":"transcript","targetSection":"Flue"}
+    ]}
+  ],
+  "uncertainties": [
+    {"id":"u1","text":"System cleanliness and radiator condition were discussed but no definite diagnosis was established.","evidenceQuote":"System cleanliness and radiator condition were discussed but no definite diagnosis was established.","evidenceSource":"transcript","evidenceState":"uncertain","targetSection":"Office notes"}
+  ]
+}

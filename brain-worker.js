@@ -8,6 +8,7 @@ import {
   handleResetPassword
 } from './auth-handlers.js';
 import { handleSpecCheckTransfer } from './speccheck-transfer.js';
+import { buildHandoverDocuments, auditPipelineOutput, buildDepotSections, sectionForFact } from './js/pipelineInvariants.js';
 
 export default {
   async fetch(request, env, ctx) {
@@ -210,6 +211,13 @@ async function handleInterpret(request, env) {
 }
 
 async function callInterpretationModel(env, transcript, capturedEvidence) {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`interpretation-v4\0${transcript}\0${capturedEvidence}`));
+  const evidenceHash = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
+  if (env.DB) {
+    const cached = await env.DB.prepare('SELECT result_json FROM speccheck_interpretation_cache WHERE evidence_hash = ? AND expires_at > ?')
+      .bind(evidenceHash, new Date().toISOString()).first().catch(() => null);
+    if (cached?.result_json) return JSON.parse(cached.result_json);
+  }
   const systemPrompt = `You are the interpretation pass for a heating survey capture.
 Build a canonical structured account of what the chronological visit evidence establishes. Do not write Depot notes.
 
@@ -225,7 +233,7 @@ Rules:
 - Exclude irrelevant chat, sales explanation, analogies and pricing.
 - Consolidate related evidence into one current-state fact instead of fragmenting each spoken sentence into a separate fact.
 - Every fact must contain one short exact evidenceQuote copied from transcript or capturedEvidence and evidenceSource identifying which source it came from. A fact without an exact source quote will be discarded.
-- Return no more than 18 shared facts and no more than 12 facts per option.
+- Include every materially useful survey fact. Consolidate repetition, but never omit a fact merely to meet a count or length target.
 
 Return only JSON:
 {
@@ -241,7 +249,15 @@ Return only JSON:
   const normalise = value => String(value || "").toLowerCase().replace(/[\u2018\u2019]/g, "'").replace(/[\u201c\u201d]/g, '"').replace(/\s+/g, " ").trim();
   const transcriptCorpus = normalise(transcript);
   const capturedCorpus = normalise(capturedEvidence);
-  const grounded = (value, limit = 18) => {
+  const uncertaintyCue = /\b(?:about|approx(?:imately)?|around|could|may|might|likely|suggest(?:ed|ion)?|provisional|possible|questioned|reported|appears?|no visual indication|not established|unknown|uncertain|to confirm|subject to)\b/i;
+  const negationCue = /\b(?:no|not|never|cannot|can't|isn't|wasn't|without|unsuitable|inadequate)\b/i;
+  const relationshipCue = /\b(?:because|due to|therefore|so that|in order to|to gain|to free|as a result|only if|unless|subject to|if)\b/i;
+  const stableId = value => {
+    let hash = 2166136261;
+    for (const character of normalise(value)) { hash ^= character.charCodeAt(0); hash = Math.imul(hash, 16777619); }
+    return `fact-${(hash >>> 0).toString(16).padStart(8, '0')}`;
+  };
+  const grounded = value => {
     const seen = new Set();
     return cleanItems(value).map(item => {
       const evidenceSource = item.evidenceSource === "capturedEvidence" ? "capturedEvidence" : "transcript";
@@ -250,7 +266,11 @@ Return only JSON:
       const quoteNumbers = evidenceQuote.match(/\b\d+(?:\.\d+)?\b/g) || [];
       const textNumbers = text.match(/\b\d+(?:\.\d+)?\b/g) || [];
       if (textNumbers.some(number => !quoteNumbers.includes(number))) text = evidenceQuote;
-      return { ...item, text, category: String(item.category || "Survey fact").trim(), evidenceQuote, evidenceSource };
+      if (uncertaintyCue.test(evidenceQuote) && !uncertaintyCue.test(text)) text = evidenceQuote;
+      if (negationCue.test(evidenceQuote) && !negationCue.test(text)) text = evidenceQuote;
+      if (relationshipCue.test(evidenceQuote) && !relationshipCue.test(text)) text = evidenceQuote;
+      return { ...item, id: stableId(`${evidenceSource}|${evidenceQuote}`), text, category: String(item.category || "Survey fact").trim(), evidenceQuote, evidenceSource,
+        relationship: relationshipCue.test(evidenceQuote) ? { preservedInText: true, evidenceQuote } : null };
     }).filter(item => {
       const quote = normalise(item.evidenceQuote);
       if (!item.text || quote.length < 4) return false;
@@ -258,15 +278,15 @@ Return only JSON:
       const key = `${normalise(item.category)}|${normalise(item.text)}`;
       if (!corpus.includes(quote) || seen.has(key)) return false;
       seen.add(key); return true;
-    }).slice(0, limit);
+    });
   };
-  const groundedSpecial = (value, limit) => grounded(cleanItems(value).map(item => ({ ...item, category: item.category || "Survey evidence" })), limit);
+  const groundedSpecial = value => grounded(cleanItems(value).map(item => ({ ...item, category: item.category || "Survey evidence" })));
   const uncertainTerm = /\b(?:hand flute|impala in the matrix|vac fluid|valor)\b/i;
   const moveUncertain = items => {
     const safe = [], uncertain = [];
     for (const item of items) {
       if (uncertainTerm.test(`${item.text} ${item.evidenceQuote}`)) uncertain.push({
-        category: "Uncertain terminology", text: item.evidenceQuote,
+        id: stableId(`uncertain|${item.evidenceQuote}`), category: "Uncertain terminology", text: item.evidenceQuote,
         context: "The exact recognised product or component term could not be established safely.",
         evidenceQuote: item.evidenceQuote, evidenceSource: item.evidenceSource
       });
@@ -274,11 +294,11 @@ Return only JSON:
     }
     return { safe, uncertain };
   };
-  const shared = moveUncertain(grounded(parsed.sharedFacts, 18));
+  const shared = moveUncertain(grounded(parsed.sharedFacts));
   const deterministicFacts = [];
   for (const match of transcript.matchAll(/\b(15|22|28|35)\s*mm\s+gas\s+(?:pipe|supply)\b/gi)) {
     deterministicFacts.push({
-      category: "Gas supply", text: `${match[1]} mm gas pipe recorded.`,
+      id: stableId(`transcript|${match[0]}|gas`), category: "Gas supply", text: `${match[1]} mm gas pipe recorded.`,
       evidenceQuote: match[0], evidenceSource: "transcript"
     });
   }
@@ -286,11 +306,25 @@ Return only JSON:
     if (!shared.safe.some(item => /gas/i.test(`${item.category} ${item.text}`))) shared.safe.push(fact);
   }
   const optionResults = cleanItems(parsed.options).slice(0, 3).map((option, index) => {
-    const result = moveUncertain(grounded(option.facts, 12));
+    const result = moveUncertain(grounded(option.facts));
     return { option, index, ...result };
   });
+  // Conditional option requirements are not shared job facts. Move them to
+  // the one option they name, while leaving customer intent and existing-state
+  // observations shared.
+  const optionTerms = optionResults.map(result => normalise(result.safe.map(item => item.text).join(' ')));
+  shared.safe = shared.safe.filter(fact => {
+    if (/customer|want|need|prefer|priority|existing|current/i.test(`${fact.category} ${fact.text}`)) return true;
+    const factText = normalise(`${fact.text} ${fact.evidenceQuote}`);
+    const named = ['combi','system boiler','regular boiler','vaillant','worcester','glow-worm'].filter(term => factText.includes(term));
+    if (!named.length) return true;
+    const matching = optionTerms.map((text, index) => named.some(term => text.includes(term)) ? index : -1).filter(index => index >= 0);
+    if (matching.length !== 1) return true;
+    optionResults[matching[0]].safe.push(fact);
+    return false;
+  });
   const result = {
-    interpretationVersion: 2,
+    interpretationVersion: 4,
     sharedFacts: shared.safe,
     options: optionResults.map(({ option, index, safe }) => ({
       id: `option-${index + 1}`,
@@ -298,13 +332,22 @@ Return only JSON:
       status: ["preferred", "viable", "discussed"].includes(option.status) ? option.status : "discussed",
       facts: safe
     })).filter(option => option.facts.length),
-    rejectedAlternatives: groundedSpecial(parsed.rejectedAlternatives, 10),
-    uncertainties: [...groundedSpecial(parsed.uncertainties, 10), ...shared.uncertain, ...optionResults.flatMap(result => result.uncertain)].slice(0, 12),
-    historicalFacts: grounded(parsed.historicalFacts, 12)
+    rejectedAlternatives: groundedSpecial(parsed.rejectedAlternatives),
+    uncertainties: [...groundedSpecial(parsed.uncertainties), ...shared.uncertain, ...optionResults.flatMap(result => result.uncertain)],
+    historicalFacts: grounded(parsed.historicalFacts)
   };
   result.options.forEach((option, index) => {
     option.title = `Option ${index + 1} — ${option.facts[0]?.text || "Recorded proposal"}`;
   });
+  if (env.DB) {
+    const now = new Date();
+    await env.DB.batch([
+      env.DB.prepare('DELETE FROM speccheck_interpretation_cache WHERE expires_at <= ?').bind(now.toISOString()),
+      env.DB.prepare(`INSERT INTO speccheck_interpretation_cache (evidence_hash, result_json, created_at, expires_at)
+        VALUES (?, ?, ?, ?) ON CONFLICT(evidence_hash) DO UPDATE SET result_json=excluded.result_json, expires_at=excluded.expires_at`)
+        .bind(evidenceHash, JSON.stringify(result), now.toISOString(), new Date(now.getTime() + 7 * 86400000).toISOString())
+    ]).catch(() => {});
+  }
   return result;
 }
 
@@ -341,34 +384,24 @@ async function handleConfirmationChecklist(request, env) {
   if (!payload?.interpretation || !payload?.proposal) {
     return jsonResponse({ error: "bad_request", message: "interpretation and proposal required" }, 400);
   }
-  const sectionFor = item => {
-    const value = `${item?.category || ""} ${item?.text || ""}`.toLowerCase();
-    if (/customer.*(want|need|prefer|priority)|reason for change|requested outcome/.test(value)) return "Needs";
-    if (/flue|terminal|plume/.test(value)) return "Flue";
-    if (/control|thermostat|programmer|electrical|consumer unit|fused spur/.test(value)) return "New boiler and controls";
-    if (/access|restrict|hazard|floor|boxing|cupboard|furniture|drill/.test(value)) return "Restrictions to work";
-    if (/disruption|making good|visible|loss of/.test(value)) return "Disruption";
-    if (/customer action|customer prep|customer to|agreed to clear/.test(value)) return "Customer actions";
-    if (/future/.test(value)) return "Future plans";
-    if (/existing|current|pressure|flow|system type|pump|valve|cylinder|radiator.*heat/.test(value)) return "System characteristics";
-    if (/boiler|heating|hot water|gas|condensate|pipe|route|radiator|cylinder/.test(value)) return "Pipe work";
-    return "Office notes";
-  };
   try {
-    const source = [...(payload.interpretation.sharedFacts || []), ...(payload.proposal.facts || [])];
+    const uncertaintyItems = (payload.interpretation.uncertainties || []).map(item => ({ ...item, category: 'Unresolved point', evidenceState: 'uncertain' }));
+    const source = [...(payload.interpretation.sharedFacts || []), ...(payload.proposal.facts || []), ...uncertaintyItems];
     const seen = new Set();
     const items = source.filter(item => {
       const key = `${String(item?.category || "").toLowerCase()}|${String(item?.text || "").toLowerCase().replace(/\s+/g, " ").trim()}`;
       if (!item?.text || !item?.evidenceQuote || seen.has(key)) return false;
       seen.add(key); return true;
-    }).slice(0, 18).map((item, index) => ({
-      id: `generated-${index + 1}`,
+    }).map((item, index) => ({
+      id: item.id || `generated-${index + 1}`,
+      factId: item.id || `generated-${index + 1}`,
       originalText: String(item.text).trim(),
       text: String(item.text).trim(),
       reason: "Supported by captured survey evidence",
       evidenceRelation: String(item.evidenceQuote).trim(),
       evidenceSource: item?.evidenceSource === "capturedEvidence" ? "capturedEvidence" : "transcript",
-      targetSection: sectionFor(item),
+      targetSection: sectionForFact(item),
+      evidenceState: item.evidenceState || 'captured',
       checked: false,
       manual: false,
       kind: "evidenceFact"
@@ -414,9 +447,15 @@ ENGINEER DOCUMENT:
 - Flue, condensate, gas, controls and electrical are explicit installation subjects, not details to hide inside a generic section. If a confirmed checklist item says information for one is TO CONFIRM, place that point under Unresolved points rather than pretending the subject is complete.
 - Do not turn historical work into proposed work.
 
-Return only JSON:
+  Return only JSON:
 {"customer":[{"heading":"fixed customer heading","text":"friendly prose"}],"engineer":[{"heading":"fixed engineer heading","bullets":["concise engineer point"]}]}`;
   try {
+    const deterministic = buildHandoverDocuments(payload);
+    const depot = buildDepotSections(payload.confirmedChecklistItems || []);
+    const errors = auditPipelineOutput({ confirmedItems: payload.confirmedChecklistItems || [], depotSections: depot, handover: deterministic });
+    if (errors.length) return jsonResponse({ error: 'pipeline_invariant_failed', errors }, 422);
+    return jsonResponse(deterministic);
+    /* istanbul ignore next -- retired model writer retained temporarily for rollback comparison */
     const raw = await callInterpretationProvider(env, systemPrompt, JSON.stringify(payload));
     const parsed = JSON.parse(raw);
     const customerOrder = ["What we are proposing", "Why this suits your home", "What to expect during the work", "Getting ready", "Points still to confirm"];

@@ -118,18 +118,34 @@ export async function handleSpecCheckTransfer(request, env, url = new URL(reques
     const sourceVisitId = typeof payload.sourceVisitId === 'string' ? payload.sourceVisitId.toLowerCase() : null;
     const now = new Date().toISOString();
     const existing = sourceVisitId ? await env.DB.prepare(`SELECT id FROM speccheck_visits
-      WHERE user_id = ? AND device_id = ? AND source_visit_id = ?`)
-      .bind(pairedDevice.user_id, pairedDevice.id, sourceVisitId).first() : null;
+      WHERE user_id = ? AND source_visit_id = ?`)
+      .bind(pairedDevice.user_id, sourceVisitId).first() : null;
     const id = existing?.id || crypto.randomUUID();
     if (existing) {
       await env.DB.batch([
-        env.DB.prepare(`UPDATE speccheck_visits SET nickname = ?, payload_json = ?, photo_count = ?,
+        env.DB.prepare(`UPDATE speccheck_visits SET device_id = ?, nickname = ?, payload_json = ?, photo_count = ?,
           created_on_device_at = ?, created_at = ?, expires_at = ?, consumed_at = NULL, status = 'pending'
           WHERE id = ?`)
-          .bind(payload.nickname.trim().slice(0, 100), JSON.stringify(payload), Number(payload.photoCount || 0),
+          .bind(pairedDevice.id, payload.nickname.trim().slice(0, 100), JSON.stringify(payload), Number(payload.photoCount || 0),
             payload.createdAt || null, now, isoAfter(TRANSFER_LIFETIME_DAYS * 86400000), id),
-        env.DB.prepare('DELETE FROM speccheck_processing_states WHERE visit_id = ?').bind(id)
+        env.DB.prepare('DELETE FROM speccheck_processing_states WHERE visit_id = ?').bind(id),
+        env.DB.prepare(`INSERT INTO speccheck_visit_revisions
+          (id, visit_id, revision_number, payload_json, photo_count, received_at, expires_at)
+          SELECT ?, ?, COALESCE(MAX(revision_number), 0) + 1, ?, ?, ?, ?
+          FROM speccheck_visit_revisions WHERE visit_id = ?`)
+          .bind(crypto.randomUUID(), id, JSON.stringify(payload), Number(payload.photoCount || 0), now,
+            isoAfter(TRANSFER_LIFETIME_DAYS * 86400000), id)
       ]);
+      if (Array.isArray(payload.photoIds) && env.VISIT_BUCKET) {
+        const retained = new Set(payload.photoIds.map(value => String(value).toLowerCase()));
+        const prior = await env.DB.prepare('SELECT id, source_id, r2_key FROM speccheck_photos WHERE visit_id = ?').bind(id).all();
+        for (const photo of prior.results || []) {
+          if (!retained.has(String(photo.source_id).toLowerCase())) {
+            await env.VISIT_BUCKET.delete(photo.r2_key);
+            await env.DB.prepare('DELETE FROM speccheck_photos WHERE id = ?').bind(photo.id).run();
+          }
+        }
+      }
       return json({
         id, status: 'pending', replacedExistingTransfer: true,
         roomCount: Array.isArray(payload.rooms) ? payload.rooms.length : 0,
@@ -142,6 +158,11 @@ export async function handleSpecCheckTransfer(request, env, url = new URL(reques
       .bind(id, pairedDevice.user_id, pairedDevice.id, sourceVisitId, payload.nickname.trim().slice(0, 100), JSON.stringify(payload),
         Number(payload.photoCount || 0), payload.createdAt || null, now,
         isoAfter(TRANSFER_LIFETIME_DAYS * 86400000)).run();
+    await env.DB.prepare(`INSERT INTO speccheck_visit_revisions
+      (id, visit_id, revision_number, payload_json, photo_count, received_at, expires_at)
+      VALUES (?, ?, 1, ?, ?, ?, ?)`)
+      .bind(crypto.randomUUID(), id, JSON.stringify(payload), Number(payload.photoCount || 0), now,
+        isoAfter(TRANSFER_LIFETIME_DAYS * 86400000)).run().catch(() => {});
     return json({
       id, status: 'pending',
       roomCount: Array.isArray(payload.rooms) ? payload.rooms.length : 0,

@@ -1,8 +1,9 @@
 import { clearAuthToken, getAuthToken } from '../src/auth/auth-client.js';
 import { confirmedChecklistItems, restoreChecklists, serialiseChecklists } from './confirmationState.js';
-import { communicationSafeguards, mergeSafeguards, unresolvedSafeguards } from './handoverSafeguards.js';
+import { communicationSafeguards, derivedWorkSuggestions, mergeSafeguards, unresolvedSafeguards } from './handoverSafeguards.js';
 import { inferredPrimaryRequirement, pipeRequirement, suggestPackage } from './breezePackages.js';
 import { trustworthyTransferredFacts } from './transferEvidence.js';
+import { buildDepotSections, auditPipelineOutput } from './pipelineInvariants.js';
 
 const WORKER = 'https://depot-voice-notes.martinbibb.workers.dev';
 const $ = id => document.getElementById(id);
@@ -155,7 +156,7 @@ async function aiCheck() {
   $('aiCheckStatus').textContent = 'Checking the complete transcript and reconciling the latest supported survey state…';
   try {
     const captured = $('capturedEvidence').textContent.trim();
-    if (!interpretation || interpretation.interpretationVersion !== 2) {
+    if (!interpretation || interpretation.interpretationVersion !== 4) {
       interpretation = await api('/interpret', { method: 'POST', body: JSON.stringify({ transcript, capturedEvidence: captured }) });
       optionChecklists.clear();
       await persistProcessingState();
@@ -234,7 +235,10 @@ async function prepareConfirmation(option, index) {
         items: [...(result.items || []), ...retainedManualFacts]
       });
     }
-    optionChecklists.set(option.id, mergeSafeguards(optionChecklists.get(option.id), communicationSafeguards(interpretation, option, surveyPhotos, `${$('transcript').value}\n${confirmationEvidence(optionChecklists.get(option.id))}`)));
+    optionChecklists.set(option.id, mergeSafeguards(optionChecklists.get(option.id), [
+      ...communicationSafeguards(interpretation, option, surveyPhotos, `${$('transcript').value}\n${confirmationEvidence(optionChecklists.get(option.id))}`),
+      ...derivedWorkSuggestions(interpretation, option)
+    ]));
     await persistProcessingState();
     renderConfirmation();
   } catch (error) { $('confirmationStatus').textContent = error.message; $('confirmationStatus').className = 'status error'; }
@@ -253,6 +257,13 @@ async function reprocessConfirmation(suppliedComment = '') {
   $('confirmationStatus').className = 'status';
   $('confirmationStatus').textContent = 'Reprocessing the transcript with your added context…';
   try {
+    interpretation = await api('/interpret', { method: 'POST', body: JSON.stringify({
+      transcript: $('transcript').value,
+      capturedEvidence: confirmationEvidence(state)
+    }) });
+    const refreshedOption = interpretation.options?.[Math.max(0, Number(selectedOption.number || 1) - 1)];
+    if (!refreshedOption) throw new Error('The added information removed this proposal option. Return to Interpretation and select the current proposal.');
+    selectedOption = { ...refreshedOption, number: selectedOption.number || 1 };
     const result = await api('/confirmation-checklist', { method: 'POST', body: JSON.stringify({
       interpretation, proposal: selectedOption, transcript: $('transcript').value,
       capturedEvidence: confirmationEvidence(state)
@@ -260,7 +271,10 @@ async function reprocessConfirmation(suppliedComment = '') {
     const retained = state.items.filter(item => item.kind !== 'evidenceFact');
     state.items = [...(result.items || []), ...retained];
     state.generatedAt = new Date().toISOString();
-    optionChecklists.set(selectedOption.id, mergeSafeguards(state, communicationSafeguards(interpretation, selectedOption, surveyPhotos, `${$('transcript').value}\n${confirmationEvidence(state)}`)));
+    optionChecklists.set(selectedOption.id, mergeSafeguards(state, [
+      ...communicationSafeguards(interpretation, selectedOption, surveyPhotos, `${$('transcript').value}\n${confirmationEvidence(state)}`),
+      ...derivedWorkSuggestions(interpretation, selectedOption)
+    ]));
     optionDrafts.delete(selectedOption.id);
     await persistProcessingState();
     renderConfirmation();
@@ -334,19 +348,10 @@ async function generateOption() {
   $('confirmationStatus').textContent = `Writing Option ${index + 1} from confirmed information…`;
   try {
     const confirmedItems = confirmedChecklistItems(optionChecklists.get(option.id));
-    const relevantWantsNeeds = confirmedItems.filter(item => item.targetSection === 'Needs');
-    const confirmedAccessDisruptionEvidence = confirmedItems.filter(item => ['Restrictions to work','Disruption','Customer actions'].includes(item.targetSection));
-    const evidence = { confirmedFacts: confirmedItems, relevantWantsNeeds, confirmedAccessDisruptionEvidence };
-    const result = await api('/text', { method: 'POST', body: JSON.stringify({
-      transcript: JSON.stringify(evidence), expectedSections,
-      depotSections: expectedSections.map(name => ({ name })), forceStructured: true, checklistItems: [],
-      depotNotesInstructions: 'These are Depot notes, not an engineer report. Use only confirmedFacts. Place each confirmed fact in its targetSection and write terse copy-over wording. Never use unchecked canonical interpretation, transcript material, generic installation assumptions or another option. Do not infer enabling work, disruption, making good or customer preparation. Preserve all numbers, units, directions and uncertainty. Explain the works directly; do not use Coming out, Going in, Involved or Agreed headings.'
-    }) });
-    const generatedBySection = new Map((result.sections || []).map(section => [section.section, section]));
-    notes = expectedSections.map(name => {
-      const section = generatedBySection.get(name);
-      return { name, text: bullets(section?.plainText || section?.naturalLanguage || '') || '• No information recorded.' };
-    });
+    const result = buildDepotSections(confirmedItems);
+    notes = result.map(section => ({ name: section.section, text: section.naturalLanguage, factIds: section.factIds, provenance: 'confirmedEvidence' }));
+    const errors = auditPipelineOutput({ confirmedItems, depotSections: result, handover: { engineer: result.map(section => ({ factIds: section.factIds })) } });
+    if (errors.some(error => error.code !== 'handover_coverage')) throw new Error('Confirmed evidence failed the Depot-note integrity check. Return to confirmation and reprocess the affected fact.');
     optionDrafts.set(option.id, structuredClone(notes)); beginDraft();
   } catch (error) { $('aiCheckStatus').textContent = error.message; $('aiCheckStatus').className = 'status error'; }
 }
@@ -359,7 +364,9 @@ function renderEditableNotes() {
       await navigator.clipboard.writeText(depotCopyText(note.text)); copy.textContent = 'Copied'; setTimeout(() => copy.textContent = 'Copy', 1200);
     };
     const area = document.createElement('textarea'); area.value = note.text; area.oninput = () => {
+      if (!note.originalText) note.originalText = note.text;
       note.text = area.value;
+      note.provenance = 'surveyorEdited';
       if (selectedOption) optionDrafts.set(selectedOption.id, structuredClone(notes));
     };
     const promptRow = document.createElement('div'); promptRow.className = 'row'; promptRow.style.marginTop = '8px';
@@ -371,9 +378,11 @@ function renderEditableNotes() {
       try {
         const result = await api('/tweak-section', { method: 'POST', body: JSON.stringify({
           section: { section: note.name, plainText: depotCopyText(note.text), naturalLanguage: note.text },
-          instructions: `${prompt.value.trim()}\n\nUse only the confirmed evidence below. Do not recover or introduce facts from the wider transcript. Preserve all numbers, units, directions, uncertainty and chosen/rejected status exactly. CONFIRMED EVIDENCE:\n${JSON.stringify(confirmedChecklistItems(optionChecklists.get(selectedOption.id)), null, 2)}`
+          instructions: `${prompt.value.trim()}\n\nUse only the confirmed evidence below. Do not recover or introduce facts from the wider transcript. Preserve all numbers, units, directions, uncertainty and chosen/rejected status exactly. CONFIRMED EVIDENCE:\n${JSON.stringify(confirmedChecklistItems(optionChecklists.get(selectedOption.id)).filter(item => (note.factIds || []).includes(item.id || item.factId)), null, 2)}`
         }) });
+        if (!note.originalText) note.originalText = note.text;
         note.text = bullets(result.plainText || result.naturalLanguage || note.text); area.value = note.text; prompt.value = '';
+        note.provenance = 'aiWordingAccepted';
         if (selectedOption) optionDrafts.set(selectedOption.id, structuredClone(notes));
       } catch (error) { $('draftStatus').textContent = error.message; }
       finally { improve.disabled = false; improve.textContent = 'Improve'; }
@@ -446,8 +455,8 @@ async function handover() {
   try {
     const confirmedItems = confirmedChecklistItems(optionChecklists.get(selectedOption.id));
     const relevantWantsNeeds = confirmedItems.filter(item => item.targetSection === 'Needs');
-    const technicalUncertainties = confirmedItems.filter(item => /to confirm|unknown|unresolved|uncertain/i.test(item.text));
-    const confirmedFacts = confirmedItems.map(item => ({ category: item.targetSection, text: item.text }));
+    const technicalUncertainties = confirmedItems.filter(item => item.evidenceState === 'uncertain' || /to confirm|unknown|unresolved|uncertain/i.test(item.text));
+    const confirmedFacts = confirmedItems.map(item => ({ id: item.id, category: item.targetSection, text: item.text, evidenceQuote: item.evidenceQuote, evidenceSource: item.evidenceSource, evidenceState: item.evidenceState }));
     handoverDocuments = await api('/handover-documents', { method: 'POST', body: JSON.stringify({
       sharedFacts: confirmedFacts,
       selectedProposal: { id: selectedOption.id, title: `Confirmed option ${selectedOption.number}`, facts: confirmedFacts },

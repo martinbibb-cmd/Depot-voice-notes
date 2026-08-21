@@ -84,31 +84,14 @@ test('POST /confirmation-checklist deterministically uses only grounded canonica
 });
 
 test('POST /handover-documents creates friendly customer prose and ordered engineer bullets', async (t) => {
-  let combinedText = '';
-  globalThis.fetch = async (_url, options) => {
-    const request = JSON.parse(options.body); combinedText = request.contents[0].parts[0].text;
-    return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify({
-      customer: [
-        { heading: 'What we are proposing', text: 'We are proposing a replacement boiler in the existing position.' },
-        { heading: 'Why this suits your home', text: 'This keeps the installation compact while improving the recorded heating problem.' },
-        { heading: 'Getting ready', text: 'Please clear the confirmed access area before the engineer arrives.' }
-      ],
-      engineer: [
-        { heading: 'Job overview', bullets: ['Replace boiler in existing position.', 'Use recorded controls.', 'Route flue above lintel.', 'Remove confirmed boxing.', 'This fifth overview point must be dropped.'] },
-        { heading: 'Flue', bullets: ['Route flue vertically above lintel then horizontally through wall.'] },
-        { heading: 'Heating, hot water and pipe routes', bullets: ['Route new heating pipes behind boiler and above window.'] },
-        { heading: 'Access and enabling work', bullets: ['Remove and refit confirmed removable boxing.', 'Make good where required.'] }
-      ]
-    }) }] } }] }), { status: 200, headers: { 'Content-Type': 'application/json' } });
-  };
-  t.after(() => { globalThis.fetch = originalFetch; });
   const response = await worker.fetch(new Request('https://example.com/handover-documents', {
     method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({
       sharedFacts: [{ category: 'Customer need', text: 'Improve heating circulation.' }],
       selectedProposal: { id: 'option-1', facts: [{ category: 'Boiler', text: 'Replace boiler in existing position.' }] },
       confirmedChecklistItems: [
-        { text: 'Remove and refit removable boxing.', targetSection: 'Restrictions to work' },
-        { text: 'Clear confirmed access area.', targetSection: 'Customer actions' }
+        { id: 'f1', text: 'Route new heating pipes behind boiler and above window.', evidenceQuote: 'Route new heating pipes behind boiler and above window.', targetSection: 'Pipe work' },
+        { id: 'f2', text: 'Remove and refit removable boxing.', evidenceQuote: 'Remove and refit removable boxing.', targetSection: 'Restrictions to work' },
+        { id: 'f3', text: 'Clear confirmed access area.', evidenceQuote: 'Clear confirmed access area.', targetSection: 'Customer actions' }
       ],
       uncertainties: []
     })
@@ -125,12 +108,9 @@ test('POST /handover-documents creates friendly customer prose and ordered engin
   ]);
   assert.equal(body.engineer.find(section => section.heading === 'Heating, hot water and pipe routes').bullets[0], 'Route new heating pipes behind boiler and above window.');
   assert.deepEqual(body.engineer.find(section => section.heading === 'Condensate and discharge').bullets, ['No information recorded.']);
-  assert.equal(body.engineer.find(section => section.heading === 'Job overview').bullets.length, 4);
-  assert(!body.engineer.flatMap(section => section.bullets).includes('Make good where required.'));
-  assert.equal(body.customer.find(section => section.heading === 'What to expect during the work').text, 'No specific job disruption has been confirmed.');
+  assert.deepEqual(body.engineer.find(section => section.heading === 'Access and enabling work').bullets, ['Remove and refit removable boxing.']);
+  assert.equal(body.customer.find(section => section.heading === 'What to expect during the work').text, 'Remove and refit removable boxing.');
   assert.equal(body.customer.find(section => section.heading === 'Points still to confirm').text, 'No unresolved points are currently recorded.');
-  assert.match(combinedText, /not the Depot\/British Gas section schema/);
-  assert.match(combinedText, /Remove and refit removable boxing/);
 });
 
 test('POST /text forwards structured payload and normalises model output', async (t) => {

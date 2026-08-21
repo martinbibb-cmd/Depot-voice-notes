@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { communicationSafeguards, mergeSafeguards, unresolvedSafeguards } from '../js/handoverSafeguards.js';
+import { communicationSafeguards, derivedWorkSuggestions, mergeSafeguards, unresolvedSafeguards } from '../js/handoverSafeguards.js';
 import { confirmedChecklistItems } from '../js/confirmationState.js';
 
 const proposal = { id: 'option-1', facts: [
@@ -63,4 +63,23 @@ test('stale missing-information cards disappear once evidence establishes the su
   const merged = mergeSafeguards(existing, []);
   assert(!merged.items.some(item => item.id === 'safeguard-customer-needs'));
   assert(merged.items.some(item => item.id === 'generated-1'));
+});
+
+test('derived work is a proposal-scoped unchecked candidate with causal provenance', () => {
+  const interpretation = { sharedFacts: [] };
+  const option = { id: 'system', facts: [{ id: 'flue-access', category: 'Flue', text: 'Flue access is prevented by the sloping garden and normal ladder access is not possible.', evidenceQuote: 'sloping garden means normal ladder access is not possible for the flue' }] };
+  const items = derivedWorkSuggestions(interpretation, option);
+  const scaffold = items.find(item => /Scaffold/.test(item.text));
+  assert(scaffold);
+  assert.equal(scaffold.checked, false);
+  assert.equal(scaffold.parentFactId, 'flue-access');
+  assert.match(scaffold.evidenceRelation, /sloping garden/);
+  assert.equal(confirmedChecklistItems({ items }).length, 0);
+});
+
+test('derived work avoids generic false positives and remains isolated by option', () => {
+  const quietOption = { id: 'same-place', facts: [{ id: 'b', category: 'Boiler', text: 'Replace boiler in the same position.', evidenceQuote: 'same position' }] };
+  const routedOption = { id: 'new-route', facts: [{ id: 'c', category: 'Condensate', text: 'Condensate route goes through the outbuilding to the soakaway.', evidenceQuote: 'through the outbuilding to the soakaway' }] };
+  assert.deepEqual(derivedWorkSuggestions({ sharedFacts: [] }, quietOption), []);
+  assert(derivedWorkSuggestions({ sharedFacts: [] }, routedOption).some(item => /condensate pipework/i.test(item.text)));
 });

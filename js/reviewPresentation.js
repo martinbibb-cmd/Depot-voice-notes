@@ -32,7 +32,7 @@ export function evidenceStateLabel(item) {
   if (item?.intentType === 'need' && item?.intentOrigin === 'derivedFromEvidence') return 'DERIVED REQUIREMENT';
   if (item?.intentType === 'need') return 'CUSTOMER-STATED NEED';
   if (item?.kind === 'informationGap') return 'MISSING';
-  if (item?.evidenceState === 'uncertain') return 'UNCERTAIN';
+  if (item?.evidenceState === 'uncertain') return 'TRANSCRIPT CHECK';
   if (item?.evidenceState === 'derivedSuggestion') return 'SUGGESTED WORK';
   if (item?.manual) return 'SURVEYOR ADDED';
   if (item?.evidenceSource === 'capturedEvidence') return numeric(item) ? 'MEASURED' : 'CAPTURED';

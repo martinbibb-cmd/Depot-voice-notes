@@ -8,28 +8,28 @@ const proposal = { id: 'option-1', facts: [
   { category: 'Pipe route', text: 'Run heating pipes behind boiler and above window.' }
 ] };
 
-test('missing boiler subjects are shown as non-blocking requests for information', () => {
+test('a complete survey does not create absence-based information gaps', () => {
   const interpretation = { sharedFacts: [
     { category: 'Customer needs', text: 'Large family needs improved hot water.' },
     { category: 'Existing system', text: 'Existing combi boiler.' }
   ] };
   const safeguards = communicationSafeguards(interpretation, proposal, []);
-  assert(safeguards.some(item => item.id === 'safeguard-flue' && item.kind === 'informationGap'));
-  assert.equal(safeguards.find(item => item.id === 'safeguard-flue').responseOptions, undefined);
-  assert(safeguards.some(item => item.id === 'safeguard-flue-photo' && item.includeInNotes === false));
+  assert.deepEqual(safeguards, []);
   assert.equal(unresolvedSafeguards({ items: safeguards }).length, 0);
-  assert.equal(safeguards.find(item => item.id === 'safeguard-flue').includeInNotes, false);
 });
 
-test('recorded flue fact and tagged photograph satisfy both flue safeguards', () => {
+test('a transcript interruption creates one blocking capture-integrity check', () => {
   const interpretation = { sharedFacts: [
     { category: 'Customer needs', text: 'Customer needs reliable heating.' },
     { category: 'Existing system', text: 'Existing regular boiler.' },
     { category: 'Flue', text: 'Flue rises vertically then exits horizontally above lintel.' }
   ] };
-  const safeguards = communicationSafeguards(interpretation, proposal, [{ subject: 'Flue', caption: 'Proposed terminal route' }]);
-  assert(!safeguards.some(item => item.id === 'safeguard-flue'));
-  assert(!safeguards.some(item => item.id === 'safeguard-flue-photo'));
+  const safeguards = communicationSafeguards(interpretation, proposal, [], 'Discussion [BLANK_AUDIO] resumed');
+  assert.equal(safeguards.length, 1);
+  assert.equal(safeguards[0].id, 'safeguard-capture-integrity');
+  assert.equal(safeguards[0].kind, 'informationGap');
+  assert.equal(safeguards[0].includeInNotes, false);
+  assert(!/unresolved|not established/i.test(`${safeguards[0].text} ${safeguards[0].reason}`));
 });
 
 test('missing-information cards remain audit-only and never enter notes', () => {
@@ -49,11 +49,10 @@ test('new safeguards merge without overwriting persisted surveyor choices', () =
   assert(merged.items.some(item => item.id === 'safeguard-gas'));
 });
 
-test('raw transcript evidence prevents a false customer-wants gap but not a false Need', () => {
+test('raw transcript content does not trigger generic absence cards', () => {
   const interpretation = { sharedFacts: [{ category: 'Existing system', text: 'Existing combi boiler.' }] };
   const safeguards = communicationSafeguards(interpretation, proposal, [], 'The customer wants improved hot water for their large family.');
-  assert(!safeguards.some(item => item.id === 'safeguard-customer-wants'));
-  assert(safeguards.some(item => item.id === 'safeguard-customer-needs'));
+  assert.deepEqual(safeguards, []);
 });
 
 test('canonical derived Needs prevent the false-empty Need safeguard', () => {

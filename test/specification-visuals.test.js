@@ -1,13 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildVisualSpecification, componentIcon } from '../js/specificationVisuals.js';
+import { buildVisualSpecification, componentIcon, VISUAL_COMPONENTS } from '../js/specificationVisuals.js';
 
 test('boiler SVG grammar uses the mandatory composable mappings', () => {
   assert.match(componentIcon('boiler', 'regular'), /data-primitives="flame"/);
   assert.match(componentIcon('boiler', 'system'), /data-primitives="flame gauge"/);
   assert.match(componentIcon('boiler', 'combi'), /data-primitives="tap flame gauge"/);
   assert.doesNotMatch(componentIcon('boiler', 'regular'), /gauge/);
-  assert.match(componentIcon('boiler'), /boiler-unresolved/);
+  assert.match(componentIcon('boiler'), /boiler-answer-required/);
 });
 
 test('flue SVG grammar preserves circle fanned and square balanced mapping', () => {
@@ -126,4 +126,9 @@ test('visual specification exposes confirmed gas size and persisted visual corre
   assert.equal(rows.find(row => row.component === 'boiler').action, 'Replace');
   assert.equal(rows.find(row => row.component === 'gas').specification, '22 mm');
   assert.equal(rows.find(row => row.component === 'gas').action, 'Retain');
+});
+
+test('completed survey editor offers no unresolved or not-established outcome', () => {
+  const labels = Object.values(VISUAL_COMPONENTS).flatMap(component => component.actions || []).flatMap(choice => Array.isArray(choice) ? choice : [choice]);
+  assert(!labels.some(value => /unresolved|not established/i.test(value)));
 });

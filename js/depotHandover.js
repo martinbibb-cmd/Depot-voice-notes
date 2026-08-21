@@ -229,7 +229,7 @@ function renderVisitBrief(option = null, target = 'visitBrief', additionalMissin
     const heading = document.createElement('h3'); heading.textContent = section.title;
     const list = document.createElement('ul');
     if (!section.items.length) {
-      const item = document.createElement('li'); item.textContent = 'Nothing unresolved was identified.'; list.append(item);
+      const item = document.createElement('li'); item.textContent = 'No further answers are required.'; list.append(item);
     } else section.items.slice(0, 6).forEach(value => {
       const item = document.createElement('li'); item.textContent = [value.displayText || value.text, value.reason].filter(Boolean).join(' — '); list.append(item);
     });
@@ -244,10 +244,13 @@ function renderProposalBoard(option, target = 'confirmProposalBoard') {
   const grid = document.createElement('div'); grid.className = 'proposal-editor';
   const checklist = optionChecklists.get(option.id);
   buildVisualSpecification(interpretation, option, checklist).forEach(row => {
-    const config = VISUAL_COMPONENTS[row.component] || { actions:['Already done','Retain','Replace','Remove','New','Unresolved'], section:'Office notes' };
+    const config = VISUAL_COMPONENTS[row.component] || { actions:['Already done','Retain','Replace','Remove','New'], section:'Office notes' };
     const tile = document.createElement('section'); tile.className = 'proposal-editor-row'; tile.dataset.component = row.component;
     const head = document.createElement('div'); head.className = 'proposal-editor-head'; head.innerHTML = componentIcon(row.component, row.subtype);
-    const title = document.createElement('strong'); title.textContent = row.label; head.append(title); tile.append(head);
+    const title = document.createElement('strong'); title.textContent = row.label; head.append(title);
+    const answerRequired = (config.typeChoices?.length && !row.subtype) || row.action === 'Unresolved';
+    if (answerRequired) { tile.classList.add('answer-required'); const required = document.createElement('span'); required.className = 'answer-required-label'; required.textContent = 'Answer required'; head.append(required); }
+    tile.append(head);
     const addChoiceGroup = (field, labelText, choices, selected) => {
       if (!choices?.length) return;
       const group = document.createElement('div'); group.className = `visual-choice-group ${field}`; group.setAttribute('role','radiogroup'); group.setAttribute('aria-label', `${row.label} ${labelText}`);
@@ -293,8 +296,17 @@ function renderProposalBoard(option, target = 'confirmProposalBoard') {
   const state = optionChecklists.get(option.id) || { items:[] };
   const safe = state.items.filter(item => !item.removed && item.kind === 'evidenceFact' && item.evidenceState !== 'uncertain');
   const confirmed = safe.length > 0 && safe.every(item => item.checked);
-  const confirm = document.createElement('button'); confirm.type = 'button'; confirm.className = `proposal-confirm${confirmed ? '' : ' primary'}`; confirm.textContent = confirmed ? '✓ Proposal confirmed' : 'Confirm this proposal'; confirm.onclick = confirmOverallUnderstanding; board.append(confirm);
+  const answersRequired = proposalAnswersRequired(option, state);
+  if (answersRequired) saved.textContent = `${answersRequired} answer${answersRequired === 1 ? '' : 's'} required before confirmation.`;
+  const confirm = document.createElement('button'); confirm.type = 'button'; confirm.className = `proposal-confirm${confirmed ? '' : ' primary'}`; confirm.textContent = confirmed ? '✓ Proposal confirmed' : 'Confirm this proposal'; confirm.disabled = answersRequired > 0; confirm.onclick = confirmOverallUnderstanding; board.append(confirm);
   container.append(board);
+}
+
+function proposalAnswersRequired(option, state) {
+  return buildVisualSpecification(interpretation, option, state).filter(row => {
+    const config = VISUAL_COMPONENTS[row.component] || {};
+    return (config.typeChoices?.length && !row.subtype) || row.action === 'Unresolved';
+  }).length;
 }
 
 async function setVisualProposalState(row, field, value, targetSection) {
@@ -444,12 +456,7 @@ function confirmationCard(item) {
       actions.append(confirm);
     }
     if (item.kind === 'informationGap' || item.evidenceState === 'uncertain') {
-      if (item.evidenceState === 'uncertain') {
-        const keep = document.createElement('button'); keep.textContent = item.checked ? '✓ Kept as unresolved' : 'Keep as unresolved';
-        keep.onclick = () => { item.checked = !item.checked; checklistChanged(); renderConfirmation(); };
-        actions.append(keep);
-      }
-      const dismiss = document.createElement('button'); dismiss.textContent = item.evidenceState === 'uncertain' ? 'Ignore unclear wording' : 'Not relevant';
+      const dismiss = document.createElement('button'); dismiss.textContent = item.evidenceState === 'uncertain' ? 'Discard transcription error' : 'Not applicable';
       dismiss.onclick = () => { item.removed = true; checklistChanged(); renderConfirmation(); };
       actions.append(dismiss);
     }
@@ -484,10 +491,11 @@ function updateConfirmationStatus(state) {
   const safe = visible.filter(item => item.kind === 'evidenceFact' && item.evidenceState !== 'uncertain');
   const checked = safe.filter(item => item.checked).length;
   const attention = visible.filter(item => item.kind === 'informationGap' || (item.evidenceState === 'uncertain' && !item.checked) || (item.kind !== 'evidenceFact' && !item.checked)).length;
+  const answersRequired = selectedOption ? proposalAnswersRequired(selectedOption, state) : 0;
   $('confirmationStatus').className = 'status';
   $('confirmationStatus').textContent = attention ? `${attention} item${attention === 1 ? '' : 's'} still need resolving.` : (checked === safe.length && safe.length ? 'Ready to create Depot notes.' : 'Confirm the proposal above.');
   $('confirmationStatus').className = 'status';
-  $('writeOptionBtn').disabled = safe.length > 0 && checked !== safe.length;
+  $('writeOptionBtn').disabled = answersRequired > 0 || attention > 0 || (safe.length > 0 && checked !== safe.length);
 }
 async function confirmOverallUnderstanding() {
   if (!selectedOption) return;
@@ -560,7 +568,10 @@ function beginDraft() {
   show(4);
 }
 function renderReadOnly(container, source, copy = true) {
-  container.replaceChildren(); const placedPhotos = new Set(); orderedNotes(source).forEach(note => {
+  container.replaceChildren(); const placedPhotos = new Set(); orderedNotes(source).filter(note => {
+    if (note.name !== 'Unresolved points') return true;
+    return !/^No (?:information|unresolved|further answers)/i.test(note.text.trim());
+  }).forEach(note => {
     const card = document.createElement('div'); card.className = 'note'; const head = document.createElement('div'); head.className = 'note-head';
     if (note.name === 'Access and enabling work') card.classList.add('enabling');
     if (note.name === 'Unresolved points' && !/^No (?:information|unresolved)/i.test(note.text.trim())) card.classList.add('unresolved');

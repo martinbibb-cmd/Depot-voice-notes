@@ -220,14 +220,15 @@ async function prepareConfirmation(option, index) {
     if (!existing || existing.confirmationVersion !== 2) {
       const result = await api('/confirmation-checklist', { method: 'POST', body: JSON.stringify({
         interpretation, proposal: option, transcript: $('transcript').value,
-        capturedEvidence: $('capturedEvidence').textContent
+        capturedEvidence: confirmationEvidence(existing)
       }) });
       // Version 1 contained generic inferred-work suggestions. They are not
       // valid evidence, so retain only facts explicitly added by the surveyor.
       const retainedManualFacts = (existing?.items || []).filter(item => item.manual && !item.removed);
       optionChecklists.set(option.id, {
         confirmationVersion: 2, proposalOptionId: option.id,
-        generatedAt: new Date().toISOString(), items: [...(result.items || []), ...retainedManualFacts]
+        generatedAt: new Date().toISOString(), surveyorComments: existing?.surveyorComments || [],
+        items: [...(result.items || []), ...retainedManualFacts]
       });
     }
     optionChecklists.set(option.id, mergeSafeguards(optionChecklists.get(option.id), communicationSafeguards(interpretation, option, surveyPhotos)));
@@ -235,9 +236,42 @@ async function prepareConfirmation(option, index) {
     renderConfirmation();
   } catch (error) { $('confirmationStatus').textContent = error.message; $('confirmationStatus').className = 'status error'; }
 }
+function confirmationEvidence(state) {
+  const comments = (state?.surveyorComments || []).map((comment, index) => `Surveyor comment ${index + 1}: ${comment}`).join('\n');
+  return [$('capturedEvidence').textContent, comments].filter(Boolean).join('\n\n');
+}
+async function reprocessConfirmation() {
+  if (!selectedOption) return;
+  const comment = $('confirmationComment').value.trim();
+  if (!comment) return;
+  const state = optionChecklists.get(selectedOption.id) || { confirmationVersion: 2, proposalOptionId: selectedOption.id, items: [], surveyorComments: [] };
+  state.surveyorComments = [...(state.surveyorComments || []), comment];
+  $('confirmationComment').value = '';
+  $('confirmationStatus').className = 'status';
+  $('confirmationStatus').textContent = 'Reprocessing the transcript with your added context…';
+  try {
+    const result = await api('/confirmation-checklist', { method: 'POST', body: JSON.stringify({
+      interpretation, proposal: selectedOption, transcript: $('transcript').value,
+      capturedEvidence: confirmationEvidence(state)
+    }) });
+    const retained = state.items.filter(item => item.kind !== 'evidenceFact');
+    state.items = [...(result.items || []), ...retained];
+    state.generatedAt = new Date().toISOString();
+    optionChecklists.set(selectedOption.id, mergeSafeguards(state, communicationSafeguards(interpretation, selectedOption, surveyPhotos)));
+    optionDrafts.delete(selectedOption.id);
+    await persistProcessingState();
+    renderConfirmation();
+  } catch (error) {
+    $('confirmationStatus').className = 'status error';
+    $('confirmationStatus').textContent = `Facts were not reprocessed: ${error.message}`;
+  }
+}
 function renderConfirmation() {
   const state = optionChecklists.get(selectedOption.id) || { items: [] };
   $('confirmationItems').replaceChildren();
+  $('confirmationComments').textContent = state.surveyorComments?.length
+    ? `Added context: ${state.surveyorComments.join(' · ')}`
+    : 'No surveyor comments added yet.';
   const visibleItems = state.items.filter(item => !item.removed).sort((left, right) => Number(/Gap$/.test(right.kind || '')) - Number(/Gap$/.test(left.kind || '')));
   visibleItems.forEach(item => {
     const row = document.createElement('div'); row.className = 'confirmation';
@@ -245,43 +279,13 @@ function renderConfirmation() {
     checkbox.disabled = Boolean(/Gap$/.test(item.kind || '') && item.responseOptions?.length);
     checkbox.setAttribute('aria-label', `Confirm ${item.text}`);
     checkbox.onchange = () => { item.checked = checkbox.checked; checklistChanged(); updateConfirmationStatus(state); };
-    const content = document.createElement('div'); const text = document.createElement('textarea'); text.value = item.text;
-    text.onchange = () => { item.text = text.value.trim(); checklistChanged(); };
+    const content = document.createElement('div');
+    const text = document.createElement('div'); text.className = 'confirmation-text'; text.textContent = item.text;
     const reason = document.createElement('small'); reason.textContent = [item.reason, item.evidenceRelation].filter(Boolean).join(' · ');
     const section = document.createElement('select');
     expectedSections.forEach(name => { const option = document.createElement('option'); option.textContent = name; option.value = name; section.append(option); });
     section.value = item.targetSection; section.onchange = () => { item.targetSection = section.value; checklistChanged(); };
-    if (/Gap$/.test(item.kind || '') && item.responseOptions?.length) {
-      const response = document.createElement('select');
-      const prompt = document.createElement('option'); prompt.value = ''; prompt.textContent = 'Choose a suggested response'; response.append(prompt);
-      item.responseOptions.forEach(value => { const choice = document.createElement('option'); choice.value = value; choice.textContent = value; response.append(choice); });
-      const manual = document.createElement('option'); manual.value = '__manual__'; manual.textContent = 'Enter manually…'; response.append(manual);
-      const matched = item.responseOptions.includes(item.text);
-      response.value = matched ? item.text : (item.checked && item.text !== item.originalText ? '__manual__' : '');
-      text.placeholder = 'Enter the confirmed survey response';
-      text.hidden = response.value !== '__manual__';
-      response.onchange = () => {
-        if (response.value === '__manual__') {
-          text.hidden = false; text.value = item.text === item.originalText ? '' : item.text; text.focus();
-          item.checked = false; checkbox.checked = false;
-        } else if (response.value) {
-          item.text = response.value; text.value = item.text; text.hidden = true;
-          item.checked = true; checkbox.checked = true;
-        } else {
-          item.text = item.originalText; text.value = item.text; text.hidden = true;
-          item.checked = false; checkbox.checked = false;
-        }
-        checklistChanged(); updateConfirmationStatus(state);
-      };
-      text.onchange = () => {
-        item.text = text.value.trim(); item.checked = Boolean(item.text); checkbox.checked = item.checked;
-        checklistChanged(); updateConfirmationStatus(state);
-      };
-      const destination = document.createElement('span'); destination.className = 'badge'; destination.textContent = item.targetSection;
-      content.append(response, text, destination, reason);
-    } else {
-      content.append(text, section, reason);
-    }
+    content.append(text, section, reason);
     row.append(checkbox, content);
     $('confirmationItems').append(row);
   });
@@ -301,13 +305,6 @@ function updateConfirmationStatus(state) {
 function checklistChanged() {
   if (selectedOption) optionDrafts.delete(selectedOption.id);
   persistProcessingState().catch(error => $('confirmationStatus').textContent = error.message);
-}
-async function addManualConfirmation() {
-  const text = $('manualConfirmationText').value.trim(); if (!text || !selectedOption) return;
-  const state = optionChecklists.get(selectedOption.id) || { proposalOptionId: selectedOption.id, items: [] };
-  state.items.push({ id: `manual-${crypto.randomUUID()}`, originalText: text, text, reason: 'Added by surveyor', evidenceRelation: '',
-    targetSection: $('manualConfirmationSection').value, checked: true, manual: true });
-  optionChecklists.set(selectedOption.id, state); $('manualConfirmationText').value = ''; optionDrafts.delete(selectedOption.id); renderConfirmation(); await persistProcessingState();
 }
 async function generateOption() {
   const option = selectedOption;
@@ -443,8 +440,8 @@ async function handover() {
     const customerSource = handoverDocuments.customer.map(section => ({ name: section.heading, text: section.text }));
     const engineerSource = handoverDocuments.engineer.map(section => ({ name: section.heading, text: section.bullets.map(value => `• ${value}`).join('\n') }));
     renderReadOnly($('customerNotes'), customerSource, false);
-    renderReadOnly($('engineerNotes'), engineerSource);
-    $('handoverStatus').textContent = 'Customer explanation and engineer handover are ready.';
+    renderReadOnly($('engineerNotes'), engineerSource, false);
+    $('handoverStatus').textContent = 'The complete customer and engineer handover is ready to print or save.';
   } catch (error) { $('handoverStatus').className = 'status error'; $('handoverStatus').textContent = `Documents were not created: ${error.message}`; }
 }
 async function anotherSurvey() {
@@ -490,31 +487,39 @@ function downloadOptionNotes() {
   link.download = `option-${selectedOption?.number || 1}-depot-notes.txt`; link.click();
   setTimeout(() => URL.revokeObjectURL(link.href), 1000);
 }
-async function printOnly(id, title) {
+async function printCompleteHandover() {
   const jsPDF = window.jspdf?.jsPDF;
   if (!jsPDF) throw new Error('The local PDF component did not load. Close and reopen the PWA, then try again.');
-  $('handoverStatus').className = 'status'; $('handoverStatus').textContent = `Creating ${title.toLowerCase()}…`;
+  const title = 'Heating installation handover';
+  $('handoverStatus').className = 'status'; $('handoverStatus').textContent = 'Creating the complete handover…';
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
   let y = 18; doc.setFont('helvetica', 'bold'); doc.setFontSize(18); doc.text(title, 16, y); y += 11;
-  const source = id === 'customerDocument'
-    ? handoverDocuments.customer.map(section => ({ name: section.heading, text: section.text }))
-    : handoverDocuments.engineer.map(section => ({ name: section.heading, text: section.bullets.map(value => `• ${value}`).join('\n') }));
-  if (!source.length) { alert('Create the handover documents first.'); return; }
+  const customerSource = handoverDocuments.customer.map(section => ({ name: section.heading, text: section.text, audience: 'customer' }));
+  const engineerSource = handoverDocuments.engineer.map(section => ({ name: section.heading, text: section.bullets.map(value => `• ${value}`).join('\n'), audience: 'engineer' }));
+  if (!customerSource.length && !engineerSource.length) { alert('Create the handover first.'); return; }
+  const source = [
+    { name: 'Customer summary', text: '', documentHeading: true }, ...customerSource,
+    { name: 'Engineer works', text: '', documentHeading: true }, ...engineerSource
+  ];
   const placedPhotos = new Set();
   for (const note of source) {
     if (y > 270) { doc.addPage(); y = 18; }
+    if (note.documentHeading) {
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(15); doc.text(note.name, 16, y); y += 9;
+      continue;
+    }
     doc.setFont('helvetica', 'bold'); doc.setFontSize(12); doc.text(note.name, 16, y); y += 6;
     doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
-    const blocks = id === 'engineerDocument'
+    const blocks = note.audience === 'engineer'
       ? note.text.split('\n').map(line => line.replace(/^•\s*/, '').trim()).filter(Boolean).map(line => `• ${line}`)
       : [note.text];
     for (const block of blocks) {
       const lines = doc.splitTextToSize(block, 178);
       for (const line of lines) { if (y > 282) { doc.addPage(); y = 18; } doc.text(line, 16, y); y += 5; }
-      if (id === 'engineerDocument') y += 1;
+      if (note.audience === 'engineer') y += 1;
     }
     y += 3;
-    if (id === 'engineerDocument') {
+    if (note.audience === 'engineer') {
       for (let index = 0; index < surveyPhotos.length; index += 1) {
         if (photoSection(surveyPhotos[index].subject) === note.name) {
           try { y = await addPhotoToPDF(doc, surveyPhotos[index], y); placedPhotos.add(index); }
@@ -523,7 +528,7 @@ async function printOnly(id, title) {
       }
     }
   }
-  if (id === 'engineerDocument') {
+  {
     const remaining = surveyPhotos.filter((_, index) => !placedPhotos.has(index));
     if (remaining.length) {
       if (y > 260) { doc.addPage(); y = 18; }
@@ -538,7 +543,7 @@ async function printOnly(id, title) {
     }
   }
   await deliverPDF(doc, `${title.toLowerCase().replace(/\s+/g, '-')}.pdf`, title);
-  $('handoverStatus').textContent = `${title} is ready to save, print or share.`;
+  $('handoverStatus').textContent = 'The complete handover is ready to save, print or share.';
 }
 async function deliverPDF(doc, filename, title) {
   const blob = doc.output('blob');
@@ -590,12 +595,11 @@ $('pairBtn').onclick = () => pair().catch(error => status(error.message, true));
 $('importTextBtn').onclick = () => $('textFile').click(); $('textFile').onchange = async event => { const file = event.target.files[0]; if (file) { $('transcript').value = await file.text(); currentVisitId = null; interpretation = null; optionChecklists.clear(); } };
 $('draftBtn').onclick = aiCheck; $('handoverBtn').onclick = () => handover();
 $('backCapture').onclick = () => show(1); $('backInterpretation').onclick = () => show(2); $('backCheck').onclick = () => show(3); $('backDraft').onclick = () => show(4);
-$('addConfirmationBtn').onclick = () => addManualConfirmation().catch(error => $('confirmationStatus').textContent = error.message);
+$('reprocessConfirmationBtn').onclick = () => reprocessConfirmation().catch(error => $('confirmationStatus').textContent = error.message);
 $('writeOptionBtn').onclick = () => generateOption().catch(error => $('confirmationStatus').textContent = error.message);
 $('anotherSurvey').onclick = () => anotherSurvey().catch(error => status(error.message, true));
 $('savePhotosBtn').onclick = () => saveAllPhotos().catch(error => status(error.message, true));
 $('downloadNotesBtn').onclick = downloadOptionNotes;
-$('printCustomer').onclick = () => printOnly('customerDocument', 'Your heating installation').catch(error => { $('handoverStatus').className = 'status error'; $('handoverStatus').textContent = `Customer PDF failed: ${error.message}`; });
-$('printEngineer').onclick = () => printOnly('engineerDocument', 'Engineer installation handover').catch(error => { $('handoverStatus').className = 'status error'; $('handoverStatus').textContent = `Engineer PDF failed: ${error.message}`; });
+$('printHandover').onclick = () => printCompleteHandover().catch(error => { $('handoverStatus').className = 'status error'; $('handoverStatus').textContent = `Handover failed: ${error.message}`; });
 $('logoutBtn').onclick = () => { clearAuthToken(); location.href = 'login.html'; };
 refresh();

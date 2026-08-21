@@ -19,7 +19,7 @@
     .capture{display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--line);padding:11px 0}.capture:first-child{border:0}.capture small{display:block;color:var(--muted)}
     .note{border:1px solid var(--line);border-radius:12px;padding:14px;margin:10px 0}.note textarea{min-height:92px}.note-head{display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:8px}.badge{background:var(--soft);border-radius:999px;padding:4px 9px;font-size:12px}
     .note.enabling{border:2px solid var(--ink);background:var(--soft)}.note.enabling .note-head strong:before{content:"ACCESS / ENABLING · ";font-size:11px;letter-spacing:.04em}.note.unresolved{border-left:6px solid var(--muted)}
-    .confirmation{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:start;border-bottom:1px solid var(--line);padding:12px 0}.confirmation:last-child{border:0}.confirmation input[type=checkbox]{width:22px;height:22px;margin-top:8px}.confirmation textarea{min-height:58px}.confirmation small{display:block;color:var(--muted);margin-top:4px}.add-confirmation{display:grid;grid-template-columns:1fr 190px auto;gap:8px;margin-top:14px}
+    .confirmation{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:start;border-bottom:1px solid var(--line);padding:12px 0}.confirmation:last-child{border:0}.confirmation input[type=checkbox]{width:22px;height:22px;margin-top:8px}.confirmation-text{font-weight:650;line-height:1.4;padding:8px 0}.confirmation small{display:block;color:var(--muted);margin-top:4px}.add-confirmation{display:grid;grid-template-columns:1fr 190px auto;gap:8px;margin-top:14px}
     .compare{display:grid;grid-template-columns:1fr 1fr;gap:14px}.source{white-space:pre-wrap;max-height:420px;overflow:auto;background:var(--soft);padding:14px;border-radius:10px}.checkline{display:flex;align-items:flex-start;gap:9px;margin:9px 0}.checkline input{width:auto;margin-top:4px}
     .hidden{display:none!important}.status{padding:10px 0;color:var(--muted)}.error{color:var(--danger)}.photos{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px}.photos img{width:100%;height:110px;object-fit:contain;background:var(--soft);border-radius:8px}
     .spatial-capture{margin-top:18px;border-top:1px solid var(--line);padding-top:2px}.spatial-heading{display:flex;align-items:center;justify-content:space-between;gap:8px}.rooms{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}.rooms figure{border:1px solid var(--line);border-radius:12px;padding:10px}.rooms figure.whole-house{grid-column:1/-1}.rooms figure.whole-house svg{height:320px!important}.rooms figcaption{margin-top:7px;color:var(--muted);font-size:14px}
@@ -55,22 +55,22 @@
   </section>
 
   <section id="confirmStep" class="hidden">
-    <h2>Confirm the survey facts</h2><p class="hint">Check the transcript-grounded statements that may enter the Depot notes. Tick accurate statements, edit where necessary, and leave unsupported statements unticked. Unticked information cannot reach the notes.</p>
+    <h2>Confirm the survey facts</h2><p class="hint">Tick accurate transcript-grounded statements. To correct or add context, write a comment below and reprocess: comments are added to the evidence and never silently replace the transcript.</p>
     <div id="confirmationStatus" class="status"></div><div id="confirmationItems"></div>
-    <div class="add-confirmation no-print"><input id="manualConfirmationText" placeholder="Add a fact the transcript check missed"><select id="manualConfirmationSection"><option>Needs</option><option>System characteristics</option><option>New boiler and controls</option><option>Flue</option><option>Pipe work</option><option>Restrictions to work</option><option>Disruption</option><option>Customer actions</option><option>Future plans</option><option>Office notes</option></select><button id="addConfirmationBtn">Add fact</button></div>
+    <div class="note no-print"><strong>Add correction or missing context</strong><p class="hint">This comment is added to the captured evidence. Reprocessing will rebuild the suggested facts from the transcript plus your comment.</p><div id="confirmationComments" class="hint"></div><textarea id="confirmationComment" placeholder="For example: The Worcester boiler was selected and fits comfortably; the earlier Vaillant discussion was rejected."></textarea><button id="reprocessConfirmationBtn">Add comment and reprocess facts</button></div>
     <div class="row no-print" style="margin-top:14px"><button id="backInterpretation">Back to interpretation</button><button class="primary" id="writeOptionBtn">Create Depot notes</button></div>
   </section>
 
   <section id="draftStep" class="hidden">
-    <h2>Depot Notes</h2><p class="hint">Fixed-order copy-over sections generated only from the facts you confirmed. Each section can be copied directly; ask AI to clarify wording without adding new facts.</p>
+    <h2>Depot Notes</h2><p class="hint">Fixed-order Depot/Breeze copy-over sections generated only from confirmed facts. Copying preserves semicolons so Depot creates the intended line breaks.</p>
     <div id="draftStatus" class="status"></div><div id="notes"></div>
     <div class="row no-print"><button id="backCheck">Back to confirmations</button><button id="downloadNotesBtn">Download option notes</button><button class="primary" id="handoverBtn">Create handover</button></div>
   </section>
 
   <section id="handoverStep" class="hidden">
-    <h2>Handover</h2><p class="hint">Two documents written for different readers: a friendly explanation for the customer and a concise technical handover for the engineer.</p>
+    <h2>Handover</h2><p class="hint">One complete printable handover containing the customer explanation, engineer works, photographs and captured room plans.</p>
     <div id="handoverStatus" class="status"></div>
-    <div class="row no-print"><button id="printCustomer">Save customer document PDF</button><button id="printEngineer" class="primary">Save engineer handover PDF</button></div>
+    <div class="row no-print"><button id="printHandover" class="primary">Print or save complete handover</button></div>
     <div id="customerDocument"><h3>Your heating installation</h3><div id="customerNotes"></div></div>
     <div id="engineerDocument"><h3>Engineer works</h3><div id="engineerNotes"></div></div>
     <div class="row no-print"><button id="anotherSurvey" class="primary">Process another survey</button><button id="backDraft">Back to draft</button></div>

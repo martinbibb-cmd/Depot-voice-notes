@@ -24,7 +24,7 @@ async function parseJson(response) {
 const originalFetch = globalThis.fetch;
 
 test('POST /interpret separates shared evidence, independent options, history and uncertainty', async (t) => {
-  const transcript = 'Standing pressure is 2.5 bar. Existing 22 mm gas pipe. Clearance was 150 mm. The pump is an impala in the matrix. Option one retains the combi. Option two uses a system boiler and accumulator. The cupboard is retained. Valor was rejected. The old system was powerflushed. The hand flute term is unclear.';
+  const transcript = 'Standing pressure is 2.5 bar. Existing 22 mm gas pipe. Clearance was 150 mm. The pump is an impala in the matrix. Option one retains the combi. Option two uses a system boiler and accumulator. The cupboard is retained. Valor was rejected. The old system was powerflushed. The hand flute term is unclear. It is a cup with a hole in it.';
   let modelInput;
   globalThis.fetch = async (_url, options) => {
     const request = JSON.parse(options.body);
@@ -41,7 +41,7 @@ test('POST /interpret separates shared evidence, independent options, history an
         { title: 'System boiler', status: 'viable', facts: [{ category: 'Boiler', text: 'Use a system boiler and accumulator.', evidenceQuote: 'Option two uses a system boiler and accumulator.', evidenceSource: 'transcript' }, { category: 'Cupboard', text: 'The cupboard is retained.', evidenceQuote: 'The cupboard is retained.', evidenceSource: 'transcript' }] }
       ],
       rejectedAlternatives: [{ text: 'Valor route was rejected.', reason: 'Uncertain recognised term.', evidenceQuote: 'Valor', evidenceSource: 'transcript' }],
-      uncertainties: [{ text: 'hand flute', context: 'Unclear recognised component term.', evidenceQuote: 'hand flute', evidenceSource: 'transcript' }],
+      uncertainties: [{ text: 'hand flute', context: 'Unclear recognised component term.', evidenceQuote: 'hand flute', evidenceSource: 'transcript' }, { text:'cup with a hole', context:'Unclear phrase.', evidenceQuote:'cup with a hole in it', evidenceSource:'transcript' }],
       historicalFacts: [{ category: 'System history', text: 'The old system was powerflushed.', evidenceQuote: 'The old system was powerflushed.', evidenceSource: 'transcript' }]
     }) }] } }] }), { status: 200, headers: { 'Content-Type': 'application/json' } });
   };
@@ -65,6 +65,7 @@ test('POST /interpret separates shared evidence, independent options, history an
   assert(body.uncertainties.some(item => /impala/i.test(item.text)));
   assert(!body.rejectedAlternatives.some(item => /valor/i.test(item.text)));
   assert(body.uncertainties.some(item => /valor/i.test(item.text)));
+  assert(!body.uncertainties.some(item => /cup with a hole/i.test(item.text)));
   assert(body.sharedFacts.some(item => item.category === 'Gas supply' && item.text === '22 mm gas pipe recorded.'));
   assert.equal(modelInput.transcript, transcript);
   assert.match(modelInput.capturedEvidence, /Garden tap/);
@@ -87,12 +88,34 @@ test('POST /interpret creates provenance-bearing Wants and Needs without promoti
   t.after(() => { globalThis.fetch = originalFetch; });
   const response = await worker.fetch(new Request('https://example.com/interpret', { method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({ transcript }) }), { GEMINI_API_KEY:'test-key' }, {});
   const body = await parseJson(response);
-  assert.equal(body.interpretationVersion, 8);
+  assert.equal(body.interpretationVersion, 12);
   assert.match(body.customerIntent.wants.map(item => item.text).join(' '), /gain loft space/i);
   assert.match(body.customerIntent.needs.map(item => item.text).join(' '), /restore.*heating and hot-water/i);
   assert.match(body.customerIntent.needs.map(item => item.text).join(' '), /bath and shower/i);
   assert(body.customerIntent.needs.every(item => item.supportingFactIds.length));
   assert(!body.customerIntent.needs.some(item => /22 mm gas pipe/i.test(item.text)));
+});
+
+test('POST /interpret keeps replacement work in the proposal and uncertainty out of current facts', async (t) => {
+  const transcript = 'The current boiler is a system boiler. The shower may not suit a convolution boiler. Replace the existing system boiler with a new system boiler.';
+  globalThis.fetch = async () => new Response(JSON.stringify({ candidates:[{ content:{ parts:[{ text:JSON.stringify({
+    sharedFacts:[
+      { category:'Existing system', text:'The current boiler is a system boiler.', evidenceQuote:'The current boiler is a system boiler.', evidenceSource:'transcript' },
+      { category:'Shower', text:'The shower is unsuitable for a combi.', evidenceQuote:'The shower may not suit a convolution boiler.', evidenceSource:'transcript' },
+      { category:'Boiler work', text:'Replace the existing system boiler with a new system boiler.', evidenceQuote:'Replace the existing system boiler with a new system boiler.', evidenceSource:'transcript' }
+    ],
+    options:[{ title:'Like-for-like replacement', status:'preferred', facts:[{ category:'Gas', text:'Retain existing gas supply.', evidenceQuote:'The current boiler is a system boiler.', evidenceSource:'transcript' }] }],
+    uncertainties:[{ text:'convolution boiler', context:'Unclear recognised term.', evidenceQuote:'The shower may not suit a convolution boiler.', evidenceSource:'transcript' }],
+    rejectedAlternatives:[], historicalFacts:[]
+  }) }] } }] }), { status:200, headers:{'content-type':'application/json'} });
+  t.after(() => { globalThis.fetch = originalFetch; });
+  const response = await worker.fetch(new Request('https://example.com/interpret',{ method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({transcript}) }), { GEMINI_API_KEY:'test-key' }, {});
+  const body = await parseJson(response);
+  assert(body.options[0].facts.some(item => /replace the existing system boiler/i.test(item.text)));
+  assert.match(body.options[0].title, /replace the existing system boiler/i);
+  assert(body.sharedFacts.some(item => /current boiler is a system boiler/i.test(item.text)));
+  assert(!body.sharedFacts.some(item => /shower is unsuitable/i.test(item.text)));
+  assert(body.uncertainties.some(item => /convolution boiler/i.test(item.text)));
 });
 
 test('POST /confirmation-checklist deterministically uses only grounded canonical facts', async () => {

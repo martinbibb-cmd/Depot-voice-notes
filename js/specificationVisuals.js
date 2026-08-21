@@ -45,7 +45,7 @@ export function componentIcon(kind, subtype = '') {
 const definitions = [
   { id:'boiler', label:'Boiler', pattern:/\bboiler\b/i },
   { id:'cylinder', label:'Cylinder', pattern:/\bcylinder\b|stored hot water/i },
-  { id:'flue', label:'Flue', pattern:/\bflue\b|terminal|plume/i },
+  { id:'flue', label:'Flue', pattern:/\bflu(?:e)?\b|terminal|plume/i },
   { id:'control', label:'Controls', pattern:/\bcontrol|thermostat|programmer|hive/i },
   { id:'gas', label:'Gas supply', pattern:/\bgas\b/i },
   { id:'filter', label:'Magnetic filter', pattern:/magnetic filter|fernox|tf1/i },
@@ -57,6 +57,7 @@ const definitions = [
 ];
 
 function actionFor(text) {
+  if (/\b(?:no need|does not need|do not need|doesn't need|not required)\b.{0,35}\b(?:replace|upgrade|renew)\b|\b(?:replace|upgrade|renew)\b.{0,35}\b(?:not required|not needed)\b/i.test(text)) return 'Retain';
   if (/\b(?:already done|completed|fitted already)\b/i.test(text)) return 'Already done';
   if (/\b(?:replace|replacement|upgrade|renew)\b/i.test(text)) return 'Replace';
   if (/\b(?:remove|abandon|seal old|take out)\b/i.test(text)) return 'Remove';
@@ -79,7 +80,7 @@ function componentAction(kind, text) {
     if (/\b(?:not required|not needed|exclude)\b/i.test(text)) return 'Not required';
     if (/\b(?:required|include|powerflush|power flush)\b/i.test(text)) return 'Include';
   }
-  if (kind === 'scaffold' && /\bscaffold.{0,40}(?:required|needed)|(?:required|needed).{0,40}scaffold\b/i.test(text)) return 'Include';
+  if (kind === 'scaffold' && /\bscaffold.{0,40}(?:required|needed)|(?:required|needed|need to use).{0,40}(?:a\s+)?scaffold\b/i.test(text)) return 'Include';
   return actionFor(text);
 }
 
@@ -91,20 +92,37 @@ function typeFor(kind, text) {
 
 function uniqueFacts(items) {
   const seen = new Set();
+  const quotes = [];
   return items.filter(item => {
     const key = item.id || `${item.category || ''}\u0000${item.text || ''}`;
-    if (seen.has(key)) return false;
+    const quote = String(item.evidenceQuote || item.text || '').toLowerCase().replace(/\s+/g, ' ').trim();
+    if (seen.has(key) || (quote.length > 24 && quotes.some(existing => existing.includes(quote) || quote.includes(existing)))) return false;
     seen.add(key);
+    if (quote.length > 24) quotes.push(quote);
     return true;
   });
+}
+
+function belongsToComponent(kind, item) {
+  const text = `${item.category || ''} ${item.text || ''}`;
+  const category = String(item.category || '');
+  if (kind === 'boiler') return !/gas|condens|flue|access|control|filter/i.test(category) && /\bboiler\b/i.test(text) && (
+    /\b(?:replace|install|retain|remove|relocate|move|convert|existing|current|new|system|regular|combi)\b.{0,45}\bboiler\b|\bboiler\b.{0,45}\b(?:replace|install|retain|remove|relocate|move|existing|current|new|system|regular|combi|same (?:place|position|location))\b/i.test(text)
+  );
+  if (kind === 'gas') return /\bgas\b/i.test(text) && !/same route as (?:the )?gas|follow(?:ing)? (?:the )?(?:same )?gas route/i.test(text);
+  if (kind === 'condensate') return /condens|\bwaste (?:pipe|route)\b/i.test(text);
+  if (kind === 'filter') return /magnetic filter|fernox|tf1/i.test(text);
+  if (kind === 'control') return /\bcontrol|thermostat|programmer|hive/i.test(text);
+  if (kind === 'scaffold') return /scaffold|working at height|ladder access/i.test(text);
+  return definitions.find(definition => definition.id === kind)?.pattern.test(text) ?? false;
 }
 
 export function buildVisualSpecification(interpretation, option) {
   const shared = interpretation?.sharedFacts || [];
   const selected = option?.facts || [];
   return definitions.flatMap(definition => {
-    const proposalFacts = selected.filter(item => definition.pattern.test(`${item.category || ''} ${item.text || ''}`));
-    const existingFacts = shared.filter(item => definition.pattern.test(`${item.category || ''} ${item.text || ''}`));
+    const proposalFacts = selected.filter(item => belongsToComponent(definition.id, item));
+    const existingFacts = shared.filter(item => belongsToComponent(definition.id, item));
     const facts = uniqueFacts([...proposalFacts, ...existingFacts]);
     if (!facts.length) return [];
     const proposalText = proposalFacts.map(item => item.text).join(' ');

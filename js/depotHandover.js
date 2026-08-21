@@ -4,7 +4,8 @@ import { communicationSafeguards, derivedWorkSuggestions, mergeSafeguards, unres
 import { inferredPrimaryRequirement, pipeRequirement, suggestPackage } from './breezePackages.js';
 import { trustworthyTransferredFacts } from './transferEvidence.js';
 import { buildDepotSections, auditPipelineOutput } from './pipelineInvariants.js';
-import { buildVisitBrief, confirmationGroup, confirmationPriority, evidenceStateLabel, REVIEW_GROUPS } from './reviewPresentation.js';
+import { buildVisitBrief, confirmationGroup, confirmationPriority, evidenceStateLabel, uncertaintyPrompt, REVIEW_GROUPS } from './reviewPresentation.js';
+import { buildVisualSpecification, componentIcon } from './specificationVisuals.js';
 
 const WORKER = 'https://depot-voice-notes.martinbibb.workers.dev';
 const $ = id => document.getElementById(id);
@@ -19,6 +20,7 @@ const optionChecklists = new Map();
 let currentVisitId = null;
 let transferPayload = null;
 let handoverDocuments = { customer: [], engineer: [] };
+let interpretationNeedsUpgrade = false;
 
 if (!getAuthToken()) location.href = 'login.html';
 
@@ -80,6 +82,8 @@ async function openCapture(id) {
     transferPayload = visit.payload;
     const saved = await api(`/spec-check/visits/${id}/processing-state`);
     interpretation = saved.interpretation;
+    interpretationNeedsUpgrade = Boolean(interpretation && Number(interpretation.interpretationVersion || 0) < 12);
+    if (interpretationNeedsUpgrade) interpretation = null;
     optionChecklists.clear();
     restoreChecklists(saved.checklists).forEach((value, key) => optionChecklists.set(key, value));
     $('transcript').value = transcriptOf(visit.payload);
@@ -87,9 +91,9 @@ async function openCapture(id) {
     await loadPhotos(id, visit.photos); renderRooms(visit.payload.rooms || [], visit.payload.wholeHouseStructure || null); await api(`/spec-check/visits/${id}/consume`, { method: 'POST', body: '{}' });
     const roomCount = (visit.payload.rooms || []).length;
     status(`Opened ${visit.nickname}: ${$('transcript').value.split(/\s+/).filter(Boolean).length} transcript words, ${visit.photos.length} photos and ${roomCount} captured room${roomCount === 1 ? '' : 's'}${visit.payload.wholeHouseStructure?.alignedByStructureBuilder ? ' in an aligned whole-house structure' : ''}.`);
-    $('resumeReviewBtn').classList.toggle('hidden', !interpretation);
+    $('resumeReviewBtn').classList.toggle('hidden', !$('transcript').value.trim());
     const savedStep = Number(localStorage.getItem(`speccheck-step-${id}`) || 1);
-    $('resumeReviewBtn').textContent = savedStep >= 3 ? 'Resume confirmation' : 'Resume Ready to quote';
+    $('resumeReviewBtn').textContent = interpretationNeedsUpgrade ? 'Update survey review' : savedStep >= 3 ? 'Resume confirmation' : 'Resume Ready to quote';
   } catch (error) { status(error.message, true); }
 }
 function renderRooms(rooms, structure = null) {
@@ -161,7 +165,7 @@ async function aiCheck() {
   $('aiCheckStatus').textContent = 'Checking the complete transcript and reconciling the latest supported survey state…';
   try {
     const captured = $('capturedEvidence').textContent.trim();
-    if (!interpretation || interpretation.interpretationVersion !== 8) {
+    if (!interpretation || interpretation.interpretationVersion !== 12) {
       interpretation = await api('/interpret', { method: 'POST', body: JSON.stringify({ transcript, capturedEvidence: captured }) });
       optionChecklists.clear();
       await persistProcessingState();
@@ -207,18 +211,18 @@ function renderInterpretation() {
   group('Historical only', interpretation.historicalFacts);
   group('Rejected or compromised', interpretation.rejectedAlternatives, item => [item.text, item.reason].filter(Boolean).join(' — '));
   group('Uncertain evidence', interpretation.uncertainties, item => [item.text, item.context].filter(Boolean).join(' — '));
-  renderVisitBrief();
+  renderVisitBrief(null, 'visitBrief', [], new Set(['customer','needs','proposal','why','measurements','missing']));
   const actions = $('optionActions'); actions.replaceChildren();
   interpretation.options.forEach((option, index) => {
     const button = document.createElement('button'); button.className = index === 0 ? 'primary' : '';
-    button.textContent = `Confirm Option ${index + 1} facts`;
+    button.textContent = interpretation.options.length === 1 ? 'Review proposal' : `Review Option ${index + 1}`;
     button.onclick = () => prepareConfirmation(option, index);
     actions.append(button);
   });
 }
-function renderVisitBrief(option = null, target = 'visitBrief', additionalMissing = []) {
+function renderVisitBrief(option = null, target = 'visitBrief', additionalMissing = [], allowedIds = null) {
   const container = $(target); container.replaceChildren();
-  buildVisitBrief(interpretation, option).map(section => section.id === 'missing' ? { ...section, items: [...section.items, ...additionalMissing] } : section).forEach(section => {
+  buildVisitBrief(interpretation, option).filter(section => !allowedIds || allowedIds.has(section.id)).map(section => section.id === 'missing' ? { ...section, items: [...section.items, ...additionalMissing] } : section).forEach(section => {
     if (!section.items.length && section.id !== 'missing') return;
     const card = document.createElement('div'); card.className = `brief-card${section.id === 'missing' && section.items.length ? ' attention' : ''}`;
     const heading = document.createElement('h3'); heading.textContent = section.title;
@@ -226,11 +230,53 @@ function renderVisitBrief(option = null, target = 'visitBrief', additionalMissin
     if (!section.items.length) {
       const item = document.createElement('li'); item.textContent = 'Nothing unresolved was identified.'; list.append(item);
     } else section.items.slice(0, 6).forEach(value => {
-      const item = document.createElement('li'); item.textContent = [value.text, value.reason].filter(Boolean).join(' — '); list.append(item);
+      const item = document.createElement('li'); item.textContent = [value.displayText || value.text, value.reason].filter(Boolean).join(' — '); list.append(item);
     });
     if (section.items.length > 6) { const item = document.createElement('li'); item.textContent = `+ ${section.items.length - 6} supporting details below`; list.append(item); }
     card.append(heading, list); container.append(card);
   });
+}
+function renderProposalBoard(option, target = 'confirmProposalBoard') {
+  const container = $(target); container.replaceChildren();
+  const board = document.createElement('div'); board.className = 'proposal-board';
+  const heading = document.createElement('h3'); heading.textContent = (option?.title || 'Selected proposal').replace(/^Option \d+\s*[—-]\s*/i, ''); board.append(heading);
+  const grid = document.createElement('div'); grid.className = 'proposal-grid';
+  buildVisualSpecification(interpretation, option).forEach(row => {
+    const tile = document.createElement('details'); tile.className = 'proposal-tile';
+    const summary = document.createElement('summary'); summary.innerHTML = componentIcon(row.component, row.subtype);
+    const label = document.createElement('span'); label.className = 'proposal-label'; label.textContent = row.label;
+    const state = document.createElement('span'); state.className = `proposal-state${row.action === 'Unresolved' ? ' unresolved' : ''}`;
+    state.textContent = row.action === 'Unresolved' ? 'Needs clarification' : [row.subtype && `${row.subtype[0].toUpperCase()}${row.subtype.slice(1)}`, row.action].filter(Boolean).join(' · ');
+    const evidence = document.createElement('div'); evidence.className = 'proposal-evidence';
+    const list = document.createElement('ul'); row.facts.forEach(fact => { const item = document.createElement('li'); item.textContent = fact.text; list.append(item); }); evidence.append(list);
+    const choices = {
+      boiler:['Replace in existing position','Install in a new position','Retain existing boiler','Not applicable'],
+      flue:['Reuse existing opening','Install through a new opening','Route vertically then horizontally','Not established'],
+      control:['Retain existing controls','Install Hive or smart controls','Replace controls','Not applicable'],
+      gas:['Retain existing gas supply','Install or upgrade gas supply','Not established'],
+      condensate:['Reuse existing condensate route','Install new internal route','Install new external route','Not established'],
+      electrical:['Retain existing electrical supply','Provide new boiler supply','Replace fused spur','Not established'],
+      scaffold:['Scaffold required','Normal ladder access available','Other access arrangement','Not applicable']
+    }[row.component] || [];
+    const actions = document.createElement('div'); actions.className = 'card-actions';
+    if (row.action === 'Unresolved') choices.forEach(choice => {
+      const button = document.createElement('button'); button.textContent = choice;
+      button.onclick = () => reprocessConfirmation(`${row.label}: ${choice}.`);
+      actions.append(button);
+    });
+    const correct = document.createElement('button'); correct.textContent = row.action === 'Unresolved' ? 'Enter another answer' : 'Correct this';
+    correct.onclick = () => { $('confirmationComment').value = `${row.label}: `; $('confirmationComment').focus(); $('confirmationComment').scrollIntoView({ behavior:'smooth', block:'center' }); };
+    actions.append(correct); evidence.append(actions);
+    summary.append(label, state); tile.append(summary, evidence); grid.append(tile);
+  });
+  board.append(grid);
+  const measurements = buildVisitBrief(interpretation, option).find(section => section.id === 'measurements')?.items || [];
+  if (measurements.length) {
+    const strip = document.createElement('div'); strip.className = 'metric-strip';
+    measurements.forEach(item => { const metric = document.createElement('div'); metric.className = 'metric-tile'; const label = document.createElement('strong'); label.textContent = item.category || 'Measurement'; const value = document.createElement('span'); value.textContent = item.text; metric.append(label, value); strip.append(metric); });
+    board.append(strip);
+  }
+  container.append(board);
 }
 async function persistProcessingState() {
   if (!currentVisitId || !interpretation) return;
@@ -320,7 +366,7 @@ function renderConfirmation() {
   const hadGroups = previousGroups.length > 0;
   const openGroups = new Set(previousGroups.filter(item => item.open).map(item => item.dataset.group));
   const previousY = scrollY;
-  renderVisitBrief(selectedOption, 'confirmBrief', state.items.filter(item => !item.removed && item.kind === 'informationGap'));
+  renderProposalBoard(selectedOption);
   const container = $('confirmationItems'); container.replaceChildren();
   $('confirmationComments').textContent = state.surveyorComments?.length
     ? `Added context: ${state.surveyorComments.join(' · ')}`
@@ -360,7 +406,7 @@ function confirmationCard(item) {
     const content = document.createElement('div');
     const promptLabel = document.createElement('span'); promptLabel.className = `state-chip ${item.kind === 'informationGap' ? 'missing' : item.evidenceState === 'uncertain' ? 'uncertain' : ''}`;
     promptLabel.textContent = evidenceStateLabel(item);
-    const text = document.createElement('div'); text.className = 'confirmation-text'; text.textContent = item.text;
+    const text = document.createElement('div'); text.className = 'confirmation-text'; text.textContent = item.evidenceState === 'uncertain' ? uncertaintyPrompt(item) : item.text;
     const actions = document.createElement('div'); actions.className = 'card-actions';
     if (item.kind !== 'informationGap' && item.evidenceState !== 'uncertain') {
       const confirm = document.createElement('button'); confirm.className = item.checked ? 'primary' : '';

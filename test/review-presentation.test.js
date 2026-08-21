@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { buildVisitBrief, confirmationGroup, confirmationPriority, evidenceStateLabel } from '../js/reviewPresentation.js';
+import { buildVisitBrief, confirmationGroup, confirmationPriority, evidenceStateLabel, uncertaintyPrompt } from '../js/reviewPresentation.js';
 import { buildCustomerIntent } from '../js/customerIntent.js';
 
 test('end-of-visit brief restores the decision narrative without inventing content', () => {
@@ -44,6 +44,16 @@ test('suggested work is visibly different and never presented as captured fact',
   const suggestion = { evidenceState: 'derivedSuggestion', text: 'Scaffold may be required.' };
   assert.equal(evidenceStateLabel(suggestion), 'SUGGESTED WORK');
   assert.equal(confirmationGroup(suggestion), 'work');
+});
+
+test('unclear Whisper debris is not used as the primary review wording', () => {
+  const item = { evidenceState:'uncertain', text:"shower won't be suitable for a convolution boiler", evidenceQuote:"shower won't be suitable for a convolution boiler" };
+  const prompt = uncertaintyPrompt(item);
+  assert.equal(prompt, 'Clarify whether the existing shower suits the proposed boiler type.');
+  assert.doesNotMatch(prompt, /convolution/i);
+  const missing = buildVisitBrief({ sharedFacts:[], options:[], uncertainties:[item] }).find(section => section.id === 'missing');
+  assert.equal(missing.items[0].displayText, prompt);
+  assert.equal(missing.items[0].evidenceQuote, item.evidenceQuote);
 });
 
 test('system-boiler/combi visit becomes a decision brief ready for quotation', () => {

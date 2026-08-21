@@ -85,3 +85,30 @@ test('shared rejected boiler wording cannot override selected boiler type', () =
   const boiler = buildVisualSpecification(interpretation, option).find(row => row.component === 'boiler');
   assert.equal(boiler.subtype, 'system');
 });
+
+test('negated upgrade is displayed as retain rather than replace', () => {
+  const option = { id:'system', facts:[
+    { id:'gas', category:'Gas', text:'No need to upgrade the gas supply for a system boiler.' }
+  ] };
+  const gas = buildVisualSpecification({ sharedFacts:[] }, option).find(row => row.component === 'gas');
+  assert.equal(gas.action, 'Retain');
+});
+
+test('component tiles do not attach route references to the gas evidence', () => {
+  const option = { id:'system', facts:[
+    { id:'gas', category:'Gas', text:'Existing gas supply is adequate for the system boiler.' },
+    { id:'route', category:'Condensate', text:'Condensate follows the same route as the gas supply.' }
+  ] };
+  const gas = buildVisualSpecification({ sharedFacts:[] }, option).find(row => row.component === 'gas');
+  assert.deepEqual(gas.facts.map(fact => fact.id), ['gas']);
+});
+
+test('a gas fact naming the selected boiler cannot override the boiler action', () => {
+  const option = { id:'system', facts:[
+    { id:'boiler', category:'Proposal', text:'Replace the existing system boiler with a new system boiler in the same location.' },
+    { id:'gas', category:'Gas supply', text:'No need to upgrade the gas supply for a system boiler.' }
+  ] };
+  const boiler = buildVisualSpecification({ sharedFacts:[] }, option).find(row => row.component === 'boiler');
+  assert.equal(boiler.action, 'Replace');
+  assert.deepEqual(boiler.facts.map(fact => fact.id), ['boiler']);
+});

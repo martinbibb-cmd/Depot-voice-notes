@@ -39,8 +39,24 @@ export function evidenceStateLabel(item) {
   return 'FROM CONVERSATION';
 }
 
+// Uncertain recognition output is evidence, not suitable display copy. Keep the
+// quotation on the evidence disclosure and turn the primary prompt into the
+// smallest grounded question the surveyor can answer by recognition.
+export function uncertaintyPrompt(item) {
+  const value = corpus(item);
+  if (/shower/.test(value) && /boiler|combi|convolution/.test(value)) return 'Clarify whether the existing shower suits the proposed boiler type.';
+  if (/magnetic filter|filter/.test(value)) return 'Confirm whether a magnetic filter is included.';
+  if (/flue|\bflu\b/.test(value)) return 'Clarify the flue detail.';
+  if (/condens/.test(value)) return 'Clarify the condensate route.';
+  if (/gas/.test(value)) return 'Clarify the gas-supply detail.';
+  if (/pressure|flow|\bbar\b|litres?\/min|l\/min/.test(value)) return 'Clarify the uncertain pressure or flow measurement.';
+  return 'Part of the transcript was unclear. Review or ignore it.';
+}
+
 export function buildVisitBrief(interpretation, selectedOption = null) {
-  const shared = interpretation?.sharedFacts || [];
+  const unresolvedIds = new Set((interpretation?.uncertainties || []).map(item => item.id).filter(Boolean));
+  const unresolvedQuotes = new Set((interpretation?.uncertainties || []).map(item => text(item.evidenceQuote).toLowerCase()).filter(Boolean));
+  const shared = (interpretation?.sharedFacts || []).filter(item => !unresolvedIds.has(item.id) && !unresolvedQuotes.has(text(item.evidenceQuote).toLowerCase()));
   const option = selectedOption || (interpretation?.options || []).find(item => item.status === 'preferred') || interpretation?.options?.[0];
   const rejected = interpretation?.rejectedAlternatives || [];
   const uncertainties = interpretation?.uncertainties || [];
@@ -48,7 +64,16 @@ export function buildVisitBrief(interpretation, selectedOption = null) {
   const wants = interpretation?.customerIntent?.wants || [];
   const needs = interpretation?.customerIntent?.needs || [];
   const find = pattern => shared.filter(item => pattern.test(corpus(item)));
-  const unique = values => [...new Map(values.filter(Boolean).map(item => [item.id || text(item.text), item])).values()];
+  const unique = values => {
+    const result = [];
+    values.filter(Boolean).forEach(item => {
+      const quote = text(item.evidenceQuote).toLowerCase();
+      if (result.some(existing => existing.id === item.id || (quote.length >= 30 && (text(existing.evidenceQuote).toLowerCase().includes(quote) || quote.includes(text(existing.evidenceQuote).toLowerCase()))))) return;
+      result.push(item);
+    });
+    return result;
+  };
+  const intentEvidenceIds = new Set(wants.flatMap(item => item.supportingFactIds || []));
   const claimed = new Set();
   const take = values => unique(values).filter(item => {
     const key = item.id || text(item.text);
@@ -59,10 +84,10 @@ export function buildVisitBrief(interpretation, selectedOption = null) {
   const installationNeeds = take(needs);
   const proposal = take(optionFacts.filter(item => /propos|recommend|replace.*boiler|install.*boiler|retain.*(?:system|cylinder)|selected|same type/i.test(corpus(item))));
   const measurements = take([...shared, ...optionFacts].filter(numeric));
-  const restrictions = take([...shared, ...optionFacts].filter(item => /access|scaffold|floor|boxing|cupboard|furniture|drill|restrict|hazard|disruption/i.test(corpus(item))));
-  const existing = take(find(/existing|current|pressure|flow|failed|condition|reported|customer uses|bath|shower/).filter(item => !numeric(item)));
+  const restrictions = take([...optionFacts, ...shared].filter(item => !intentEvidenceIds.has(item.id) && /access|scaffold|floor|boxing|furniture|drill|restrict|hazard|disruption|cupboard.{0,50}(?:access|remove|clear)|(?:access|remove|clear).{0,50}cupboard/i.test(corpus(item))));
+  const existing = take(find(/existing|current|pressure|flow|failed|condition|reported|customer uses|bath|shower/).filter(item => !numeric(item) && !intentEvidenceIds.has(item.id) && !/\b(?:replace|install|fit|remove|retain|upgrade|renew|propos|recommend)\b/i.test(corpus(item))));
   const alternatives = take([...(interpretation?.options || []).filter(item => item.id !== option?.id).flatMap(item => item.facts || []), ...rejected]);
-  const why = take([...optionFacts.filter(item => item.relationship), ...rejected.filter(item => item.reason)]);
+  const why = take([...optionFacts.filter(item => item.relationship && /because|due to|therefore|reason|unsuitable|inadequate|so we (?:don't|do not|need)/i.test(`${item.text} ${item.evidenceQuote}`)), ...rejected.filter(item => item.reason)]);
   const work = take(optionFacts.filter(item => /install|replace|fit|route|flue|condens|gas|pipe|filter|control|hive|radiator|cylinder/i.test(corpus(item))));
   return [
     { id: 'customer', title: 'Customer wants', items: customer },
@@ -74,6 +99,6 @@ export function buildVisitBrief(interpretation, selectedOption = null) {
     { id: 'measurements', title: 'Key measurements', items: measurements },
     { id: 'work', title: 'Likely work', items: work },
     { id: 'restrictions', title: 'Restrictions', items: restrictions },
-    { id: 'missing', title: 'Resolve for quote', items: uncertainties }
+    { id: 'missing', title: 'Resolve for quote', items: uncertainties.map(item => ({ ...item, displayText: uncertaintyPrompt(item) })) }
   ];
 }

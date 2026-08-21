@@ -212,7 +212,7 @@ async function handleInterpret(request, env) {
 }
 
 async function callInterpretationModel(env, transcript, capturedEvidence) {
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`interpretation-v8\0${transcript}\0${capturedEvidence}`));
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`interpretation-v12\0${transcript}\0${capturedEvidence}`));
   const evidenceHash = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
   if (env.DB) {
     const cached = await env.DB.prepare('SELECT result_json FROM speccheck_interpretation_cache WHERE evidence_hash = ? AND expires_at > ?')
@@ -284,10 +284,18 @@ Return only JSON:
   };
   const groundedSpecial = value => grounded(cleanItems(value).map(item => ({ ...item, category: item.category || "Survey evidence" })));
   const uncertainTerm = /\b(?:hand flute|impala in the matrix|vac fluid|valor)\b/i;
+  const unsafeComponentRewrite = item => {
+    const modifiers = value => [...normalise(value).matchAll(/\b([a-z][a-z-]+)\s+(boiler|pump|valve|flue|filter|cylinder)\b/g)].map(match => ({ modifier:match[1], component:match[2] }));
+    const quoteModifiers = modifiers(item.evidenceQuote), textModifiers = modifiers(item.text);
+    const known = new Set(['combi','combination','system','regular','condensing','heat','circulation','motorised','zone','magnetic','systemic','hot-water']);
+    return quoteModifiers.some(source => !known.has(source.modifier)
+      && !textModifiers.some(target => target.component === source.component && target.modifier === source.modifier)
+      && textModifiers.some(target => target.component === source.component && known.has(target.modifier)));
+  };
   const moveUncertain = items => {
     const safe = [], uncertain = [];
     for (const item of items) {
-      if (uncertainTerm.test(`${item.text} ${item.evidenceQuote}`)) uncertain.push({
+      if (uncertainTerm.test(`${item.text} ${item.evidenceQuote}`) || unsafeComponentRewrite(item)) uncertain.push({
         id: stableId(`uncertain|${item.evidenceQuote}`), category: "Uncertain terminology", text: item.evidenceQuote,
         context: "The exact recognised product or component term could not be established safely.",
         evidenceQuote: item.evidenceQuote, evidenceSource: item.evidenceSource
@@ -316,7 +324,13 @@ Return only JSON:
   // observations shared.
   const optionTerms = optionResults.map(result => normalise(result.safe.map(item => item.text).join(' ')));
   shared.safe = shared.safe.filter(fact => {
-    if (/customer|want|need|prefer|priority|existing|current/i.test(`${fact.category} ${fact.text}`)) return true;
+    const factScope = `${fact.category} ${fact.text}`;
+    if (/customer|want|need|prefer|priority/i.test(factScope)) return true;
+    if (/existing|current/i.test(factScope) && !/\b(?:replace|install|fit|remove|retain|upgrade|renew|propos|recommend)\b/i.test(factScope)) return true;
+    if (optionResults.length === 1 && /\b(?:replace|install|fit|remove|retain|upgrade|renew|propos|recommend)\b/i.test(factScope)) {
+      optionResults[0].safe.push(fact);
+      return false;
+    }
     const factText = normalise(`${fact.text} ${fact.evidenceQuote}`);
     const named = ['combi','system boiler','regular boiler','vaillant','worcester','glow-worm'].filter(term => factText.includes(term));
     if (!named.length) return true;
@@ -343,9 +357,16 @@ Return only JSON:
   const historical = moveUncertain(grounded(parsed.historicalFacts));
   const uncertaintyCandidates = [...groundedSpecial(parsed.uncertainties), ...shared.uncertain,
     ...optionResults.flatMap(result => result.uncertain), ...rejected.uncertain, ...historical.uncertain];
+  const safeEvidenceQuotes = [...shared.safe, ...optionResults.flatMap(result => result.safe)].map(item => normalise(item.evidenceQuote)).filter(quote => quote.length >= 20);
+  const coveredBySafeFact = item => {
+    if (item.evidenceSource === 'capturedEvidence' && /error|unusually|transcription|measurement/i.test(item.context || '')) return false;
+    const quote = normalise(item.evidenceQuote);
+    return quote.length >= 20 && safeEvidenceQuotes.some(safeQuote => safeQuote !== quote && safeQuote.includes(quote));
+  };
+  const materialUncertainty = item => uncertainTerm.test(`${item.text} ${item.evidenceQuote}`) || /\b(?:boiler|flue|gas|condens|water|pressure|flow|pipe|pump|valve|cylinder|tank|radiator|control|electric|shower|bath|heating|hot water|access|scaffold|asbestos|route|system|component|product|manufacturer|\d+(?:\.\d+)?\s*(?:mm|m\b|bar|litres?|l\/min|kw))\b/i.test(`${item.text} ${item.context || ''}`);
   const uncertaintyIds = new Set();
   const result = {
-    interpretationVersion: 8,
+    interpretationVersion: 12,
     sharedFacts: shared.safe,
     options: optionResults.map(({ option, index, safe }) => ({
       id: `option-${index + 1}`,
@@ -354,14 +375,22 @@ Return only JSON:
       facts: safe
     })).filter(option => option.facts.length),
     rejectedAlternatives: rejected.safe,
-    uncertainties: uncertaintyCandidates.filter(item => !uncertaintyIds.has(item.id) && uncertaintyIds.add(item.id)),
+    uncertainties: uncertaintyCandidates.filter(item => materialUncertainty(item) && !coveredBySafeFact(item) && !uncertaintyIds.has(item.id) && uncertaintyIds.add(item.id)),
     historicalFacts: historical.safe
   };
   if (!result.options.length && (result.sharedFacts.length || result.uncertainties.length)) {
     result.options.push({ id: 'option-1', title: 'Recorded survey', status: 'preferred', facts: [] });
   }
+  const unresolvedQuotes = result.uncertainties.map(item => normalise(item.evidenceQuote)).filter(Boolean);
+  const isResolvedFact = item => {
+    const quote = normalise(item.evidenceQuote);
+    return !unresolvedQuotes.some(unresolved => unresolved === quote || (unresolved.length >= 12 && quote.length >= 12 && (unresolved.includes(quote) || quote.includes(unresolved))));
+  };
+  result.sharedFacts = result.sharedFacts.filter(isResolvedFact);
+  result.options.forEach(option => { option.facts = option.facts.filter(isResolvedFact); });
   result.options.forEach((option, index) => {
-    option.title = `Option ${index + 1} — ${option.facts[0]?.text || "Recorded survey"}`;
+    const decision = option.facts.find(item => /\b(?:replace|install|retain|remove|relocate|convert).{0,80}\b(?:boiler|cylinder|system)\b/i.test(item.text)) || option.facts[0];
+    option.title = `Option ${index + 1} — ${decision?.text || "Recorded survey"}`;
   });
   result.customerIntent = buildCustomerIntent(result);
   if (env.DB) {

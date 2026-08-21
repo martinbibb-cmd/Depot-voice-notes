@@ -120,7 +120,11 @@ export async function handleSpecCheckTransfer(request, env, url = new URL(reques
       .bind(id, pairedDevice.user_id, pairedDevice.id, payload.nickname.trim().slice(0, 100), JSON.stringify(payload),
         Number(payload.photoCount || 0), payload.createdAt || null, now,
         isoAfter(TRANSFER_LIFETIME_DAYS * 86400000)).run();
-    return json({ id, status: 'pending' }, 201);
+    return json({
+      id, status: 'pending',
+      roomCount: Array.isArray(payload.rooms) ? payload.rooms.length : 0,
+      wholeHouseStructureIncluded: Boolean(payload.wholeHouseStructure?.alignedByStructureBuilder)
+    }, 201);
   }
 
   const photoMatch = url.pathname.match(/^\/spec-check\/visits\/([^/]+)\/photos\/([^/]+)$/);

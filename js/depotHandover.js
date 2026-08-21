@@ -80,11 +80,14 @@ async function openCapture(id) {
     $('transcript').value = transcriptOf(visit.payload);
     const evidence = evidenceOf(visit.payload); $('capturedEvidence').textContent = evidence; $('capturedEvidence').classList.toggle('hidden', !evidence);
     await loadPhotos(id, visit.photos); renderRooms(visit.payload.rooms || [], visit.payload.wholeHouseStructure || null); await api(`/spec-check/visits/${id}/consume`, { method: 'POST', body: '{}' });
-    status(`Opened ${visit.nickname}: ${$('transcript').value.split(/\s+/).filter(Boolean).length} transcript words and ${visit.photos.length} photos.`);
+    const roomCount = (visit.payload.rooms || []).length;
+    status(`Opened ${visit.nickname}: ${$('transcript').value.split(/\s+/).filter(Boolean).length} transcript words, ${visit.photos.length} photos and ${roomCount} captured room${roomCount === 1 ? '' : 's'}${visit.payload.wholeHouseStructure?.alignedByStructureBuilder ? ' in an aligned whole-house structure' : ''}.`);
   } catch (error) { status(error.message, true); }
 }
 function renderRooms(rooms, structure = null) {
   surveyRooms = rooms; surveyStructure = structure; $('roomGallery').replaceChildren();
+  $('spatialCapture').classList.toggle('hidden', rooms.length === 0);
+  $('roomCount').textContent = `${rooms.length} room${rooms.length === 1 ? '' : 's'} received`;
   if (structure?.alignedByStructureBuilder && rooms.length > 1) $('roomGallery').append(propertyFigure(structure));
   rooms.forEach(room => $('roomGallery').append(roomFigure(room)));
 }
@@ -96,6 +99,7 @@ function propertyFigure(structure) {
     radiators: allRooms.flatMap(room => room.radiators || [])
   };
   const figure = roomFigure(combined);
+  figure.classList.add('whole-house');
   figure.querySelector('figcaption').textContent = `Whole-house structure · ${structure.roomCount} aligned rooms · ${(structure.floors || []).length} floor${(structure.floors || []).length === 1 ? '' : 's'}`;
   return figure;
 }

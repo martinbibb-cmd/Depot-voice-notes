@@ -1,11 +1,11 @@
 import { clearAuthToken, getAuthToken } from '../src/auth/auth-client.js';
-import { confirmedChecklistItems, restoreChecklists, serialiseChecklists } from './confirmationState.js';
+import { applyVisualSelection, confirmedChecklistItems, restoreChecklists, serialiseChecklists } from './confirmationState.js';
 import { communicationSafeguards, derivedWorkSuggestions, mergeSafeguards, unresolvedSafeguards } from './handoverSafeguards.js';
 import { inferredPrimaryRequirement, pipeRequirement, suggestPackage } from './breezePackages.js';
 import { trustworthyTransferredFacts } from './transferEvidence.js';
 import { buildDepotSections, auditPipelineOutput } from './pipelineInvariants.js';
 import { buildVisitBrief, confirmationGroup, confirmationPriority, evidenceStateLabel, uncertaintyPrompt, REVIEW_GROUPS } from './reviewPresentation.js';
-import { buildVisualSpecification, componentIcon } from './specificationVisuals.js';
+import { buildVisualSpecification, componentIcon, VISUAL_COMPONENTS, visualSelectionText } from './specificationVisuals.js';
 
 const WORKER = 'https://depot-voice-notes.martinbibb.workers.dev';
 const $ = id => document.getElementById(id);
@@ -240,34 +240,32 @@ function renderProposalBoard(option, target = 'confirmProposalBoard') {
   const container = $(target); container.replaceChildren();
   const board = document.createElement('div'); board.className = 'proposal-board';
   const heading = document.createElement('h3'); heading.textContent = (option?.title || 'Selected proposal').replace(/^Option \d+\s*[—-]\s*/i, ''); board.append(heading);
-  const grid = document.createElement('div'); grid.className = 'proposal-grid';
-  buildVisualSpecification(interpretation, option).forEach(row => {
-    const tile = document.createElement('details'); tile.className = 'proposal-tile';
-    const summary = document.createElement('summary'); summary.innerHTML = componentIcon(row.component, row.subtype);
-    const label = document.createElement('span'); label.className = 'proposal-label'; label.textContent = row.label;
-    const state = document.createElement('span'); state.className = `proposal-state${row.action === 'Unresolved' ? ' unresolved' : ''}`;
-    state.textContent = row.action === 'Unresolved' ? 'Needs clarification' : [row.subtype && `${row.subtype[0].toUpperCase()}${row.subtype.slice(1)}`, row.action].filter(Boolean).join(' · ');
-    const evidence = document.createElement('div'); evidence.className = 'proposal-evidence';
-    const list = document.createElement('ul'); row.facts.forEach(fact => { const item = document.createElement('li'); item.textContent = fact.text; list.append(item); }); evidence.append(list);
-    const choices = {
-      boiler:['Replace in existing position','Install in a new position','Retain existing boiler','Not applicable'],
-      flue:['Reuse existing opening','Install through a new opening','Route vertically then horizontally','Not established'],
-      control:['Retain existing controls','Install Hive or smart controls','Replace controls','Not applicable'],
-      gas:['Retain existing gas supply','Install or upgrade gas supply','Not established'],
-      condensate:['Reuse existing condensate route','Install new internal route','Install new external route','Not established'],
-      electrical:['Retain existing electrical supply','Provide new boiler supply','Replace fused spur','Not established'],
-      scaffold:['Scaffold required','Normal ladder access available','Other access arrangement','Not applicable']
-    }[row.component] || [];
-    const actions = document.createElement('div'); actions.className = 'card-actions';
-    if (row.action === 'Unresolved') choices.forEach(choice => {
-      const button = document.createElement('button'); button.textContent = choice;
-      button.onclick = () => reprocessConfirmation(`${row.label}: ${choice}.`);
-      actions.append(button);
-    });
-    const correct = document.createElement('button'); correct.textContent = row.action === 'Unresolved' ? 'Enter another answer' : 'Correct this';
-    correct.onclick = () => { $('confirmationComment').value = `${row.label}: `; $('confirmationComment').focus(); $('confirmationComment').scrollIntoView({ behavior:'smooth', block:'center' }); };
-    actions.append(correct); evidence.append(actions);
-    summary.append(label, state); tile.append(summary, evidence); grid.append(tile);
+  const grid = document.createElement('div'); grid.className = 'proposal-editor';
+  const checklist = optionChecklists.get(option.id);
+  buildVisualSpecification(interpretation, option, checklist).forEach(row => {
+    const config = VISUAL_COMPONENTS[row.component] || { actions:['Already done','Retain','Replace','Remove','New','Unresolved'], section:'Office notes' };
+    const tile = document.createElement('section'); tile.className = 'proposal-editor-row'; tile.dataset.component = row.component;
+    const head = document.createElement('div'); head.className = 'proposal-editor-head'; head.innerHTML = componentIcon(row.component, row.subtype);
+    const title = document.createElement('strong'); title.textContent = row.label; head.append(title); tile.append(head);
+    const addChoiceGroup = (field, labelText, choices, selected) => {
+      if (!choices?.length) return;
+      const group = document.createElement('div'); group.className = `visual-choice-group ${field}`; group.setAttribute('role','radiogroup'); group.setAttribute('aria-label', `${row.label} ${labelText}`);
+      const label = document.createElement('span'); label.className = 'visual-choice-label'; label.textContent = labelText; group.append(label);
+      choices.forEach(choiceValue => {
+        const [value, labelValue] = Array.isArray(choiceValue) ? choiceValue : [choiceValue, choiceValue];
+        const button = document.createElement('button'); button.type = 'button'; button.className = `visual-choice${selected === value ? ' selected' : ''}`; button.setAttribute('role','radio'); button.setAttribute('aria-checked', String(selected === value));
+        if (field === 'type' && ['boiler','flue'].includes(row.component)) button.innerHTML = `${componentIcon(row.component, value)}<span>${labelValue}</span>`;
+        else button.textContent = labelValue;
+        button.onclick = () => setVisualProposalState(row, field, value, config.section);
+        group.append(button);
+      });
+      tile.append(group);
+    };
+    addChoiceGroup('type','Type',config.typeChoices,row.subtype);
+    addChoiceGroup('action','Action',config.actions,row.action);
+    const evidence = document.createElement('details'); evidence.className = 'proposal-evidence';
+    const evidenceSummary = document.createElement('summary'); evidenceSummary.textContent = `Supporting evidence (${row.facts.length})`; evidence.append(evidenceSummary);
+    const list = document.createElement('ul'); row.facts.forEach(fact => { const item = document.createElement('li'); item.textContent = fact.text; list.append(item); }); evidence.append(list); tile.append(evidence); grid.append(tile);
   });
   board.append(grid);
   const measurements = buildVisitBrief(interpretation, option).find(section => section.id === 'measurements')?.items || [];
@@ -277,6 +275,21 @@ function renderProposalBoard(option, target = 'confirmProposalBoard') {
     board.append(strip);
   }
   container.append(board);
+}
+
+async function setVisualProposalState(row, field, value, targetSection) {
+  const state = optionChecklists.get(selectedOption.id);
+  if (!state) return;
+  const affected = row.facts.filter(fact => field === 'type'
+    ? (field === 'type' && (row.component === 'gas' ? /\b(?:15|22|28|35)\s*mm\b/i : new RegExp(`\\b${row.inferredSubtype || value}\\b`, 'i')).test(fact.text))
+    : row.inferredAction !== 'Unresolved' && /already|retain|reuse|replace|upgrade|remove|install|fit|new|required|include|same (?:hole|position|opening)/i.test(fact.text));
+  applyVisualSelection(state, {
+    component:row.component, field, value, text:visualSelectionText(row.component, field, value), targetSection,
+    affectedFactIds:affected.map(fact => fact.id), evidenceQuotes:affected.map(fact => fact.evidenceQuote).filter(Boolean), originalText:affected.map(fact => fact.text).join(' | ')
+  });
+  optionDrafts.delete(selectedOption.id);
+  await persistProcessingState();
+  renderConfirmation();
 }
 async function persistProcessingState() {
   if (!currentVisitId || !interpretation) return;

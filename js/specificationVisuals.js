@@ -14,6 +14,8 @@ const primitives = {
   filter: () => `${rect(15,7,18,32,5)}${line(9,13,15,13)}${line(33,13,39,13)}${path('M19 20h10l-3 9h-4Z')}`,
   control: () => `${rect(10,8,28,32,5)}${rect(15,13,18,10,2)}${circle(18,30,2)}${circle(24,30,2)}${circle(30,30,2)}`,
   radiator: () => `${rect(7,12,34,25,3)}${[13,19,25,31,37].map(x => line(x,15,x,34)).join('')}${line(12,37,12,43)}${line(36,37,36,43)}`,
+  pump: () => `${circle(24,24,13)}${circle(24,24,4)}${path('M20 12 24 5l4 7M20 36l4 7 4-7')}${line(5,24,11,24)}${line(37,24,43,24)}`,
+  valve: () => `${line(5,24,16,24)}${path('M16 16v16l16-16v16Z')}${line(32,24,43,24)}${line(24,16,24,8)}${line(18,8,30,8)}`,
   condensate: () => `${path('M24 6c6 9 10 14 10 21a10 10 0 0 1-20 0c0-7 4-12 10-21Z')}${path('M28 32c-2 2-5 3-8 1')}`,
   electrical: () => path('M27 5 13 27h10l-2 16 14-24H25Z'),
   scaffold: () => `${line(11,5,11,43)}${line(37,5,37,43)}${line(7,15,41,15)}${line(7,30,41,30)}${line(11,5,37,30)}${line(37,5,11,30)}`,
@@ -42,6 +44,23 @@ export function componentIcon(kind, subtype = '') {
   return svg(kind, primitive(), [kind]);
 }
 
+export const VISUAL_COMPONENTS = {
+  boiler: { typeChoices:[['regular','Regular'],['system','System'],['combi','Combi']], actions:['Retain','Replace','Remove','New','Unresolved'], section:'New boiler and controls' },
+  cylinder: { actions:['Already done','Retain','Replace','Remove','New','Unresolved'], section:'System characteristics' },
+  flue: { typeChoices:[['fanned','Fanned'],['balanced','Balanced']], actions:['Same hole','New hole','Seal old opening','Unresolved'], section:'Flue' },
+  control: { actions:['Already done','Retain','Replace','New','Unresolved'], section:'New boiler and controls' },
+  gas: { typeChoices:[['15 mm','15 mm'],['22 mm','22 mm'],['28 mm','28 mm'],['35 mm','35 mm']], actions:['Already done','Retain','Replace','New','Unresolved'], section:'Gas supply' },
+  filter: { actions:['Already done','Retain','Replace','New','Not required','Unresolved'], section:'New boiler and controls' },
+  powerflush: { actions:['Already done','Include','Not required','Unresolved'], section:'System characteristics' },
+  condensate: { actions:['Already done','Retain','Replace','New','Unresolved'], section:'Condensate and discharge' },
+  radiator: { actions:['Already done','Retain','Replace','Remove','New','Unresolved'], section:'Heating and hot-water alterations' },
+  pump: { actions:['Already done','Retain','Replace','Remove','New','Unresolved'], section:'System characteristics' },
+  valve: { actions:['Already done','Retain','Replace','Remove','New','Unresolved'], section:'System characteristics' },
+  pipe: { actions:['Already done','Retain','Replace','Remove','New','Unresolved'], section:'Pipe work' },
+  electrical: { actions:['Already done','Retain','Replace','New','Unresolved'], section:'Controls and electrical' },
+  scaffold: { actions:['Required','Not required','Unresolved'], section:'Working at heights' }
+};
+
 const definitions = [
   { id:'boiler', label:'Boiler', pattern:/\bboiler\b/i },
   { id:'cylinder', label:'Cylinder', pattern:/\bcylinder\b|stored hot water/i },
@@ -52,6 +71,9 @@ const definitions = [
   { id:'powerflush', label:'Powerflush', pattern:/powerflush|power flush/i },
   { id:'condensate', label:'Condensate', pattern:/condens/i },
   { id:'radiator', label:'Radiators', pattern:/radiator/i },
+  { id:'pump', label:'Pump', pattern:/\bpump\b/i },
+  { id:'valve', label:'Motorised valve', pattern:/motorised valve|motor valve|zone valve/i },
+  { id:'pipe', label:'Pipework', pattern:/\bpipework\b|\bpipe route\b|\bprimar(?:y|ies)\b/i },
   { id:'electrical', label:'Electrical supply', pattern:/electrical|electric|consumer unit|fused spur/i },
   { id:'scaffold', label:'Access at height', pattern:/scaffold|working at height|ladder access/i }
 ];
@@ -87,6 +109,7 @@ function componentAction(kind, text) {
 function typeFor(kind, text) {
   if (kind === 'boiler') return /\bcombi\b/i.test(text) ? 'combi' : /\bsystem boiler\b/i.test(text) ? 'system' : /\bregular boiler\b|open.?vented/i.test(text) ? 'regular' : '';
   if (kind === 'flue') return /\bfanned\b/i.test(text) ? 'fanned' : /\bbalanced\b/i.test(text) ? 'balanced' : '';
+  if (kind === 'gas') return text.match(/\b(15|22|28|35)\s*mm\b/i)?.[1] ? `${text.match(/\b(15|22|28|35)\s*mm\b/i)[1]} mm` : '';
   return '';
 }
 
@@ -117,7 +140,7 @@ function belongsToComponent(kind, item) {
   return definitions.find(definition => definition.id === kind)?.pattern.test(text) ?? false;
 }
 
-export function buildVisualSpecification(interpretation, option) {
+export function buildVisualSpecification(interpretation, option, checklist = null) {
   const shared = interpretation?.sharedFacts || [];
   const selected = option?.facts || [];
   return definitions.flatMap(definition => {
@@ -130,6 +153,20 @@ export function buildVisualSpecification(interpretation, option) {
     const proposalAction = componentAction(definition.id, proposalText);
     const action = proposalAction !== 'Unresolved' ? proposalAction : componentAction(definition.id, sharedText);
     const proposalSubtype = typeFor(definition.id, proposalText);
-    return [{ component: definition.id, label: definition.label, subtype: proposalSubtype || typeFor(definition.id, sharedText), typeRequired: ['boiler', 'flue'].includes(definition.id), action, facts, proposalId: option?.id || null }];
+    const typeOverride = (checklist?.items || []).find(item => !item.removed && item.visualComponent === definition.id && item.visualField === 'type');
+    const actionOverride = (checklist?.items || []).find(item => !item.removed && item.visualComponent === definition.id && item.visualField === 'action');
+    const inferredSubtype = proposalSubtype || typeFor(definition.id, sharedText);
+    const inferredAction = action;
+    return [{ component: definition.id, label: definition.label, subtype: typeOverride?.visualValue || inferredSubtype, specification: definition.id === 'gas' ? (typeOverride?.visualValue || inferredSubtype) : '', typeRequired: ['boiler', 'flue'].includes(definition.id), action: actionOverride?.visualValue || inferredAction, inferredSubtype, inferredAction, facts, proposalId: option?.id || null }];
   });
+}
+
+export function visualSelectionText(component, field, value) {
+  const names = { boiler:'boiler', cylinder:'cylinder', flue:'flue', control:'controls', gas:'gas supply', filter:'magnetic filter', powerflush:'powerflush', condensate:'condensate', radiator:'radiators', pump:'pump', valve:'motorised valve', pipe:'pipework', electrical:'electrical supply', scaffold:'scaffold access' };
+  const name = names[component] || component;
+  if (field === 'type') return component === 'gas' ? `${value} gas supply recorded.` : `${value[0].toUpperCase()}${value.slice(1)} ${name}.`;
+  const phrases = {
+    'Already done':`${name[0].toUpperCase()}${name.slice(1)} work already completed.`, Retain:`Retain existing ${name}.`, Replace:`Replace existing ${name}.`, Remove:`Remove existing ${name}.`, New:`Install new ${name}.`, Include:`Include ${name}.`, 'Not required':`${name[0].toUpperCase()}${name.slice(1)} not required.`, Required:`${name[0].toUpperCase()}${name.slice(1)} required.`, 'Same hole':'Install flue through the existing opening.', 'New hole':'Install flue through a new opening.', 'Seal old opening':'Seal the old flue opening.', Unresolved:`${name[0].toUpperCase()}${name.slice(1)} remains unresolved.`
+  };
+  return phrases[value] || `${name}: ${value}.`;
 }

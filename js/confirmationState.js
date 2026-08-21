@@ -21,6 +21,45 @@ export function confirmedChecklistItems(state) {
   }));
 }
 
+export function visualSelection(state, component, field) {
+  return (state?.items || []).find(item => !item.removed && item.visualComponent === component && item.visualField === field) || null;
+}
+
+export function applyVisualSelection(state, selection) {
+  state.items ||= [];
+  const key = `visual-${selection.component}-${selection.field}`;
+  state.items.forEach(item => {
+    if (item.visualComponent === selection.component && item.visualField === selection.field) item.removed = true;
+    if ((selection.affectedFactIds || []).includes(item.factId || item.id)) {
+      item.includeInNotes = false;
+      item.visualSupersededBy = key;
+    }
+  });
+  const item = {
+    id: key,
+    factId: key,
+    kind: 'evidenceFact',
+    checked: true,
+    removed: false,
+    includeInNotes: true,
+    manual: true,
+    text: selection.text,
+    originalText: selection.originalText || '',
+    targetSection: selection.targetSection,
+    evidenceSource: 'surveyorVisualCorrection',
+    evidenceState: selection.value === 'Unresolved' ? 'uncertain' : 'surveyorConfirmed',
+    evidenceRelation: (selection.evidenceQuotes || []).join(' | '),
+    supportingFactIds: selection.affectedFactIds || [],
+    supportingEvidenceQuotes: selection.evidenceQuotes || [],
+    visualComponent: selection.component,
+    visualField: selection.field,
+    visualValue: selection.value,
+    updatedAt: new Date().toISOString()
+  };
+  state.items.push(item);
+  return item;
+}
+
 export function serialiseChecklists(checklists) {
   return Object.fromEntries(checklists);
 }

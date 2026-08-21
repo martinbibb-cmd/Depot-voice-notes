@@ -112,3 +112,18 @@ test('a gas fact naming the selected boiler cannot override the boiler action', 
   assert.equal(boiler.action, 'Replace');
   assert.deepEqual(boiler.facts.map(fact => fact.id), ['boiler']);
 });
+
+test('visual specification exposes confirmed gas size and persisted visual corrections', () => {
+  const interpretation = { sharedFacts:[{ id:'gas', category:'Gas supply', text:'Existing 22 mm gas pipe is adequate.' }] };
+  const checklist = { items:[
+    { visualComponent:'boiler', visualField:'type', visualValue:'system' },
+    { visualComponent:'boiler', visualField:'action', visualValue:'Replace' },
+    { visualComponent:'gas', visualField:'action', visualValue:'Retain' }
+  ] };
+  const option = { id:'selected', facts:[{ id:'boiler', category:'Proposal', text:'Replace the existing system boiler.' }] };
+  const rows = buildVisualSpecification(interpretation, option, checklist);
+  assert.equal(rows.find(row => row.component === 'boiler').subtype, 'system');
+  assert.equal(rows.find(row => row.component === 'boiler').action, 'Replace');
+  assert.equal(rows.find(row => row.component === 'gas').specification, '22 mm');
+  assert.equal(rows.find(row => row.component === 'gas').action, 'Retain');
+});

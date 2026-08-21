@@ -21,6 +21,7 @@ let currentVisitId = null;
 let transferPayload = null;
 let handoverDocuments = { customer: [], engineer: [] };
 let interpretationNeedsUpgrade = false;
+let lastVisualSaveMessage = '';
 
 if (!getAuthToken()) location.href = 'login.html';
 
@@ -254,8 +255,11 @@ function renderProposalBoard(option, target = 'confirmProposalBoard') {
       choices.forEach(choiceValue => {
         const [value, labelValue] = Array.isArray(choiceValue) ? choiceValue : [choiceValue, choiceValue];
         const button = document.createElement('button'); button.type = 'button'; button.className = `visual-choice${selected === value ? ' selected' : ''}`; button.setAttribute('role','radio'); button.setAttribute('aria-checked', String(selected === value));
-        if (field === 'type' && ['boiler','flue'].includes(row.component)) button.innerHTML = `${componentIcon(row.component, value)}<span>${labelValue}</span>`;
-        else button.textContent = labelValue;
+        if (field === 'type' && ['boiler','flue'].includes(row.component)) button.innerHTML = `${componentIcon(row.component, value)}<span>${labelValue}</span>${selected === value ? '<span class="choice-check">✓ Selected</span>' : ''}`;
+        else {
+          const choiceLabel = document.createElement('span'); choiceLabel.textContent = labelValue; button.append(choiceLabel);
+          if (selected === value) { const mark = document.createElement('span'); mark.className = 'choice-check'; mark.textContent = '✓ Selected'; button.append(mark); }
+        }
         button.onclick = () => setVisualProposalState(row, field, value, config.section);
         group.append(button);
       });
@@ -274,6 +278,11 @@ function renderProposalBoard(option, target = 'confirmProposalBoard') {
     measurements.forEach(item => { const metric = document.createElement('div'); metric.className = 'metric-tile'; const label = document.createElement('strong'); label.textContent = item.category || 'Measurement'; const value = document.createElement('span'); value.textContent = item.text; metric.append(label, value); strip.append(metric); });
     board.append(strip);
   }
+  const saved = document.createElement('p'); saved.className = 'visual-save-status'; saved.setAttribute('role','status'); saved.setAttribute('aria-live','polite'); saved.textContent = lastVisualSaveMessage; board.append(saved);
+  const state = optionChecklists.get(option.id) || { items:[] };
+  const safe = state.items.filter(item => !item.removed && item.kind === 'evidenceFact' && item.evidenceState !== 'uncertain');
+  const confirmed = safe.length > 0 && safe.every(item => item.checked);
+  const confirm = document.createElement('button'); confirm.type = 'button'; confirm.className = `proposal-confirm${confirmed ? '' : ' primary'}`; confirm.textContent = confirmed ? '✓ Proposal confirmed' : 'Confirm this proposal'; confirm.onclick = confirmOverallUnderstanding; board.append(confirm);
   container.append(board);
 }
 
@@ -289,6 +298,7 @@ async function setVisualProposalState(row, field, value, targetSection) {
   });
   optionDrafts.delete(selectedOption.id);
   await persistProcessingState();
+  lastVisualSaveMessage = `✓ ${row.label} ${field} saved: ${value}`;
   renderConfirmation();
 }
 async function persistProcessingState() {
@@ -385,16 +395,7 @@ function renderConfirmation() {
     ? `Added context: ${state.surveyorComments.join(' · ')}`
     : 'No surveyor comments added yet.';
   const visibleItems = state.items.filter(item => !item.removed).sort((left, right) => confirmationPriority(left) - confirmationPriority(right));
-  const understood = visibleItems.filter(item => item.kind === 'evidenceFact' && item.evidenceState !== 'uncertain');
   const needsAttention = visibleItems.filter(item => item.kind !== 'evidenceFact' || item.evidenceState === 'uncertain');
-  $('understoodFacts').replaceChildren();
-  const understoodList = document.createElement('ul');
-  understood.forEach(item => { const line = document.createElement('li'); line.textContent = item.text; understoodList.append(line); });
-  $('understoodFacts').append(understoodList);
-  $('understoodFactsSummary').textContent = `Inspect ${understood.length} interpreted facts`;
-  const allUnderstood = understood.length > 0 && understood.every(item => item.checked);
-  $('confirmUnderstandingBtn').textContent = allUnderstood ? '✓ Overall understanding confirmed' : 'Yes, that is my understanding';
-  $('confirmUnderstandingBtn').classList.toggle('primary', !allUnderstood);
   const grouped = new Map(REVIEW_GROUPS.map(group => [group.id, []]));
   needsAttention.forEach(item => grouped.get(confirmationGroup(item)).push(item));
   REVIEW_GROUPS.forEach(group => {
@@ -469,7 +470,7 @@ function updateConfirmationStatus(state) {
   const checked = safe.filter(item => item.checked).length;
   const attention = visible.filter(item => item.kind === 'informationGap' || (item.evidenceState === 'uncertain' && !item.checked) || (item.kind !== 'evidenceFact' && !item.checked)).length;
   $('confirmationStatus').className = 'status';
-  $('confirmationStatus').textContent = `${checked === safe.length && safe.length ? 'Overall understanding confirmed' : 'Confirm the overall understanding once'}${attention ? ` · ${attention} point${attention === 1 ? '' : 's'} needs attention` : ''}.`;
+  $('confirmationStatus').textContent = attention ? `${attention} item${attention === 1 ? '' : 's'} still need resolving.` : (checked === safe.length && safe.length ? 'Ready to create Depot notes.' : 'Confirm the proposal above.');
   $('confirmationStatus').className = 'status';
   $('writeOptionBtn').disabled = safe.length > 0 && checked !== safe.length;
 }
@@ -477,6 +478,7 @@ async function confirmOverallUnderstanding() {
   if (!selectedOption) return;
   const state = optionChecklists.get(selectedOption.id);
   (state?.items || []).filter(item => item.kind === 'evidenceFact' && item.evidenceState !== 'uncertain' && !item.removed).forEach(item => { item.checked = true; });
+  lastVisualSaveMessage = '✓ Proposal confirmed and saved';
   checklistChanged();
   renderConfirmation();
 }
@@ -769,7 +771,6 @@ $('importTextBtn').onclick = () => $('textFile').click(); $('textFile').onchange
 $('draftBtn').onclick = aiCheck; $('handoverBtn').onclick = () => handover();
 $('backCapture').onclick = () => show(1); $('backInterpretation').onclick = () => show(2); $('backCheck').onclick = () => show(3); $('backDraft').onclick = () => show(4);
 $('reprocessConfirmationBtn').onclick = () => reprocessConfirmation().catch(error => $('confirmationStatus').textContent = error.message);
-$('confirmUnderstandingBtn').onclick = () => confirmOverallUnderstanding().catch(error => $('confirmationStatus').textContent = error.message);
 $('resumeReviewBtn').onclick = async () => {
   if (!interpretation) return aiCheck();
   renderInterpretation();

@@ -35,7 +35,7 @@ test('visual specification only uses the selected proposal for action state', ()
 test('flue location action remains separate from the flue type icon', () => {
   const interpretation = { sharedFacts: [], options: [] };
   const option = { id:'selected', facts:[{ id:'f', category:'Flue', text:'Install fanned flue through a new hole.' }] };
-  const row = buildVisualSpecification(interpretation, option)[0];
+  const row = buildVisualSpecification(interpretation, option).find(item => item.component === 'flue');
   assert.equal(row.subtype, 'fanned');
   assert.equal(row.action, 'New hole');
 });
@@ -43,4 +43,45 @@ test('flue location action remains separate from the flue type icon', () => {
 test('powerflush uses a machine primitive rather than a generic droplet', () => {
   assert.match(componentIcon('powerflush'), /data-primitives="powerflush"/);
   assert.doesNotMatch(componentIcon('powerflush'), /data-primitives="condensate"/);
+});
+
+test('shared confirmed actions are not downgraded to unresolved', () => {
+  const interpretation = { sharedFacts: [
+    { id:'gas', category:'Gas supply', text:'Existing gas supply is adequate for the selected system boiler.' },
+    { id:'scaffold', category:'Access', text:'Scaffold is required for flue access.' },
+    { id:'condensate', category:'Condensate', text:'A new condensate pipe is needed.' }
+  ] };
+  const rows = buildVisualSpecification(interpretation, { id:'selected', facts:[] });
+  assert.equal(rows.find(row => row.component === 'gas').action, 'Retain');
+  assert.equal(rows.find(row => row.component === 'scaffold').action, 'Include');
+  assert.equal(rows.find(row => row.component === 'condensate').action, 'New');
+});
+
+test('shared facts fill missing selected-option actions without overriding proposal facts', () => {
+  const interpretation = { sharedFacts:[{ id:'shared', category:'Condensate', text:'A new condensate pipe is needed.' }] };
+  const option = { id:'selected', facts:[{ id:'route', category:'Condensate', text:'Suggested route follows the gas supply into the outbuilding.' }] };
+  const row = buildVisualSpecification(interpretation, option).find(item => item.component === 'condensate');
+  assert.equal(row.action, 'New');
+  assert.deepEqual(row.facts.map(item => item.id), ['route', 'shared']);
+});
+
+test('only boiler and flue require a displayed type', () => {
+  const interpretation = { sharedFacts:[
+    { id:'controls', category:'Controls', text:'Controls were discussed.' },
+    { id:'boiler', category:'Boiler', text:'Replace boiler.' }
+  ] };
+  const rows = buildVisualSpecification(interpretation, { id:'selected', facts:[] });
+  assert.equal(rows.find(row => row.component === 'control').typeRequired, false);
+  assert.equal(rows.find(row => row.component === 'boiler').typeRequired, true);
+});
+
+test('shared rejected boiler wording cannot override selected boiler type', () => {
+  const interpretation = { sharedFacts:[
+    { id:'shared-combi', category:'Gas', text:'The gas supply is inadequate for the rejected combi option.' }
+  ] };
+  const option = { id:'system', facts:[
+    { id:'selected-system', category:'Boiler', text:'Replace with the same type system boiler.' }
+  ] };
+  const boiler = buildVisualSpecification(interpretation, option).find(row => row.component === 'boiler');
+  assert.equal(boiler.subtype, 'system');
 });

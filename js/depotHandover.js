@@ -232,14 +232,34 @@ function renderVisualSpecification(option = null, target = 'visualSpecification'
     const component = document.createElement('div'); component.className = 'component-cell'; component.setAttribute('role', 'cell');
     component.innerHTML = componentIcon(row.component, row.subtype);
     const label = document.createElement('strong'); label.textContent = row.label; component.append(label);
-    const type = document.createElement('span'); type.className = 'type-label'; type.setAttribute('role', 'cell'); type.textContent = row.subtype ? `${row.subtype[0].toUpperCase()}${row.subtype.slice(1)}` : 'Type unresolved';
-    const action = document.createElement('span'); action.className = `action-state ${row.action.toLowerCase().replace(/\s+/g, '-')}`; action.setAttribute('role', 'cell'); action.textContent = row.action;
+    const type = document.createElement('span'); type.className = 'type-label'; type.setAttribute('role', 'cell'); type.textContent = row.subtype ? `${row.subtype[0].toUpperCase()}${row.subtype.slice(1)}` : row.typeRequired ? 'Type unresolved' : '—';
+    const action = document.createElement(row.action === 'Unresolved' ? 'button' : 'span'); action.className = `action-state ${row.action.toLowerCase().replace(/\s+/g, '-')}`; action.setAttribute('role', 'cell'); action.textContent = row.action === 'Unresolved' ? 'Resolve' : row.action;
+    if (row.action === 'Unresolved') {
+      action.setAttribute('aria-label', `Resolve ${row.label}`);
+      action.onclick = () => resolveVisualSpecificationRow(row, selected, target);
+    }
     const evidence = document.createElement('details'); evidence.className = 'visual-evidence';
     const summary = document.createElement('summary'); summary.textContent = 'Show supporting facts';
     const list = document.createElement('ul'); row.facts.forEach(fact => { const item = document.createElement('li'); item.textContent = fact.text; list.append(item); });
     evidence.append(summary, list); line.append(component, type, action, evidence); table.append(line);
   });
   container.append(table);
+}
+async function resolveVisualSpecificationRow(row, option, target) {
+  const optionIndex = (interpretation?.options || []).findIndex(item => item.id === option?.id);
+  if (target !== 'confirmVisualSpecification') await prepareConfirmation(option, Math.max(0, optionIndex));
+  const factIds = new Set(row.facts.map(item => item.id).filter(Boolean));
+  const card = [...document.querySelectorAll('.confirmation[data-fact-id]')].find(item => factIds.has(item.dataset.factId));
+  if (card) {
+    const group = card.closest('.confirmation-group');
+    if (group) group.open = true;
+    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    card.classList.add('needs-attention');
+    setTimeout(() => card.classList.remove('needs-attention'), 1800);
+  } else {
+    $('confirmationComment')?.focus();
+    $('confirmationStatus').textContent = `${row.label} is not resolved by the captured evidence. Add what was established, then reprocess.`;
+  }
 }
 function renderVisitBrief(option = null, target = 'visitBrief', additionalMissing = []) {
   const container = $(target); container.replaceChildren();
@@ -366,6 +386,7 @@ function renderConfirmation() {
 }
 function confirmationCard(item) {
     const row = document.createElement('div'); row.className = `confirmation${item.kind === 'informationGap' ? ' information-gap' : ''}`;
+    if (item.factId || item.id) row.dataset.factId = item.factId || item.id;
     const content = document.createElement('div');
     const promptLabel = document.createElement('span'); promptLabel.className = `state-chip ${item.kind === 'informationGap' ? 'missing' : item.evidenceState === 'uncertain' ? 'uncertain' : ''}`;
     promptLabel.textContent = evidenceStateLabel(item);

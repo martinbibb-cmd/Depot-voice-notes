@@ -43,17 +43,17 @@ export function componentIcon(kind, subtype = '') {
 }
 
 const definitions = [
-  { id:'boiler', label:'Boiler', pattern:/\bboiler\b/ },
-  { id:'cylinder', label:'Cylinder', pattern:/\bcylinder\b|stored hot water/ },
-  { id:'flue', label:'Flue', pattern:/\bflue\b|terminal|plume/ },
-  { id:'control', label:'Controls', pattern:/\bcontrol|thermostat|programmer|hive/ },
-  { id:'gas', label:'Gas supply', pattern:/\bgas\b/ },
-  { id:'filter', label:'Magnetic filter', pattern:/magnetic filter|fernox|tf1/ },
-  { id:'powerflush', label:'Powerflush', pattern:/powerflush|power flush/ },
-  { id:'condensate', label:'Condensate', pattern:/condens/ },
-  { id:'radiator', label:'Radiators', pattern:/radiator/ },
-  { id:'electrical', label:'Electrical supply', pattern:/electrical|electric|consumer unit|fused spur/ },
-  { id:'scaffold', label:'Access at height', pattern:/scaffold|working at height|ladder access/ }
+  { id:'boiler', label:'Boiler', pattern:/\bboiler\b/i },
+  { id:'cylinder', label:'Cylinder', pattern:/\bcylinder\b|stored hot water/i },
+  { id:'flue', label:'Flue', pattern:/\bflue\b|terminal|plume/i },
+  { id:'control', label:'Controls', pattern:/\bcontrol|thermostat|programmer|hive/i },
+  { id:'gas', label:'Gas supply', pattern:/\bgas\b/i },
+  { id:'filter', label:'Magnetic filter', pattern:/magnetic filter|fernox|tf1/i },
+  { id:'powerflush', label:'Powerflush', pattern:/powerflush|power flush/i },
+  { id:'condensate', label:'Condensate', pattern:/condens/i },
+  { id:'radiator', label:'Radiators', pattern:/radiator/i },
+  { id:'electrical', label:'Electrical supply', pattern:/electrical|electric|consumer unit|fused spur/i },
+  { id:'scaffold', label:'Access at height', pattern:/scaffold|working at height|ladder access/i }
 ];
 
 function actionFor(text) {
@@ -61,7 +61,7 @@ function actionFor(text) {
   if (/\b(?:replace|replacement|upgrade|renew)\b/i.test(text)) return 'Replace';
   if (/\b(?:remove|abandon|seal old|take out)\b/i.test(text)) return 'Remove';
   if (/\b(?:new|install|fit|provide)\b/i.test(text)) return 'New';
-  if (/\b(?:retain|reuse|use existing|remain|same hole|same position)\b/i.test(text) || /existing.{0,40}acceptable|acceptable.{0,40}existing/i.test(text)) return 'Retain';
+  if (/\b(?:retain|reuse|use existing|remain|same hole|same position)\b/i.test(text) || /existing.{0,40}(?:acceptable|adequate|suitable)|(?:acceptable|adequate|suitable).{0,40}existing/i.test(text)) return 'Retain';
   return 'Unresolved';
 }
 
@@ -74,6 +74,7 @@ function flueAction(text) {
 
 function componentAction(kind, text) {
   if (kind === 'flue') return flueAction(text);
+  if (kind === 'condensate' && /\b(?:condensate|waste)\s+(?:pipe|route).{0,35}(?:required|needed)|(?:required|needed).{0,35}(?:condensate|waste)\s+(?:pipe|route)\b/i.test(text)) return 'New';
   if (kind === 'powerflush') {
     if (/\b(?:not required|not needed|exclude)\b/i.test(text)) return 'Not required';
     if (/\b(?:required|include|powerflush|power flush)\b/i.test(text)) return 'Include';
@@ -88,16 +89,29 @@ function typeFor(kind, text) {
   return '';
 }
 
+function uniqueFacts(items) {
+  const seen = new Set();
+  return items.filter(item => {
+    const key = item.id || `${item.category || ''}\u0000${item.text || ''}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 export function buildVisualSpecification(interpretation, option) {
   const shared = interpretation?.sharedFacts || [];
   const selected = option?.facts || [];
   return definitions.flatMap(definition => {
     const proposalFacts = selected.filter(item => definition.pattern.test(`${item.category || ''} ${item.text || ''}`));
     const existingFacts = shared.filter(item => definition.pattern.test(`${item.category || ''} ${item.text || ''}`));
-    const facts = proposalFacts.length ? proposalFacts : existingFacts;
+    const facts = uniqueFacts([...proposalFacts, ...existingFacts]);
     if (!facts.length) return [];
-    const combined = facts.map(item => item.text).join(' ');
-    const action = proposalFacts.length ? componentAction(definition.id, combined) : 'Unresolved';
-    return [{ component: definition.id, label: definition.label, subtype: typeFor(definition.id, combined), action, facts, proposalId: option?.id || null }];
+    const proposalText = proposalFacts.map(item => item.text).join(' ');
+    const sharedText = existingFacts.map(item => item.text).join(' ');
+    const proposalAction = componentAction(definition.id, proposalText);
+    const action = proposalAction !== 'Unresolved' ? proposalAction : componentAction(definition.id, sharedText);
+    const proposalSubtype = typeFor(definition.id, proposalText);
+    return [{ component: definition.id, label: definition.label, subtype: proposalSubtype || typeFor(definition.id, sharedText), typeRequired: ['boiler', 'flue'].includes(definition.id), action, facts, proposalId: option?.id || null }];
   });
 }

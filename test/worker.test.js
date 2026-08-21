@@ -24,7 +24,7 @@ async function parseJson(response) {
 const originalFetch = globalThis.fetch;
 
 test('POST /interpret separates shared evidence, independent options, history and uncertainty', async (t) => {
-  const transcript = 'Standing pressure is 2.5 bar. Existing 22 mm gas pipe. Clearance was 150 mm. The pump is an impala in the matrix. Option one retains the combi. Option two uses a system boiler and accumulator. Valor was rejected. The old system was powerflushed. The hand flute term is unclear.';
+  const transcript = 'Standing pressure is 2.5 bar. Existing 22 mm gas pipe. Clearance was 150 mm. The pump is an impala in the matrix. Option one retains the combi. Option two uses a system boiler and accumulator. The cupboard is retained. Valor was rejected. The old system was powerflushed. The hand flute term is unclear.';
   let modelInput;
   globalThis.fetch = async (_url, options) => {
     const request = JSON.parse(options.body);
@@ -37,8 +37,8 @@ test('POST /interpret separates shared evidence, independent options, history an
         { category: 'Pump', text: 'Pump is an impala in the matrix.', evidenceQuote: 'The pump is an impala in the matrix.', evidenceSource: 'transcript' }
       ],
       options: [
-        { title: 'Retain combi', status: 'preferred', facts: [{ category: 'Boiler', text: 'Retain the combi.', evidenceQuote: 'Option one retains the combi.', evidenceSource: 'transcript' }] },
-        { title: 'System boiler', status: 'viable', facts: [{ category: 'Boiler', text: 'Use a system boiler and accumulator.', evidenceQuote: 'Option two uses a system boiler and accumulator.', evidenceSource: 'transcript' }] }
+        { title: 'Retain combi', status: 'preferred', facts: [{ category: 'Boiler', text: 'Retain the combi.', evidenceQuote: 'Option one retains the combi.', evidenceSource: 'transcript' }, { category: 'Cupboard', text: 'The cupboard is retained.', evidenceQuote: 'The cupboard is retained.', evidenceSource: 'transcript' }] },
+        { title: 'System boiler', status: 'viable', facts: [{ category: 'Boiler', text: 'Use a system boiler and accumulator.', evidenceQuote: 'Option two uses a system boiler and accumulator.', evidenceSource: 'transcript' }, { category: 'Cupboard', text: 'The cupboard is retained.', evidenceQuote: 'The cupboard is retained.', evidenceSource: 'transcript' }] }
       ],
       rejectedAlternatives: [{ text: 'Valor route was rejected.', reason: 'Uncertain recognised term.', evidenceQuote: 'Valor', evidenceSource: 'transcript' }],
       uncertainties: [{ text: 'hand flute', context: 'Unclear recognised component term.', evidenceQuote: 'hand flute', evidenceSource: 'transcript' }],
@@ -56,6 +56,8 @@ test('POST /interpret separates shared evidence, independent options, history an
   assert.deepEqual(body.options.map(option => option.id), ['option-1', 'option-2']);
   assert.equal(body.options[0].facts[0].text, 'Retain the combi.');
   assert.equal(body.options[1].facts[0].text, 'Use a system boiler and accumulator.');
+  assert(body.sharedFacts.some(item => item.text === 'The cupboard is retained.'));
+  assert(body.options.every(option => !option.facts.some(item => item.text === 'The cupboard is retained.')));
   assert.equal(body.historicalFacts[0].text, 'The old system was powerflushed.');
   assert.equal(body.uncertainties[0].text, 'hand flute');
   assert.equal(body.sharedFacts.find(item => item.category === 'Clearance').text, 'Clearance was 150 mm.');

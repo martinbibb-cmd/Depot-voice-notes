@@ -211,7 +211,7 @@ async function handleInterpret(request, env) {
 }
 
 async function callInterpretationModel(env, transcript, capturedEvidence) {
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`interpretation-v6\0${transcript}\0${capturedEvidence}`));
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`interpretation-v7\0${transcript}\0${capturedEvidence}`));
   const evidenceHash = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
   if (env.DB) {
     const cached = await env.DB.prepare('SELECT result_json FROM speccheck_interpretation_cache WHERE evidence_hash = ? AND expires_at > ?')
@@ -323,13 +323,27 @@ Return only JSON:
     optionResults[matching[0]].safe.push(fact);
     return false;
   });
+  // A fact returned identically in more than one option is shared evidence,
+  // not proposal-specific scope. Store it once so selecting an option cannot
+  // appear to copy facts from its competitor.
+  const optionFactCounts = new Map();
+  optionResults.forEach(result => result.safe.forEach(fact => optionFactCounts.set(fact.id, (optionFactCounts.get(fact.id) || 0) + 1)));
+  const promotedShared = [];
+  optionResults.forEach(result => {
+    result.safe = result.safe.filter(fact => {
+      if ((optionFactCounts.get(fact.id) || 0) < 2) return true;
+      if (!promotedShared.some(item => item.id === fact.id)) promotedShared.push(fact);
+      return false;
+    });
+  });
+  shared.safe.push(...promotedShared.filter(fact => !shared.safe.some(item => item.id === fact.id)));
   const rejected = moveUncertain(groundedSpecial(parsed.rejectedAlternatives));
   const historical = moveUncertain(grounded(parsed.historicalFacts));
   const uncertaintyCandidates = [...groundedSpecial(parsed.uncertainties), ...shared.uncertain,
     ...optionResults.flatMap(result => result.uncertain), ...rejected.uncertain, ...historical.uncertain];
   const uncertaintyIds = new Set();
   const result = {
-    interpretationVersion: 6,
+    interpretationVersion: 7,
     sharedFacts: shared.safe,
     options: optionResults.map(({ option, index, safe }) => ({
       id: `option-${index + 1}`,

@@ -46,7 +46,7 @@ test('suggested work is visibly different and never presented as captured fact',
   assert.equal(confirmationGroup(suggestion), 'work');
 });
 
-test('system-boiler/combi visit becomes a decision brief that can be checked before leaving', () => {
+test('system-boiler/combi visit becomes a decision brief ready for quotation', () => {
   const interpretation = JSON.parse(readFileSync(new URL('./fixtures/system-boiler-combi.json', import.meta.url)));
   interpretation.customerIntent = buildCustomerIntent(interpretation);
   const selected = interpretation.options.find(option => option.status === 'preferred');

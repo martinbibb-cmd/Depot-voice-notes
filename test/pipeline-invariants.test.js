@@ -22,6 +22,7 @@ test('claim checks reject numeric drift, certainty promotion and lost negation',
   assert(claimIntegrityErrors({ text: 'Flow is 13 L/min.', evidenceQuote: 'Flow was about 10 L/min.' }).some(x => /numeric/.test(x)));
   assert(claimIntegrityErrors({ text: 'Flow is 10 L/min.', evidenceQuote: 'Flow was about 10 L/min.' }).some(x => /uncertainty/.test(x)));
   assert(claimIntegrityErrors({ text: 'Asbestos was observed.', evidenceQuote: 'No visual indication of asbestos was observed.' }).some(x => /negation/.test(x)));
+  assert.deepEqual(claimIntegrityErrors({ text: '22 mm gas pipe recorded.', evidenceQuote: '22mm gas pipe' }), []);
 });
 
 test('unresolved evidence remains explicit and customer intent survives an incompatible selected proposal', () => {

@@ -211,7 +211,7 @@ async function handleInterpret(request, env) {
 }
 
 async function callInterpretationModel(env, transcript, capturedEvidence) {
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`interpretation-v4\0${transcript}\0${capturedEvidence}`));
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`interpretation-v5\0${transcript}\0${capturedEvidence}`));
   const evidenceHash = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
   if (env.DB) {
     const cached = await env.DB.prepare('SELECT result_json FROM speccheck_interpretation_cache WHERE evidence_hash = ? AND expires_at > ?')
@@ -263,8 +263,8 @@ Return only JSON:
       const evidenceSource = item.evidenceSource === "capturedEvidence" ? "capturedEvidence" : "transcript";
       const evidenceQuote = String(item.evidenceQuote || "").trim();
       let text = String(item.text || "").trim();
-      const quoteNumbers = evidenceQuote.match(/\b\d+(?:\.\d+)?\b/g) || [];
-      const textNumbers = text.match(/\b\d+(?:\.\d+)?\b/g) || [];
+      const quoteNumbers = evidenceQuote.match(/\d+(?:\.\d+)?/g) || [];
+      const textNumbers = text.match(/\d+(?:\.\d+)?/g) || [];
       if (textNumbers.some(number => !quoteNumbers.includes(number))) text = evidenceQuote;
       if (uncertaintyCue.test(evidenceQuote) && !uncertaintyCue.test(text)) text = evidenceQuote;
       if (negationCue.test(evidenceQuote) && !negationCue.test(text)) text = evidenceQuote;
@@ -324,7 +324,7 @@ Return only JSON:
     return false;
   });
   const result = {
-    interpretationVersion: 4,
+    interpretationVersion: 5,
     sharedFacts: shared.safe,
     options: optionResults.map(({ option, index, safe }) => ({
       id: `option-${index + 1}`,
@@ -336,8 +336,11 @@ Return only JSON:
     uncertainties: [...groundedSpecial(parsed.uncertainties), ...shared.uncertain, ...optionResults.flatMap(result => result.uncertain)],
     historicalFacts: grounded(parsed.historicalFacts)
   };
+  if (!result.options.length && (result.sharedFacts.length || result.uncertainties.length)) {
+    result.options.push({ id: 'option-1', title: 'Recorded survey', status: 'preferred', facts: [] });
+  }
   result.options.forEach((option, index) => {
-    option.title = `Option ${index + 1} — ${option.facts[0]?.text || "Recorded proposal"}`;
+    option.title = `Option ${index + 1} — ${option.facts[0]?.text || "Recorded survey"}`;
   });
   if (env.DB) {
     const now = new Date();

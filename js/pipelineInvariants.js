@@ -3,7 +3,9 @@ export const ENGINEER_SECTIONS = ['Job overview','Existing system','Boiler and e
 
 const uncertainty = /\b(?:about|approx(?:imately)?|around|could|may|might|likely|suggest(?:ed|ion)?|provisional|possible|questioned|reported|appears?|no visual indication|not established|not sure|unknown|uncertain|to confirm|subject to)\b/i;
 const negation = /\b(?:no|not|never|cannot|can't|isn't|wasn't|without|unsuitable|inadequate)\b/i;
-const numeric = value => String(value || '').match(/\b\d+(?:\.\d+)?\b/g) || [];
+// Do not require word boundaries: dictation commonly emits "22mm", where the
+// digit/letter boundary is not a JavaScript regex word boundary.
+const numeric = value => String(value || '').match(/\d+(?:\.\d+)?/g) || [];
 const clean = value => String(value || '').trim();
 const sentence = value => { const text = clean(value).replace(/^[-•]\s*/, ''); return text && !/[.!?]$/.test(text) ? `${text}.` : text; };
 

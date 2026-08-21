@@ -83,6 +83,18 @@ test('POST /confirmation-checklist deterministically uses only grounded canonica
   assert.equal(body.items[1].text, 'Route behind boiler and above window.');
 });
 
+test('POST /interpret keeps a shared-facts-only survey reviewable', async (t) => {
+  globalThis.fetch = async () => new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify({
+    sharedFacts: [{ category: 'Existing system', text: 'Existing system boiler.', evidenceQuote: 'Existing system boiler.', evidenceSource: 'transcript' }],
+    options: [], rejectedAlternatives: [], uncertainties: [], historicalFacts: []
+  }) }] } }] }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  t.after(() => { globalThis.fetch = originalFetch; });
+  const response = await worker.fetch(new Request('https://example.com/interpret', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ transcript: 'Existing system boiler.', capturedEvidence: '' }) }), { GEMINI_API_KEY: 'test-key' }, {});
+  const body = await parseJson(response);
+  assert.equal(body.options.length, 1);
+  assert.equal(body.options[0].status, 'preferred');
+});
+
 test('POST /handover-documents creates friendly customer prose and ordered engineer bullets', async (t) => {
   const response = await worker.fetch(new Request('https://example.com/handover-documents', {
     method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({

@@ -70,6 +70,31 @@ test('POST /interpret separates shared evidence, independent options, history an
   assert.match(modelInput.capturedEvidence, /Garden tap/);
 });
 
+test('POST /interpret creates provenance-bearing Wants and Needs without promoting ordinary technical facts', async (t) => {
+  const transcript = 'Customer asked about a combi to gain loft space. Existing system boiler has failed. Customer uses both bath and shower. Kitchen cold flow measured at approximately 10 L/min unrestricted. Existing gas supply is inadequate for the combi option and shower suitability for the combi was questioned.';
+  globalThis.fetch = async () => new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify({
+    sharedFacts: [
+      { category:'Customer goal', text:'Customer asked about a combi to gain loft space.', evidenceQuote:'Customer asked about a combi to gain loft space.', evidenceSource:'transcript' },
+      { category:'Existing system', text:'Existing system boiler has failed.', evidenceQuote:'Existing system boiler has failed.', evidenceSource:'transcript' },
+      { category:'Customer use', text:'Customer uses both bath and shower.', evidenceQuote:'Customer uses both bath and shower.', evidenceSource:'transcript' },
+      { category:'Water flow', text:'Kitchen cold flow measured at approximately 10 L/min unrestricted.', evidenceQuote:'Kitchen cold flow measured at approximately 10 L/min unrestricted.', evidenceSource:'transcript' },
+      { category:'Gas supply', text:'Existing gas supply is inadequate for the combi option.', evidenceQuote:'Existing gas supply is inadequate for the combi option', evidenceSource:'transcript' }
+    ],
+    options:[{ title:'System boiler', status:'preferred', facts:[] }],
+    rejectedAlternatives:[{ text:'Combi shower suitability was questioned.', reason:'', evidenceQuote:'shower suitability for the combi was questioned', evidenceSource:'transcript' }],
+    uncertainties:[], historicalFacts:[]
+  }) }] } }] }), { status:200, headers:{ 'Content-Type':'application/json' } });
+  t.after(() => { globalThis.fetch = originalFetch; });
+  const response = await worker.fetch(new Request('https://example.com/interpret', { method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({ transcript }) }), { GEMINI_API_KEY:'test-key' }, {});
+  const body = await parseJson(response);
+  assert.equal(body.interpretationVersion, 8);
+  assert.match(body.customerIntent.wants.map(item => item.text).join(' '), /gain loft space/i);
+  assert.match(body.customerIntent.needs.map(item => item.text).join(' '), /restore.*heating and hot-water/i);
+  assert.match(body.customerIntent.needs.map(item => item.text).join(' '), /bath and shower/i);
+  assert(body.customerIntent.needs.every(item => item.supportingFactIds.length));
+  assert(!body.customerIntent.needs.some(item => /22 mm gas pipe/i.test(item.text)));
+});
+
 test('POST /confirmation-checklist deterministically uses only grounded canonical facts', async () => {
   const interpretation = { sharedFacts: [{ category: 'Flue', text: 'Flue rises vertically then exits horizontally above the lintel.', evidenceQuote: 'rise vertically above the lintel then exit horizontally', evidenceSource: 'transcript' }] };
   const proposal = { id: 'option-1', facts: [{ category: 'Pipe route', text: 'Route behind boiler and above window.', evidenceQuote: 'behind the boiler and above the window', evidenceSource: 'transcript' }, { category: 'Unsupported', text: 'Lift every floor.', evidenceQuote: '', evidenceSource: 'transcript' }] };

@@ -5,6 +5,7 @@ import { inferredPrimaryRequirement, pipeRequirement, suggestPackage } from './b
 import { trustworthyTransferredFacts } from './transferEvidence.js';
 import { buildDepotSections, auditPipelineOutput } from './pipelineInvariants.js';
 import { buildVisitBrief, confirmationGroup, confirmationPriority, evidenceStateLabel, REVIEW_GROUPS } from './reviewPresentation.js';
+import { buildVisualSpecification, componentIcon } from './specificationVisuals.js';
 
 const WORKER = 'https://depot-voice-notes.martinbibb.workers.dev';
 const $ = id => document.getElementById(id);
@@ -89,7 +90,7 @@ async function openCapture(id) {
     status(`Opened ${visit.nickname}: ${$('transcript').value.split(/\s+/).filter(Boolean).length} transcript words, ${visit.photos.length} photos and ${roomCount} captured room${roomCount === 1 ? '' : 's'}${visit.payload.wholeHouseStructure?.alignedByStructureBuilder ? ' in an aligned whole-house structure' : ''}.`);
     $('resumeReviewBtn').classList.toggle('hidden', !interpretation);
     const savedStep = Number(localStorage.getItem(`speccheck-step-${id}`) || 1);
-    $('resumeReviewBtn').textContent = savedStep >= 3 ? 'Resume confirmation' : 'Resume before-you-leave review';
+    $('resumeReviewBtn').textContent = savedStep >= 3 ? 'Resume confirmation' : 'Resume Ready to quote';
   } catch (error) { status(error.message, true); }
 }
 function renderRooms(rooms, structure = null) {
@@ -161,7 +162,7 @@ async function aiCheck() {
   $('aiCheckStatus').textContent = 'Checking the complete transcript and reconciling the latest supported survey state…';
   try {
     const captured = $('capturedEvidence').textContent.trim();
-    if (!interpretation || interpretation.interpretationVersion !== 7) {
+    if (!interpretation || interpretation.interpretationVersion !== 8) {
       interpretation = await api('/interpret', { method: 'POST', body: JSON.stringify({ transcript, capturedEvidence: captured }) });
       optionChecklists.clear();
       await persistProcessingState();
@@ -208,6 +209,7 @@ function renderInterpretation() {
   group('Rejected or compromised', interpretation.rejectedAlternatives, item => [item.text, item.reason].filter(Boolean).join(' — '));
   group('Uncertain evidence', interpretation.uncertainties, item => [item.text, item.context].filter(Boolean).join(' — '));
   renderVisitBrief();
+  renderVisualSpecification();
   const actions = $('optionActions'); actions.replaceChildren();
   interpretation.options.forEach((option, index) => {
     const button = document.createElement('button'); button.className = index === 0 ? 'primary' : '';
@@ -215,6 +217,29 @@ function renderInterpretation() {
     button.onclick = () => prepareConfirmation(option, index);
     actions.append(button);
   });
+}
+function renderVisualSpecification(option = null, target = 'visualSpecification') {
+  const container = $(target); container.replaceChildren();
+  const selected = option || (interpretation?.options || []).find(item => item.status === 'preferred') || interpretation?.options?.[0];
+  const rows = buildVisualSpecification(interpretation, selected);
+  if (!rows.length) return;
+  const table = document.createElement('div'); table.className = 'visual-spec'; table.setAttribute('role', 'table');
+  const head = document.createElement('div'); head.className = 'visual-spec-head'; head.setAttribute('role', 'row');
+  ['Component','Type','Action'].forEach(value => { const cell = document.createElement('span'); cell.textContent = value; cell.setAttribute('role', 'columnheader'); head.append(cell); });
+  table.append(head);
+  rows.forEach(row => {
+    const line = document.createElement('div'); line.className = 'visual-spec-row'; line.setAttribute('role', 'row');
+    const component = document.createElement('div'); component.className = 'component-cell'; component.setAttribute('role', 'cell');
+    component.innerHTML = componentIcon(row.component, row.subtype);
+    const label = document.createElement('strong'); label.textContent = row.label; component.append(label);
+    const type = document.createElement('span'); type.className = 'type-label'; type.setAttribute('role', 'cell'); type.textContent = row.subtype ? `${row.subtype[0].toUpperCase()}${row.subtype.slice(1)}` : 'Type unresolved';
+    const action = document.createElement('span'); action.className = `action-state ${row.action.toLowerCase().replace(/\s+/g, '-')}`; action.setAttribute('role', 'cell'); action.textContent = row.action;
+    const evidence = document.createElement('details'); evidence.className = 'visual-evidence';
+    const summary = document.createElement('summary'); summary.textContent = 'Show supporting facts';
+    const list = document.createElement('ul'); row.facts.forEach(fact => { const item = document.createElement('li'); item.textContent = fact.text; list.append(item); });
+    evidence.append(summary, list); line.append(component, type, action, evidence); table.append(line);
+  });
+  container.append(table);
 }
 function renderVisitBrief(option = null, target = 'visitBrief', additionalMissing = []) {
   const container = $(target); container.replaceChildren();
@@ -242,6 +267,7 @@ async function prepareConfirmation(option, index) {
   selectedOption = { ...option, number: index + 1 };
   if (currentVisitId) localStorage.setItem(`speccheck-option-${currentVisitId}`, option.id);
   renderVisitBrief(selectedOption);
+  renderVisualSpecification(selectedOption, 'confirmVisualSpecification');
   show(3); $('confirmationStatus').textContent = `Preparing Option ${index + 1}…`;
   try {
     const existing = optionChecklists.get(option.id);
@@ -314,6 +340,7 @@ function renderConfirmation() {
   const openGroups = new Set(previousGroups.filter(item => item.open).map(item => item.dataset.group));
   const previousY = scrollY;
   renderVisitBrief(selectedOption, 'confirmBrief', state.items.filter(item => !item.removed && item.kind === 'informationGap'));
+  renderVisualSpecification(selectedOption, 'confirmVisualSpecification');
   const container = $('confirmationItems'); container.replaceChildren();
   $('confirmationComments').textContent = state.surveyorComments?.length
     ? `Added context: ${state.surveyorComments.join(' · ')}`
@@ -366,6 +393,11 @@ function confirmationCard(item) {
     const reason = document.createElement('small');
     reason.textContent = item.kind === 'informationGap' ? item.reason : (item.evidenceRelation ? `“${item.evidenceRelation}”` : 'Captured survey evidence.');
     evidence.append(evidenceSummary, reason);
+    if ((item.supportingEvidenceQuotes || []).length > 1) {
+      const sources = document.createElement('ul');
+      item.supportingEvidenceQuotes.forEach(quote => { const source = document.createElement('li'); source.textContent = `“${quote}”`; sources.append(source); });
+      evidence.append(sources);
+    }
     correctionPanel.append(correctionSummary, correction, reprocess);
     content.append(promptLabel, text, actions, correctionPanel, evidence);
     row.append(content);

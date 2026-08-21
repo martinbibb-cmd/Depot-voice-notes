@@ -1,6 +1,8 @@
 function evidenceText(interpretation, option, sourceText = '') {
   const values = [
     ...(interpretation?.sharedFacts || []),
+    ...(interpretation?.customerIntent?.wants || []),
+    ...(interpretation?.customerIntent?.needs || []),
     ...(option?.facts || [])
   ];
   return `${values.map(item => `${item.category || ''} ${item.text || ''}`).join(' ')} ${sourceText}`.toLowerCase();
@@ -16,7 +18,8 @@ const boilerRequirements = [
 ];
 
 const coreRequirements = [
-  { id: 'customer-needs', label: 'Customer wants and needs', pattern: /customer.{0,30}(want|need|prefer|priority)|reason for change|requested outcome|large family/, targetSection: 'Needs', responses: ['Customer wants a like-for-like boiler replacement.', 'Customer wants improved heating reliability.', 'Customer wants improved heating or hot-water performance.', 'TO CONFIRM: Customer wants and needs have not been recorded.'] },
+  { id: 'customer-wants', label: 'customer wants', pattern: /customer want|customer.{0,30}(want|prefer|priority)|reason for change|requested outcome/, targetSection: 'Needs', responses: [] },
+  { id: 'customer-needs', label: 'customer needs', pattern: /customer need|derived requirement|proposed solution needs|selected proposal must/, targetSection: 'Needs', responses: [] },
   { id: 'existing-system', label: 'Existing system', pattern: /existing|current boiler|current system|open.?vented|sealed system|combi|regular boiler|system boiler/, targetSection: 'System characteristics', responses: ['Existing combination-boiler system.', 'Existing regular/open-vented system.', 'Existing system-boiler/sealed system.', 'TO CONFIRM: Existing system type has not been established.'] }
 ];
 

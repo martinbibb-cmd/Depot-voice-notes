@@ -9,6 +9,7 @@ import {
 } from './auth-handlers.js';
 import { handleSpecCheckTransfer } from './speccheck-transfer.js';
 import { buildHandoverDocuments, auditPipelineOutput, buildDepotSections, sectionForFact } from './js/pipelineInvariants.js';
+import { buildCustomerIntent } from './js/customerIntent.js';
 
 export default {
   async fetch(request, env, ctx) {
@@ -211,7 +212,7 @@ async function handleInterpret(request, env) {
 }
 
 async function callInterpretationModel(env, transcript, capturedEvidence) {
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`interpretation-v7\0${transcript}\0${capturedEvidence}`));
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`interpretation-v8\0${transcript}\0${capturedEvidence}`));
   const evidenceHash = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
   if (env.DB) {
     const cached = await env.DB.prepare('SELECT result_json FROM speccheck_interpretation_cache WHERE evidence_hash = ? AND expires_at > ?')
@@ -232,6 +233,7 @@ Rules:
 - Identify no more than three materially distinct proposal options, in conversation order or supported preference order.
 - Exclude irrelevant chat, sales explanation, analogies and pricing.
 - Consolidate related evidence into one current-state fact instead of fragmenting each spoken sentence into a separate fact.
+- Keep customer Wants distinct from customer Needs. A Want is a preference or desired outcome. A Need is a stated functional requirement. Do not turn ordinary technical facts into Needs.
 - Every fact must contain one short exact evidenceQuote copied from transcript or capturedEvidence and evidenceSource identifying which source it came from. A fact without an exact source quote will be discarded.
 - Include every materially useful survey fact. Consolidate repetition, but never omit a fact merely to meet a count or length target.
 
@@ -343,7 +345,7 @@ Return only JSON:
     ...optionResults.flatMap(result => result.uncertain), ...rejected.uncertain, ...historical.uncertain];
   const uncertaintyIds = new Set();
   const result = {
-    interpretationVersion: 7,
+    interpretationVersion: 8,
     sharedFacts: shared.safe,
     options: optionResults.map(({ option, index, safe }) => ({
       id: `option-${index + 1}`,
@@ -361,6 +363,7 @@ Return only JSON:
   result.options.forEach((option, index) => {
     option.title = `Option ${index + 1} — ${option.facts[0]?.text || "Recorded survey"}`;
   });
+  result.customerIntent = buildCustomerIntent(result);
   if (env.DB) {
     const now = new Date();
     await env.DB.batch([
@@ -408,7 +411,13 @@ async function handleConfirmationChecklist(request, env) {
   }
   try {
     const uncertaintyItems = (payload.interpretation.uncertainties || []).map(item => ({ ...item, category: 'Unresolved point', evidenceState: 'uncertain' }));
-    const source = [...(payload.interpretation.sharedFacts || []), ...(payload.proposal.facts || []), ...uncertaintyItems];
+    const intent = payload.interpretation.customerIntent || { wants: [], needs: [] };
+    const intentEvidenceIds = new Set([...intent.wants, ...intent.needs].flatMap(item => item.supportingFactIds || []));
+    const source = [
+      ...(payload.interpretation.sharedFacts || []).filter(item => !intentEvidenceIds.has(item.id)),
+      ...intent.wants, ...intent.needs,
+      ...(payload.proposal.facts || []), ...uncertaintyItems
+    ];
     const seen = new Set();
     const items = source.filter(item => {
       const key = `${String(item?.category || "").toLowerCase()}|${String(item?.text || "").toLowerCase().replace(/\s+/g, " ").trim()}`;
@@ -424,6 +433,10 @@ async function handleConfirmationChecklist(request, env) {
       evidenceSource: item?.evidenceSource === "capturedEvidence" ? "capturedEvidence" : "transcript",
       targetSection: sectionForFact(item),
       evidenceState: item.evidenceState || 'captured',
+      intentType: item.intentType || null,
+      intentOrigin: item.intentOrigin || null,
+      supportingFactIds: item.supportingFactIds || [],
+      supportingEvidenceQuotes: item.supportingEvidenceQuotes || [],
       checked: false,
       manual: false,
       kind: "evidenceFact"

@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { buildVisitBrief, confirmationGroup, confirmationPriority, evidenceStateLabel } from '../js/reviewPresentation.js';
+import { buildCustomerIntent } from '../js/customerIntent.js';
 
 test('end-of-visit brief restores the decision narrative without inventing content', () => {
   const interpretation = {
@@ -47,10 +48,12 @@ test('suggested work is visibly different and never presented as captured fact',
 
 test('system-boiler/combi visit becomes a decision brief that can be checked before leaving', () => {
   const interpretation = JSON.parse(readFileSync(new URL('./fixtures/system-boiler-combi.json', import.meta.url)));
+  interpretation.customerIntent = buildCustomerIntent(interpretation);
   const selected = interpretation.options.find(option => option.status === 'preferred');
   const brief = Object.fromEntries(buildVisitBrief(interpretation, selected).map(section => [section.id, section.items]));
   const text = id => brief[id].map(item => `${item.text} ${item.reason || ''}`).join(' ');
   assert.match(text('customer'), /gain cupboard or loft space/i);
+  assert.match(text('needs'), /restore.*heating and hot-water/i);
   assert.match(text('existing'), /system boiler.*boiler has failed/i);
   assert.match(text('existing'), /bath and shower/i);
   assert.match(text('measurements'), /approximately 10 L\/min unrestricted/i);

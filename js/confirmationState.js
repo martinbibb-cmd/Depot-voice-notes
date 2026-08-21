@@ -13,7 +13,11 @@ export function confirmedChecklistItems(state) {
     evidenceQuote: item.evidenceRelation || '',
     evidenceSource: item.evidenceSource || (item.manual ? 'surveyor' : 'captured evidence'),
     evidenceState: item.evidenceState || (item.manual ? 'surveyorAdded' : 'captured'),
-    relationship: item.relationship || null
+    relationship: item.relationship || null,
+    intentType: item.intentType || null,
+    intentOrigin: item.intentOrigin || null,
+    supportingFactIds: item.supportingFactIds || [],
+    supportingEvidenceQuotes: item.supportingEvidenceQuotes || []
   }));
 }
 

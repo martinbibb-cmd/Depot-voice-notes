@@ -49,9 +49,16 @@ test('new safeguards merge without overwriting persisted surveyor choices', () =
   assert(merged.items.some(item => item.id === 'safeguard-gas'));
 });
 
-test('raw transcript evidence prevents a false customer-needs gap', () => {
+test('raw transcript evidence prevents a false customer-wants gap but not a false Need', () => {
   const interpretation = { sharedFacts: [{ category: 'Existing system', text: 'Existing combi boiler.' }] };
   const safeguards = communicationSafeguards(interpretation, proposal, [], 'The customer wants improved hot water for their large family.');
+  assert(!safeguards.some(item => item.id === 'safeguard-customer-wants'));
+  assert(safeguards.some(item => item.id === 'safeguard-customer-needs'));
+});
+
+test('canonical derived Needs prevent the false-empty Need safeguard', () => {
+  const interpretation = { sharedFacts: [], customerIntent: { wants: [], needs: [{ category: 'Customer need', text: 'The proposed solution needs to support bath and shower use.' }] } };
+  const safeguards = communicationSafeguards(interpretation, { facts: [] }, [], '');
   assert(!safeguards.some(item => item.id === 'safeguard-customer-needs'));
 });
 

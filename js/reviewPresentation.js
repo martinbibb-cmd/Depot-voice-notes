@@ -6,13 +6,14 @@ export const REVIEW_GROUPS = [
   { id: 'decision', title: 'Decision', description: 'What the customer wants and what is being proposed.' },
   { id: 'measurements', title: 'Key measurements', description: 'Recorded values that affect the job.' },
   { id: 'work', title: 'Works and restrictions', description: 'Routes, access, enabling work and disruption.' },
-  { id: 'unresolved', title: 'Check before leaving', description: 'Missing or uncertain information that needs attention.' },
+  { id: 'unresolved', title: 'Resolve for quote', description: 'Missing or uncertain information that may affect the quote or handover.' },
   { id: 'other', title: 'Other captured details', description: 'Useful supporting facts, kept out of the main path.' }
 ];
 
 export function confirmationGroup(item) {
   const value = corpus(item);
   if (item?.kind === 'informationGap' || item?.evidenceState === 'uncertain' || /unknown|uncertain|to confirm|not established/.test(value)) return 'unresolved';
+  if (item?.intentType === 'want' || item?.intentType === 'need') return 'decision';
   if (/customer.*(want|need|prefer|priority)|reason for change|requested outcome|propos|recommend|selected|reject|unsuitable|inadequate/.test(value)) return 'decision';
   if (numeric(item)) return 'measurements';
   if (/flue|gas|condens|pipe|route|access|restrict|hazard|scaffold|floor|boxing|cupboard|furniture|drill|disruption|customer action|prep|boiler|radiator|cylinder/.test(value)) return 'work';
@@ -27,6 +28,9 @@ export function confirmationPriority(item) {
 }
 
 export function evidenceStateLabel(item) {
+  if (item?.intentType === 'want') return 'CUSTOMER WANT';
+  if (item?.intentType === 'need' && item?.intentOrigin === 'derivedFromEvidence') return 'DERIVED REQUIREMENT';
+  if (item?.intentType === 'need') return 'CUSTOMER-STATED NEED';
   if (item?.kind === 'informationGap') return 'MISSING';
   if (item?.evidenceState === 'uncertain') return 'UNCERTAIN';
   if (item?.evidenceState === 'derivedSuggestion') return 'SUGGESTED WORK';
@@ -41,12 +45,15 @@ export function buildVisitBrief(interpretation, selectedOption = null) {
   const rejected = interpretation?.rejectedAlternatives || [];
   const uncertainties = interpretation?.uncertainties || [];
   const optionFacts = option?.facts || [];
+  const wants = interpretation?.customerIntent?.wants || [];
+  const needs = interpretation?.customerIntent?.needs || [];
   const proposalFacts = optionFacts.filter(item => /propos|recommend|replace|install|retain|boiler|system/i.test(corpus(item)));
   const proposalIds = new Set(proposalFacts.map(item => item.id || text(item.text)));
   const find = pattern => shared.filter(item => pattern.test(corpus(item)));
   const unique = values => [...new Map(values.filter(Boolean).map(item => [item.id || text(item.text), item])).values()];
   return [
-    { id: 'customer', title: 'Customer wants', items: find(/customer.*(want|need|prefer|priority)|reason for change|requested outcome/) },
+    { id: 'customer', title: 'Customer wants', items: wants.length ? wants : find(/customer.*(want|prefer|priority)|reason for change|requested outcome/) },
+    { id: 'needs', title: 'Installation needs', items: needs },
     { id: 'existing', title: 'What we found', items: find(/existing|current|measur|pressure|flow|failed|condition|reported|customer uses|bath|shower/) },
     { id: 'alternatives', title: 'Options considered', items: unique([...(interpretation?.options || []).filter(item => item.id !== option?.id).flatMap(item => item.facts || []), ...rejected]) },
     { id: 'proposal', title: 'Selected proposal', items: proposalFacts },
@@ -54,6 +61,6 @@ export function buildVisitBrief(interpretation, selectedOption = null) {
     { id: 'measurements', title: 'Key measurements', items: unique([...shared, ...optionFacts].filter(numeric)) },
     { id: 'work', title: 'Likely work', items: optionFacts.filter(item => !proposalIds.has(item.id || text(item.text)) && /install|replace|fit|route|flue|condens|gas|pipe|filter|control|hive|radiator|cylinder/i.test(corpus(item))) },
     { id: 'restrictions', title: 'Restrictions', items: unique([...shared, ...optionFacts].filter(item => /access|scaffold|floor|boxing|cupboard|furniture|drill|restrict|hazard|disruption/i.test(corpus(item)))) },
-    { id: 'missing', title: 'Check before leaving', items: uncertainties }
+    { id: 'missing', title: 'Resolve for quote', items: uncertainties }
   ];
 }

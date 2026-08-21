@@ -14,7 +14,8 @@ export function claimIntegrityErrors(fact) {
   const errors = [];
   if (!fact?.manual && !quote) errors.push('missing evidence quote');
   if (numeric(text).some(number => !numeric(quote).includes(number))) errors.push('numeric value is absent from evidence quote');
-  if (uncertainty.test(quote) && !uncertainty.test(text)) errors.push('uncertainty was strengthened');
+  if (fact?.evidenceState !== 'derivedRequirement' && uncertainty.test(quote) && !uncertainty.test(text)) errors.push('uncertainty was strengthened');
+  if (fact?.evidenceState === 'derivedRequirement' && (!(fact.supportingFactIds || []).length || !(fact.supportingEvidenceQuotes || []).length)) errors.push('derived requirement is missing supporting evidence');
   if (negation.test(quote) && !negation.test(text)) errors.push('negation was lost');
   return errors;
 }
@@ -22,6 +23,7 @@ export function claimIntegrityErrors(fact) {
 export function sectionForFact(item) {
   const value = `${item?.targetSection || ''} ${item?.category || ''} ${item?.text || ''}`.toLowerCase();
   if (DEPOT_SECTIONS.includes(item?.targetSection)) return item.targetSection;
+  if (item?.intentType === 'want' || item?.intentType === 'need') return 'Needs';
   if (/customer.*(want|need|prefer|priority)|reason for change|requested outcome/.test(value)) return 'Needs';
   if (/flue|terminal|plume/.test(value)) return 'Flue';
   if (/control|thermostat|programmer|electrical|consumer unit|fused spur/.test(value)) return 'New boiler and controls';
@@ -82,11 +84,13 @@ export function buildHandoverDocuments({ confirmedChecklistItems = [], uncertain
   const byDepot = section => confirmed.filter(item => item.targetSection === section);
   const proposed = confirmed.filter(item => ['New boiler and controls','Flue','Pipe work'].includes(item.targetSection));
   const needs = byDepot('Needs');
+  const statedIntent = needs.filter(item => item.intentOrigin !== 'derivedFromEvidence');
+  const derivedNeeds = needs.filter(item => item.intentType === 'need' && item.intentOrigin === 'derivedFromEvidence');
   const disruption = [...byDepot('Restrictions to work'), ...byDepot('Disruption')];
   const prep = byDepot('Customer actions');
   const customer = [
     { heading: 'What we are proposing', text: proposed.length ? proposed.map(item => sentence(item.text)).join(' ') : 'No proposed work has been recorded.', factIds: proposed.map(item => item.id) },
-    { heading: 'Why this suits your home', text: needs.length ? `You told us: ${needs.map(item => sentence(item.text)).join(' ')} The proposed work should be read alongside these recorded priorities; it does not imply that every original objective is achieved.` : 'No specific customer objective has been recorded.', factIds: needs.map(item => item.id) },
+    { heading: 'Why this suits your home', text: needs.length ? [statedIntent.length ? `You told us: ${statedIntent.map(item => sentence(item.text)).join(' ')}` : '', derivedNeeds.length ? `The survey also established these requirements: ${derivedNeeds.map(item => sentence(item.text)).join(' ')}` : '', 'The proposed work should be read alongside these recorded priorities; it does not imply that every original objective is achieved.'].filter(Boolean).join(' ') : 'No specific customer objective or confirmed requirement has been recorded.', factIds: needs.map(item => item.id) },
     { heading: 'What to expect during the work', text: disruption.length ? disruption.map(item => sentence(item.text)).join(' ') : 'No specific job disruption has been confirmed.', factIds: disruption.map(item => item.id) },
     { heading: 'Getting ready', text: prep.length ? prep.map(item => sentence(item.text)).join(' ') : 'No customer preparation has been confirmed.', factIds: prep.map(item => item.id) },
     { heading: 'Points still to confirm', text: unresolved.length ? unresolved.map(item => sentence(item.text)).join(' ') : 'No unresolved points are currently recorded.', factIds: unresolved.map(item => item.id) }
@@ -105,6 +109,11 @@ export function auditPipelineOutput({ confirmedItems = [], depotSections = [], h
   }
   for (const section of depotSections) {
     if ((section.factIds || []).length && /No information recorded/i.test(section.plainText || '')) errors.push({ code: 'false_empty_section', section: section.section });
+  }
+  const confirmedNeeds = confirmedItems.filter(item => item.intentType === 'need');
+  const needsSection = depotSections.find(section => section.section === 'Needs');
+  if (confirmedNeeds.length && (!(needsSection?.factIds || []).some(id => confirmedNeeds.some(item => item.id === id)) || /No information recorded/i.test(needsSection?.plainText || ''))) {
+    errors.push({ code: 'false_empty_needs', factIds: confirmedNeeds.map(item => item.id) });
   }
   const unresolved = confirmedItems.filter(item => item.evidenceState === 'uncertain');
   const unresolvedSection = handover?.engineer?.find(section => section.heading === 'Unresolved points');

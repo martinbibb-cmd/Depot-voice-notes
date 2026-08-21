@@ -24,7 +24,7 @@ async function parseJson(response) {
 const originalFetch = globalThis.fetch;
 
 test('POST /interpret separates shared evidence, independent options, history and uncertainty', async (t) => {
-  const transcript = 'Standing pressure is 2.5 bar. Existing 22 mm gas pipe. Clearance was 150 mm. The pump is an impala in the matrix. Option one retains the combi. Option two uses a system boiler and accumulator. The old system was powerflushed. The hand flute term is unclear.';
+  const transcript = 'Standing pressure is 2.5 bar. Existing 22 mm gas pipe. Clearance was 150 mm. The pump is an impala in the matrix. Option one retains the combi. Option two uses a system boiler and accumulator. Valor was rejected. The old system was powerflushed. The hand flute term is unclear.';
   let modelInput;
   globalThis.fetch = async (_url, options) => {
     const request = JSON.parse(options.body);
@@ -40,7 +40,7 @@ test('POST /interpret separates shared evidence, independent options, history an
         { title: 'Retain combi', status: 'preferred', facts: [{ category: 'Boiler', text: 'Retain the combi.', evidenceQuote: 'Option one retains the combi.', evidenceSource: 'transcript' }] },
         { title: 'System boiler', status: 'viable', facts: [{ category: 'Boiler', text: 'Use a system boiler and accumulator.', evidenceQuote: 'Option two uses a system boiler and accumulator.', evidenceSource: 'transcript' }] }
       ],
-      rejectedAlternatives: [],
+      rejectedAlternatives: [{ text: 'Valor route was rejected.', reason: 'Uncertain recognised term.', evidenceQuote: 'Valor', evidenceSource: 'transcript' }],
       uncertainties: [{ text: 'hand flute', context: 'Unclear recognised component term.', evidenceQuote: 'hand flute', evidenceSource: 'transcript' }],
       historicalFacts: [{ category: 'System history', text: 'The old system was powerflushed.', evidenceQuote: 'The old system was powerflushed.', evidenceSource: 'transcript' }]
     }) }] } }] }), { status: 200, headers: { 'Content-Type': 'application/json' } });
@@ -61,6 +61,8 @@ test('POST /interpret separates shared evidence, independent options, history an
   assert.equal(body.sharedFacts.find(item => item.category === 'Clearance').text, 'Clearance was 150 mm.');
   assert(!body.sharedFacts.some(item => /impala/i.test(item.text)));
   assert(body.uncertainties.some(item => /impala/i.test(item.text)));
+  assert(!body.rejectedAlternatives.some(item => /valor/i.test(item.text)));
+  assert(body.uncertainties.some(item => /valor/i.test(item.text)));
   assert(body.sharedFacts.some(item => item.category === 'Gas supply' && item.text === '22 mm gas pipe recorded.'));
   assert.equal(modelInput.transcript, transcript);
   assert.match(modelInput.capturedEvidence, /Garden tap/);

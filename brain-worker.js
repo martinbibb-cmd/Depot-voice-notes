@@ -211,7 +211,7 @@ async function handleInterpret(request, env) {
 }
 
 async function callInterpretationModel(env, transcript, capturedEvidence) {
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`interpretation-v5\0${transcript}\0${capturedEvidence}`));
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`interpretation-v6\0${transcript}\0${capturedEvidence}`));
   const evidenceHash = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
   if (env.DB) {
     const cached = await env.DB.prepare('SELECT result_json FROM speccheck_interpretation_cache WHERE evidence_hash = ? AND expires_at > ?')
@@ -323,8 +323,13 @@ Return only JSON:
     optionResults[matching[0]].safe.push(fact);
     return false;
   });
+  const rejected = moveUncertain(groundedSpecial(parsed.rejectedAlternatives));
+  const historical = moveUncertain(grounded(parsed.historicalFacts));
+  const uncertaintyCandidates = [...groundedSpecial(parsed.uncertainties), ...shared.uncertain,
+    ...optionResults.flatMap(result => result.uncertain), ...rejected.uncertain, ...historical.uncertain];
+  const uncertaintyIds = new Set();
   const result = {
-    interpretationVersion: 5,
+    interpretationVersion: 6,
     sharedFacts: shared.safe,
     options: optionResults.map(({ option, index, safe }) => ({
       id: `option-${index + 1}`,
@@ -332,9 +337,9 @@ Return only JSON:
       status: ["preferred", "viable", "discussed"].includes(option.status) ? option.status : "discussed",
       facts: safe
     })).filter(option => option.facts.length),
-    rejectedAlternatives: groundedSpecial(parsed.rejectedAlternatives),
-    uncertainties: [...groundedSpecial(parsed.uncertainties), ...shared.uncertain, ...optionResults.flatMap(result => result.uncertain)],
-    historicalFacts: grounded(parsed.historicalFacts)
+    rejectedAlternatives: rejected.safe,
+    uncertainties: uncertaintyCandidates.filter(item => !uncertaintyIds.has(item.id) && uncertaintyIds.add(item.id)),
+    historicalFacts: historical.safe
   };
   if (!result.options.length && (result.sharedFacts.length || result.uncertainties.length)) {
     result.options.push({ id: 'option-1', title: 'Recorded survey', status: 'preferred', facts: [] });

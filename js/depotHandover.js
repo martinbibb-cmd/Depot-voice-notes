@@ -156,7 +156,7 @@ async function aiCheck() {
   $('aiCheckStatus').textContent = 'Checking the complete transcript and reconciling the latest supported survey state…';
   try {
     const captured = $('capturedEvidence').textContent.trim();
-    if (!interpretation || interpretation.interpretationVersion !== 5) {
+    if (!interpretation || interpretation.interpretationVersion !== 6) {
       interpretation = await api('/interpret', { method: 'POST', body: JSON.stringify({ transcript, capturedEvidence: captured }) });
       optionChecklists.clear();
       await persistProcessingState();

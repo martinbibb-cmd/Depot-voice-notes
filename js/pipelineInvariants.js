@@ -23,6 +23,7 @@ export function claimIntegrityErrors(fact) {
 export function sectionForFact(item) {
   const value = `${item?.targetSection || ''} ${item?.category || ''} ${item?.text || ''}`.toLowerCase();
   if (DEPOT_SECTIONS.includes(item?.targetSection)) return item.targetSection;
+  if (item?.evidenceState === 'uncertain' || /unresolved point/.test(value)) return 'Office notes';
   if (item?.intentType === 'want' || item?.intentType === 'need') return 'Needs';
   if (/customer.*(want|need|prefer|priority)|reason for change|requested outcome/.test(value)) return 'Needs';
   if (/flue|terminal|plume/.test(value)) return 'Flue';

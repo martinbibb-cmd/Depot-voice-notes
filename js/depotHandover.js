@@ -5,7 +5,6 @@ import { inferredPrimaryRequirement, pipeRequirement, suggestPackage } from './b
 import { trustworthyTransferredFacts } from './transferEvidence.js';
 import { buildDepotSections, auditPipelineOutput } from './pipelineInvariants.js';
 import { buildVisitBrief, confirmationGroup, confirmationPriority, evidenceStateLabel, REVIEW_GROUPS } from './reviewPresentation.js';
-import { buildVisualSpecification, componentIcon } from './specificationVisuals.js';
 
 const WORKER = 'https://depot-voice-notes.martinbibb.workers.dev';
 const $ = id => document.getElementById(id);
@@ -209,7 +208,6 @@ function renderInterpretation() {
   group('Rejected or compromised', interpretation.rejectedAlternatives, item => [item.text, item.reason].filter(Boolean).join(' — '));
   group('Uncertain evidence', interpretation.uncertainties, item => [item.text, item.context].filter(Boolean).join(' — '));
   renderVisitBrief();
-  renderVisualSpecification();
   const actions = $('optionActions'); actions.replaceChildren();
   interpretation.options.forEach((option, index) => {
     const button = document.createElement('button'); button.className = index === 0 ? 'primary' : '';
@@ -217,49 +215,6 @@ function renderInterpretation() {
     button.onclick = () => prepareConfirmation(option, index);
     actions.append(button);
   });
-}
-function renderVisualSpecification(option = null, target = 'visualSpecification') {
-  const container = $(target); container.replaceChildren();
-  const selected = option || (interpretation?.options || []).find(item => item.status === 'preferred') || interpretation?.options?.[0];
-  const rows = buildVisualSpecification(interpretation, selected);
-  if (!rows.length) return;
-  const table = document.createElement('div'); table.className = 'visual-spec'; table.setAttribute('role', 'table');
-  const head = document.createElement('div'); head.className = 'visual-spec-head'; head.setAttribute('role', 'row');
-  ['Component','Type','Action'].forEach(value => { const cell = document.createElement('span'); cell.textContent = value; cell.setAttribute('role', 'columnheader'); head.append(cell); });
-  table.append(head);
-  rows.forEach(row => {
-    const line = document.createElement('div'); line.className = 'visual-spec-row'; line.setAttribute('role', 'row');
-    const component = document.createElement('div'); component.className = 'component-cell'; component.setAttribute('role', 'cell');
-    component.innerHTML = componentIcon(row.component, row.subtype);
-    const label = document.createElement('strong'); label.textContent = row.label; component.append(label);
-    const type = document.createElement('span'); type.className = 'type-label'; type.setAttribute('role', 'cell'); type.textContent = row.subtype ? `${row.subtype[0].toUpperCase()}${row.subtype.slice(1)}` : row.typeRequired ? 'Type unresolved' : '—';
-    const action = document.createElement(row.action === 'Unresolved' ? 'button' : 'span'); action.className = `action-state ${row.action.toLowerCase().replace(/\s+/g, '-')}`; action.setAttribute('role', 'cell'); action.textContent = row.action === 'Unresolved' ? 'Resolve' : row.action;
-    if (row.action === 'Unresolved') {
-      action.setAttribute('aria-label', `Resolve ${row.label}`);
-      action.onclick = () => resolveVisualSpecificationRow(row, selected, target);
-    }
-    const evidence = document.createElement('details'); evidence.className = 'visual-evidence';
-    const summary = document.createElement('summary'); summary.textContent = 'Show supporting facts';
-    const list = document.createElement('ul'); row.facts.forEach(fact => { const item = document.createElement('li'); item.textContent = fact.text; list.append(item); });
-    evidence.append(summary, list); line.append(component, type, action, evidence); table.append(line);
-  });
-  container.append(table);
-}
-async function resolveVisualSpecificationRow(row, option, target) {
-  const optionIndex = (interpretation?.options || []).findIndex(item => item.id === option?.id);
-  if (target !== 'confirmVisualSpecification') await prepareConfirmation(option, Math.max(0, optionIndex));
-  const factIds = new Set(row.facts.map(item => item.id).filter(Boolean));
-  const card = [...document.querySelectorAll('.confirmation[data-fact-id]')].find(item => factIds.has(item.dataset.factId));
-  if (card) {
-    const group = card.closest('.confirmation-group');
-    if (group) group.open = true;
-    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    card.classList.add('needs-attention');
-    setTimeout(() => card.classList.remove('needs-attention'), 1800);
-  } else {
-    $('confirmationComment')?.focus();
-    $('confirmationStatus').textContent = `${row.label} is not resolved by the captured evidence. Add what was established, then reprocess.`;
-  }
 }
 function renderVisitBrief(option = null, target = 'visitBrief', additionalMissing = []) {
   const container = $(target); container.replaceChildren();
@@ -287,11 +242,10 @@ async function prepareConfirmation(option, index) {
   selectedOption = { ...option, number: index + 1 };
   if (currentVisitId) localStorage.setItem(`speccheck-option-${currentVisitId}`, option.id);
   renderVisitBrief(selectedOption);
-  renderVisualSpecification(selectedOption, 'confirmVisualSpecification');
   show(3); $('confirmationStatus').textContent = `Preparing Option ${index + 1}…`;
   try {
     const existing = optionChecklists.get(option.id);
-    if (!existing || existing.confirmationVersion !== 3) {
+    if (!existing || existing.confirmationVersion !== 4) {
       const result = await api('/confirmation-checklist', { method: 'POST', body: JSON.stringify({
         interpretation, proposal: option, transcript: $('transcript').value,
         capturedEvidence: confirmationEvidence(existing)
@@ -300,9 +254,16 @@ async function prepareConfirmation(option, index) {
       // valid evidence, so retain only facts explicitly added by the surveyor.
       const retainedManualFacts = (existing?.items || []).filter(item => item.manual && !item.removed);
       optionChecklists.set(option.id, {
-        confirmationVersion: 3, proposalOptionId: option.id,
+        confirmationVersion: 4, proposalOptionId: option.id,
         generatedAt: new Date().toISOString(), surveyorComments: existing?.surveyorComments || [],
-        items: [...(result.items || []), ...retainedManualFacts]
+        items: [
+          ...(result.items || []).map(generated => {
+            const previous = (existing?.items || []).find(item => (item.factId || item.id) === (generated.factId || generated.id));
+            if (!previous || generated.evidenceState === 'uncertain') return generated;
+            return { ...generated, text: previous.text || generated.text, checked: Boolean(previous.checked), removed: Boolean(previous.removed) };
+          }),
+          ...retainedManualFacts
+        ]
       });
     }
     optionChecklists.set(option.id, mergeSafeguards(optionChecklists.get(option.id), [
@@ -321,7 +282,7 @@ async function reprocessConfirmation(suppliedComment = '') {
   if (!selectedOption) return;
   const comment = (suppliedComment || $('confirmationComment').value).trim();
   if (!comment) return;
-  const state = optionChecklists.get(selectedOption.id) || { confirmationVersion: 3, proposalOptionId: selectedOption.id, items: [], surveyorComments: [] };
+  const state = optionChecklists.get(selectedOption.id) || { confirmationVersion: 4, proposalOptionId: selectedOption.id, items: [], surveyorComments: [] };
   state.surveyorComments = [...(state.surveyorComments || []), comment];
   $('confirmationComment').value = '';
   $('confirmationStatus').className = 'status';
@@ -360,14 +321,23 @@ function renderConfirmation() {
   const openGroups = new Set(previousGroups.filter(item => item.open).map(item => item.dataset.group));
   const previousY = scrollY;
   renderVisitBrief(selectedOption, 'confirmBrief', state.items.filter(item => !item.removed && item.kind === 'informationGap'));
-  renderVisualSpecification(selectedOption, 'confirmVisualSpecification');
   const container = $('confirmationItems'); container.replaceChildren();
   $('confirmationComments').textContent = state.surveyorComments?.length
     ? `Added context: ${state.surveyorComments.join(' · ')}`
     : 'No surveyor comments added yet.';
   const visibleItems = state.items.filter(item => !item.removed).sort((left, right) => confirmationPriority(left) - confirmationPriority(right));
+  const understood = visibleItems.filter(item => item.kind === 'evidenceFact' && item.evidenceState !== 'uncertain');
+  const needsAttention = visibleItems.filter(item => item.kind !== 'evidenceFact' || item.evidenceState === 'uncertain');
+  $('understoodFacts').replaceChildren();
+  const understoodList = document.createElement('ul');
+  understood.forEach(item => { const line = document.createElement('li'); line.textContent = item.text; understoodList.append(line); });
+  $('understoodFacts').append(understoodList);
+  $('understoodFactsSummary').textContent = `Inspect ${understood.length} interpreted facts`;
+  const allUnderstood = understood.length > 0 && understood.every(item => item.checked);
+  $('confirmUnderstandingBtn').textContent = allUnderstood ? '✓ Overall understanding confirmed' : 'Yes, that is my understanding';
+  $('confirmUnderstandingBtn').classList.toggle('primary', !allUnderstood);
   const grouped = new Map(REVIEW_GROUPS.map(group => [group.id, []]));
-  visibleItems.forEach(item => grouped.get(confirmationGroup(item)).push(item));
+  needsAttention.forEach(item => grouped.get(confirmationGroup(item)).push(item));
   REVIEW_GROUPS.forEach(group => {
     const items = grouped.get(group.id); if (!items.length) return;
     const section = document.createElement('details'); section.className = 'disclosure confirmation-group';
@@ -375,7 +345,7 @@ function renderConfirmation() {
     section.open = hadGroups ? openGroups.has(group.id) : ['decision','unresolved'].includes(group.id) || items.some(item => !item.checked && item.kind !== 'informationGap' && confirmationPriority(item) <= 2);
     const summary = document.createElement('summary'); summary.textContent = group.title;
     const count = document.createElement('span'); count.className = 'group-count';
-    count.textContent = `${items.filter(item => item.checked).length}/${items.filter(item => item.kind !== 'informationGap').length} confirmed`;
+    count.textContent = `${items.length} to review`;
     summary.append(count); section.append(summary);
     const description = document.createElement('p'); description.className = 'hint'; description.textContent = group.description; section.append(description);
     items.forEach(item => section.append(confirmationCard(item)));
@@ -392,11 +362,21 @@ function confirmationCard(item) {
     promptLabel.textContent = evidenceStateLabel(item);
     const text = document.createElement('div'); text.className = 'confirmation-text'; text.textContent = item.text;
     const actions = document.createElement('div'); actions.className = 'card-actions';
-    if (item.kind !== 'informationGap') {
+    if (item.kind !== 'informationGap' && item.evidenceState !== 'uncertain') {
       const confirm = document.createElement('button'); confirm.className = item.checked ? 'primary' : '';
       confirm.textContent = item.checked ? '✓ Confirmed' : 'Confirm';
       confirm.onclick = () => { item.checked = !item.checked; checklistChanged(); renderConfirmation(); };
       actions.append(confirm);
+    }
+    if (item.kind === 'informationGap' || item.evidenceState === 'uncertain') {
+      if (item.evidenceState === 'uncertain') {
+        const keep = document.createElement('button'); keep.textContent = item.checked ? '✓ Kept as unresolved' : 'Keep as unresolved';
+        keep.onclick = () => { item.checked = !item.checked; checklistChanged(); renderConfirmation(); };
+        actions.append(keep);
+      }
+      const dismiss = document.createElement('button'); dismiss.textContent = item.evidenceState === 'uncertain' ? 'Ignore unclear wording' : 'Not relevant';
+      dismiss.onclick = () => { item.removed = true; checklistChanged(); renderConfirmation(); };
+      actions.append(dismiss);
     }
     const correctionPanel = document.createElement('details'); correctionPanel.className = 'card-correction';
     const correctionSummary = document.createElement('summary'); correctionSummary.textContent = item.kind === 'informationGap' ? 'Add what you found' : 'Correct or add context';
@@ -426,15 +406,20 @@ function confirmationCard(item) {
 }
 function updateConfirmationStatus(state) {
   const visible = state.items.filter(item => !item.removed);
-  const checked = visible.filter(item => item.checked && item.kind !== 'informationGap').length;
-  const gaps = unresolvedSafeguards(state);
+  const safe = visible.filter(item => item.kind === 'evidenceFact' && item.evidenceState !== 'uncertain');
+  const checked = safe.filter(item => item.checked).length;
+  const attention = visible.filter(item => item.kind === 'informationGap' || (item.evidenceState === 'uncertain' && !item.checked) || (item.kind !== 'evidenceFact' && !item.checked)).length;
   $('confirmationStatus').className = 'status';
-  const understood = visible.filter(item => item.kind !== 'informationGap').length;
-  const missing = visible.filter(item => item.kind === 'informationGap').length;
-  const remaining = understood - checked;
-  $('confirmationStatus').textContent = `${remaining ? `${remaining} understanding${remaining === 1 ? '' : 's'} left to check` : 'All shown understandings checked'}${missing ? ` · ${missing} missing subject${missing === 1 ? '' : 's'} to inspect or leave unresolved` : ''}.`;
+  $('confirmationStatus').textContent = `${checked === safe.length && safe.length ? 'Overall understanding confirmed' : 'Confirm the overall understanding once'}${attention ? ` · ${attention} point${attention === 1 ? '' : 's'} needs attention` : ''}.`;
   $('confirmationStatus').className = 'status';
-  $('writeOptionBtn').disabled = checked === 0;
+  $('writeOptionBtn').disabled = safe.length > 0 && checked !== safe.length;
+}
+async function confirmOverallUnderstanding() {
+  if (!selectedOption) return;
+  const state = optionChecklists.get(selectedOption.id);
+  (state?.items || []).filter(item => item.kind === 'evidenceFact' && item.evidenceState !== 'uncertain' && !item.removed).forEach(item => { item.checked = true; });
+  checklistChanged();
+  renderConfirmation();
 }
 function checklistChanged() {
   if (selectedOption) optionDrafts.delete(selectedOption.id);
@@ -725,6 +710,7 @@ $('importTextBtn').onclick = () => $('textFile').click(); $('textFile').onchange
 $('draftBtn').onclick = aiCheck; $('handoverBtn').onclick = () => handover();
 $('backCapture').onclick = () => show(1); $('backInterpretation').onclick = () => show(2); $('backCheck').onclick = () => show(3); $('backDraft').onclick = () => show(4);
 $('reprocessConfirmationBtn').onclick = () => reprocessConfirmation().catch(error => $('confirmationStatus').textContent = error.message);
+$('confirmUnderstandingBtn').onclick = () => confirmOverallUnderstanding().catch(error => $('confirmationStatus').textContent = error.message);
 $('resumeReviewBtn').onclick = async () => {
   if (!interpretation) return aiCheck();
   renderInterpretation();

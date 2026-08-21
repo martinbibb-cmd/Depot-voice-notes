@@ -411,16 +411,24 @@ async function handleConfirmationChecklist(request, env) {
   }
   try {
     const uncertaintyItems = (payload.interpretation.uncertainties || []).map(item => ({ ...item, category: 'Unresolved point', evidenceState: 'uncertain' }));
+    const uncertainIds = new Set(uncertaintyItems.map(item => item.id).filter(Boolean));
+    const uncertainQuotes = new Set(uncertaintyItems.map(item => String(item.evidenceQuote || '').trim().toLowerCase()).filter(Boolean));
     const intent = payload.interpretation.customerIntent || { wants: [], needs: [] };
     const intentEvidenceIds = new Set([...intent.wants, ...intent.needs].flatMap(item => item.supportingFactIds || []));
+    const proposalQuotes = (payload.proposal.facts || []).map(item => String(item.evidenceQuote || '').trim().toLowerCase()).filter(quote => quote.length >= 30);
     const source = [
-      ...(payload.interpretation.sharedFacts || []).filter(item => !intentEvidenceIds.has(item.id)),
       ...intent.wants, ...intent.needs,
-      ...(payload.proposal.facts || []), ...uncertaintyItems
+      ...(payload.proposal.facts || []),
+      ...(payload.interpretation.sharedFacts || []).filter(item => {
+        const quote = String(item.evidenceQuote || '').trim().toLowerCase();
+        const coveredByProposal = quote.length >= 30 && proposalQuotes.some(proposalQuote => proposalQuote.includes(quote) || quote.includes(proposalQuote));
+        return !intentEvidenceIds.has(item.id) && !uncertainIds.has(item.id) && !(quote && uncertainQuotes.has(quote)) && !coveredByProposal;
+      }),
+      ...uncertaintyItems
     ];
     const seen = new Set();
     const items = source.filter(item => {
-      const key = `${String(item?.category || "").toLowerCase()}|${String(item?.text || "").toLowerCase().replace(/\s+/g, " ").trim()}`;
+      const key = item?.id ? `id:${item.id}` : `text:${String(item?.category || "").toLowerCase()}|${String(item?.text || "").toLowerCase().replace(/\s+/g, " ").trim()}`;
       if (!item?.text || !item?.evidenceQuote || seen.has(key)) return false;
       seen.add(key); return true;
     }).map((item, index) => ({

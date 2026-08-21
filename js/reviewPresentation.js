@@ -47,20 +47,33 @@ export function buildVisitBrief(interpretation, selectedOption = null) {
   const optionFacts = option?.facts || [];
   const wants = interpretation?.customerIntent?.wants || [];
   const needs = interpretation?.customerIntent?.needs || [];
-  const proposalFacts = optionFacts.filter(item => /propos|recommend|replace|install|retain|boiler|system/i.test(corpus(item)));
-  const proposalIds = new Set(proposalFacts.map(item => item.id || text(item.text)));
   const find = pattern => shared.filter(item => pattern.test(corpus(item)));
   const unique = values => [...new Map(values.filter(Boolean).map(item => [item.id || text(item.text), item])).values()];
+  const claimed = new Set();
+  const take = values => unique(values).filter(item => {
+    const key = item.id || text(item.text);
+    if (claimed.has(key)) return false;
+    claimed.add(key); return true;
+  });
+  const customer = take(wants.length ? wants : find(/customer.*(want|prefer|priority)|reason for change|requested outcome/));
+  const installationNeeds = take(needs);
+  const proposal = take(optionFacts.filter(item => /propos|recommend|replace.*boiler|install.*boiler|retain.*(?:system|cylinder)|selected|same type/i.test(corpus(item))));
+  const measurements = take([...shared, ...optionFacts].filter(numeric));
+  const restrictions = take([...shared, ...optionFacts].filter(item => /access|scaffold|floor|boxing|cupboard|furniture|drill|restrict|hazard|disruption/i.test(corpus(item))));
+  const existing = take(find(/existing|current|pressure|flow|failed|condition|reported|customer uses|bath|shower/).filter(item => !numeric(item)));
+  const alternatives = take([...(interpretation?.options || []).filter(item => item.id !== option?.id).flatMap(item => item.facts || []), ...rejected]);
+  const why = take([...optionFacts.filter(item => item.relationship), ...rejected.filter(item => item.reason)]);
+  const work = take(optionFacts.filter(item => /install|replace|fit|route|flue|condens|gas|pipe|filter|control|hive|radiator|cylinder/i.test(corpus(item))));
   return [
-    { id: 'customer', title: 'Customer wants', items: wants.length ? wants : find(/customer.*(want|prefer|priority)|reason for change|requested outcome/) },
-    { id: 'needs', title: 'Installation needs', items: needs },
-    { id: 'existing', title: 'What we found', items: find(/existing|current|measur|pressure|flow|failed|condition|reported|customer uses|bath|shower/) },
-    { id: 'alternatives', title: 'Options considered', items: unique([...(interpretation?.options || []).filter(item => item.id !== option?.id).flatMap(item => item.facts || []), ...rejected]) },
-    { id: 'proposal', title: 'Selected proposal', items: proposalFacts },
-    { id: 'why', title: 'Why', items: unique([...optionFacts.filter(item => item.relationship), ...rejected.filter(item => item.reason)]) },
-    { id: 'measurements', title: 'Key measurements', items: unique([...shared, ...optionFacts].filter(numeric)) },
-    { id: 'work', title: 'Likely work', items: optionFacts.filter(item => !proposalIds.has(item.id || text(item.text)) && /install|replace|fit|route|flue|condens|gas|pipe|filter|control|hive|radiator|cylinder/i.test(corpus(item))) },
-    { id: 'restrictions', title: 'Restrictions', items: unique([...shared, ...optionFacts].filter(item => /access|scaffold|floor|boxing|cupboard|furniture|drill|restrict|hazard|disruption/i.test(corpus(item)))) },
+    { id: 'customer', title: 'Customer wants', items: customer },
+    { id: 'needs', title: 'Installation needs', items: installationNeeds },
+    { id: 'existing', title: 'What we found', items: existing },
+    { id: 'alternatives', title: 'Options considered', items: alternatives },
+    { id: 'proposal', title: 'Selected proposal', items: proposal },
+    { id: 'why', title: 'Why', items: why },
+    { id: 'measurements', title: 'Key measurements', items: measurements },
+    { id: 'work', title: 'Likely work', items: work },
+    { id: 'restrictions', title: 'Restrictions', items: restrictions },
     { id: 'missing', title: 'Resolve for quote', items: uncertainties }
   ];
 }

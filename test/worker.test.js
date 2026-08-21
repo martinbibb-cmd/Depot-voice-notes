@@ -107,9 +107,39 @@ test('POST /confirmation-checklist deterministically uses only grounded canonica
   assert.equal(body.items.length, 2);
   assert(body.items.every(item => item.checked === false));
   assert(body.items.every(item => item.manual === false));
-  assert.equal(body.items[0].targetSection, 'Flue');
-  assert.match(body.items[0].evidenceRelation, /rise vertically/);
-  assert.equal(body.items[1].text, 'Route behind boiler and above window.');
+  const flue = body.items.find(item => item.targetSection === 'Flue');
+  assert.match(flue.evidenceRelation, /rise vertically/);
+  assert.equal(body.items.find(item => item.targetSection === 'Pipe work').text, 'Route behind boiler and above window.');
+});
+
+test('uncertain evidence cannot also become a factual confirmation card', async () => {
+  const uncertain = { id:'unclear-1', text:'convolution boiler', evidenceQuote:'the shower may not suit a convolution boiler', evidenceSource:'transcript' };
+  const interpretation = {
+    sharedFacts:[{ id:'unclear-1', category:'Shower', text:'The shower is unsuitable for a combi boiler.', evidenceQuote:'the shower may not suit a convolution boiler', evidenceSource:'transcript' }],
+    uncertainties:[uncertain]
+  };
+  const response = await worker.fetch(new Request('https://example.com/confirmation-checklist', {
+    method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({ interpretation, proposal:{ id:'option-1', facts:[] } })
+  }), {}, {});
+  const body = await parseJson(response);
+  assert.equal(body.items.length, 1);
+  assert.equal(body.items[0].evidenceState, 'uncertain');
+  assert.equal(body.items[0].text, 'convolution boiler');
+});
+
+test('selected proposal evidence suppresses overlapping shared repetition', async () => {
+  const quote = 'we need scaffold because the sloping garden prevents normal ladder access';
+  const interpretation = { sharedFacts:[
+    { id:'shared-access', category:'Access', text:'Normal ladder access is unavailable and scaffold is needed.', evidenceQuote:`The survey established ${quote}.`, evidenceSource:'transcript' }
+  ] };
+  const proposal = { id:'option-1', facts:[
+    { id:'selected-access', category:'Access', text:'Scaffold required for flue access due to sloping garden.', evidenceQuote:quote, evidenceSource:'transcript' }
+  ] };
+  const response = await worker.fetch(new Request('https://example.com/confirmation-checklist', {
+    method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({ interpretation, proposal })
+  }), {}, {});
+  const body = await parseJson(response);
+  assert.deepEqual(body.items.map(item => item.factId), ['selected-access']);
 });
 
 test('POST /interpret keeps a shared-facts-only survey reviewable', async (t) => {

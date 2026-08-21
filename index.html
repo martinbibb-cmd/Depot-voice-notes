@@ -52,7 +52,6 @@
     <h2>Ready to quote</h2><p class="hint">The captured survey organised into the decisions, measurements and unresolved points needed for quotation and handover.</p>
     <div id="aiCheckStatus" class="status"></div>
     <div id="breezeSuggestion" class="note hidden"></div>
-    <div id="visualSpecification"></div>
     <div id="visitBrief" class="visit-brief"></div>
     <details class="disclosure"><summary>Inspect complete interpretation and source transcript</summary><div class="compare"><div><h3>Source transcript</h3><div id="checkTranscript" class="source"></div></div><div><h3>Canonical interpretation</h3><div id="checkNotes"></div></div></div></details>
     <div id="optionActions" class="row no-print"></div>
@@ -61,8 +60,8 @@
 
   <section id="confirmStep" class="hidden">
     <h2>Is this what you meant?</h2><p class="hint">SpecCheck explains what it understood from the survey. Confirm accurate statements. If one is wrong or incomplete, add information beneath that statement and SpecCheck will interpret the transcript again. You are not being asked to classify notes into sections.</p>
-    <div id="confirmVisualSpecification"></div>
     <div id="confirmBrief" class="visit-brief"></div>
+    <div class="note"><strong>Confirm the overall understanding</strong><p class="hint">Confirm once if the summary above matches the job. You do not need to approve every captured sentence separately.</p><button class="primary" id="confirmUnderstandingBtn">Yes, that is my understanding</button><details class="disclosure"><summary id="understoodFactsSummary">Inspect interpreted facts</summary><div id="understoodFacts"></div></details></div>
     <div class="confirm-progress"><div id="confirmationStatus" class="status"></div></div><div id="confirmationItems"></div>
     <div class="note no-print"><strong>Anything else?</strong><p class="hint">Add information that does not relate to a statement above. It is added to the evidence and does not replace the transcript.</p><div id="confirmationComments" class="hint"></div><textarea id="confirmationComment" placeholder="Add anything important that SpecCheck missed."></textarea><button id="reprocessConfirmationBtn">Add information and reprocess</button></div>
     <div class="row no-print" style="margin-top:14px"><button id="backInterpretation">Back to interpretation</button><button class="primary" id="writeOptionBtn">Create Depot notes</button></div>

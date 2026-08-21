@@ -4,6 +4,7 @@ import { communicationSafeguards, derivedWorkSuggestions, mergeSafeguards, unres
 import { inferredPrimaryRequirement, pipeRequirement, suggestPackage } from './breezePackages.js';
 import { trustworthyTransferredFacts } from './transferEvidence.js';
 import { buildDepotSections, auditPipelineOutput } from './pipelineInvariants.js';
+import { buildVisitBrief, confirmationGroup, confirmationPriority, evidenceStateLabel, REVIEW_GROUPS } from './reviewPresentation.js';
 
 const WORKER = 'https://depot-voice-notes.martinbibb.workers.dev';
 const $ = id => document.getElementById(id);
@@ -35,6 +36,7 @@ function show(step) {
   ['captureStep','checkStep','confirmStep','draftStep','handoverStep'].forEach((id, index) => $(id).classList.toggle('hidden', index + 1 !== step));
   document.querySelectorAll('.step').forEach(el => el.classList.toggle('active', Number(el.dataset.step) === step));
   scrollTo({ top: 0, behavior: 'smooth' });
+  if (currentVisitId) localStorage.setItem(`speccheck-step-${currentVisitId}`, String(step));
 }
 
 async function pair() {
@@ -85,6 +87,9 @@ async function openCapture(id) {
     await loadPhotos(id, visit.photos); renderRooms(visit.payload.rooms || [], visit.payload.wholeHouseStructure || null); await api(`/spec-check/visits/${id}/consume`, { method: 'POST', body: '{}' });
     const roomCount = (visit.payload.rooms || []).length;
     status(`Opened ${visit.nickname}: ${$('transcript').value.split(/\s+/).filter(Boolean).length} transcript words, ${visit.photos.length} photos and ${roomCount} captured room${roomCount === 1 ? '' : 's'}${visit.payload.wholeHouseStructure?.alignedByStructureBuilder ? ' in an aligned whole-house structure' : ''}.`);
+    $('resumeReviewBtn').classList.toggle('hidden', !interpretation);
+    const savedStep = Number(localStorage.getItem(`speccheck-step-${id}`) || 1);
+    $('resumeReviewBtn').textContent = savedStep >= 3 ? 'Resume confirmation' : 'Resume before-you-leave review';
   } catch (error) { status(error.message, true); }
 }
 function renderRooms(rooms, structure = null) {
@@ -202,12 +207,29 @@ function renderInterpretation() {
   group('Historical only', interpretation.historicalFacts);
   group('Rejected or compromised', interpretation.rejectedAlternatives, item => [item.text, item.reason].filter(Boolean).join(' — '));
   group('Uncertain evidence', interpretation.uncertainties, item => [item.text, item.context].filter(Boolean).join(' — '));
+  renderVisitBrief();
   const actions = $('optionActions'); actions.replaceChildren();
   interpretation.options.forEach((option, index) => {
     const button = document.createElement('button'); button.className = index === 0 ? 'primary' : '';
     button.textContent = `Confirm Option ${index + 1} facts`;
     button.onclick = () => prepareConfirmation(option, index);
     actions.append(button);
+  });
+}
+function renderVisitBrief(option = null, target = 'visitBrief', additionalMissing = []) {
+  const container = $(target); container.replaceChildren();
+  buildVisitBrief(interpretation, option).map(section => section.id === 'missing' ? { ...section, items: [...section.items, ...additionalMissing] } : section).forEach(section => {
+    if (!section.items.length && section.id !== 'missing') return;
+    const card = document.createElement('div'); card.className = `brief-card${section.id === 'missing' && section.items.length ? ' attention' : ''}`;
+    const heading = document.createElement('h3'); heading.textContent = section.title;
+    const list = document.createElement('ul');
+    if (!section.items.length) {
+      const item = document.createElement('li'); item.textContent = 'Nothing unresolved was identified.'; list.append(item);
+    } else section.items.slice(0, 6).forEach(value => {
+      const item = document.createElement('li'); item.textContent = [value.text, value.reason].filter(Boolean).join(' — '); list.append(item);
+    });
+    if (section.items.length > 6) { const item = document.createElement('li'); item.textContent = `+ ${section.items.length - 6} supporting details below`; list.append(item); }
+    card.append(heading, list); container.append(card);
   });
 }
 async function persistProcessingState() {
@@ -218,6 +240,8 @@ async function persistProcessingState() {
 }
 async function prepareConfirmation(option, index) {
   selectedOption = { ...option, number: index + 1 };
+  if (currentVisitId) localStorage.setItem(`speccheck-option-${currentVisitId}`, option.id);
+  renderVisitBrief(selectedOption);
   show(3); $('confirmationStatus').textContent = `Preparing Option ${index + 1}…`;
   try {
     const existing = optionChecklists.get(option.id);
@@ -285,44 +309,67 @@ async function reprocessConfirmation(suppliedComment = '') {
 }
 function renderConfirmation() {
   const state = optionChecklists.get(selectedOption.id) || { items: [] };
-  $('confirmationItems').replaceChildren();
+  const previousGroups = [...document.querySelectorAll('.confirmation-group')];
+  const hadGroups = previousGroups.length > 0;
+  const openGroups = new Set(previousGroups.filter(item => item.open).map(item => item.dataset.group));
+  const previousY = scrollY;
+  renderVisitBrief(selectedOption, 'confirmBrief', state.items.filter(item => !item.removed && item.kind === 'informationGap'));
+  const container = $('confirmationItems'); container.replaceChildren();
   $('confirmationComments').textContent = state.surveyorComments?.length
     ? `Added context: ${state.surveyorComments.join(' · ')}`
     : 'No surveyor comments added yet.';
-  const visibleItems = state.items.filter(item => !item.removed).sort((left, right) => Number(right.kind === 'informationGap') - Number(left.kind === 'informationGap'));
-  visibleItems.forEach(item => {
+  const visibleItems = state.items.filter(item => !item.removed).sort((left, right) => confirmationPriority(left) - confirmationPriority(right));
+  const grouped = new Map(REVIEW_GROUPS.map(group => [group.id, []]));
+  visibleItems.forEach(item => grouped.get(confirmationGroup(item)).push(item));
+  REVIEW_GROUPS.forEach(group => {
+    const items = grouped.get(group.id); if (!items.length) return;
+    const section = document.createElement('details'); section.className = 'disclosure confirmation-group';
+    section.dataset.group = group.id;
+    section.open = hadGroups ? openGroups.has(group.id) : ['decision','unresolved'].includes(group.id) || items.some(item => !item.checked && item.kind !== 'informationGap' && confirmationPriority(item) <= 2);
+    const summary = document.createElement('summary'); summary.textContent = group.title;
+    const count = document.createElement('span'); count.className = 'group-count';
+    count.textContent = `${items.filter(item => item.checked).length}/${items.filter(item => item.kind !== 'informationGap').length} confirmed`;
+    summary.append(count); section.append(summary);
+    const description = document.createElement('p'); description.className = 'hint'; description.textContent = group.description; section.append(description);
+    items.forEach(item => section.append(confirmationCard(item)));
+    container.append(section);
+  });
+  updateConfirmationStatus(state);
+  if (hadGroups) requestAnimationFrame(() => scrollTo({ top: previousY }));
+}
+function confirmationCard(item) {
     const row = document.createElement('div'); row.className = `confirmation${item.kind === 'informationGap' ? ' information-gap' : ''}`;
     const content = document.createElement('div');
-    const promptLabel = document.createElement('strong');
-    promptLabel.textContent = item.kind === 'informationGap' ? 'I could not establish:' : 'I understood:';
+    const promptLabel = document.createElement('span'); promptLabel.className = `state-chip ${item.kind === 'informationGap' ? 'missing' : item.evidenceState === 'uncertain' ? 'uncertain' : ''}`;
+    promptLabel.textContent = evidenceStateLabel(item);
     const text = document.createElement('div'); text.className = 'confirmation-text'; text.textContent = item.text;
-    const reason = document.createElement('small');
-    reason.textContent = item.kind === 'informationGap'
-      ? item.reason
-      : (item.evidenceRelation ? `From the survey: “${item.evidenceRelation}”` : 'Based on the captured survey evidence.');
-    const actions = document.createElement('div'); actions.className = 'row'; actions.style.marginTop = '8px';
+    const actions = document.createElement('div'); actions.className = 'card-actions';
     if (item.kind !== 'informationGap') {
       const confirm = document.createElement('button'); confirm.className = item.checked ? 'primary' : '';
-      confirm.textContent = item.checked ? 'Confirmed' : 'Confirm this understanding';
+      confirm.textContent = item.checked ? '✓ Confirmed' : 'Confirm';
       confirm.onclick = () => { item.checked = !item.checked; checklistChanged(); renderConfirmation(); };
       actions.append(confirm);
     }
+    const correctionPanel = document.createElement('details'); correctionPanel.className = 'card-correction';
+    const correctionSummary = document.createElement('summary'); correctionSummary.textContent = item.kind === 'informationGap' ? 'Add what you found' : 'Correct or add context';
     const correction = document.createElement('textarea');
     correction.placeholder = item.kind === 'informationGap' ? 'Add the missing information…' : 'Tell SpecCheck what is wrong or add context…';
     correction.setAttribute('aria-label', `Add information about ${item.originalText || item.text}`);
-    correction.style.minHeight = '72px'; correction.style.marginTop = '8px';
     const reprocess = document.createElement('button'); reprocess.textContent = 'Add information and reprocess';
     reprocess.onclick = async () => {
       if (!correction.value.trim()) return;
       reprocess.disabled = true;
       await reprocessConfirmation(`${item.originalText || item.text}: ${correction.value.trim()}`);
     };
-    actions.append(reprocess);
-    content.append(promptLabel, text, reason, correction, actions);
+    const evidence = document.createElement('details'); evidence.className = 'card-correction';
+    const evidenceSummary = document.createElement('summary'); evidenceSummary.textContent = 'Show source evidence';
+    const reason = document.createElement('small');
+    reason.textContent = item.kind === 'informationGap' ? item.reason : (item.evidenceRelation ? `“${item.evidenceRelation}”` : 'Captured survey evidence.');
+    evidence.append(evidenceSummary, reason);
+    correctionPanel.append(correctionSummary, correction, reprocess);
+    content.append(promptLabel, text, actions, correctionPanel, evidence);
     row.append(content);
-    $('confirmationItems').append(row);
-  });
-  updateConfirmationStatus(state);
+    return row;
 }
 function updateConfirmationStatus(state) {
   const visible = state.items.filter(item => !item.removed);
@@ -331,7 +378,8 @@ function updateConfirmationStatus(state) {
   $('confirmationStatus').className = 'status';
   const understood = visible.filter(item => item.kind !== 'informationGap').length;
   const missing = visible.filter(item => item.kind === 'informationGap').length;
-  $('confirmationStatus').textContent = `${checked} of ${understood} understood statements confirmed${missing ? ` · ${missing} subject${missing === 1 ? '' : 's'} not established` : ''}. Add information where needed, or continue with only the confirmed facts.`;
+  const remaining = understood - checked;
+  $('confirmationStatus').textContent = `${remaining ? `${remaining} understanding${remaining === 1 ? '' : 's'} left to check` : 'All shown understandings checked'}${missing ? ` · ${missing} missing subject${missing === 1 ? '' : 's'} to inspect or leave unresolved` : ''}.`;
   $('confirmationStatus').className = 'status';
   $('writeOptionBtn').disabled = checked === 0;
 }
@@ -624,6 +672,15 @@ $('importTextBtn').onclick = () => $('textFile').click(); $('textFile').onchange
 $('draftBtn').onclick = aiCheck; $('handoverBtn').onclick = () => handover();
 $('backCapture').onclick = () => show(1); $('backInterpretation').onclick = () => show(2); $('backCheck').onclick = () => show(3); $('backDraft').onclick = () => show(4);
 $('reprocessConfirmationBtn').onclick = () => reprocessConfirmation().catch(error => $('confirmationStatus').textContent = error.message);
+$('resumeReviewBtn').onclick = async () => {
+  if (!interpretation) return aiCheck();
+  renderInterpretation();
+  const savedStep = Number(localStorage.getItem(`speccheck-step-${currentVisitId}`) || 2);
+  const optionId = localStorage.getItem(`speccheck-option-${currentVisitId}`);
+  const optionIndex = interpretation.options?.findIndex(option => option.id === optionId) ?? -1;
+  if (savedStep >= 3 && optionIndex >= 0) return prepareConfirmation(interpretation.options[optionIndex], optionIndex);
+  show(2);
+};
 $('writeOptionBtn').onclick = () => generateOption().catch(error => $('confirmationStatus').textContent = error.message);
 $('anotherSurvey').onclick = () => anotherSurvey().catch(error => status(error.message, true));
 $('savePhotosBtn').onclick = () => saveAllPhotos().catch(error => status(error.message, true));

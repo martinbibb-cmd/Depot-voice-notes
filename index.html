@@ -20,12 +20,14 @@
     .note{border:1px solid var(--line);border-radius:12px;padding:14px;margin:10px 0}.note textarea{min-height:92px}.note-head{display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:8px}.badge{background:var(--soft);border-radius:999px;padding:4px 9px;font-size:12px}
     .note.enabling{border:2px solid var(--ink);background:var(--soft)}.note.enabling .note-head strong:before{content:"ACCESS / ENABLING · ";font-size:11px;letter-spacing:.04em}.note.unresolved{border-left:6px solid var(--muted)}
     .confirmation{display:block;border:1px solid var(--line);border-radius:14px;padding:14px;margin:12px 0;background:var(--control)}.confirmation.information-gap{border-style:dashed}.confirmation-text{font-size:1.08rem;font-weight:650;line-height:1.4;padding:8px 0}.confirmation small{display:block;color:var(--muted);margin-top:4px}.add-confirmation{display:grid;grid-template-columns:1fr 190px auto;gap:8px;margin-top:14px}
+    .visit-brief{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:14px 0}.brief-card{border:1px solid var(--line);border-radius:14px;padding:12px;background:var(--soft)}.brief-card h3{font-size:14px;margin:0 0 7px}.brief-card ul{margin:0;padding-left:20px}.brief-card li{margin:5px 0}.brief-card.attention{border:2px solid var(--ink)}
+    details.disclosure{border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin:12px 0}details.disclosure>summary{cursor:pointer;font-weight:700}.confirmation-group{margin:18px 0}.confirmation-group>summary{font-size:18px}.group-count{float:right;color:var(--muted);font-size:13px;font-weight:500}.state-chip{display:inline-block;border:1px solid var(--line);border-radius:999px;padding:3px 8px;font-size:11px;font-weight:800;letter-spacing:.03em;margin-bottom:5px}.state-chip.missing,.state-chip.uncertain{border-color:var(--ink);background:var(--ink);color:var(--paper)}.confirm-progress{position:sticky;top:58px;z-index:4;background:var(--header);border-bottom:1px solid var(--line);padding:8px 0}.card-actions{display:flex;gap:8px;flex-wrap:wrap}.card-correction{margin-top:10px}.card-correction textarea{min-height:76px}
     .compare{display:grid;grid-template-columns:1fr 1fr;gap:14px}.source{white-space:pre-wrap;max-height:420px;overflow:auto;background:var(--soft);padding:14px;border-radius:10px}.checkline{display:flex;align-items:flex-start;gap:9px;margin:9px 0}.checkline input{width:auto;margin-top:4px}
     .hidden{display:none!important}.status{padding:10px 0;color:var(--muted)}.error{color:var(--danger)}.photos{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px}.photos img{width:100%;height:110px;object-fit:contain;background:var(--soft);border-radius:8px}
     .spatial-capture{margin-top:18px;border-top:1px solid var(--line);padding-top:2px}.spatial-heading{display:flex;align-items:center;justify-content:space-between;gap:8px}.rooms{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}.rooms figure{border:1px solid var(--line);border-radius:12px;padding:10px}.rooms figure.whole-house{grid-column:1/-1}.rooms figure.whole-house svg{height:320px!important}.rooms figcaption{margin-top:7px;color:var(--muted);font-size:14px}
     #engineerNotes figure{margin:10px 0 18px;padding:10px;border:1px solid var(--line);border-radius:12px}#engineerNotes figure img{display:block;width:100%;max-height:520px;object-fit:contain;background:var(--soft);border-radius:8px}#engineerNotes figcaption{margin-top:7px;color:var(--muted)}
     #printArea{display:none}.copybox{white-space:pre-wrap;background:var(--soft);border:1px solid var(--line);padding:12px;border-radius:9px}
-    @media(max-width:650px){.compare{grid-template-columns:1fr}.steps{font-size:11px}.bar{padding:12px 14px}section{padding:16px}.add-confirmation{grid-template-columns:1fr}.confirmation{grid-template-columns:auto 1fr}.confirmation button{grid-column:2}}
+    @media(max-width:650px){.compare{grid-template-columns:1fr}.steps{font-size:11px}.bar{padding:12px 14px}section{padding:14px}.add-confirmation{grid-template-columns:1fr}.visit-brief{grid-template-columns:1fr}.confirmation{padding:13px}.card-actions button{flex:1 1 135px}.confirm-progress{top:54px}.source{max-height:300px}}
     @media print{body>*{display:none!important}#printArea{display:block!important;background:#fff;color:#111;padding:0 18mm}#printArea .note{break-inside:avoid;border:0;padding:0;margin:14px 0}#printArea button{display:none!important}}
   </style>
 </head>
@@ -37,7 +39,7 @@
   <section id="captureStep">
     <h2>Bring in the survey</h2><p class="hint">Open a SpecCheck capture, or paste a transcript. Nothing is organised until you ask.</p>
     <div class="row no-print"><button id="pairBtn">Pair SpecCheck</button><strong id="pairCode" class="code"></strong><button id="refreshBtn">Refresh captures</button></div>
-    <div id="captureStatus" class="status"></div><div id="captures"></div>
+    <div id="captureStatus" class="status"></div><button id="resumeReviewBtn" class="primary hidden">Resume before-you-leave review</button><div id="captures"></div>
     <h3>Transcript</h3><textarea id="transcript" placeholder="The complete transcript appears here. You can correct recognition errors before drafting."></textarea>
     <div id="capturedEvidence" class="source hidden"></div><div id="photoGallery" class="photos"></div>
     <div id="spatialCapture" class="spatial-capture hidden"><div class="spatial-heading"><h3>Rooms & whole-house plan</h3><span id="roomCount" class="badge"></span></div><p class="hint">RoomPlan geometry received from SpecCheck. The combined structure is shown first, followed by each captured room.</p><div id="roomGallery" class="rooms"></div></div>
@@ -46,17 +48,19 @@
   </section>
 
   <section id="checkStep" class="hidden">
-    <h2>AI check against transcript</h2><p class="hint">AI reconciles the chronological conversation first: later supported decisions replace earlier guesses, while unresolved alternatives remain visible.</p>
+    <h2>Before you leave</h2><p class="hint">The visit organised into the decisions, measurements and unresolved points that matter now.</p>
     <div id="aiCheckStatus" class="status"></div>
     <div id="breezeSuggestion" class="note hidden"></div>
-    <div class="compare"><div><h3>Source transcript</h3><div id="checkTranscript" class="source"></div></div><div><h3>Canonical interpretation</h3><div id="checkNotes"></div></div></div>
+    <div id="visitBrief" class="visit-brief"></div>
+    <details class="disclosure"><summary>Inspect complete interpretation and source transcript</summary><div class="compare"><div><h3>Source transcript</h3><div id="checkTranscript" class="source"></div></div><div><h3>Canonical interpretation</h3><div id="checkNotes"></div></div></div></details>
     <div id="optionActions" class="row no-print"></div>
     <div class="row no-print"><button id="backCapture">Back to transcript</button></div>
   </section>
 
   <section id="confirmStep" class="hidden">
     <h2>Is this what you meant?</h2><p class="hint">SpecCheck explains what it understood from the survey. Confirm accurate statements. If one is wrong or incomplete, add information beneath that statement and SpecCheck will interpret the transcript again. You are not being asked to classify notes into sections.</p>
-    <div id="confirmationStatus" class="status"></div><div id="confirmationItems"></div>
+    <div id="confirmBrief" class="visit-brief"></div>
+    <div class="confirm-progress"><div id="confirmationStatus" class="status"></div></div><div id="confirmationItems"></div>
     <div class="note no-print"><strong>Anything else?</strong><p class="hint">Add information that does not relate to a statement above. It is added to the evidence and does not replace the transcript.</p><div id="confirmationComments" class="hint"></div><textarea id="confirmationComment" placeholder="Add anything important that SpecCheck missed."></textarea><button id="reprocessConfirmationBtn">Add information and reprocess</button></div>
     <div class="row no-print" style="margin-top:14px"><button id="backInterpretation">Back to interpretation</button><button class="primary" id="writeOptionBtn">Create Depot notes</button></div>
   </section>

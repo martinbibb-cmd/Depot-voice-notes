@@ -440,88 +440,15 @@ async function handleHandoverDocuments(request, env) {
   if (!payload?.selectedProposal || !Array.isArray(payload?.sharedFacts)) {
     return jsonResponse({ error: "bad_request", message: "confirmed proposal evidence required" }, 400);
   }
-  const systemPrompt = `Create two distinct documents from a confirmed heating-survey proposal.
-Use only the supplied canonical facts, selected proposal, confirmed checklist items, surveyor-edited notes and uncertainties. Never introduce another option or infer unchecked enabling work.
-Treat each supplied fact as atomic. Do not combine an existing-system size/material/value with proposed work unless the selected proposal explicitly makes that connection.
-Do not add generic good-practice statements, manufacturer-instruction wording, efficiency/comfort benefits, access requests, preparation, system shutdown, or on-site checks merely because they are normally sensible.
-
-CUSTOMER DOCUMENT:
-- Friendly, calm and reassuring plain English.
-- Explain what is proposed, why it was specified from the customer's recorded wants/needs and property facts, what disruption to expect, and only confirmed preparation.
-- "Why" may use only relevantWantsNeeds or a selectedProposal fact that explicitly states its purpose/rationale. Do not reuse an unrelated shared existing-system fact as the rationale for proposed equipment. Do not invent a benefit or promise an improvement that the evidence does not state.
-- The Getting ready section may contain only confirmedChecklistItems whose targetSection is Customer actions, or an explicit confirmed customer action in the supplied facts/notes. If none exist, omit it.
-- Explain practical uncertainty honestly without alarming language.
-- Do not sound like a contract, quotation, compliance certificate or sales brochure.
-- Always return all five headings in this order: What we are proposing; Why this suits your home; What to expect during the work; Getting ready; Points still to confirm. Where nothing is confirmed, use a brief explicit statement such as "No customer preparation has been confirmed" rather than inventing content or omitting the heading.
-
-ENGINEER DOCUMENT:
-- Terse installation handover written for an engineer.
-- Bullet facts/instructions, not narrative prose and not the Depot/British Gas section schema.
-- Keep useful route, equipment, system, access and unresolved detail. Exclude customer sales discussion and generic explanations.
-- Job overview is a pre-start brief, not a duplicate report. Use no more than four bullets covering only the selected outcome, principal location/route and the most important confirmed access constraint. Leave dimensions and subject detail in their dedicated sections.
-- Preserve whether a detail describes the existing system or proposed work. Never apply an existing pipe size to a new route without explicit evidence.
-- Controls and electrical must say "No information recorded" when no specific controls/electrical work is supplied.
-- Access, enabling work, disruption and customer arrangements may use only confirmed checklist items or explicit canonical facts, never implications.
-- Put every confirmed floor/floorboard, furniture, boxing, drilling and other enabling item under Access and enabling work. Do not repeat it in Job overview unless it is the single most important pre-start constraint.
-- Never write "make good where required" or another open-ended making-good obligation. State the exact confirmed surface and action, or record no making-good information.
-- Unresolved points may contain only a supplied uncertainty that explicitly identifies a technical unresolved issue. Do not turn an inaudible or unclear fragment into a guessed technical problem.
-- Always return every heading in this order: Job overview; Existing system; Boiler and equipment; Flue; Condensate and discharge; Gas supply; Heating, hot water and pipe routes; Controls and electrical; Access and enabling work; Disruption and customer arrangements; Unresolved points. Use the single bullet "No information recorded." for an empty subject. Never omit a heading.
-- Flue, condensate, gas, controls and electrical are explicit installation subjects, not details to hide inside a generic section. If a confirmed checklist item says information for one is TO CONFIRM, place that point under Unresolved points rather than pretending the subject is complete.
-- Do not turn historical work into proposed work.
-
-  Return only JSON:
-{"customer":[{"heading":"fixed customer heading","text":"friendly prose"}],"engineer":[{"heading":"fixed engineer heading","bullets":["concise engineer point"]}]}`;
   try {
     const deterministic = buildHandoverDocuments(payload);
     const depot = buildDepotSections(payload.confirmedChecklistItems || []);
     const errors = auditPipelineOutput({ confirmedItems: payload.confirmedChecklistItems || [], depotSections: depot, handover: deterministic });
     if (errors.length) return jsonResponse({ error: 'pipeline_invariant_failed', errors }, 422);
     return jsonResponse(deterministic);
-    /* istanbul ignore next -- retired model writer retained temporarily for rollback comparison */
-    const raw = await callInterpretationProvider(env, systemPrompt, JSON.stringify(payload));
-    const parsed = JSON.parse(raw);
-    const customerOrder = ["What we are proposing", "Why this suits your home", "What to expect during the work", "Getting ready", "Points still to confirm"];
-    const engineerOrder = ["Job overview", "Existing system", "Boiler and equipment", "Flue", "Condensate and discharge", "Gas supply", "Heating, hot water and pipe routes", "Controls and electrical", "Access and enabling work", "Disruption and customer arrangements", "Unresolved points"];
-    const customerMap = new Map((Array.isArray(parsed.customer) ? parsed.customer : []).map(item => [item?.heading, item]));
-    const engineerMap = new Map((Array.isArray(parsed.engineer) ? parsed.engineer : []).map(item => [item?.heading, item]));
-    const confirmedItems = Array.isArray(payload.confirmedChecklistItems) ? payload.confirmedChecklistItems : [];
-    const suppliedUncertainties = (Array.isArray(payload.uncertainties) ? payload.uncertainties : []).filter(item => {
-      const text = String(item?.text || "").replace(/\[INAUDIBLE\]/gi, "").trim();
-      return text.length >= 10 && !/^unclear statement/i.test(String(item?.context || ""));
-    });
-    const suppliedFactsText = JSON.stringify([payload.sharedFacts, payload.selectedProposal, payload.confirmedChecklistItems, payload.surveyorEditedNotes]);
-    const hasCustomerPreparation = confirmedItems.some(item => item?.targetSection === "Customer actions") ||
-      (Array.isArray(payload.surveyorEditedNotes) && payload.surveyorEditedNotes.some(item => /customer actions|customer prep/i.test(item?.name || item?.section || "") && item?.text));
-    const hasUnresolved = suppliedUncertainties.length > 0 || /unresolved|unknown|to confirm/i.test(suppliedFactsText);
-    const customerEmptyText = {
-      "What we are proposing": "No proposed work has been recorded.",
-      "Why this suits your home": "No specific reason has been recorded.",
-      "What to expect during the work": "No specific job disruption has been confirmed.",
-      "Getting ready": "No customer preparation has been confirmed.",
-      "Points still to confirm": "No unresolved points are currently recorded."
-    };
-    const customer = customerOrder.map(heading => {
-      let text = String(customerMap.get(heading)?.text || "").trim();
-      if (heading === "Getting ready" && !hasCustomerPreparation) text = customerEmptyText[heading];
-      if (heading === "Points still to confirm" && !hasUnresolved) text = customerEmptyText[heading];
-      return { heading, text: text || customerEmptyText[heading] };
-    });
-    const engineer = engineerOrder.map(heading => ({
-      heading,
-      bullets: (Array.isArray(engineerMap.get(heading)?.bullets) ? engineerMap.get(heading).bullets : [])
-        .map(value => String(value || "").trim()).filter(Boolean)
-    })).map(item => {
-      let bullets = item.bullets;
-      if (item.heading === "Job overview") bullets = bullets.slice(0, 4);
-      const evidenceText = suppliedFactsText.toLowerCase();
-      bullets = bullets.filter(value => !/^make good where required\.?$/i.test(value) || evidenceText.includes("make good where required"));
-      return { ...item, bullets: bullets.length ? bullets : ["No information recorded."] };
-    });
-    if (!customer.length || !engineer.length) throw new Error("Handover writer returned an incomplete document");
-    return jsonResponse({ customer, engineer });
   } catch (err) {
-    console.error("handleHandoverDocuments model error:", err);
-    return jsonResponse({ error: "model_error", message: String(err) }, 500);
+    console.error("handleHandoverDocuments error:", err);
+    return jsonResponse({ error: "handover_error", message: String(err) }, 500);
   }
 }
 

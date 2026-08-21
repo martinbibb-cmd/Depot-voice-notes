@@ -231,7 +231,7 @@ async function prepareConfirmation(option, index) {
         items: [...(result.items || []), ...retainedManualFacts]
       });
     }
-    optionChecklists.set(option.id, mergeSafeguards(optionChecklists.get(option.id), communicationSafeguards(interpretation, option, surveyPhotos)));
+    optionChecklists.set(option.id, mergeSafeguards(optionChecklists.get(option.id), communicationSafeguards(interpretation, option, surveyPhotos, `${$('transcript').value}\n${confirmationEvidence(optionChecklists.get(option.id))}`)));
     await persistProcessingState();
     renderConfirmation();
   } catch (error) { $('confirmationStatus').textContent = error.message; $('confirmationStatus').className = 'status error'; }
@@ -240,9 +240,9 @@ function confirmationEvidence(state) {
   const comments = (state?.surveyorComments || []).map((comment, index) => `Surveyor comment ${index + 1}: ${comment}`).join('\n');
   return [$('capturedEvidence').textContent, comments].filter(Boolean).join('\n\n');
 }
-async function reprocessConfirmation() {
+async function reprocessConfirmation(suppliedComment = '') {
   if (!selectedOption) return;
-  const comment = $('confirmationComment').value.trim();
+  const comment = (suppliedComment || $('confirmationComment').value).trim();
   if (!comment) return;
   const state = optionChecklists.get(selectedOption.id) || { confirmationVersion: 2, proposalOptionId: selectedOption.id, items: [], surveyorComments: [] };
   state.surveyorComments = [...(state.surveyorComments || []), comment];
@@ -257,7 +257,7 @@ async function reprocessConfirmation() {
     const retained = state.items.filter(item => item.kind !== 'evidenceFact');
     state.items = [...(result.items || []), ...retained];
     state.generatedAt = new Date().toISOString();
-    optionChecklists.set(selectedOption.id, mergeSafeguards(state, communicationSafeguards(interpretation, selectedOption, surveyPhotos)));
+    optionChecklists.set(selectedOption.id, mergeSafeguards(state, communicationSafeguards(interpretation, selectedOption, surveyPhotos, `${$('transcript').value}\n${confirmationEvidence(state)}`)));
     optionDrafts.delete(selectedOption.id);
     await persistProcessingState();
     renderConfirmation();
@@ -272,35 +272,51 @@ function renderConfirmation() {
   $('confirmationComments').textContent = state.surveyorComments?.length
     ? `Added context: ${state.surveyorComments.join(' · ')}`
     : 'No surveyor comments added yet.';
-  const visibleItems = state.items.filter(item => !item.removed).sort((left, right) => Number(/Gap$/.test(right.kind || '')) - Number(/Gap$/.test(left.kind || '')));
+  const visibleItems = state.items.filter(item => !item.removed).sort((left, right) => Number(right.kind === 'informationGap') - Number(left.kind === 'informationGap'));
   visibleItems.forEach(item => {
-    const row = document.createElement('div'); row.className = 'confirmation';
-    const checkbox = document.createElement('input'); checkbox.type = 'checkbox'; checkbox.checked = Boolean(item.checked);
-    checkbox.disabled = Boolean(/Gap$/.test(item.kind || '') && item.responseOptions?.length);
-    checkbox.setAttribute('aria-label', `Confirm ${item.text}`);
-    checkbox.onchange = () => { item.checked = checkbox.checked; checklistChanged(); updateConfirmationStatus(state); };
+    const row = document.createElement('div'); row.className = `confirmation${item.kind === 'informationGap' ? ' information-gap' : ''}`;
     const content = document.createElement('div');
+    const promptLabel = document.createElement('strong');
+    promptLabel.textContent = item.kind === 'informationGap' ? 'I could not establish:' : 'I understood:';
     const text = document.createElement('div'); text.className = 'confirmation-text'; text.textContent = item.text;
-    const reason = document.createElement('small'); reason.textContent = [item.reason, item.evidenceRelation].filter(Boolean).join(' · ');
-    const section = document.createElement('select');
-    expectedSections.forEach(name => { const option = document.createElement('option'); option.textContent = name; option.value = name; section.append(option); });
-    section.value = item.targetSection; section.onchange = () => { item.targetSection = section.value; checklistChanged(); };
-    content.append(text, section, reason);
-    row.append(checkbox, content);
+    const reason = document.createElement('small');
+    reason.textContent = item.kind === 'informationGap'
+      ? item.reason
+      : (item.evidenceRelation ? `From the survey: “${item.evidenceRelation}”` : 'Based on the captured survey evidence.');
+    const actions = document.createElement('div'); actions.className = 'row'; actions.style.marginTop = '8px';
+    if (item.kind !== 'informationGap') {
+      const confirm = document.createElement('button'); confirm.className = item.checked ? 'primary' : '';
+      confirm.textContent = item.checked ? 'Confirmed' : 'Confirm this understanding';
+      confirm.onclick = () => { item.checked = !item.checked; checklistChanged(); renderConfirmation(); };
+      actions.append(confirm);
+    }
+    const correction = document.createElement('textarea');
+    correction.placeholder = item.kind === 'informationGap' ? 'Add the missing information…' : 'Tell SpecCheck what is wrong or add context…';
+    correction.setAttribute('aria-label', `Add information about ${item.originalText || item.text}`);
+    correction.style.minHeight = '72px'; correction.style.marginTop = '8px';
+    const reprocess = document.createElement('button'); reprocess.textContent = 'Add information and reprocess';
+    reprocess.onclick = async () => {
+      if (!correction.value.trim()) return;
+      reprocess.disabled = true;
+      await reprocessConfirmation(`${item.originalText || item.text}: ${correction.value.trim()}`);
+    };
+    actions.append(reprocess);
+    content.append(promptLabel, text, reason, correction, actions);
+    row.append(content);
     $('confirmationItems').append(row);
   });
   updateConfirmationStatus(state);
 }
 function updateConfirmationStatus(state) {
   const visible = state.items.filter(item => !item.removed);
-  const checked = visible.filter(item => item.checked).length;
+  const checked = visible.filter(item => item.checked && item.kind !== 'informationGap').length;
   const gaps = unresolvedSafeguards(state);
   $('confirmationStatus').className = 'status';
-  $('confirmationStatus').textContent = gaps.length
-    ? `${gaps.length} handover gap${gaps.length === 1 ? '' : 's'} must be recorded or explicitly carried forward as unresolved.`
-    : `Option ${selectedOption.number}: ${visible.length} focused items · ${checked} confirmed.`;
-  $('confirmationStatus').className = `status${gaps.length ? ' error' : ''}`;
-  $('writeOptionBtn').disabled = gaps.length > 0;
+  const understood = visible.filter(item => item.kind !== 'informationGap').length;
+  const missing = visible.filter(item => item.kind === 'informationGap').length;
+  $('confirmationStatus').textContent = `${checked} of ${understood} understood statements confirmed${missing ? ` · ${missing} subject${missing === 1 ? '' : 's'} not established` : ''}. Add information where needed, or continue with only the confirmed facts.`;
+  $('confirmationStatus').className = 'status';
+  $('writeOptionBtn').disabled = checked === 0;
 }
 function checklistChanged() {
   if (selectedOption) optionDrafts.delete(selectedOption.id);

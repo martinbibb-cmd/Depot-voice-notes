@@ -2,6 +2,7 @@ import { clearAuthToken, getAuthToken } from '../src/auth/auth-client.js';
 import { confirmedChecklistItems, restoreChecklists, serialiseChecklists } from './confirmationState.js';
 import { communicationSafeguards, mergeSafeguards, unresolvedSafeguards } from './handoverSafeguards.js';
 import { inferredPrimaryRequirement, pipeRequirement, suggestPackage } from './breezePackages.js';
+import { trustworthyTransferredFacts } from './transferEvidence.js';
 
 const WORKER = 'https://depot-voice-notes.martinbibb.workers.dev';
 const $ = id => document.getElementById(id);
@@ -61,7 +62,8 @@ function evidenceOf(payload) {
   const groups = [];
   const add = (name, values) => { if (values?.length) groups.push(`[${name}]\n${values.map(value => `- ${value}`).join('\n')}`); };
   add('CAPTURED NOTES', (payload.notes || []).map(x => x.text || x));
-  add('CAPTURED FACTS', (payload.facts || []).map(x => `${x.subject}: ${x.text}`));
+  const safeFacts = trustworthyTransferredFacts(payload);
+  add('CAPTURED FACTS', safeFacts.map(x => `${x.subject}: ${x.text} [${x.state || 'captured'}]`));
   add('WATER PRESSURE AND FLOW', (payload.waterPressureTests || []).map(x => [x.testPoint, x.standingPressureBar != null ? `standing ${x.standingPressureBar} bar` : '', x.dynamicPressureBar != null ? `dynamic ${x.dynamicPressureBar} bar` : '', x.flowLitresPerMinute != null ? `${x.flowLitresPerMinute} litres/min` : '', x.note].filter(Boolean).join(' — ')));
   add('ROOMS', (payload.rooms || []).map(x => `${x.name} (${x.floor || 'floor not named'}): ${x.wallCount || 0} walls, ${(x.routes || []).length} routes, ${(x.radiators || []).length} radiators`));
   const pipe = pipeRequirement(payload.pipeRuns || []);
@@ -153,8 +155,9 @@ async function aiCheck() {
   $('aiCheckStatus').textContent = 'Checking the complete transcript and reconciling the latest supported survey state…';
   try {
     const captured = $('capturedEvidence').textContent.trim();
-    if (!interpretation) {
+    if (!interpretation || interpretation.interpretationVersion !== 2) {
       interpretation = await api('/interpret', { method: 'POST', body: JSON.stringify({ transcript, capturedEvidence: captured }) });
+      optionChecklists.clear();
       await persistProcessingState();
     }
     renderInterpretation();
@@ -217,7 +220,7 @@ async function prepareConfirmation(option, index) {
   show(3); $('confirmationStatus').textContent = `Preparing Option ${index + 1}…`;
   try {
     const existing = optionChecklists.get(option.id);
-    if (!existing || existing.confirmationVersion !== 2) {
+    if (!existing || existing.confirmationVersion !== 3) {
       const result = await api('/confirmation-checklist', { method: 'POST', body: JSON.stringify({
         interpretation, proposal: option, transcript: $('transcript').value,
         capturedEvidence: confirmationEvidence(existing)
@@ -226,7 +229,7 @@ async function prepareConfirmation(option, index) {
       // valid evidence, so retain only facts explicitly added by the surveyor.
       const retainedManualFacts = (existing?.items || []).filter(item => item.manual && !item.removed);
       optionChecklists.set(option.id, {
-        confirmationVersion: 2, proposalOptionId: option.id,
+        confirmationVersion: 3, proposalOptionId: option.id,
         generatedAt: new Date().toISOString(), surveyorComments: existing?.surveyorComments || [],
         items: [...(result.items || []), ...retainedManualFacts]
       });
@@ -244,7 +247,7 @@ async function reprocessConfirmation(suppliedComment = '') {
   if (!selectedOption) return;
   const comment = (suppliedComment || $('confirmationComment').value).trim();
   if (!comment) return;
-  const state = optionChecklists.get(selectedOption.id) || { confirmationVersion: 2, proposalOptionId: selectedOption.id, items: [], surveyorComments: [] };
+  const state = optionChecklists.get(selectedOption.id) || { confirmationVersion: 3, proposalOptionId: selectedOption.id, items: [], surveyorComments: [] };
   state.surveyorComments = [...(state.surveyorComments || []), comment];
   $('confirmationComment').value = '';
   $('confirmationStatus').className = 'status';

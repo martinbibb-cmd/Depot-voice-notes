@@ -1,4 +1,5 @@
 import { getAuthToken } from '../src/auth/auth-client.js';
+import { trustworthyTransferredFacts } from './transferEvidence.js';
 
 function workerUrl() {
   return window.DepotWorkerConfig?.getWorkerUrl?.() || 'https://depot-voice-notes.martinbibb.workers.dev';
@@ -35,7 +36,8 @@ function capturedDataText(payload) {
     lines.push('', `[${heading}]`, ...clean.map(value => `- ${value}`));
   };
   add('CAPTURED NOTES', (payload.notes || []).map(item => item.text || item.note || item));
-  add('CAPTURED FACTS', (payload.facts || payload.observations || []).map(item => {
+  const facts = trustworthyTransferredFacts(payload);
+  add('CAPTURED FACTS', facts.map(item => {
     if (typeof item === 'string') return item;
     return [item.subject, item.value || item.text].filter(Boolean).join(': ');
   }));

@@ -24,21 +24,25 @@ async function parseJson(response) {
 const originalFetch = globalThis.fetch;
 
 test('POST /interpret separates shared evidence, independent options, history and uncertainty', async (t) => {
-  const transcript = 'Standing pressure is 2.5 bar. Option one retains the combi. Option two uses a system boiler and accumulator. The old system was powerflushed. The hand flute term is unclear.';
+  const transcript = 'Standing pressure is 2.5 bar. Existing 22 mm gas pipe. Clearance was 150 mm. The pump is an impala in the matrix. Option one retains the combi. Option two uses a system boiler and accumulator. The old system was powerflushed. The hand flute term is unclear.';
   let modelInput;
   globalThis.fetch = async (_url, options) => {
     const request = JSON.parse(options.body);
     const combined = request.contents[0].parts[0].text;
     modelInput = JSON.parse(combined.slice(combined.lastIndexOf('\n\n') + 2));
     return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify({
-      sharedFacts: [{ category: 'Water test', text: 'Standing pressure is 2.5 bar.' }],
+      sharedFacts: [
+        { category: 'Water test', text: 'Standing pressure is 2.5 bar.', evidenceQuote: 'Standing pressure is 2.5 bar.', evidenceSource: 'transcript' },
+        { category: 'Clearance', text: 'Clearance was 135 mm.', evidenceQuote: 'Clearance was 150 mm.', evidenceSource: 'transcript' },
+        { category: 'Pump', text: 'Pump is an impala in the matrix.', evidenceQuote: 'The pump is an impala in the matrix.', evidenceSource: 'transcript' }
+      ],
       options: [
-        { title: 'Retain combi', status: 'preferred', facts: [{ category: 'Boiler', text: 'Retain the combi.' }] },
-        { title: 'System boiler', status: 'viable', facts: [{ category: 'Boiler', text: 'Use a system boiler and accumulator.' }] }
+        { title: 'Retain combi', status: 'preferred', facts: [{ category: 'Boiler', text: 'Retain the combi.', evidenceQuote: 'Option one retains the combi.', evidenceSource: 'transcript' }] },
+        { title: 'System boiler', status: 'viable', facts: [{ category: 'Boiler', text: 'Use a system boiler and accumulator.', evidenceQuote: 'Option two uses a system boiler and accumulator.', evidenceSource: 'transcript' }] }
       ],
       rejectedAlternatives: [],
-      uncertainties: [{ text: 'hand flute', context: 'Unclear recognised component term.' }],
-      historicalFacts: [{ category: 'System history', text: 'The old system was powerflushed.' }]
+      uncertainties: [{ text: 'hand flute', context: 'Unclear recognised component term.', evidenceQuote: 'hand flute', evidenceSource: 'transcript' }],
+      historicalFacts: [{ category: 'System history', text: 'The old system was powerflushed.', evidenceQuote: 'The old system was powerflushed.', evidenceSource: 'transcript' }]
     }) }] } }] }), { status: 200, headers: { 'Content-Type': 'application/json' } });
   };
   t.after(() => { globalThis.fetch = originalFetch; });
@@ -54,35 +58,29 @@ test('POST /interpret separates shared evidence, independent options, history an
   assert.equal(body.options[1].facts[0].text, 'Use a system boiler and accumulator.');
   assert.equal(body.historicalFacts[0].text, 'The old system was powerflushed.');
   assert.equal(body.uncertainties[0].text, 'hand flute');
+  assert.equal(body.sharedFacts.find(item => item.category === 'Clearance').text, 'Clearance was 150 mm.');
+  assert(!body.sharedFacts.some(item => /impala/i.test(item.text)));
+  assert(body.uncertainties.some(item => /impala/i.test(item.text)));
+  assert(body.sharedFacts.some(item => item.category === 'Gas supply' && item.text === '22 mm gas pipe recorded.'));
   assert.equal(modelInput.transcript, transcript);
   assert.match(modelInput.capturedEvidence, /Garden tap/);
 });
 
-test('POST /confirmation-checklist keeps only transcript-grounded proposed facts', async (t) => {
-  let combinedText = '';
-  globalThis.fetch = async (_url, options) => {
-    const request = JSON.parse(options.body); combinedText = request.contents[0].parts[0].text;
-    return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify({ items: [
-      { description: 'Flue rises vertically then exits horizontally above the lintel.', evidenceQuote: 'rise vertically above the lintel then exit horizontally', evidenceSource: 'transcript', targetSection: 'Flue' },
-      { description: 'Lift every floor in the house.', evidenceQuote: 'lift every floor in the house', evidenceSource: 'transcript', targetSection: 'Disruption' }
-    ] }) }] } }] }), { status: 200, headers: { 'Content-Type': 'application/json' } });
-  };
-  t.after(() => { globalThis.fetch = originalFetch; });
-  const interpretation = { sharedFacts: [{ category: 'Access', text: 'Boiler boxing is removable.' }] };
-  const proposal = { id: 'option-1', facts: [{ category: 'Pipe route', text: 'Route behind boiler and above window.' }] };
+test('POST /confirmation-checklist deterministically uses only grounded canonical facts', async () => {
+  const interpretation = { sharedFacts: [{ category: 'Flue', text: 'Flue rises vertically then exits horizontally above the lintel.', evidenceQuote: 'rise vertically above the lintel then exit horizontally', evidenceSource: 'transcript' }] };
+  const proposal = { id: 'option-1', facts: [{ category: 'Pipe route', text: 'Route behind boiler and above window.', evidenceQuote: 'behind the boiler and above the window', evidenceSource: 'transcript' }, { category: 'Unsupported', text: 'Lift every floor.', evidenceQuote: '', evidenceSource: 'transcript' }] };
   const transcript = 'The flue will rise vertically above the lintel then exit horizontally through the wall.';
   const response = await worker.fetch(new Request('https://example.com/confirmation-checklist', {
     method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ interpretation, proposal, transcript, capturedEvidence: '' })
   }), { GEMINI_API_KEY: 'test-key' }, {});
   assert.equal(response.status, 200);
   const body = await parseJson(response);
-  assert.equal(body.items.length, 1);
+  assert.equal(body.items.length, 2);
   assert(body.items.every(item => item.checked === false));
   assert(body.items.every(item => item.manual === false));
   assert.equal(body.items[0].targetSection, 'Flue');
   assert.match(body.items[0].evidenceRelation, /rise vertically/);
-  assert.match(combinedText, /hallucination guardrail/);
-  assert.match(combinedText, /above window/);
+  assert.equal(body.items[1].text, 'Route behind boiler and above window.');
 });
 
 test('POST /handover-documents creates friendly customer prose and ordered engineer bullets', async (t) => {

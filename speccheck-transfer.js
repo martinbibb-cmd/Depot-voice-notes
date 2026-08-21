@@ -63,6 +63,9 @@ export function validateVisitPayload(payload) {
   if (!Array.isArray(payload.transcriptParts) && typeof payload.transcript !== 'string') {
     return 'transcript or transcriptParts required';
   }
+  if (payload.sourceVisitId != null && !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(payload.sourceVisitId)) {
+    return 'sourceVisitId must be a UUID';
+  }
   const encoded = JSON.stringify(payload);
   if (new TextEncoder().encode(encoded).byteLength > MAX_PAYLOAD_BYTES) return 'capture payload is too large';
   return null;
@@ -112,12 +115,31 @@ export async function handleSpecCheckTransfer(request, env, url = new URL(reques
     const payload = await request.json().catch(() => null);
     const error = validateVisitPayload(payload);
     if (error) return json({ error: 'invalid_capture', message: error }, 400);
-    const id = crypto.randomUUID();
+    const sourceVisitId = typeof payload.sourceVisitId === 'string' ? payload.sourceVisitId.toLowerCase() : null;
     const now = new Date().toISOString();
+    const existing = sourceVisitId ? await env.DB.prepare(`SELECT id FROM speccheck_visits
+      WHERE user_id = ? AND device_id = ? AND source_visit_id = ?`)
+      .bind(pairedDevice.user_id, pairedDevice.id, sourceVisitId).first() : null;
+    const id = existing?.id || crypto.randomUUID();
+    if (existing) {
+      await env.DB.batch([
+        env.DB.prepare(`UPDATE speccheck_visits SET nickname = ?, payload_json = ?, photo_count = ?,
+          created_on_device_at = ?, created_at = ?, expires_at = ?, consumed_at = NULL, status = 'pending'
+          WHERE id = ?`)
+          .bind(payload.nickname.trim().slice(0, 100), JSON.stringify(payload), Number(payload.photoCount || 0),
+            payload.createdAt || null, now, isoAfter(TRANSFER_LIFETIME_DAYS * 86400000), id),
+        env.DB.prepare('DELETE FROM speccheck_processing_states WHERE visit_id = ?').bind(id)
+      ]);
+      return json({
+        id, status: 'pending', replacedExistingTransfer: true,
+        roomCount: Array.isArray(payload.rooms) ? payload.rooms.length : 0,
+        wholeHouseStructureIncluded: Boolean(payload.wholeHouseStructure?.alignedByStructureBuilder)
+      }, 200);
+    }
     await env.DB.prepare(`INSERT INTO speccheck_visits
-      (id, user_id, device_id, nickname, payload_json, photo_count, created_on_device_at, created_at, expires_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-      .bind(id, pairedDevice.user_id, pairedDevice.id, payload.nickname.trim().slice(0, 100), JSON.stringify(payload),
+      (id, user_id, device_id, source_visit_id, nickname, payload_json, photo_count, created_on_device_at, created_at, expires_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .bind(id, pairedDevice.user_id, pairedDevice.id, sourceVisitId, payload.nickname.trim().slice(0, 100), JSON.stringify(payload),
         Number(payload.photoCount || 0), payload.createdAt || null, now,
         isoAfter(TRANSFER_LIFETIME_DAYS * 86400000)).run();
     return json({
@@ -171,7 +193,12 @@ export async function handleSpecCheckTransfer(request, env, url = new URL(reques
     const user = await pwaUser(request, env);
     if (!user) return json({ error: 'unauthorised' }, 401);
     const rows = await env.DB.prepare(`SELECT id, nickname, photo_count, created_on_device_at, created_at, expires_at, status
-      FROM speccheck_visits WHERE user_id = ? AND status IN ('pending', 'consumed') AND expires_at > ?
+      FROM speccheck_visits v WHERE user_id = ? AND status IN ('pending', 'consumed') AND expires_at > ?
+      AND NOT EXISTS (SELECT 1 FROM speccheck_visits newer
+        WHERE newer.user_id = v.user_id AND newer.id <> v.id
+        AND newer.nickname = v.nickname
+        AND COALESCE(newer.created_on_device_at, '') = COALESCE(v.created_on_device_at, '')
+        AND newer.created_at > v.created_at)
       ORDER BY created_at DESC`).bind(user.userId, new Date().toISOString()).all();
     return json({ visits: rows.results || [] });
   }

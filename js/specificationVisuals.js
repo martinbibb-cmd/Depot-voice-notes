@@ -45,20 +45,20 @@ export function componentIcon(kind, subtype = '') {
 }
 
 export const VISUAL_COMPONENTS = {
-  boiler: { typeChoices:[['regular','Regular'],['system','System'],['combi','Combi']], actions:['Retain','Replace','Remove','New','Unresolved'], section:'New boiler and controls' },
-  cylinder: { actions:['Already done','Retain','Replace','Remove','New','Unresolved'], section:'System characteristics' },
-  flue: { typeChoices:[['fanned','Fanned'],['balanced','Balanced']], actions:['Same hole','New hole','Seal old opening','Unresolved'], section:'Flue' },
-  control: { actions:['Already done','Retain','Replace','New','Unresolved'], section:'New boiler and controls' },
-  gas: { typeChoices:[['15 mm','15 mm'],['22 mm','22 mm'],['28 mm','28 mm'],['35 mm','35 mm']], actions:['Already done','Retain','Replace','New','Unresolved'], section:'Gas supply' },
-  filter: { actions:['Already done','Retain','Replace','New','Not required','Unresolved'], section:'New boiler and controls' },
-  powerflush: { actions:['Already done','Include','Not required','Unresolved'], section:'System characteristics' },
-  condensate: { actions:['Already done','Retain','Replace','New','Unresolved'], section:'Condensate and discharge' },
-  radiator: { actions:['Already done','Retain','Replace','Remove','New','Unresolved'], section:'Heating and hot-water alterations' },
-  pump: { actions:['Already done','Retain','Replace','Remove','New','Unresolved'], section:'System characteristics' },
-  valve: { actions:['Already done','Retain','Replace','Remove','New','Unresolved'], section:'System characteristics' },
-  pipe: { actions:['Already done','Retain','Replace','Remove','New','Unresolved'], section:'Pipe work' },
-  electrical: { actions:['Already done','Retain','Replace','New','Unresolved'], section:'Controls and electrical' },
-  scaffold: { actions:['Required','Not required','Unresolved'], section:'Working at heights' }
+  boiler: { typeChoices:[['regular','Regular'],['system','System'],['combi','Combi']], actions:[['Retain','Retain'],['Replace','Replace'],['Remove','Remove'],['New','Install new'],['Unresolved','Not established']], section:'New boiler and controls' },
+  cylinder: { actions:[['Already done','Work completed'],['Retain','Retain'],['Replace','Replace'],['Remove','Remove'],['New','Install new'],['Unresolved','Not established']], section:'System characteristics' },
+  flue: { typeChoices:[['fanned','Fanned'],['balanced','Balanced']], actions:[['Same hole','Existing opening'],['New hole','New opening'],['Seal old opening','Seal former opening'],['Unresolved','Not established']], section:'Flue' },
+  control: { actions:[['Already done','Work completed'],['Retain','Retain'],['Replace','Replace'],['New','Install new'],['Unresolved','Not established']], section:'New boiler and controls' },
+  gas: { typeChoices:[['15 mm','15 mm'],['22 mm','22 mm'],['28 mm','28 mm'],['35 mm','35 mm']], actions:[['Already done','Work completed'],['Retain','Retain'],['Replace','Replace'],['New','Install new'],['Unresolved','Not established']], section:'Gas supply' },
+  filter: { actions:[['Already done','Work completed'],['Retain','Retain'],['Replace','Replace'],['New','Install new'],['Not required','Not required'],['Unresolved','Not established']], section:'New boiler and controls' },
+  powerflush: { actions:[['Already done','Previously completed'],['Include','Include'],['Not required','Not required'],['Unresolved','Not established']], section:'System characteristics' },
+  condensate: { actions:[['Already done','Work completed'],['Retain','Retain'],['Replace','Replace'],['New','Install new'],['Unresolved','Not established']], section:'Condensate and discharge' },
+  radiator: { actions:[['Already done','Work completed'],['Retain','Retain'],['Replace','Replace'],['Remove','Remove'],['New','Install new'],['Unresolved','Not established']], section:'Heating and hot-water alterations' },
+  pump: { actions:[['Already done','Work completed'],['Retain','Retain'],['Replace','Replace'],['Remove','Remove'],['New','Install new'],['Unresolved','Not established']], section:'System characteristics' },
+  valve: { actions:[['Already done','Work completed'],['Retain','Retain'],['Replace','Replace'],['Remove','Remove'],['New','Install new'],['Unresolved','Not established']], section:'System characteristics' },
+  pipe: { actions:[['Already done','Work completed'],['Retain','Retain'],['Replace','Replace'],['Remove','Remove'],['New','Install new'],['Unresolved','Not established']], section:'Pipe work' },
+  electrical: { actions:[['Already done','Work completed'],['Retain','Retain'],['Replace','Replace'],['New','Install new'],['Unresolved','Not established']], section:'Controls and electrical' },
+  scaffold: { actions:[['Required','Required'],['Not required','Not required'],['Unresolved','Not established']], section:'Working at heights' }
 };
 
 const definitions = [

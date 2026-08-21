@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { applyVisualSelection, confirmedChecklistItems, initialiseChecklist, restoreChecklists, serialiseChecklists, visualSelection } from '../js/confirmationState.js';
+import { applySurveyorCorrection, applyVisualSelection, confirmedChecklistItems, initialiseChecklist, restoreChecklists, serialiseChecklists, visualSelection } from '../js/confirmationState.js';
 import { buildDepotSections, buildHandoverDocuments } from '../js/pipelineInvariants.js';
 
 test('only checked proposal suggestions reach final note evidence', () => {
@@ -65,4 +65,16 @@ test('visual proposal changes flow into Depot notes and engineer handover', () =
   assert.match(depot.plainText, /new opening/);
   assert.match(engineer.bullets.join(' '), /Fanned flue/);
   assert.match(engineer.bullets.join(' '), /new opening/);
+});
+
+test('a surveyor correction deterministically supersedes the original fact', () => {
+  const original = { id:'flue-old', factId:'flue-old', kind:'evidenceFact', checked:true, text:'Retain the existing flue.', targetSection:'Flue', evidenceRelation:'reuse the flue' };
+  const state = { items:[original] };
+  const correction = applySurveyorCorrection(state, original, 'Install a new fanned flue through a new wall opening.');
+  assert.equal(original.removed, true);
+  assert.equal(original.supersededBy, correction.id);
+  assert.equal(correction.evidenceSource, 'surveyorCorrection');
+  assert.deepEqual(confirmedChecklistItems(state).map(item => item.text), ['Install a new fanned flue through a new wall opening.']);
+  const restored = restoreChecklists(JSON.parse(JSON.stringify(serialiseChecklists(new Map([['option',state]]))))).get('option');
+  assert.deepEqual(confirmedChecklistItems(restored).map(item => item.text), ['Install a new fanned flue through a new wall opening.']);
 });

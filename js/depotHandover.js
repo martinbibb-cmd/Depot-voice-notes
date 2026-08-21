@@ -1,5 +1,5 @@
 import { clearAuthToken, getAuthToken } from '../src/auth/auth-client.js';
-import { applyVisualSelection, confirmedChecklistItems, restoreChecklists, serialiseChecklists } from './confirmationState.js';
+import { applySurveyorCorrection, applyVisualSelection, confirmedChecklistItems, restoreChecklists, serialiseChecklists } from './confirmationState.js';
 import { communicationSafeguards, derivedWorkSuggestions, mergeSafeguards, unresolvedSafeguards } from './handoverSafeguards.js';
 import { inferredPrimaryRequirement, pipeRequirement, suggestPackage } from './breezePackages.js';
 import { trustworthyTransferredFacts } from './transferEvidence.js';
@@ -269,7 +269,18 @@ function renderProposalBoard(option, target = 'confirmProposalBoard') {
     addChoiceGroup('action','Action',config.actions,row.action);
     const evidence = document.createElement('details'); evidence.className = 'proposal-evidence';
     const evidenceSummary = document.createElement('summary'); evidenceSummary.textContent = `Supporting evidence (${row.facts.length})`; evidence.append(evidenceSummary);
-    const list = document.createElement('ul'); row.facts.forEach(fact => { const item = document.createElement('li'); item.textContent = fact.text; list.append(item); }); evidence.append(list); tile.append(evidence); grid.append(tile);
+    const list = document.createElement('ul'); row.facts.forEach(fact => {
+      const item = document.createElement('li'); const factText = document.createElement('span'); factText.textContent = fact.text; item.append(factText);
+      const correction = document.createElement('details'); correction.className = 'evidence-correction'; const summary = document.createElement('summary'); summary.textContent = 'Correct this evidence';
+      const input = document.createElement('textarea'); input.placeholder = 'Enter the accurate technical wording'; input.setAttribute('aria-label', `Correction for ${fact.text}`);
+      const save = document.createElement('button'); save.type = 'button'; save.textContent = 'Save correction and reprocess'; save.onclick = async () => {
+        if (!input.value.trim()) return;
+        save.disabled = true;
+        const checklistFact = (checklist?.items || []).find(value => (value.factId || value.id) === fact.id) || { ...fact, factId:fact.id, kind:'evidenceFact', targetSection:config.section };
+        await reprocessConfirmation(input.value.trim(), checklistFact);
+      };
+      correction.append(summary,input,save); item.append(correction); list.append(item);
+    }); evidence.append(list); tile.append(evidence); grid.append(tile);
   });
   board.append(grid);
   const measurements = buildVisitBrief(interpretation, option).find(section => section.id === 'measurements')?.items || [];
@@ -347,12 +358,14 @@ function confirmationEvidence(state) {
   const comments = (state?.surveyorComments || []).map((comment, index) => `Surveyor comment ${index + 1}: ${comment}`).join('\n');
   return [$('capturedEvidence').textContent, comments].filter(Boolean).join('\n\n');
 }
-async function reprocessConfirmation(suppliedComment = '') {
+async function reprocessConfirmation(suppliedComment = '', correctedItem = null) {
   if (!selectedOption) return;
   const comment = (suppliedComment || $('confirmationComment').value).trim();
   if (!comment) return;
   const state = optionChecklists.get(selectedOption.id) || { confirmationVersion: 4, proposalOptionId: selectedOption.id, items: [], surveyorComments: [] };
-  state.surveyorComments = [...(state.surveyorComments || []), comment];
+  if (correctedItem) applySurveyorCorrection(state, correctedItem, comment);
+  const evidenceComment = correctedItem ? `Correction to “${correctedItem.text}”: ${comment}` : comment;
+  state.surveyorComments = [...(state.surveyorComments || []), evidenceComment];
   $('confirmationComment').value = '';
   $('confirmationStatus').className = 'status';
   $('confirmationStatus').textContent = 'Reprocessing the transcript with your added context…';
@@ -368,8 +381,10 @@ async function reprocessConfirmation(suppliedComment = '') {
       interpretation, proposal: selectedOption, transcript: $('transcript').value,
       capturedEvidence: confirmationEvidence(state)
     }) });
-    const retained = state.items.filter(item => item.kind !== 'evidenceFact');
-    state.items = [...(result.items || []), ...retained];
+    const retained = state.items.filter(item => item.manual || item.removed || item.kind !== 'evidenceFact');
+    const correctedIds = new Set(retained.map(item => item.correctedFactId).filter(Boolean));
+    const regenerated = (result.items || []).map(item => correctedIds.has(item.factId || item.id) ? { ...item, removed:true, includeInNotes:false, supersededBy:[...retained].reverse().find(value => value.correctedFactId === (item.factId || item.id))?.id } : item);
+    state.items = [...regenerated, ...retained];
     state.generatedAt = new Date().toISOString();
     optionChecklists.set(selectedOption.id, mergeSafeguards(state, [
       ...communicationSafeguards(interpretation, selectedOption, surveyPhotos, `${$('transcript').value}\n${confirmationEvidence(state)}`),
@@ -447,7 +462,7 @@ function confirmationCard(item) {
     reprocess.onclick = async () => {
       if (!correction.value.trim()) return;
       reprocess.disabled = true;
-      await reprocessConfirmation(`${item.originalText || item.text}: ${correction.value.trim()}`);
+      await reprocessConfirmation(correction.value.trim(), item);
     };
     const evidence = document.createElement('details'); evidence.className = 'card-correction';
     const evidenceSummary = document.createElement('summary'); evidenceSummary.textContent = 'Show source evidence';

@@ -60,6 +60,23 @@ export function applyVisualSelection(state, selection) {
   return item;
 }
 
+export function applySurveyorCorrection(state, original, correctedText) {
+  state.items ||= [];
+  const originalId = original?.factId || original?.id || '';
+  const id = `correction-${originalId || Date.now()}`;
+  const existing = state.items.find(item => (item.factId || item.id) === originalId);
+  if (existing) { existing.removed = true; existing.includeInNotes = false; existing.supersededBy = id; }
+  const correction = {
+    id, factId:id, kind:'evidenceFact', checked:true, removed:false, includeInNotes:true, manual:true,
+    text:String(correctedText || '').trim(), originalText:original?.text || original?.originalText || '',
+    targetSection:original?.targetSection || 'Office notes', evidenceSource:'surveyorCorrection', evidenceState:'surveyorConfirmed',
+    evidenceRelation:'Surveyor correction', supportingFactIds:originalId ? [originalId] : [], supportingEvidenceQuotes:original?.evidenceRelation ? [original.evidenceRelation] : [],
+    correctedFactId:originalId, updatedAt:new Date().toISOString()
+  };
+  state.items.push(correction);
+  return correction;
+}
+
 export function serialiseChecklists(checklists) {
   return Object.fromEntries(checklists);
 }

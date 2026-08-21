@@ -32,7 +32,7 @@
 <body>
 <header><div class="bar"><h1>Depot Notes</h1><button id="logoutBtn">Log out</button></div></header>
 <main>
-  <div class="steps"><div class="step active" data-step="1">1 Capture</div><div class="step" data-step="2">2 Interpret</div><div class="step" data-step="3">3 Confirm</div><div class="step" data-step="4">4 Draft</div><div class="step" data-step="5">5 Handover</div></div>
+  <div class="steps"><div class="step active" data-step="1">1 Capture</div><div class="step" data-step="2">2 Interpret</div><div class="step" data-step="3">3 Confirm</div><div class="step" data-step="4">4 Depot notes</div><div class="step" data-step="5">5 Handover</div></div>
 
   <section id="captureStep">
     <h2>Bring in the survey</h2><p class="hint">Open a SpecCheck capture, or paste a transcript. Nothing is organised until you ask.</p>
@@ -55,14 +55,14 @@
   </section>
 
   <section id="confirmStep" class="hidden">
-    <h2>Possible additional works</h2><p class="hint">This job may include the following. Confirm only those that apply. Unticked suggestions will not enter the notes.</p>
+    <h2>Confirm the survey facts</h2><p class="hint">Check the transcript-grounded statements that may enter the Depot notes. Tick accurate statements, edit where necessary, and leave unsupported statements unticked. Unticked information cannot reach the notes.</p>
     <div id="confirmationStatus" class="status"></div><div id="confirmationItems"></div>
-    <div class="add-confirmation no-print"><input id="manualConfirmationText" placeholder="Add a missing item"><select id="manualConfirmationSection"><option>Restrictions to work</option><option>Disruption</option><option>Customer actions</option></select><button id="addConfirmationBtn">Add item</button></div>
-    <div class="row no-print" style="margin-top:14px"><button id="backInterpretation">Back to interpretation</button><button class="primary" id="writeOptionBtn">Create option notes</button></div>
+    <div class="add-confirmation no-print"><input id="manualConfirmationText" placeholder="Add a fact the transcript check missed"><select id="manualConfirmationSection"><option>Needs</option><option>System characteristics</option><option>New boiler and controls</option><option>Flue</option><option>Pipe work</option><option>Restrictions to work</option><option>Disruption</option><option>Customer actions</option><option>Future plans</option><option>Office notes</option></select><button id="addConfirmationBtn">Add fact</button></div>
+    <div class="row no-print" style="margin-top:14px"><button id="backInterpretation">Back to interpretation</button><button class="primary" id="writeOptionBtn">Create Depot notes</button></div>
   </section>
 
   <section id="draftStep" class="hidden">
-    <h2>Draft installation notes</h2><p class="hint">The AI-checked survey information is editable. Ask AI to add detail, correct or clarify wording against the source; the copy-over sections stay in their fixed order.</p>
+    <h2>Depot Notes</h2><p class="hint">Fixed-order copy-over sections generated only from the facts you confirmed. Each section can be copied directly; ask AI to clarify wording without adding new facts.</p>
     <div id="draftStatus" class="status"></div><div id="notes"></div>
     <div class="row no-print"><button id="backCheck">Back to confirmations</button><button id="downloadNotesBtn">Download option notes</button><button class="primary" id="handoverBtn">Create handover</button></div>
   </section>

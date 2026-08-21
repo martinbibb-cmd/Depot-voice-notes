@@ -7,7 +7,9 @@ export function confirmedChecklistItems(state) {
     text: item.text,
     targetSection: item.targetSection,
     manual: Boolean(item.manual),
-    originalText: item.originalText
+    originalText: item.originalText,
+    evidenceQuote: item.evidenceRelation || '',
+    evidenceSource: item.evidenceSource || (item.manual ? 'surveyor' : 'captured evidence')
   }));
 }
 

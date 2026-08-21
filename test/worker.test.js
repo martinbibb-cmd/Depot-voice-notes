@@ -58,28 +58,30 @@ test('POST /interpret separates shared evidence, independent options, history an
   assert.match(modelInput.capturedEvidence, /Garden tap/);
 });
 
-test('POST /confirmation-checklist produces bounded unconfirmed proposal-specific suggestions', async (t) => {
+test('POST /confirmation-checklist keeps only transcript-grounded proposed facts', async (t) => {
   let combinedText = '';
   globalThis.fetch = async (_url, options) => {
     const request = JSON.parse(options.body); combinedText = request.contents[0].parts[0].text;
     return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify({ items: [
-      { description: 'Remove and refit boiler boxing', reason: 'Boiler is within removable boxing', evidenceRelation: 'Shared access fact', targetSection: 'Restrictions to work' },
-      { description: 'Pipework may remain visible above the window', reason: 'Selected route crosses above window', evidenceRelation: 'Option 1 route', targetSection: 'Disruption' }
+      { description: 'Flue rises vertically then exits horizontally above the lintel.', evidenceQuote: 'rise vertically above the lintel then exit horizontally', evidenceSource: 'transcript', targetSection: 'Flue' },
+      { description: 'Lift every floor in the house.', evidenceQuote: 'lift every floor in the house', evidenceSource: 'transcript', targetSection: 'Disruption' }
     ] }) }] } }] }), { status: 200, headers: { 'Content-Type': 'application/json' } });
   };
   t.after(() => { globalThis.fetch = originalFetch; });
   const interpretation = { sharedFacts: [{ category: 'Access', text: 'Boiler boxing is removable.' }] };
   const proposal = { id: 'option-1', facts: [{ category: 'Pipe route', text: 'Route behind boiler and above window.' }] };
+  const transcript = 'The flue will rise vertically above the lintel then exit horizontally through the wall.';
   const response = await worker.fetch(new Request('https://example.com/confirmation-checklist', {
-    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ interpretation, proposal })
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ interpretation, proposal, transcript, capturedEvidence: '' })
   }), { GEMINI_API_KEY: 'test-key' }, {});
   assert.equal(response.status, 200);
   const body = await parseJson(response);
-  assert.equal(body.items.length, 2);
+  assert.equal(body.items.length, 1);
   assert(body.items.every(item => item.checked === false));
   assert(body.items.every(item => item.manual === false));
-  assert.equal(body.items[1].targetSection, 'Disruption');
-  assert.match(combinedText, /Do not invent technical work/);
+  assert.equal(body.items[0].targetSection, 'Flue');
+  assert.match(body.items[0].evidenceRelation, /rise vertically/);
+  assert.match(combinedText, /hallucination guardrail/);
   assert.match(combinedText, /above window/);
 });
 

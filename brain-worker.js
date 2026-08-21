@@ -283,30 +283,49 @@ async function handleConfirmationChecklist(request, env) {
   if (!payload?.interpretation || !payload?.proposal) {
     return jsonResponse({ error: "bad_request", message: "interpretation and proposal required" }, 400);
   }
-  const systemPrompt = `You generate a short confirmation checklist for one heating-survey proposal.
-Suggest only mundane enabling work, access requirements, or disruption consequences strongly connected to the supplied proposal and visit facts.
-Do not assert suggestions as facts. Do not invent technical work, components, pipe sizes, radiators, damage, permanent alterations, builder work or compliance requirements.
-Keep proposal options isolated. Return at most 8 high-value items; return fewer when evidence supports fewer.
-Focus where relevant on access to existing circuits or underfloor routes, removable boxing, surface pipework remaining visible or needing an enclosure, drilling through walls or ceilings, finishes likely to be disturbed, fixtures/furniture obstructing access, and access through adjoining rooms.
-Substantial alteration or splitting of existing heating circuits may justify an unchecked suggestion to confirm whether floor/floorboard access is required. A route across a visible wall area may justify an unchecked visible-pipework or boxing suggestion.
-Do not add generic noise, dust, system shutdown or builder-work suggestions unless something in this particular proposal makes them materially relevant.
-Allowed targetSection values are "Restrictions to work", "Disruption", and "Customer actions".
-Customer actions are suggestions only and require explicit surveyor confirmation.
-Return only JSON: {"items":[{"description":"concise possible work","reason":"short reason for suggestion","evidenceRelation":"proposal fact or shared fact it relates to","targetSection":"Restrictions to work|Disruption|Customer actions"}]}`;
+  const transcript = typeof payload.transcript === "string" ? payload.transcript : "";
+  const capturedEvidence = typeof payload.capturedEvidence === "string" ? payload.capturedEvidence : "";
+  const systemPrompt = `You create a surveyor confirmation list before Depot notes are written.
+This is a hallucination guardrail, not an additional-works suggestion engine.
+
+For the selected proposal, extract the materially useful statements that should be allowed into the Depot notes. Each statement must be directly supported by an exact quote from either the transcript or captured evidence supplied in the user payload.
+
+Rules:
+- Use the latest supported state. Do not revive an earlier guess, rejected option or superseded uncertainty.
+- Keep proposal options isolated.
+- Include relevant customer wants, existing system, selected proposed work, boiler/controls, flue, condensate, gas, heating/hot-water alterations, routes, electrical, access, disruption and agreed customer actions when evidenced.
+- Do not infer a physical consequence merely because it is plausible. No generic floor lifting, drilling, boxing, visible pipework, making good, shutdown or furniture movement unless the source actually states it.
+- Do not invent brands, components, sizes, directions, measurements or technical conclusions.
+- Preserve unresolved alternatives as unresolved; do not choose one.
+- Exclude irrelevant conversation, general explanations, sales chat and rejected options.
+- evidenceQuote must be copied exactly from the supplied source. Items without a matching source quote will be discarded.
+- Return no more than 24 concise, non-duplicated statements.
+- targetSection must be one of: Needs; System characteristics; New boiler and controls; Flue; Pipe work; Restrictions to work; Disruption; Customer actions; Future plans; Office notes.
+
+Return only JSON: {"items":[{"description":"concise transcript-grounded statement","evidenceQuote":"exact source quote","evidenceSource":"transcript|capturedEvidence","targetSection":"fixed section name"}]}`;
   try {
     const raw = await callInterpretationProvider(env, systemPrompt, JSON.stringify(payload));
     const parsed = JSON.parse(raw);
-    const allowedSections = new Set(["Restrictions to work", "Disruption", "Customer actions"]);
-    const items = (Array.isArray(parsed.items) ? parsed.items : []).slice(0, 8).map((item, index) => ({
+    const allowedSections = new Set(["Needs", "System characteristics", "New boiler and controls", "Flue", "Pipe work", "Restrictions to work", "Disruption", "Customer actions", "Future plans", "Office notes"]);
+    const normaliseEvidence = value => String(value || "").toLowerCase().replace(/[\u2018\u2019]/g, "'").replace(/[\u201c\u201d]/g, '"').replace(/\s+/g, " ").trim();
+    const transcriptCorpus = normaliseEvidence(transcript);
+    const capturedCorpus = normaliseEvidence(capturedEvidence);
+    const items = (Array.isArray(parsed.items) ? parsed.items : []).slice(0, 24).map((item, index) => ({
       id: `generated-${index + 1}`,
       originalText: String(item?.description || "").trim(),
       text: String(item?.description || "").trim(),
-      reason: String(item?.reason || "").trim(),
-      evidenceRelation: String(item?.evidenceRelation || "").trim(),
-      targetSection: allowedSections.has(item?.targetSection) ? item.targetSection : "Disruption",
+      reason: "Supported by captured survey evidence",
+      evidenceRelation: String(item?.evidenceQuote || "").trim(),
+      evidenceSource: item?.evidenceSource === "capturedEvidence" ? "capturedEvidence" : "transcript",
+      targetSection: allowedSections.has(item?.targetSection) ? item.targetSection : "Office notes",
       checked: false,
-      manual: false
-    })).filter(item => item.text);
+      manual: false,
+      kind: "evidenceFact"
+    })).filter(item => {
+      if (!item.text || normaliseEvidence(item.evidenceRelation).length < 4) return false;
+      const quote = normaliseEvidence(item.evidenceRelation);
+      return item.evidenceSource === "capturedEvidence" ? capturedCorpus.includes(quote) : transcriptCorpus.includes(quote);
+    });
     return jsonResponse({ items });
   } catch (err) {
     console.error("handleConfirmationChecklist model error:", err);

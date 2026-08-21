@@ -15,7 +15,7 @@ test('boiler proposal cannot look complete when flue and other core subjects are
   ] };
   const safeguards = communicationSafeguards(interpretation, proposal, []);
   assert(safeguards.some(item => item.id === 'safeguard-flue' && item.kind === 'communicationGap'));
-  assert(safeguards.find(item => item.id === 'safeguard-flue').responseOptions.includes('Reuse the existing flue route/opening.'));
+  assert.equal(safeguards.find(item => item.id === 'safeguard-flue').responseOptions, undefined);
   assert(safeguards.some(item => item.id === 'safeguard-flue-photo' && item.includeInNotes === false));
   assert(unresolvedSafeguards({ items: safeguards }).length >= 2);
 });

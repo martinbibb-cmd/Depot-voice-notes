@@ -1,5 +1,5 @@
 import { clearAuthToken, getAuthToken } from '../src/auth/auth-client.js';
-import { confirmedChecklistItems, initialiseChecklist, restoreChecklists, serialiseChecklists } from './confirmationState.js';
+import { confirmedChecklistItems, restoreChecklists, serialiseChecklists } from './confirmationState.js';
 import { communicationSafeguards, mergeSafeguards, unresolvedSafeguards } from './handoverSafeguards.js';
 import { inferredPrimaryRequirement, pipeRequirement, suggestPackage } from './breezePackages.js';
 
@@ -201,7 +201,7 @@ function renderInterpretation() {
   const actions = $('optionActions'); actions.replaceChildren();
   interpretation.options.forEach((option, index) => {
     const button = document.createElement('button'); button.className = index === 0 ? 'primary' : '';
-    button.textContent = `Review Option ${index + 1} additional works`;
+    button.textContent = `Confirm Option ${index + 1} facts`;
     button.onclick = () => prepareConfirmation(option, index);
     actions.append(button);
   });
@@ -216,11 +216,19 @@ async function prepareConfirmation(option, index) {
   selectedOption = { ...option, number: index + 1 };
   show(3); $('confirmationStatus').textContent = `Preparing Option ${index + 1}…`;
   try {
-    if (!optionChecklists.has(option.id)) {
-      const result = await api('/confirmation-checklist', { method: 'POST', body: JSON.stringify({ interpretation, proposal: option }) });
-      optionChecklists.set(option.id, initialiseChecklist(optionChecklists.get(option.id), {
-        proposalOptionId: option.id, generatedAt: new Date().toISOString(), items: result.items || []
-      }));
+    const existing = optionChecklists.get(option.id);
+    if (!existing || existing.confirmationVersion !== 2) {
+      const result = await api('/confirmation-checklist', { method: 'POST', body: JSON.stringify({
+        interpretation, proposal: option, transcript: $('transcript').value,
+        capturedEvidence: $('capturedEvidence').textContent
+      }) });
+      // Version 1 contained generic inferred-work suggestions. They are not
+      // valid evidence, so retain only facts explicitly added by the surveyor.
+      const retainedManualFacts = (existing?.items || []).filter(item => item.manual && !item.removed);
+      optionChecklists.set(option.id, {
+        confirmationVersion: 2, proposalOptionId: option.id,
+        generatedAt: new Date().toISOString(), items: [...(result.items || []), ...retainedManualFacts]
+      });
     }
     optionChecklists.set(option.id, mergeSafeguards(optionChecklists.get(option.id), communicationSafeguards(interpretation, option, surveyPhotos)));
     await persistProcessingState();
@@ -274,12 +282,7 @@ function renderConfirmation() {
     } else {
       content.append(text, section, reason);
     }
-    const remove = document.createElement('button'); remove.textContent = 'Remove suggestion'; remove.onclick = () => {
-      item.removed = true; item.checked = false; optionChecklists.set(selectedOption.id, state);
-      renderConfirmation(); checklistChanged();
-    };
     row.append(checkbox, content);
-    if (!/Gap$/.test(item.kind || '')) row.append(remove);
     $('confirmationItems').append(row);
   });
   updateConfirmationStatus(state);
@@ -315,20 +318,18 @@ async function generateOption() {
   $('confirmationStatus').textContent = `Writing Option ${index + 1} from confirmed information…`;
   try {
     const confirmedItems = confirmedChecklistItems(optionChecklists.get(option.id));
-    const relevantWantsNeeds = interpretation.sharedFacts.filter(item => /want|need|preference|priority|customer/i.test(item.category || ''));
-    const confirmedAccessDisruptionEvidence = interpretation.sharedFacts.filter(item => /access|disruption|boxing|floor|furniture|decoration/i.test(`${item.category || ''} ${item.text || ''}`));
-    const evidence = { sharedFacts: interpretation.sharedFacts, selectedProposal: option, relevantWantsNeeds,
-      confirmedAccessDisruptionEvidence, confirmedChecklistItems: confirmedItems,
-      historicalFacts: interpretation.historicalFacts, uncertainties: interpretation.uncertainties };
+    const relevantWantsNeeds = confirmedItems.filter(item => item.targetSection === 'Needs');
+    const confirmedAccessDisruptionEvidence = confirmedItems.filter(item => ['Restrictions to work','Disruption','Customer actions'].includes(item.targetSection));
+    const evidence = { confirmedFacts: confirmedItems, relevantWantsNeeds, confirmedAccessDisruptionEvidence };
     const result = await api('/text', { method: 'POST', body: JSON.stringify({
       transcript: JSON.stringify(evidence), expectedSections,
       depotSections: expectedSections.map(name => ({ name })), forceStructured: true, checklistItems: [],
-      depotNotesInstructions: 'Write terse installation handover notes for selectedProposal only. SharedFacts and relevantWantsNeeds may be used where relevant. Do not infer enabling, access, disruption, making-good or customer-preparation consequences from technical work during final writing. A pipe route alone is not evidence that lifting, drilling, visible pipework, boxing or decoration disturbance is confirmed. Such consequences may enter only when explicitly stated in confirmedAccessDisruptionEvidence or confirmedChecklistItems. Never include an unchecked, removed or absent suggestion. Place confirmedChecklistItems in their targetSection. HistoricalFacts are context only and must not become proposed work. Preserve uncertainties explicitly. Do not introduce another proposal, rejected alternative, recommendation, measurement, brand or component. Explain the work directly; do not use Coming out, Going in, Involved or Agreed headings.'
+      depotNotesInstructions: 'These are Depot notes, not an engineer report. Use only confirmedFacts. Place each confirmed fact in its targetSection and write terse copy-over wording. Never use unchecked canonical interpretation, transcript material, generic installation assumptions or another option. Do not infer enabling work, disruption, making good or customer preparation. Preserve all numbers, units, directions and uncertainty. Explain the works directly; do not use Coming out, Going in, Involved or Agreed headings.'
     }) });
     const generatedBySection = new Map((result.sections || []).map(section => [section.section, section]));
     notes = expectedSections.map(name => {
       const section = generatedBySection.get(name);
-      return { name, text: bullets(section?.plainText || section?.naturalLanguage || '') };
+      return { name, text: bullets(section?.plainText || section?.naturalLanguage || '') || '• No information recorded.' };
     });
     optionDrafts.set(option.id, structuredClone(notes)); beginDraft();
   } catch (error) { $('aiCheckStatus').textContent = error.message; $('aiCheckStatus').className = 'status error'; }
@@ -338,6 +339,9 @@ function renderEditableNotes() {
   $('notes').replaceChildren(); notes.forEach((note, index) => {
     const card = document.createElement('div'); card.className = 'note';
     const head = document.createElement('div'); head.className = 'note-head'; const title = document.createElement('strong'); title.textContent = note.name;
+    const copy = document.createElement('button'); copy.textContent = 'Copy'; copy.onclick = async () => {
+      await navigator.clipboard.writeText(depotCopyText(note.text)); copy.textContent = 'Copied'; setTimeout(() => copy.textContent = 'Copy', 1200);
+    };
     const area = document.createElement('textarea'); area.value = note.text; area.oninput = () => {
       note.text = area.value;
       if (selectedOption) optionDrafts.set(selectedOption.id, structuredClone(notes));
@@ -351,14 +355,14 @@ function renderEditableNotes() {
       try {
         const result = await api('/tweak-section', { method: 'POST', body: JSON.stringify({
           section: { section: note.name, plainText: depotCopyText(note.text), naturalLanguage: note.text },
-          instructions: `${prompt.value.trim()}\n\nUse only facts supported by this source evidence. Preserve all numbers, units, directions, uncertainty and chosen/rejected status exactly. SOURCE EVIDENCE:\n${$('transcript').value}\n${$('capturedEvidence').textContent}`
+          instructions: `${prompt.value.trim()}\n\nUse only the confirmed evidence below. Do not recover or introduce facts from the wider transcript. Preserve all numbers, units, directions, uncertainty and chosen/rejected status exactly. CONFIRMED EVIDENCE:\n${JSON.stringify(confirmedChecklistItems(optionChecklists.get(selectedOption.id)), null, 2)}`
         }) });
         note.text = bullets(result.plainText || result.naturalLanguage || note.text); area.value = note.text; prompt.value = '';
         if (selectedOption) optionDrafts.set(selectedOption.id, structuredClone(notes));
       } catch (error) { $('draftStatus').textContent = error.message; }
       finally { improve.disabled = false; improve.textContent = 'Improve'; }
     };
-    promptRow.append(prompt, improve); head.append(title); card.append(head, area, promptRow); $('notes').append(card);
+    promptRow.append(prompt, improve); head.append(title, copy); card.append(head, area, promptRow); $('notes').append(card);
   });
 }
 function beginDraft() {
@@ -425,14 +429,12 @@ async function handover() {
   show(5); $('handoverStatus').className = 'status'; $('handoverStatus').textContent = 'Writing the customer and engineer documents from confirmed information…';
   try {
     const confirmedItems = confirmedChecklistItems(optionChecklists.get(selectedOption.id));
-    const relevantWantsNeeds = interpretation.sharedFacts.filter(item => /want|need|preference|priority|customer/i.test(item.category || ''));
-    const technicalUncertainties = interpretation.uncertainties.filter(item => {
-      const text = String(item.text || '').replace(/\[INAUDIBLE\]/gi, '').trim();
-      return text.length >= 10 && !/^unclear statement/i.test(String(item.context || ''));
-    });
+    const relevantWantsNeeds = confirmedItems.filter(item => item.targetSection === 'Needs');
+    const technicalUncertainties = confirmedItems.filter(item => /to confirm|unknown|unresolved|uncertain/i.test(item.text));
+    const confirmedFacts = confirmedItems.map(item => ({ category: item.targetSection, text: item.text }));
     handoverDocuments = await api('/handover-documents', { method: 'POST', body: JSON.stringify({
-      sharedFacts: interpretation.sharedFacts,
-      selectedProposal: selectedOption,
+      sharedFacts: confirmedFacts,
+      selectedProposal: { id: selectedOption.id, title: `Confirmed option ${selectedOption.number}`, facts: confirmedFacts },
       relevantWantsNeeds,
       confirmedChecklistItems: confirmedItems,
       uncertainties: technicalUncertainties,

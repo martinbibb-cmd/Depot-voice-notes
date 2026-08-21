@@ -35,7 +35,6 @@ export function communicationSafeguards(interpretation, option, photos = []) {
     manual: false,
     removed: false,
     kind: 'communicationGap',
-    responseOptions: item.responses,
     includeInNotes: true
   }));
   if (boilerProposal) {
@@ -51,7 +50,6 @@ export function communicationSafeguards(interpretation, option, photos = []) {
       manual: false,
       removed: false,
       kind: 'evidenceGap',
-      responseOptions: ['No flue photograph is available for this Visit.'],
       includeInNotes: false
     });
   }

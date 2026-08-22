@@ -87,9 +87,10 @@ async function openCapture(id) {
     transferPayload = visit.payload;
     const saved = await api(`/spec-check/visits/${id}/processing-state`);
     interpretation = saved.interpretation;
+    const structuredReviewMissing = hasStructuredSurvey(visit.payload) && !interpretation;
     interpretationNeedsUpgrade = interpretationRequiresRefresh(visit.payload, interpretation);
     optionChecklists.clear();
-    if (interpretationNeedsUpgrade && hasStructuredSurvey(visit.payload)) {
+    if ((structuredReviewMissing || interpretationNeedsUpgrade) && hasStructuredSurvey(visit.payload)) {
       // Structured Visit state is authoritative. Replace stale transcript-era
       // derived state immediately so it cannot be resumed or exported even
       // briefly over the newer native survey.

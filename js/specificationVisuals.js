@@ -50,7 +50,7 @@ export const VISUAL_COMPONENTS = {
   cylinder: { actions:[['Already done','Work completed'],['Retain','Retain'],['Replace','Replace'],['Remove','Remove'],['New','Install new']], section:'System characteristics' },
   flue: { typeChoices:[['fanned','Fanned'],['balanced','Balanced']], actions:[['Same hole','Existing opening'],['New hole','New opening'],['Seal old opening','Seal former opening']], section:'Flue' },
   control: { actions:[['Already done','Work completed'],['Retain','Retain'],['Replace','Replace'],['New','Install new']], section:'New boiler and controls' },
-  gas: { typeChoices:[['15 mm','15 mm'],['22 mm','22 mm'],['28 mm','28 mm'],['35 mm','35 mm']], actions:[['Already done','Work completed'],['Retain','Retain'],['Replace','Replace'],['New','Install new']], section:'Gas supply' },
+  gas: { typeChoices:[['15 mm','15 mm'],['22 mm','22 mm'],['28 mm','28 mm'],['35 mm','35 mm']], actions:[['Retain','Existing adequate'],['Replace','Upgrade / alter'],['New','New supply / route']], section:'Gas supply' },
   filter: { actions:[['Already done','Work completed'],['Retain','Retain'],['Replace','Replace'],['New','Install new'],['Not required','Not required']], section:'New boiler and controls' },
   powerflush: { actions:[['Already done','Previously completed'],['Include','Include'],['Not required','Not required']], section:'System characteristics' },
   condensate: { actions:[['Already done','Work completed'],['Retain','Retain'],['Replace','Replace'],['New','Install new']], section:'Condensate and discharge' },
@@ -143,6 +143,19 @@ function belongsToComponent(kind, item) {
   return definitions.find(definition => definition.id === kind)?.pattern.test(text) ?? false;
 }
 
+// Legacy interpretations sometimes placed a genuine proposal decision in
+// sharedFacts. Only those explicit decisions may fill a missing proposal state.
+// A description of what exists (for example "Existing combi boiler") remains
+// context and must never silently become the selected proposal.
+function isSharedProposalDecision(kind, item) {
+  const text = `${item.category || ''} ${item.text || ''}`;
+  if (/\b(?:selected|proposed|proposal|will be|to be)\b/i.test(text) && /\b(?:retain|reuse|replace|upgrade|install|remove|new|required|same (?:hole|position|opening))\b/i.test(text)) return true;
+  if (kind === 'gas' && /\b(?:existing )?gas (?:supply|pipe|route)\b.{0,55}\b(?:adequate|acceptable|suitable|can be retained|no need to upgrade)\b|\b(?:adequate|acceptable|suitable)\b.{0,55}\b(?:existing )?gas (?:supply|pipe|route)\b/i.test(text)) return true;
+  if (kind === 'scaffold' && /\bscaffold\b.{0,35}\b(?:required|needed)\b|\b(?:required|needed)\b.{0,35}\bscaffold\b/i.test(text)) return true;
+  if (kind === 'condensate' && /\b(?:new|replace|alter|retain)\b.{0,35}\bcondensate\b|\bcondensate\b.{0,35}\b(?:new|required|needed|replace|alter|retain)\b/i.test(text)) return true;
+  return false;
+}
+
 export function buildVisualSpecification(interpretation, option, checklist = null) {
   const shared = interpretation?.sharedFacts || [];
   const selected = option?.facts || [];
@@ -152,15 +165,19 @@ export function buildVisualSpecification(interpretation, option, checklist = nul
     const facts = uniqueFacts([...proposalFacts, ...existingFacts]);
     if (!facts.length) return [];
     const proposalText = proposalFacts.map(item => item.text).join(' ');
-    const sharedText = existingFacts.map(item => item.text).join(' ');
+    const sharedDecisionFacts = existingFacts.filter(item => isSharedProposalDecision(definition.id, item));
+    const sharedExistingFacts = existingFacts.filter(item => !isSharedProposalDecision(definition.id, item));
+    const sharedDecisionText = sharedDecisionFacts.map(item => item.text).join(' ');
+    const sharedExistingText = sharedExistingFacts.map(item => item.text).join(' ');
     const proposalAction = componentAction(definition.id, proposalText);
-    const action = proposalAction !== 'Unresolved' ? proposalAction : componentAction(definition.id, sharedText);
+    const action = proposalAction !== 'Unresolved' ? proposalAction : componentAction(definition.id, sharedDecisionText);
     const proposalSubtype = typeFor(definition.id, proposalText);
     const typeOverride = (checklist?.items || []).find(item => !item.removed && item.visualComponent === definition.id && item.visualField === 'type');
     const actionOverride = (checklist?.items || []).find(item => !item.removed && item.visualComponent === definition.id && item.visualField === 'action');
-    const inferredSubtype = proposalSubtype || typeFor(definition.id, sharedText);
+    const inferredSubtype = proposalSubtype || typeFor(definition.id, sharedDecisionText);
+    const existingSubtype = typeFor(definition.id, sharedExistingText);
     const inferredAction = action;
-    return [{ component: definition.id, label: definition.label, subtype: typeOverride?.visualValue || inferredSubtype, specification: definition.id === 'gas' ? (typeOverride?.visualValue || inferredSubtype) : '', typeRequired: ['boiler', 'flue'].includes(definition.id), action: actionOverride?.visualValue || inferredAction, inferredSubtype, inferredAction, facts, proposalId: option?.id || null }];
+    return [{ component: definition.id, label: definition.label, subtype: typeOverride?.visualValue || inferredSubtype, existingSubtype, specification: definition.id === 'gas' ? (typeOverride?.visualValue || inferredSubtype || existingSubtype) : '', typeRequired: ['boiler', 'flue'].includes(definition.id), action: actionOverride?.visualValue || inferredAction, inferredSubtype, inferredAction, facts, proposalId: option?.id || null }];
   });
 }
 
@@ -169,7 +186,11 @@ export function visualSelectionText(component, field, value) {
   const name = names[component] || component;
   if (field === 'type') return component === 'gas' ? `${value} gas supply recorded.` : `${value[0].toUpperCase()}${value.slice(1)} ${name}.`;
   const phrases = {
-    'Already done':`${name[0].toUpperCase()}${name.slice(1)} work already completed.`, Retain:`Retain existing ${name}.`, Replace:`Replace existing ${name}.`, Remove:`Remove existing ${name}.`, New:`Install new ${name}.`, Include:`Include ${name}.`, 'Not required':`${name[0].toUpperCase()}${name.slice(1)} not required.`, Required:`${name[0].toUpperCase()}${name.slice(1)} required.`, 'Same hole':'Install flue through the existing opening.', 'New hole':'Install flue through a new opening.', 'Seal old opening':'Seal the old flue opening.', Unresolved:`${name[0].toUpperCase()}${name.slice(1)} remains unresolved.`
+    'Already done':`${name[0].toUpperCase()}${name.slice(1)} work already completed.`, Retain:component === 'gas' ? 'The existing gas supply is adequate for this proposal and will be retained.' : `Retain existing ${name}.`, Replace:`Replace existing ${name}.`, Remove:`Remove existing ${name}.`, New:`Install new ${name}.`, Include:`Include ${name}.`, 'Not required':`${name[0].toUpperCase()}${name.slice(1)} not required.`, Required:`${name[0].toUpperCase()}${name.slice(1)} required.`, 'Same hole':'Install flue through the existing opening.', 'New hole':'Install flue through a new opening.', 'Seal old opening':'Seal the old flue opening.', Unresolved:`${name[0].toUpperCase()}${name.slice(1)} remains unresolved.`
   };
   return phrases[value] || `${name}: ${value}.`;
+}
+
+export function proposalRowNeedsAnswer(row) {
+  return Boolean((row.typeRequired && !row.subtype) || row.action === 'Unresolved');
 }

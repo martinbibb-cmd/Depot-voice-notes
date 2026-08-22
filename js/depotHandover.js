@@ -5,7 +5,7 @@ import { inferredPrimaryRequirement, pipeRequirement, suggestPackage } from './b
 import { trustworthyTransferredFacts } from './transferEvidence.js';
 import { buildDepotSections, auditPipelineOutput } from './pipelineInvariants.js';
 import { buildVisitBrief, confirmationGroup, confirmationPriority, evidenceStateLabel, uncertaintyPrompt, REVIEW_GROUPS } from './reviewPresentation.js';
-import { buildVisualSpecification, componentIcon, VISUAL_COMPONENTS, visualSelectionText } from './specificationVisuals.js';
+import { buildVisualSpecification, componentIcon, proposalRowNeedsAnswer, VISUAL_COMPONENTS, visualSelectionText } from './specificationVisuals.js';
 import { hasStructuredSurvey, interpretationFromStructuredVisit, structuredEvidence } from './structuredVisit.js';
 import { buildCustomerAdvisories, proposalWithVisualSelections } from './customerAdvisories.js';
 
@@ -302,7 +302,8 @@ function renderProposalBoard(option, target = 'confirmProposalBoard') {
     const tile = document.createElement('section'); tile.className = 'proposal-editor-row'; tile.dataset.component = row.component;
     const head = document.createElement('div'); head.className = 'proposal-editor-head'; head.innerHTML = componentIcon(row.component, row.subtype);
     const title = document.createElement('strong'); title.textContent = row.label; head.append(title);
-    const answerRequired = (config.typeChoices?.length && !row.subtype) || row.action === 'Unresolved';
+    if (row.existingSubtype) { const existing = document.createElement('span'); existing.className = 'existing-reference'; existing.textContent = `Existing: ${row.existingSubtype}`; head.append(existing); }
+    const answerRequired = proposalRowNeedsAnswer(row);
     if (answerRequired) { tile.classList.add('answer-required'); const required = document.createElement('span'); required.className = 'answer-required-label'; required.textContent = 'Answer required'; head.append(required); }
     tile.append(head);
     const addChoiceGroup = (field, labelText, choices, selected) => {
@@ -357,10 +358,7 @@ function renderProposalBoard(option, target = 'confirmProposalBoard') {
 }
 
 function proposalAnswersRequired(option, state) {
-  return buildVisualSpecification(interpretation, option, state).filter(row => {
-    const config = VISUAL_COMPONENTS[row.component] || {};
-    return (config.typeChoices?.length && !row.subtype) || row.action === 'Unresolved';
-  }).length;
+  return buildVisualSpecification(interpretation, option, state).filter(proposalRowNeedsAnswer).length;
 }
 
 async function setVisualProposalState(row, field, value, targetSection) {

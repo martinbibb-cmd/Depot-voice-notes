@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildVisualSpecification, componentIcon, VISUAL_COMPONENTS } from '../js/specificationVisuals.js';
+import { buildVisualSpecification, componentIcon, proposalRowNeedsAnswer, VISUAL_COMPONENTS, visualSelectionText } from '../js/specificationVisuals.js';
 
 test('boiler SVG grammar uses the mandatory composable mappings', () => {
   assert.match(componentIcon('boiler', 'regular'), /data-primitives="flame"/);
@@ -126,6 +126,42 @@ test('visual specification exposes confirmed gas size and persisted visual corre
   assert.equal(rows.find(row => row.component === 'boiler').action, 'Replace');
   assert.equal(rows.find(row => row.component === 'gas').specification, '22 mm');
   assert.equal(rows.find(row => row.component === 'gas').action, 'Retain');
+});
+
+test('existing combi is context and never silently becomes the proposed boiler type', () => {
+  const interpretation = { sharedFacts:[
+    { id:'existing-combi', category:'Existing system', text:'Existing combi boiler.' }
+  ] };
+  const boiler = buildVisualSpecification(interpretation, { id:'selected', facts:[] }).find(row => row.component === 'boiler');
+  assert.equal(boiler.existingSubtype, 'combi');
+  assert.equal(boiler.subtype, '');
+  assert.equal(boiler.action, 'Unresolved');
+  assert.equal(proposalRowNeedsAnswer(boiler), true);
+});
+
+test('existing boiler does not overwrite an explicitly selected different proposal type', () => {
+  const interpretation = { sharedFacts:[
+    { id:'existing-combi', category:'Existing system', text:'Existing combi boiler.' }
+  ] };
+  const option = { id:'selected', facts:[
+    { id:'proposal-system', category:'Proposal', text:'Replace with a system boiler in the same position.' }
+  ] };
+  const boiler = buildVisualSpecification(interpretation, option).find(row => row.component === 'boiler');
+  assert.equal(boiler.existingSubtype, 'combi');
+  assert.equal(boiler.subtype, 'system');
+  assert.equal(boiler.action, 'Replace');
+});
+
+test('gas size is useful but optional when existing supply is confirmed adequate', () => {
+  const option = { id:'selected', facts:[
+    { id:'gas', category:'Gas supply', text:'The existing gas supply is adequate for the selected proposal.' }
+  ] };
+  const gas = buildVisualSpecification({ sharedFacts:[] }, option).find(row => row.component === 'gas');
+  assert.equal(gas.action, 'Retain');
+  assert.equal(gas.subtype, '');
+  assert.equal(gas.typeRequired, false);
+  assert.equal(proposalRowNeedsAnswer(gas), false);
+  assert.match(visualSelectionText('gas', 'action', 'Retain'), /adequate for this proposal/i);
 });
 
 test('completed survey editor offers no unresolved or not-established outcome', () => {

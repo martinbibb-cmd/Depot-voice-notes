@@ -26,7 +26,7 @@ test('schema 3 accepts a structured survey without a transcript', () => {
     schemaVersion: 3,
     nickname: 'Structured visit',
     sourceVisitId: '9f74e5e0-7833-4a72-a322-9c667647f895',
-    structuredVisit: { existing: [], customer: [], proposals: [{ name: 'Option 1', components: [] }] }
+    structuredVisit: { existing: [{ section: 'boiler', type: 'System' }], customer: [], proposals: [{ name: 'Option 1', components: [] }] }
   }), null);
 });
 

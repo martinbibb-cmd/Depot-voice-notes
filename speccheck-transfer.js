@@ -62,8 +62,11 @@ export function validateVisitPayload(payload) {
   if (typeof payload.nickname !== 'string' || !payload.nickname.trim()) return 'anonymous nickname required';
   const hasTranscript = Array.isArray(payload.transcriptParts) || typeof payload.transcript === 'string';
   const structured = payload.structuredVisit;
-  const hasStructuredSurvey = Number(payload.schemaVersion || 1) >= 3 && structured && typeof structured === 'object' &&
-    (Array.isArray(structured.existing) || Array.isArray(structured.customer) || Array.isArray(structured.proposals));
+  const hasStructuredSurvey = Number(payload.schemaVersion || 1) >= 3 && structured && typeof structured === 'object' && (
+    (Array.isArray(structured.existing) && structured.existing.length > 0) ||
+    (Array.isArray(structured.customer) && structured.customer.length > 0) ||
+    (Array.isArray(structured.proposals) && structured.proposals.some(option => Array.isArray(option?.components) && option.components.length > 0))
+  );
   if (!hasTranscript && !hasStructuredSurvey) {
     return 'transcript or structuredVisit required';
   }

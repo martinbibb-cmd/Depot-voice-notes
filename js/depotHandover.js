@@ -509,6 +509,24 @@ function checklistChanged() {
   if (selectedOption) optionDrafts.delete(selectedOption.id);
   persistProcessingState().catch(error => $('confirmationStatus').textContent = error.message);
 }
+function confirmedItemsForSelectedOption() {
+  const items = confirmedChecklistItems(optionChecklists.get(selectedOption?.id));
+  const canonical = new Map([
+    ...(interpretation?.sharedFacts || []),
+    ...(interpretation?.customerIntent?.wants || []),
+    ...(interpretation?.customerIntent?.needs || []),
+    ...(selectedOption?.facts || [])
+  ].map(item => [item.id, item]));
+  return items.map(item => {
+    const source = canonical.get(item.factId || item.id);
+    return {
+      ...item,
+      category: item.category || source?.category || '',
+      canonicalMeaning: item.text,
+      sourceQuote: item.evidenceQuote || source?.evidenceQuote || ''
+    };
+  });
+}
 async function generateOption() {
   const option = selectedOption;
   const index = option.number - 1;
@@ -519,7 +537,7 @@ async function generateOption() {
   $('confirmationStatus').className = 'status';
   $('confirmationStatus').textContent = `Writing Option ${index + 1} from confirmed information…`;
   try {
-    const confirmedItems = confirmedChecklistItems(optionChecklists.get(option.id));
+    const confirmedItems = confirmedItemsForSelectedOption();
     const result = buildDepotSections(confirmedItems);
     notes = result.map(section => ({ name: section.section, text: section.naturalLanguage, factIds: section.factIds, provenance: 'confirmedEvidence' }));
     const errors = auditPipelineOutput({ confirmedItems, depotSections: result, handover: { engineer: result.map(section => ({ factIds: section.factIds })) } });
@@ -634,7 +652,7 @@ function depotCopyText(text) {
 async function handover() {
   show(5); $('handoverStatus').className = 'status'; $('handoverStatus').textContent = 'Writing the customer and engineer documents from confirmed information…';
   try {
-    const confirmedItems = confirmedChecklistItems(optionChecklists.get(selectedOption.id));
+    const confirmedItems = confirmedItemsForSelectedOption();
     const relevantWantsNeeds = confirmedItems.filter(item => item.targetSection === 'Needs');
     const technicalUncertainties = confirmedItems.filter(item => item.evidenceState === 'uncertain' || /to confirm|unknown|unresolved|uncertain/i.test(item.text));
     const confirmedFacts = confirmedItems.map(item => ({ id: item.id, category: item.targetSection, text: item.text, evidenceQuote: item.evidenceQuote, evidenceSource: item.evidenceSource, evidenceState: item.evidenceState }));

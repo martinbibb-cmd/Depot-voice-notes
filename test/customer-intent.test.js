@@ -34,7 +34,7 @@ test('confirmed canonical needs cannot produce a false-empty Needs output', () =
   const depot = buildDepotSections(confirmed);
   const handover = buildHandoverDocuments({ confirmedChecklistItems: confirmed, uncertainties: [] });
   assert.doesNotMatch(depot.find(section => section.section === 'Needs').plainText, /No information recorded/i);
-  assert.match(handover.customer.find(section => section.heading === 'Why this suits your home').text, /survey also established these requirements/i);
+  assert.match(handover.customer.find(section => section.heading === 'Why this suits your home').text, /incoming-water performance/i);
   assert.deepEqual(auditPipelineOutput({ confirmedItems: confirmed, depotSections: depot, handover }), []);
 });
 

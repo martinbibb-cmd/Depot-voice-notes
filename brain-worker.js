@@ -8,7 +8,7 @@ import {
   handleResetPassword
 } from './auth-handlers.js';
 import { handleSpecCheckTransfer } from './speccheck-transfer.js';
-import { buildHandoverDocuments, auditPipelineOutput, buildDepotSections, sectionForFact } from './js/pipelineInvariants.js';
+import { buildHandoverDocuments, auditPipelineOutput, buildDepotSections, displayTextForFact, sectionForFact } from './js/pipelineInvariants.js';
 import { buildCustomerIntent } from './js/customerIntent.js';
 
 export default {
@@ -465,6 +465,10 @@ async function handleConfirmationChecklist(request, env) {
       factId: item.id || `generated-${index + 1}`,
       originalText: String(item.text).trim(),
       text: String(item.text).trim(),
+      category: String(item.category || '').trim(),
+      sourceQuote: String(item.evidenceQuote).trim(),
+      canonicalMeaning: String(item.text).trim(),
+      displayText: displayTextForFact(item),
       reason: "Supported by captured survey evidence",
       evidenceRelation: String(item.evidenceQuote).trim(),
       evidenceSource: item?.evidenceSource === "capturedEvidence" ? "capturedEvidence" : "transcript",

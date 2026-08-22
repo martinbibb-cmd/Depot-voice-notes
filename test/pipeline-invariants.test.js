@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { auditPipelineOutput, buildDepotSections, buildHandoverDocuments, claimIntegrityErrors } from '../js/pipelineInvariants.js';
+import { auditPipelineOutput, buildDepotSections, buildHandoverDocuments, claimIntegrityErrors, displayIntegrityErrors, displayTextForFact } from '../js/pipelineInvariants.js';
 
 const fact = (id, text, section, extra = {}) => ({ id, text, evidenceQuote: text, targetSection: section, ...extra });
 
@@ -31,6 +31,28 @@ test('an explicit surveyor numeric correction is valid without pretending it cam
   assert(claimIntegrityErrors({ ...corrected, manual: false }).some(error => /numeric/.test(error)));
 });
 
+test('presentation wording is professional while immutable grounding remains separate', () => {
+  const filter = fact('filter', 'We will also fit a magnetic filter to keep the system clean so that advised that next to the boiler and filter any dirt clutch as it created', 'Pipe work', { category:'filter' });
+  assert.equal(displayTextForFact(filter), 'Install a magnetic filter.');
+  assert.equal(filter.evidenceQuote, filter.text);
+  assert.deepEqual(displayIntegrityErrors({ category:'filter', canonicalMeaning:filter.text, displayText:'Install a magnetic filter.' }), []);
+  assert(displayIntegrityErrors({ category:'filter', canonicalMeaning:filter.text, displayText:'Install a 22 mm magnetic filter.' }).some(error => /numeric/.test(error)));
+});
+
+test('boiler proposal and condensate route populate their semantic engineer sections', () => {
+  const facts = [
+    fact('boiler','Replace the existing system boiler with a new system boiler in the same location.','System characteristics',{category:'proposal'}),
+    fact('condensate','my suggestion for that would be to take it through the same route as the gas supply currently goes into that little outbuilding down and out the front','System characteristics',{category:'condensate pipe'})
+  ];
+  const handover = buildHandoverDocuments({ confirmedChecklistItems:facts });
+  assert.match(handover.engineer.find(section => section.heading === 'Boiler and equipment').bullets.join(' '), /Replace the existing system boiler/);
+  assert.match(handover.engineer.find(section => section.heading === 'Condensate and discharge').bullets.join(' '), /Route the condensate/i);
+  assert(!handover.engineer.find(section => section.heading === 'Boiler and equipment').bullets.includes('No information recorded.'));
+  assert.deepEqual(auditPipelineOutput({ confirmedItems:facts, depotSections:buildDepotSections(facts), handover }), []);
+  assert.equal(handover.evidence.find(item => item.id === 'condensate').sourceQuote, facts[1].evidenceQuote);
+  assert.match(handover.evidence.find(item => item.id === 'condensate').displayText, /Route the condensate/i);
+});
+
 test('unresolved evidence remains explicit and customer intent survives an incompatible selected proposal', () => {
   const facts = [
     fact('want', 'Customer wants to remove stored-water equipment to gain space.', 'Needs'),
@@ -38,7 +60,7 @@ test('unresolved evidence remains explicit and customer intent survives an incom
   ];
   const uncertainty = fact('u1', 'Exact recognised component name remains uncertain.', 'Office notes', { evidenceState: 'uncertain' });
   const handover = buildHandoverDocuments({ confirmedChecklistItems: facts, uncertainties: [uncertainty] });
-  assert.match(handover.customer.find(x => x.heading === 'Why this suits your home').text, /does not imply that every original objective is achieved/);
+  assert.match(handover.customer.find(x => x.heading === 'Why this suits your home').text, /original space-saving objective is not fully achieved/);
   assert.deepEqual(handover.engineer.find(x => x.heading === 'Unresolved points').bullets, [uncertainty.text]);
 });
 

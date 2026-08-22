@@ -132,6 +132,10 @@ test('POST /confirmation-checklist deterministically uses only grounded canonica
   assert(body.items.every(item => item.manual === false));
   const flue = body.items.find(item => item.targetSection === 'Flue');
   assert.match(flue.evidenceRelation, /rise vertically/);
+  assert.match(flue.sourceQuote, /rise vertically/);
+  assert.equal(flue.canonicalMeaning, 'Flue rises vertically then exits horizontally above the lintel.');
+  assert.match(flue.displayText, /Flue rises vertically/);
+  assert.equal(flue.category, 'Flue');
   assert.equal(body.items.find(item => item.targetSection === 'Pipe work').text, 'Route behind boiler and above window.');
 });
 

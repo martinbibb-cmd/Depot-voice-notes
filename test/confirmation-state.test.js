@@ -63,7 +63,7 @@ test('visual proposal changes flow into Depot notes and engineer handover', () =
   const engineer = buildHandoverDocuments({ confirmedChecklistItems:confirmed }).engineer.find(section => section.heading === 'Flue');
   assert.match(depot.plainText, /Fanned flue/);
   assert.match(depot.plainText, /new opening/);
-  assert.match(engineer.bullets.join(' '), /Fanned flue/);
+  assert.match(engineer.bullets.join(' '), /fanned flue/i);
   assert.match(engineer.bullets.join(' '), /new opening/);
 });
 

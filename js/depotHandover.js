@@ -6,6 +6,7 @@ import { trustworthyTransferredFacts } from './transferEvidence.js';
 import { buildDepotSections, auditPipelineOutput } from './pipelineInvariants.js';
 import { buildVisitBrief, confirmationGroup, confirmationPriority, evidenceStateLabel, uncertaintyPrompt, REVIEW_GROUPS } from './reviewPresentation.js';
 import { buildVisualSpecification, componentIcon, VISUAL_COMPONENTS, visualSelectionText } from './specificationVisuals.js';
+import { hasStructuredSurvey, interpretationFromStructuredVisit, structuredEvidence } from './structuredVisit.js';
 
 const WORKER = 'https://depot-voice-notes.martinbibb.workers.dev';
 const $ = id => document.getElementById(id);
@@ -70,6 +71,7 @@ function evidenceOf(payload) {
   add('CAPTURED NOTES', (payload.notes || []).map(x => x.text || x));
   const safeFacts = trustworthyTransferredFacts(payload);
   add('CAPTURED FACTS', safeFacts.map(x => `${x.subject}: ${x.text} [${x.state || 'captured'}]`));
+  add('STRUCTURED VISIT', structuredEvidence(payload));
   add('WATER PRESSURE AND FLOW', (payload.waterPressureTests || []).map(x => [x.testPoint, x.standingPressureBar != null ? `standing ${x.standingPressureBar} bar` : '', x.dynamicPressureBar != null ? `dynamic ${x.dynamicPressureBar} bar` : '', x.flowLitresPerMinute != null ? `${x.flowLitresPerMinute} litres/min` : '', x.note].filter(Boolean).join(' — ')));
   add('ROOMS', (payload.rooms || []).map(x => `${x.name} (${x.floor || 'floor not named'}): ${x.wallCount || 0} walls, ${(x.routes || []).length} routes, ${(x.radiators || []).length} radiators`));
   const pipe = pipeRequirement(payload.pipeRuns || []);
@@ -92,7 +94,7 @@ async function openCapture(id) {
     await loadPhotos(id, visit.photos); renderRooms(visit.payload.rooms || [], visit.payload.wholeHouseStructure || null); await api(`/spec-check/visits/${id}/consume`, { method: 'POST', body: '{}' });
     const roomCount = (visit.payload.rooms || []).length;
     status(`Opened ${visit.nickname}: ${$('transcript').value.split(/\s+/).filter(Boolean).length} transcript words, ${visit.photos.length} photos and ${roomCount} captured room${roomCount === 1 ? '' : 's'}${visit.payload.wholeHouseStructure?.alignedByStructureBuilder ? ' in an aligned whole-house structure' : ''}.`);
-    $('resumeReviewBtn').classList.toggle('hidden', !$('transcript').value.trim());
+    $('resumeReviewBtn').classList.toggle('hidden', !$('transcript').value.trim() && !hasStructuredSurvey(visit.payload));
     const savedStep = Number(localStorage.getItem(`speccheck-step-${id}`) || 1);
     $('resumeReviewBtn').textContent = interpretationNeedsUpgrade ? 'Update survey review' : savedStep >= 3 ? 'Resume confirmation' : 'Resume Ready to quote';
   } catch (error) { status(error.message, true); }
@@ -157,7 +159,8 @@ function orderedNotes(source) {
   });
 }
 async function aiCheck() {
-  const transcript = $('transcript').value.trim(); if (!transcript) return status('Add or open a transcript first.', true);
+  const transcript = $('transcript').value.trim();
+  if (!transcript && !hasStructuredSurvey(transferPayload)) return status('Capture structured survey information or add a transcript first.', true);
   show(2);
   $('checkTranscript').textContent = [$('transcript').value, $('capturedEvidence').textContent].filter(Boolean).join('\n\n');
   $('checkNotes').replaceChildren();
@@ -166,7 +169,11 @@ async function aiCheck() {
   $('aiCheckStatus').textContent = 'Checking the complete transcript and reconciling the latest supported survey state…';
   try {
     const captured = $('capturedEvidence').textContent.trim();
-    if (!interpretation || interpretation.interpretationVersion !== 12) {
+    if (hasStructuredSurvey(transferPayload)) {
+      interpretation = interpretationFromStructuredVisit(transferPayload);
+      optionChecklists.clear();
+      await persistProcessingState();
+    } else if (!interpretation || interpretation.interpretationVersion !== 12) {
       interpretation = await api('/interpret', { method: 'POST', body: JSON.stringify({ transcript, capturedEvidence: captured }) });
       optionChecklists.clear();
       await persistProcessingState();

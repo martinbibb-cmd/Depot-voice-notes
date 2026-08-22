@@ -60,8 +60,12 @@ async function device(request, env) {
 export function validateVisitPayload(payload) {
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return 'JSON object required';
   if (typeof payload.nickname !== 'string' || !payload.nickname.trim()) return 'anonymous nickname required';
-  if (!Array.isArray(payload.transcriptParts) && typeof payload.transcript !== 'string') {
-    return 'transcript or transcriptParts required';
+  const hasTranscript = Array.isArray(payload.transcriptParts) || typeof payload.transcript === 'string';
+  const structured = payload.structuredVisit;
+  const hasStructuredSurvey = Number(payload.schemaVersion || 1) >= 3 && structured && typeof structured === 'object' &&
+    (Array.isArray(structured.existing) || Array.isArray(structured.customer) || Array.isArray(structured.proposals));
+  if (!hasTranscript && !hasStructuredSurvey) {
+    return 'transcript or structuredVisit required';
   }
   if (payload.sourceVisitId != null && !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(payload.sourceVisitId)) {
     return 'sourceVisitId must be a UUID';

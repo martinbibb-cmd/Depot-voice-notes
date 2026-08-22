@@ -140,7 +140,7 @@ function engineerSection(item) {
   return 'Heating, hot water and pipe routes';
 }
 
-export function buildHandoverDocuments({ confirmedChecklistItems = [], uncertainties = [] } = {}) {
+export function buildHandoverDocuments({ confirmedChecklistItems = [], uncertainties = [], customerAdvisories = [] } = {}) {
   const confirmed = confirmedChecklistItems.map((item, index) => presentationFact({ ...item, targetSection: sectionForFact(item) }, index));
   const unresolved = uncertainties.filter(item => item?.text).map((item, index) => presentationFact({
     ...item, id: item.id || `uncertainty-${index + 1}`, targetSection: 'Office notes', evidenceState: 'uncertain', surveyorConfirmed:false
@@ -213,9 +213,14 @@ export function buildHandoverDocuments({ confirmedChecklistItems = [], uncertain
   };
   proposalParts.sort((a,b) => proposalRank(a) - proposalRank(b));
   const proposalFactIds = [...new Set(proposalParts.flatMap(item => item.combinedFactIds || [item.id]))];
+  const advisorySections = [...new Set(customerAdvisories.map(item => item.heading))].map(heading => {
+    const matching = customerAdvisories.filter(item => item.heading === heading);
+    return { heading, text: matching.map(item => item.text).join(' '), advisoryIds: matching.map(item => item.id), factIds: [] };
+  });
   const customer = [
     { heading: 'What we are proposing', text: proposalParts.length ? proposalParts.map(item => item.displayText).join(' ') : 'No proposed work has been recorded.', factIds: proposalFactIds },
     { heading: 'Why this suits your home', text: narrative || (needs.length ? needs.map(item => item.displayText).join(' ') : 'No specific customer objective or confirmed requirement has been recorded.'), factIds: [...new Set([...needs, selectedBoiler, combiConstraint, waterEvidence].filter(Boolean).map(item => item.id))] },
+    ...advisorySections,
     { heading: 'What to expect during the work', text: disruption.length ? disruption.map(item => item.displayText).join(' ') : 'No specific job disruption has been confirmed.', factIds: disruption.map(item => item.id) },
     { heading: 'Getting ready', text: prep.length ? prep.map(item => item.displayText).join(' ') : 'No customer preparation has been confirmed.', factIds: prep.map(item => item.id) },
     { heading: 'Points still to confirm', text: unresolved.length ? unresolved.map(item => sentence(item.text)).join(' ') : 'No unresolved points are currently recorded.', factIds: unresolved.map(item => item.id) }

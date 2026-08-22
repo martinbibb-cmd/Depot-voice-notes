@@ -1,3 +1,5 @@
+import { buildVisitCustomerAdvisories } from './customerAdvisories.js';
+
 const sectionTargets = {
   boiler: 'New boiler and controls', hotWater: 'System characteristics', flue: 'Flue',
   gas: 'Pipe work', heating: 'Pipe work', controls: 'New boiler and controls',
@@ -102,8 +104,9 @@ function optionFacts(option, optionIndex) {
 export function interpretationFromStructuredVisit(payload) {
   if (!hasStructuredSurvey(payload)) return null;
   const survey = payload.structuredVisit;
+  const advisoryOptions = new Map(buildVisitCustomerAdvisories(survey).map(item => [item.proposalOptionId, item.advisories]));
   return {
-    interpretationVersion: 13,
+    interpretationVersion: 14,
     sourceMode: 'structuredVisit',
     sharedFacts: [...existingFacts(survey), ...customerFacts(survey), ...sharedMeasurementFacts(survey)],
     options: (survey.proposals || []).map((option, index) => ({
@@ -111,6 +114,7 @@ export function interpretationFromStructuredVisit(payload) {
       name: option.name || `Option ${index + 1}`,
       summary: clean(option.summary),
       status: option.isSelected ? 'preferred' : 'alternative',
+      customerAdvisories: advisoryOptions.get(option.id) || [],
       facts: [
         ...optionFacts(option, index),
         ...(survey.measurements || []).filter(item => item.proposalOptionID === option.id).map(measurementFact)

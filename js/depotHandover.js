@@ -7,6 +7,7 @@ import { buildDepotSections, auditPipelineOutput } from './pipelineInvariants.js
 import { buildVisitBrief, confirmationGroup, confirmationPriority, evidenceStateLabel, uncertaintyPrompt, REVIEW_GROUPS } from './reviewPresentation.js';
 import { buildVisualSpecification, componentIcon, VISUAL_COMPONENTS, visualSelectionText } from './specificationVisuals.js';
 import { hasStructuredSurvey, interpretationFromStructuredVisit, structuredEvidence } from './structuredVisit.js';
+import { buildCustomerAdvisories, proposalWithVisualSelections } from './customerAdvisories.js';
 
 const WORKER = 'https://depot-voice-notes.martinbibb.workers.dev';
 const $ = id => document.getElementById(id);
@@ -85,10 +86,14 @@ async function openCapture(id) {
     transferPayload = visit.payload;
     const saved = await api(`/spec-check/visits/${id}/processing-state`);
     interpretation = saved.interpretation;
-    interpretationNeedsUpgrade = Boolean(interpretation && Number(interpretation.interpretationVersion || 0) < 12);
+    interpretationNeedsUpgrade = Boolean(interpretation && (
+      Number(interpretation.interpretationVersion || 0) < 12 ||
+      (interpretation.sourceMode === 'structuredVisit' && Number(interpretation.interpretationVersion || 0) < 14)
+    ));
     if (interpretationNeedsUpgrade) interpretation = null;
     optionChecklists.clear();
     restoreChecklists(saved.checklists).forEach((value, key) => optionChecklists.set(key, value));
+    refreshAllAdvisories();
     $('transcript').value = transcriptOf(visit.payload);
     const evidence = evidenceOf(visit.payload); $('capturedEvidence').textContent = evidence; $('capturedEvidence').classList.toggle('hidden', !evidence);
     await loadPhotos(id, visit.photos); renderRooms(visit.payload.rooms || [], visit.payload.wholeHouseStructure || null); await api(`/spec-check/visits/${id}/consume`, { method: 'POST', body: '{}' });
@@ -206,6 +211,7 @@ function renderBreezeSuggestion() {
   panel.classList.remove('hidden');
 }
 function renderInterpretation() {
+  refreshAllAdvisories();
   const container = $('checkNotes'); container.replaceChildren();
   const group = (title, items, value = item => item.text) => {
     if (!items?.length) return;
@@ -216,6 +222,7 @@ function renderInterpretation() {
   };
   group('Shared facts', interpretation.sharedFacts);
   interpretation.options.forEach((option, index) => group(`Option ${index + 1}: ${option.title} (${option.status})`, option.facts));
+  renderAdvisoryComparison();
   group('Historical only', interpretation.historicalFacts);
   group('Rejected or compromised', interpretation.rejectedAlternatives, item => [item.text, item.reason].filter(Boolean).join(' — '));
   group('Uncertain evidence', interpretation.uncertainties, item => [item.text, item.context].filter(Boolean).join(' — '));
@@ -226,6 +233,46 @@ function renderInterpretation() {
     button.textContent = interpretation.options.length === 1 ? 'Review proposal' : `Review Option ${index + 1}`;
     button.onclick = () => prepareConfirmation(option, index);
     actions.append(button);
+  });
+}
+
+function renderAdvisoryComparison() {
+  const container = $('customerAdvisories');
+  container.replaceChildren();
+  const options = (interpretation?.options || []).filter(option => option.customerAdvisories?.length);
+  container.classList.toggle('hidden', options.length === 0);
+  if (!options.length) return;
+  const heading = document.createElement('h3'); heading.textContent = options.length > 1 ? 'What each option means for the customer' : 'What this option means for the customer';
+  const grid = document.createElement('div'); grid.className = 'advisory-options';
+  options.forEach((option, index) => {
+    const card = document.createElement('section'); card.className = 'advisory-option';
+    const title = document.createElement('h4'); title.textContent = options.length > 1 ? `Option ${index + 1}: ${option.title || option.name}` : option.title || option.name;
+    card.append(title);
+    option.customerAdvisories.forEach(item => {
+      const row = document.createElement('div'); row.className = `customer-advisory ${item.class}`;
+      const label = document.createElement('strong'); label.textContent = item.heading;
+      const text = document.createElement('p'); text.textContent = item.text;
+      const state = document.createElement('span'); state.className = 'advisory-class'; state.textContent = ({ information:'Information', advisory:'Advisory', caution:'Caution', needsConfirmation:'Needs confirmation' })[item.class] || 'Information';
+      const evidence = document.createElement('details'); evidence.className = 'visual-evidence';
+      const summary = document.createElement('summary'); summary.textContent = 'Why SpecCheck is showing this';
+      const source = document.createElement('small'); source.textContent = `${Object.values(item.support || {}).flat().length} linked structured evidence item${Object.values(item.support || {}).flat().length === 1 ? '' : 's'} · Rule ${item.ruleVersion}`;
+      evidence.append(summary, source); row.append(label, state, text, evidence); card.append(row);
+    });
+    grid.append(card);
+  });
+  container.append(heading, grid);
+}
+function renderSelectedAdvisories() {
+  const container = $('confirmCustomerAdvisories');
+  container.replaceChildren();
+  if (!selectedOption?.customerAdvisories?.length) return;
+  const heading = document.createElement('h3'); heading.textContent = 'What this proposal means for the customer'; container.append(heading);
+  selectedOption.customerAdvisories.forEach(item => {
+    const row = document.createElement('div'); row.className = `customer-advisory ${item.class}`;
+    const label = document.createElement('strong'); label.textContent = item.heading;
+    const state = document.createElement('span'); state.className = 'advisory-class'; state.textContent = ({ information:'Information', advisory:'Advisory', caution:'Caution', needsConfirmation:'Needs confirmation' })[item.class] || 'Information';
+    const text = document.createElement('p'); text.textContent = item.text;
+    row.append(label, state, text); container.append(row);
   });
 }
 function renderVisitBrief(option = null, target = 'visitBrief', additionalMissing = [], allowedIds = null) {
@@ -327,9 +374,27 @@ async function setVisualProposalState(row, field, value, targetSection) {
     affectedFactIds:affected.map(fact => fact.id), evidenceQuotes:affected.map(fact => fact.evidenceQuote).filter(Boolean), originalText:affected.map(fact => fact.text).join(' | ')
   });
   optionDrafts.delete(selectedOption.id);
+  refreshSelectedAdvisories(state);
   await persistProcessingState();
   lastVisualSaveMessage = `✓ ${row.label} ${field} saved: ${value}`;
   renderConfirmation();
+}
+function refreshSelectedAdvisories(state = optionChecklists.get(selectedOption?.id)) {
+  if (!selectedOption || !hasStructuredSurvey(transferPayload)) return;
+  const survey = transferPayload.structuredVisit;
+  const original = (survey.proposals || []).find(option => option.id === selectedOption.id);
+  if (!original) return;
+  selectedOption.customerAdvisories = buildCustomerAdvisories(survey, proposalWithVisualSelections(original, state));
+  const stored = interpretation?.options?.find(option => option.id === selectedOption.id);
+  if (stored) stored.customerAdvisories = selectedOption.customerAdvisories;
+}
+function refreshAllAdvisories() {
+  if (!hasStructuredSurvey(transferPayload) || !interpretation?.options) return;
+  const survey = transferPayload.structuredVisit;
+  interpretation.options.forEach(option => {
+    const original = (survey.proposals || []).find(item => item.id === option.id);
+    if (original) option.customerAdvisories = buildCustomerAdvisories(survey, proposalWithVisualSelections(original, optionChecklists.get(option.id)));
+  });
 }
 async function persistProcessingState() {
   if (!currentVisitId || !interpretation) return;
@@ -424,6 +489,7 @@ function renderConfirmation() {
   const openGroups = new Set(previousGroups.filter(item => item.open).map(item => item.dataset.group));
   const previousY = scrollY;
   renderProposalBoard(selectedOption);
+  renderSelectedAdvisories();
   const container = $('confirmationItems'); container.replaceChildren();
   $('confirmationComments').textContent = state.surveyorComments?.length
     ? `Added context: ${state.surveyorComments.join(' · ')}`
@@ -669,7 +735,8 @@ async function handover() {
       relevantWantsNeeds,
       confirmedChecklistItems: confirmedItems,
       uncertainties: technicalUncertainties,
-      surveyorEditedNotes: notes
+      surveyorEditedNotes: notes,
+      customerAdvisories: selectedOption.customerAdvisories || []
     }) });
     const customerSource = handoverDocuments.customer.map(section => ({ name: section.heading, text: section.text }));
     const engineerSource = handoverDocuments.engineer.map(section => ({ name: section.heading, text: section.bullets.map(value => `• ${value}`).join('\n') }));

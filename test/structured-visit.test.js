@@ -95,3 +95,21 @@ test('option-scoped measurements never leak between proposals', () => {
   assert.ok(combi.facts.some(item => item.text === 'Pipe Size: 28 mm'));
   assert.ok(!combi.facts.some(item => item.text === 'Pipe Size: 22 mm'));
 });
+
+test('structured interpretation attaches deterministic advisories to their proposal only', () => {
+  const input = payload();
+  input.structuredVisit.measurements.find(item => item.id === 'flow').qualifier = 'exact';
+  input.structuredVisit.measurements.find(item => item.id === 'flow').sourceText = '10 litres a minute';
+  input.structuredVisit.measurements.push({ id:'pressure', layer:'existing', section:'water', kind:'dynamicPressure', value:2, unit:'bar', qualifier:'exact' });
+  input.structuredVisit.existing.push({ id:'hot-water', section:'hotWater', type:'Vented cylinder' });
+  input.structuredVisit.proposals.find(item => item.id === 'system').components.push({ id:'stored', section:'hotWater', action:'retain', type:'Vented cylinder' });
+  input.structuredVisit.proposals.find(item => item.id === 'combi').components.push({ id:'remove-cylinder', section:'hotWater', action:'remove' });
+  const result = interpretationFromStructuredVisit(input);
+  const system = result.options.find(option => option.id === 'system');
+  const combi = result.options.find(option => option.id === 'combi');
+  assert.equal(result.interpretationVersion, 14);
+  assert(system.customerAdvisories.some(item => item.flagType === 'gas_supply_retained'));
+  assert(!system.customerAdvisories.some(item => item.flagType === 'gas_supply_upgrade_required'));
+  assert(combi.customerAdvisories.some(item => item.flagType === 'gas_supply_upgrade_required'));
+  assert(combi.customerAdvisories.some(item => item.flagType === 'combi_hot_water_outlet_allowance'));
+});

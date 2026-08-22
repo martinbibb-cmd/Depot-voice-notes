@@ -211,6 +211,24 @@ test('POST /handover-documents creates friendly customer prose and ordered engin
   assert.equal(body.customer.find(section => section.heading === 'Points still to confirm').text, 'No unresolved points are currently recorded.');
 });
 
+test('POST /handover-documents includes only supplied proposal-scoped customer advisories', async () => {
+  const response = await worker.fetch(new Request('https://example.com/handover-documents', {
+    method:'POST', headers:{ 'content-type':'application/json' }, body:JSON.stringify({
+      sharedFacts:[], selectedProposal:{ id:'system', facts:[] }, confirmedChecklistItems:[], uncertainties:[],
+      customerAdvisories:[{
+        id:'system:gas_supply_retained', flagType:'gas_supply_retained', heading:'What changes with this option',
+        text:'The existing gas supply can be retained for this option.', class:'information', ruleVersion:'1.0.0'
+      }]
+    })
+  }), {}, {});
+  assert.equal(response.status, 200);
+  const body = await parseJson(response);
+  assert.equal(body.customer.find(section => section.heading === 'What changes with this option').text,
+    'The existing gas supply can be retained for this option.');
+  const renderedCustomerText = body.customer.map(section => `${section.heading} ${section.text}`).join(' ');
+  assert(!renderedCustomerText.includes('gas_supply_retained'));
+});
+
 test('POST /text forwards structured payload and normalises model output', async (t) => {
   const transcript = 'Replace existing boiler and mention Hive smart control.';
   let receivedRequestBody;

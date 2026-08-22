@@ -170,7 +170,7 @@ test('gas adequacy is mandatory even when no gas evidence was captured', () => {
   assert(gas);
   assert.equal(gas.action, 'Unresolved');
   assert.equal(proposalRowNeedsAnswer(gas), true);
-  assert.deepEqual(VISUAL_COMPONENTS.gas.actions, [['Retain','Existing adequate'],['Replace','Alter / replace']]);
+  assert.deepEqual(VISUAL_COMPONENTS.gas.actions, [['Retain','Existing gas supply is adequate'],['Replace','Upgrade or replace gas supply']]);
 });
 
 test('gas alteration requires the replacement size while adequate existing gas does not', () => {

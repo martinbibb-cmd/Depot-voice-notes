@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { hasStructuredSurvey, interpretationFromStructuredVisit, structuredEvidence } from '../js/structuredVisit.js';
+import { hasStructuredSurvey, interpretationFromStructuredVisit, interpretationRequiresRefresh, structuredEvidence } from '../js/structuredVisit.js';
 
 test('structured discharge remains separate from condensate and maps to installation pipework', () => {
   const payload = { schemaVersion:3, structuredVisit:{ existing:[], customer:[], measurements:[], evidence:[], proposals:[{
@@ -53,6 +53,21 @@ test('structured survey is a primary interpretation source with Wants and Needs 
   assert.ok(result.sharedFacts.some(fact => fact.category === 'Want' && fact.text === 'Gain loft space'));
   assert.ok(result.sharedFacts.some(fact => fact.category === 'Derived Need' && fact.text.includes('bath and shower')));
   assert.ok(!result.sharedFacts.some(fact => fact.text.includes('hide every pipe')));
+});
+
+test('a transcript-era processing state cannot shadow a newer structured Visit', () => {
+  const input = payload();
+  const stale = {
+    interpretationVersion: 12,
+    sharedFacts: [],
+    options: [{ id: 'empty-shell', facts: [] }]
+  };
+  assert.equal(hasStructuredSurvey(input), true);
+  assert.equal(interpretationRequiresRefresh(input, stale), true);
+
+  const current = interpretationFromStructuredVisit(input);
+  assert.equal(interpretationRequiresRefresh(input, current), false);
+  assert.ok(current.options[0].facts.length > 0);
 });
 
 test('proposal options remain isolated and approved notes remain grounded selections', () => {

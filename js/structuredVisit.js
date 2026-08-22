@@ -18,6 +18,18 @@ export function hasStructuredSurvey(payload) {
       (survey.proposals || []).some(option => (option.components || []).length)));
 }
 
+export function interpretationRequiresRefresh(payload, interpreted) {
+  if (!interpreted) return false;
+  const version = Number(interpreted.interpretationVersion || 0);
+  if (hasStructuredSurvey(payload)) {
+    // A schema-3 Visit is authoritative. A transcript-era interpretation must
+    // never be allowed to shadow structured Existing/Customer/Proposed state,
+    // even when the legacy interpretation itself has a current legacy version.
+    return interpreted.sourceMode !== 'structuredVisit' || version < 14;
+  }
+  return version < 12;
+}
+
 function measurementText(item) {
   const qualifier = item.qualifier === 'approximate' ? 'approximately ' : '';
   return `${title(item.kind)}: ${qualifier}${item.value} ${clean(item.unit)}`.trim();

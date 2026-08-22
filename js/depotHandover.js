@@ -6,7 +6,7 @@ import { trustworthyTransferredFacts } from './transferEvidence.js';
 import { buildDepotSections, auditPipelineOutput } from './pipelineInvariants.js';
 import { buildVisitBrief, confirmationGroup, confirmationPriority, evidenceStateLabel, uncertaintyPrompt, REVIEW_GROUPS } from './reviewPresentation.js';
 import { buildVisualSpecification, componentIcon, proposalRowNeedsAnswer, VISUAL_COMPONENTS, visualSelectionText } from './specificationVisuals.js';
-import { hasStructuredSurvey, interpretationFromStructuredVisit, structuredEvidence } from './structuredVisit.js';
+import { hasStructuredSurvey, interpretationFromStructuredVisit, interpretationRequiresRefresh, structuredEvidence } from './structuredVisit.js';
 import { buildCustomerAdvisories, proposalWithVisualSelections } from './customerAdvisories.js';
 import { addSurveyorProposal, proposalMissing } from './proposalWorkflow.js';
 
@@ -87,13 +87,19 @@ async function openCapture(id) {
     transferPayload = visit.payload;
     const saved = await api(`/spec-check/visits/${id}/processing-state`);
     interpretation = saved.interpretation;
-    interpretationNeedsUpgrade = Boolean(interpretation && (
-      Number(interpretation.interpretationVersion || 0) < 12 ||
-      (interpretation.sourceMode === 'structuredVisit' && Number(interpretation.interpretationVersion || 0) < 14)
-    ));
-    if (interpretationNeedsUpgrade) interpretation = null;
+    interpretationNeedsUpgrade = interpretationRequiresRefresh(visit.payload, interpretation);
     optionChecklists.clear();
-    restoreChecklists(saved.checklists).forEach((value, key) => optionChecklists.set(key, value));
+    if (interpretationNeedsUpgrade && hasStructuredSurvey(visit.payload)) {
+      // Structured Visit state is authoritative. Replace stale transcript-era
+      // derived state immediately so it cannot be resumed or exported even
+      // briefly over the newer native survey.
+      interpretation = interpretationFromStructuredVisit(visit.payload);
+      await persistProcessingState();
+      interpretationNeedsUpgrade = false;
+    } else {
+      if (interpretationNeedsUpgrade) interpretation = null;
+      restoreChecklists(saved.checklists).forEach((value, key) => optionChecklists.set(key, value));
+    }
     refreshAllAdvisories();
     $('transcript').value = transcriptOf(visit.payload);
     const evidence = evidenceOf(visit.payload); $('capturedEvidence').textContent = evidence; $('capturedEvidence').classList.toggle('hidden', !evidence);

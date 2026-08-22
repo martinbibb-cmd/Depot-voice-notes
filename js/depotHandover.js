@@ -8,6 +8,7 @@ import { buildVisitBrief, confirmationGroup, confirmationPriority, evidenceState
 import { buildVisualSpecification, componentIcon, proposalRowNeedsAnswer, VISUAL_COMPONENTS, visualSelectionText } from './specificationVisuals.js';
 import { hasStructuredSurvey, interpretationFromStructuredVisit, structuredEvidence } from './structuredVisit.js';
 import { buildCustomerAdvisories, proposalWithVisualSelections } from './customerAdvisories.js';
+import { addSurveyorProposal, proposalMissing } from './proposalWorkflow.js';
 
 const WORKER = 'https://depot-voice-notes.martinbibb.workers.dev';
 const $ = id => document.getElementById(id);
@@ -194,6 +195,11 @@ function renderBreezeSuggestion() {
   panel.replaceChildren();
   const heading = document.createElement('h3'); heading.textContent = 'Breeze package check'; panel.append(heading);
   const native = pipeRequirement(transferPayload?.pipeRuns || []);
+  if (proposalMissing(interpretation)) {
+    const missing = document.createElement('p');
+    missing.textContent = 'Create the proposal first. SpecCheck can then suggest the closest package from the confirmed boiler and position choices.';
+    panel.append(missing);
+  }
   (interpretation?.options || []).forEach((option, index) => {
     const inferred = inferredPrimaryRequirement(option, transferPayload?.pipeRuns || []);
     const runs = [...native.runs, ...(inferred ? [inferred] : [])];
@@ -226,7 +232,8 @@ function renderInterpretation() {
   group('Historical only', interpretation.historicalFacts);
   group('Rejected or compromised', interpretation.rejectedAlternatives, item => [item.text, item.reason].filter(Boolean).join(' — '));
   group('Uncertain evidence', interpretation.uncertainties, item => [item.text, item.context].filter(Boolean).join(' — '));
-  renderVisitBrief(null, 'visitBrief', [], new Set(['customer','needs','proposal','why','measurements','missing']));
+  const missingProposal = proposalMissing(interpretation) ? ['No proposal has been recorded. Create Option 1 and confirm what is being quoted.'] : [];
+  renderVisitBrief(null, 'visitBrief', missingProposal, new Set(['customer','needs','proposal','why','measurements','missing']));
   const actions = $('optionActions'); actions.replaceChildren();
   interpretation.options.forEach((option, index) => {
     const button = document.createElement('button'); button.className = index === 0 ? 'primary' : '';
@@ -234,6 +241,28 @@ function renderInterpretation() {
     button.onclick = () => prepareConfirmation(option, index);
     actions.append(button);
   });
+  if (proposalMissing(interpretation)) {
+    const button = document.createElement('button');
+    button.className = 'primary';
+    button.textContent = 'Create Option 1';
+    button.onclick = async () => {
+      button.disabled = true;
+      try {
+        const identifier = `surveyor-proposal-${currentVisitId || 'import'}-1`;
+        const option = addSurveyorProposal(interpretation, identifier);
+        await persistProcessingState();
+        renderInterpretation();
+        renderBreezeSuggestion();
+        $('aiCheckStatus').textContent = 'Option 1 created. Confirm the proposed equipment and work.';
+        await prepareConfirmation(option, 0);
+      } catch (error) {
+        button.disabled = false;
+        $('aiCheckStatus').className = 'status error';
+        $('aiCheckStatus').textContent = `Could not create Option 1: ${error.message}`;
+      }
+    };
+    actions.append(button);
+  }
 }
 
 function renderAdvisoryComparison() {

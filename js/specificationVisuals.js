@@ -159,11 +159,15 @@ function isSharedProposalDecision(kind, item) {
 export function buildVisualSpecification(interpretation, option, checklist = null) {
   const shared = interpretation?.sharedFacts || [];
   const selected = option?.facts || [];
+  // A proposal created in the PWA is an empty scope container, not an
+  // inference from Existing. Show the core decisions so the surveyor can set
+  // the proposal explicitly. No technical state is selected automatically.
+  const proposalStarters = new Set(['boiler', 'flue', 'gas', 'control', 'filter', 'condensate']);
   return definitions.flatMap(definition => {
     const proposalFacts = selected.filter(item => belongsToComponent(definition.id, item));
     const existingFacts = shared.filter(item => belongsToComponent(definition.id, item));
     const facts = uniqueFacts([...proposalFacts, ...existingFacts]);
-    if (!facts.length && definition.id !== 'gas') return [];
+    if (!facts.length && definition.id !== 'gas' && !(option?.surveyorCreated && proposalStarters.has(definition.id))) return [];
     const proposalText = proposalFacts.map(item => item.text).join(' ');
     const sharedDecisionFacts = existingFacts.filter(item => isSharedProposalDecision(definition.id, item));
     const sharedExistingFacts = existingFacts.filter(item => !isSharedProposalDecision(definition.id, item));

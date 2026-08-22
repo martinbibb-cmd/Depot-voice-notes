@@ -12,6 +12,11 @@ function payload() {
         { id: 'need', kind: 'derivedNeed', text: 'Retain reliable bath and shower hot water', origin: 'derivedRequirement', confirmed: true },
         { id: 'unconfirmed', kind: 'preference', text: 'Possibly hide every pipe', origin: 'customerStatement', confirmed: false }
       ],
+      measurements: [
+        { id: 'flow', layer: 'existing', section: 'water', kind: 'flow', value: 10, unit: 'L/min', qualifier: 'approximate', sourceText: 'about 10 litres a minute' },
+        { id: 'system-gas', layer: 'proposed', section: 'gas', proposalOptionID: 'system', kind: 'pipeSize', value: 22, unit: 'mm', qualifier: 'exact', sourceText: '22 mil gas' },
+        { id: 'combi-gas', layer: 'proposed', section: 'gas', proposalOptionID: 'combi', kind: 'pipeSize', value: 28, unit: 'mm', qualifier: 'exact', sourceText: '28 mil for the combi' }
+      ],
       proposals: [
         { id: 'system', name: 'Option 1', isSelected: true, components: [
           { id: 'boiler', section: 'boiler', type: 'System', action: 'replace', positionOrRoute: 'Same position', selectedNotes: [] },
@@ -53,4 +58,26 @@ test('structured evidence is readable audit material without requiring a transcr
   assert.ok(lines.some(line => line.includes('Existing — Boiler: System')));
   assert.ok(lines.some(line => line.includes('Option 1 [selected]')));
   assert.ok(lines.some(line => line.includes('approved note: Retain existing gas supply.')));
+  assert.ok(lines.some(line => line.includes('approximately 10 L/min')));
+});
+
+test('structured measurements preserve exact values, qualifiers and source evidence', () => {
+  const result = interpretationFromStructuredVisit(payload());
+  const flow = result.sharedFacts.find(item => item.id === 'structured-measurement-flow');
+  assert.equal(flow.text, 'Flow: approximately 10 L/min');
+  assert.equal(flow.sourceQuote, 'about 10 litres a minute');
+  const system = result.options.find(option => option.id === 'system');
+  const gas = system.facts.find(item => item.id === 'structured-measurement-system-gas');
+  assert.equal(gas.text, 'Pipe Size: 22 mm');
+  assert.equal(gas.sourceQuote, '22 mil gas');
+});
+
+test('option-scoped measurements never leak between proposals', () => {
+  const result = interpretationFromStructuredVisit(payload());
+  const system = result.options.find(option => option.id === 'system');
+  const combi = result.options.find(option => option.id === 'combi');
+  assert.ok(system.facts.some(item => item.text === 'Pipe Size: 22 mm'));
+  assert.ok(!system.facts.some(item => item.text === 'Pipe Size: 28 mm'));
+  assert.ok(combi.facts.some(item => item.text === 'Pipe Size: 28 mm'));
+  assert.ok(!combi.facts.some(item => item.text === 'Pipe Size: 22 mm'));
 });

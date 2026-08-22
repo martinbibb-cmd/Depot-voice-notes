@@ -12,7 +12,13 @@ const clean = value => String(value || '').trim();
 export function hasStructuredSurvey(payload) {
   const survey = payload?.structuredVisit;
   return Boolean(Number(payload?.schemaVersion || 1) >= 3 && survey &&
-    ((survey.existing || []).length || (survey.customer || []).length || (survey.proposals || []).some(option => (option.components || []).length)));
+    ((survey.existing || []).length || (survey.customer || []).length || (survey.measurements || []).length ||
+      (survey.proposals || []).some(option => (option.components || []).length)));
+}
+
+function measurementText(item) {
+  const qualifier = item.qualifier === 'approximate' ? 'approximately ' : '';
+  return `${title(item.kind)}: ${qualifier}${item.value} ${clean(item.unit)}`.trim();
 }
 
 export function structuredEvidence(payload) {
@@ -25,6 +31,10 @@ export function structuredEvidence(payload) {
   }
   for (const item of survey.customer || []) {
     if (clean(item.text)) lines.push(`Customer — ${title(item.kind)} [${title(item.origin)}]: ${clean(item.text)}`);
+  }
+  for (const item of survey.measurements || []) {
+    const scope = item.proposalOptionID ? `Proposal ${item.proposalOptionID}` : title(item.layer);
+    lines.push(`${scope} — ${title(item.section)} measurement: ${measurementText(item)}`);
   }
   for (const option of survey.proposals || []) for (const item of option.components || []) {
     const detail = [title(item.action), item.type, item.specification, item.positionOrRoute].map(clean).filter(Boolean).join(' · ');
@@ -57,6 +67,17 @@ function customerFacts(survey) {
   });
 }
 
+function measurementFact(item, index) {
+  const text = measurementText(item);
+  const source = clean(item.sourceText) || text;
+  return fact(`structured-measurement-${item.id || index}`, `${title(item.section)} measurement`, text,
+    sectionTargets[item.section] || 'System characteristics', source);
+}
+
+function sharedMeasurementFacts(survey) {
+  return (survey.measurements || []).filter(item => !item.proposalOptionID).map(measurementFact);
+}
+
 function proposedText(item) {
   const component = title(item.section || item.component);
   const action = title(item.action);
@@ -66,7 +87,7 @@ function proposedText(item) {
 }
 
 function optionFacts(option, optionIndex) {
-  return (option.components || []).flatMap((item, index) => {
+  const componentFacts = (option.components || []).flatMap((item, index) => {
     if (!item.action && !clean(item.type) && !clean(item.specification) && !clean(item.positionOrRoute)) return [];
     const direct = proposedText(item);
     const quote = `${option.name} — ${title(item.section)}: ${[title(item.action), item.type, item.specification, item.positionOrRoute].map(clean).filter(Boolean).join(' · ')}`;
@@ -75,6 +96,7 @@ function optionFacts(option, optionIndex) {
       fact(`structured-note-${option.id || optionIndex}-${note.id || noteIndex}`, title(item.section), clean(note.text), sectionTargets[item.section] || 'Office notes', `${option.name} — approved note: ${clean(note.text)}`));
     return [base, ...approved];
   });
+  return componentFacts;
 }
 
 export function interpretationFromStructuredVisit(payload) {
@@ -83,13 +105,16 @@ export function interpretationFromStructuredVisit(payload) {
   return {
     interpretationVersion: 13,
     sourceMode: 'structuredVisit',
-    sharedFacts: [...existingFacts(survey), ...customerFacts(survey)],
+    sharedFacts: [...existingFacts(survey), ...customerFacts(survey), ...sharedMeasurementFacts(survey)],
     options: (survey.proposals || []).map((option, index) => ({
       id: option.id || `structured-option-${index + 1}`,
       name: option.name || `Option ${index + 1}`,
       summary: clean(option.summary),
       status: option.isSelected ? 'preferred' : 'alternative',
-      facts: optionFacts(option, index)
+      facts: [
+        ...optionFacts(option, index),
+        ...(survey.measurements || []).filter(item => item.proposalOptionID === option.id).map(measurementFact)
+      ]
     })),
     uncertainties: (survey.evidence || []).filter(item => clean(item.text) && /uncertain|unresolved/i.test(String(item.origin))).map((item, index) =>
       fact(`structured-uncertainty-${item.id || index}`, 'Uncertainty', clean(item.text), 'Office notes', clean(item.text)))

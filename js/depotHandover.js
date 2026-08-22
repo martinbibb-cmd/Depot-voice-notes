@@ -323,7 +323,7 @@ function renderProposalBoard(option, target = 'confirmProposalBoard') {
       });
       tile.append(group);
     };
-    addChoiceGroup('type','Type',config.typeChoices,row.subtype);
+    addChoiceGroup('type', row.component === 'gas' ? (row.action === 'Replace' ? 'Required size' : 'Pipe size') : 'Type', config.typeChoices,row.subtype);
     addChoiceGroup('action','Action',config.actions,row.action);
     const evidence = document.createElement('details'); evidence.className = 'proposal-evidence';
     const evidenceSummary = document.createElement('summary'); evidenceSummary.textContent = `Supporting evidence (${row.facts.length})`; evidence.append(evidenceSummary);

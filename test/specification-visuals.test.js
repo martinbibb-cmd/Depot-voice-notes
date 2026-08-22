@@ -164,6 +164,30 @@ test('gas size is useful but optional when existing supply is confirmed adequate
   assert.match(visualSelectionText('gas', 'action', 'Retain'), /adequate for this proposal/i);
 });
 
+test('gas adequacy is mandatory even when no gas evidence was captured', () => {
+  const rows = buildVisualSpecification({ sharedFacts:[] }, { id:'selected', facts:[] });
+  const gas = rows.find(row => row.component === 'gas');
+  assert(gas);
+  assert.equal(gas.action, 'Unresolved');
+  assert.equal(proposalRowNeedsAnswer(gas), true);
+  assert.deepEqual(VISUAL_COMPONENTS.gas.actions, [['Retain','Existing adequate'],['Replace','Alter / replace']]);
+});
+
+test('gas alteration requires the replacement size while adequate existing gas does not', () => {
+  const replace = buildVisualSpecification({ sharedFacts:[] }, { id:'selected', facts:[
+    { id:'gas', category:'Gas', text:'Upgrade the gas supply for the selected proposal.' }
+  ] }).find(row => row.component === 'gas');
+  assert.equal(replace.action, 'Replace');
+  assert.equal(replace.typeRequired, true);
+  assert.equal(proposalRowNeedsAnswer(replace), true);
+
+  const corrected = buildVisualSpecification({ sharedFacts:[] }, { id:'selected', facts:[
+    { id:'gas', category:'Gas', text:'Upgrade the gas supply for the selected proposal.' }
+  ] }, { items:[{ visualComponent:'gas', visualField:'type', visualValue:'28 mm' }] }).find(row => row.component === 'gas');
+  assert.equal(corrected.subtype, '28 mm');
+  assert.equal(proposalRowNeedsAnswer(corrected), false);
+});
+
 test('completed survey editor offers no unresolved or not-established outcome', () => {
   const labels = Object.values(VISUAL_COMPONENTS).flatMap(component => component.actions || []).flatMap(choice => Array.isArray(choice) ? choice : [choice]);
   assert(!labels.some(value => /unresolved|not established/i.test(value)));

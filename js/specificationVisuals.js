@@ -50,7 +50,7 @@ export const VISUAL_COMPONENTS = {
   cylinder: { actions:[['Already done','Work completed'],['Retain','Retain'],['Replace','Replace'],['Remove','Remove'],['New','Install new']], section:'System characteristics' },
   flue: { typeChoices:[['fanned','Fanned'],['balanced','Balanced']], actions:[['Same hole','Existing opening'],['New hole','New opening'],['Seal old opening','Seal former opening']], section:'Flue' },
   control: { actions:[['Already done','Work completed'],['Retain','Retain'],['Replace','Replace'],['New','Install new']], section:'New boiler and controls' },
-  gas: { typeChoices:[['15 mm','15 mm'],['22 mm','22 mm'],['28 mm','28 mm'],['35 mm','35 mm']], actions:[['Retain','Existing adequate'],['Replace','Upgrade / alter'],['New','New supply / route']], section:'Gas supply' },
+  gas: { typeChoices:[['15 mm','15 mm'],['22 mm','22 mm'],['28 mm','28 mm'],['35 mm','35 mm']], actions:[['Retain','Existing adequate'],['Replace','Alter / replace']], section:'Gas supply' },
   filter: { actions:[['Already done','Work completed'],['Retain','Retain'],['Replace','Replace'],['New','Install new'],['Not required','Not required']], section:'New boiler and controls' },
   powerflush: { actions:[['Already done','Previously completed'],['Include','Include'],['Not required','Not required']], section:'System characteristics' },
   condensate: { actions:[['Already done','Work completed'],['Retain','Retain'],['Replace','Replace'],['New','Install new']], section:'Condensate and discharge' },
@@ -163,7 +163,7 @@ export function buildVisualSpecification(interpretation, option, checklist = nul
     const proposalFacts = selected.filter(item => belongsToComponent(definition.id, item));
     const existingFacts = shared.filter(item => belongsToComponent(definition.id, item));
     const facts = uniqueFacts([...proposalFacts, ...existingFacts]);
-    if (!facts.length) return [];
+    if (!facts.length && definition.id !== 'gas') return [];
     const proposalText = proposalFacts.map(item => item.text).join(' ');
     const sharedDecisionFacts = existingFacts.filter(item => isSharedProposalDecision(definition.id, item));
     const sharedExistingFacts = existingFacts.filter(item => !isSharedProposalDecision(definition.id, item));
@@ -177,7 +177,8 @@ export function buildVisualSpecification(interpretation, option, checklist = nul
     const inferredSubtype = proposalSubtype || typeFor(definition.id, sharedDecisionText);
     const existingSubtype = typeFor(definition.id, sharedExistingText);
     const inferredAction = action;
-    return [{ component: definition.id, label: definition.label, subtype: typeOverride?.visualValue || inferredSubtype, existingSubtype, specification: definition.id === 'gas' ? (typeOverride?.visualValue || inferredSubtype || existingSubtype) : '', typeRequired: ['boiler', 'flue'].includes(definition.id), action: actionOverride?.visualValue || inferredAction, inferredSubtype, inferredAction, facts, proposalId: option?.id || null }];
+    const finalAction = actionOverride?.visualValue || inferredAction;
+    return [{ component: definition.id, label: definition.label, subtype: typeOverride?.visualValue || inferredSubtype, existingSubtype, specification: definition.id === 'gas' ? (typeOverride?.visualValue || inferredSubtype || existingSubtype) : '', typeRequired: ['boiler', 'flue'].includes(definition.id) || (definition.id === 'gas' && finalAction === 'Replace'), action: finalAction, inferredSubtype, inferredAction, facts, proposalId: option?.id || null }];
   });
 }
 

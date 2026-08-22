@@ -25,6 +25,12 @@ test('claim checks reject numeric drift, certainty promotion and lost negation',
   assert.deepEqual(claimIntegrityErrors({ text: '22 mm gas pipe recorded.', evidenceQuote: '22mm gas pipe' }), []);
 });
 
+test('an explicit surveyor numeric correction is valid without pretending it came from the transcript', () => {
+  const corrected = { text: 'Existing gas supply is 15 mm.', evidenceQuote: 'gas supply discussed', manual: true, evidenceSource: 'surveyorVisualCorrection', evidenceState: 'surveyorConfirmed' };
+  assert.deepEqual(claimIntegrityErrors(corrected), []);
+  assert(claimIntegrityErrors({ ...corrected, manual: false }).some(error => /numeric/.test(error)));
+});
+
 test('unresolved evidence remains explicit and customer intent survives an incompatible selected proposal', () => {
   const facts = [
     fact('want', 'Customer wants to remove stored-water equipment to gain space.', 'Needs'),

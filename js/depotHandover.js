@@ -515,6 +515,8 @@ async function generateOption() {
   if (optionDrafts.has(option.id)) {
     notes = structuredClone(optionDrafts.get(option.id)); beginDraft(); return;
   }
+  $('writeOptionBtn').disabled = true;
+  $('confirmationStatus').className = 'status';
   $('confirmationStatus').textContent = `Writing Option ${index + 1} from confirmed information…`;
   try {
     const confirmedItems = confirmedChecklistItems(optionChecklists.get(option.id));
@@ -523,7 +525,13 @@ async function generateOption() {
     const errors = auditPipelineOutput({ confirmedItems, depotSections: result, handover: { engineer: result.map(section => ({ factIds: section.factIds })) } });
     if (errors.some(error => error.code !== 'handover_coverage')) throw new Error('Confirmed evidence failed the Depot-note integrity check. Return to confirmation and reprocess the affected fact.');
     optionDrafts.set(option.id, structuredClone(notes)); beginDraft();
-  } catch (error) { $('aiCheckStatus').textContent = error.message; $('aiCheckStatus').className = 'status error'; }
+  } catch (error) {
+    $('confirmationStatus').textContent = `Depot notes were not created: ${error.message}`;
+    $('confirmationStatus').className = 'status error';
+    updateConfirmationStatus(optionChecklists.get(option.id));
+    $('confirmationStatus').textContent = `Depot notes were not created: ${error.message}`;
+    $('confirmationStatus').className = 'status error';
+  }
 }
 function bullets(text) { return text.replace(/# Involved #;?/gi, '').split(/;|\n/).map(x => x.replace(/^[-•]\s*/, '').trim()).filter(Boolean).map(x => `• ${x}`).join('\n'); }
 function renderEditableNotes() {

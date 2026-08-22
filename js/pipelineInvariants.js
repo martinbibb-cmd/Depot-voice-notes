@@ -13,7 +13,10 @@ export function claimIntegrityErrors(fact) {
   const text = clean(fact?.text), quote = clean(fact?.evidenceQuote);
   const errors = [];
   if (!fact?.manual && !quote) errors.push('missing evidence quote');
-  if (numeric(text).some(number => !numeric(quote).includes(number))) errors.push('numeric value is absent from evidence quote');
+  // An explicit surveyor correction may replace a captured value. Its source is
+  // the surveyor action, not a claim that the new number appeared in the audio.
+  // All non-manual/model-derived values remain locked to their evidence quote.
+  if (!fact?.manual && numeric(text).some(number => !numeric(quote).includes(number))) errors.push('numeric value is absent from evidence quote');
   if (fact?.evidenceState !== 'derivedRequirement' && uncertainty.test(quote) && !uncertainty.test(text)) errors.push('uncertainty was strengthened');
   if (fact?.evidenceState === 'derivedRequirement' && (!(fact.supportingFactIds || []).length || !(fact.supportingEvidenceQuotes || []).length)) errors.push('derived requirement is missing supporting evidence');
   if (negation.test(quote) && !negation.test(text)) errors.push('negation was lost');

@@ -30,6 +30,21 @@ export function visualSelection(state, component, field) {
   return (state?.items || []).find(item => !item.removed && item.visualComponent === component && item.visualField === field) || null;
 }
 
+export function advisoryDecision(state, advisoryId) {
+  return state?.advisoryDecisions?.[advisoryId] || null;
+}
+
+export function setAdvisoryDecision(state, advisoryId, decision, answer = '') {
+  state.advisoryDecisions ||= {};
+  state.advisoryDecisions[advisoryId] = {
+    decision,
+    answer: String(answer || '').trim(),
+    evidenceSource: 'surveyorConfirmation',
+    updatedAt: new Date().toISOString()
+  };
+  return state.advisoryDecisions[advisoryId];
+}
+
 export function applyVisualSelection(state, selection) {
   state.items ||= [];
   const key = `visual-${selection.component}-${selection.field}`;

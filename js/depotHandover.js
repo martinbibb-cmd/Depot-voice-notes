@@ -1,5 +1,5 @@
 import { clearAuthToken, getAuthToken } from '../src/auth/auth-client.js';
-import { applySurveyorCorrection, applyVisualSelection, confirmedChecklistItems, restoreChecklists, serialiseChecklists } from './confirmationState.js';
+import { advisoryDecision, applySurveyorCorrection, applyVisualSelection, confirmedChecklistItems, restoreChecklists, serialiseChecklists, setAdvisoryDecision } from './confirmationState.js';
 import { communicationSafeguards, derivedWorkSuggestions, mergeSafeguards, unresolvedSafeguards } from './handoverSafeguards.js';
 import { inferredPrimaryRequirement, pipeRequirement, suggestPackage } from './breezePackages.js';
 import { trustworthyTransferredFacts } from './transferEvidence.js';
@@ -303,12 +303,54 @@ function renderSelectedAdvisories() {
   container.replaceChildren();
   if (!selectedOption?.customerAdvisories?.length) return;
   const heading = document.createElement('h3'); heading.textContent = 'What this proposal means for the customer'; container.append(heading);
+  const checklist = optionChecklists.get(selectedOption.id) || { items: [] };
   selectedOption.customerAdvisories.forEach(item => {
     const row = document.createElement('div'); row.className = `customer-advisory ${item.class}`;
     const label = document.createElement('strong'); label.textContent = item.heading;
     const state = document.createElement('span'); state.className = 'advisory-class'; state.textContent = ({ information:'Information', advisory:'Advisory', caution:'Caution', needsConfirmation:'Needs confirmation' })[item.class] || 'Information';
     const text = document.createElement('p'); text.textContent = item.text;
-    row.append(label, state, text); container.append(row);
+    row.append(label, state, text);
+    if (item.class === 'needsConfirmation') {
+      const saved = advisoryDecision(checklist, item.id);
+      const actions = document.createElement('div'); actions.className = 'card-actions';
+      const outstanding = document.createElement('button'); outstanding.type = 'button';
+      outstanding.className = saved?.decision === 'outstanding' ? 'primary' : '';
+      outstanding.textContent = saved?.decision === 'outstanding' ? '✓ Kept as outstanding' : 'Keep as outstanding';
+      outstanding.onclick = () => {
+        setAdvisoryDecision(checklist, item.id, 'outstanding');
+        checklistChanged(); renderConfirmation();
+      };
+      actions.append(outstanding);
+      const resolve = document.createElement('details'); resolve.className = 'card-correction';
+      const summary = document.createElement('summary'); summary.textContent = saved?.decision === 'resolved' ? '✓ Confirmed answer recorded' : 'Add the confirmed answer';
+      const input = document.createElement('textarea'); input.value = saved?.answer || ''; input.placeholder = 'What was confirmed during the survey?';
+      const save = document.createElement('button'); save.type = 'button'; save.textContent = 'Save confirmed answer';
+      save.onclick = () => {
+        if (!input.value.trim()) return;
+        setAdvisoryDecision(checklist, item.id, 'resolved', input.value);
+        checklistChanged(); renderConfirmation();
+      };
+      resolve.append(summary, input, save);
+      if (saved?.decision === 'resolved') {
+        const answer = document.createElement('p'); answer.className = 'hint'; answer.textContent = `Confirmed: ${saved.answer}`; row.append(answer);
+      }
+      row.append(actions, resolve);
+    }
+    container.append(row);
+  });
+}
+
+function customerAdvisoriesForOutput(option, checklist) {
+  return (option?.customerAdvisories || []).map(item => {
+    const saved = advisoryDecision(checklist, item.id);
+    if (saved?.decision !== 'resolved' || !saved.answer) return item;
+    return {
+      ...item,
+      class: 'information',
+      heading: `${item.heading} — confirmed`,
+      text: saved.answer,
+      surveyorResolution: saved
+    };
   });
 }
 function renderVisitBrief(option = null, target = 'visitBrief', additionalMissing = [], allowedIds = null) {
@@ -599,10 +641,13 @@ function updateConfirmationStatus(state) {
   const checked = safe.filter(item => item.checked).length;
   const attention = visible.filter(item => item.kind === 'informationGap' || (item.evidenceState === 'uncertain' && !item.checked) || (item.kind !== 'evidenceFact' && !item.checked)).length;
   const answersRequired = selectedOption ? proposalAnswersRequired(selectedOption, state) : 0;
+  const advisoryAnswersRequired = (selectedOption?.customerAdvisories || []).filter(item => item.class === 'needsConfirmation' && !advisoryDecision(state, item.id)).length;
   $('confirmationStatus').className = 'status';
-  $('confirmationStatus').textContent = attention ? `${attention} item${attention === 1 ? '' : 's'} still need resolving.` : (checked === safe.length && safe.length ? 'Ready to create Depot notes.' : 'Confirm the proposal above.');
+  $('confirmationStatus').textContent = advisoryAnswersRequired
+    ? `${advisoryAnswersRequired} customer point${advisoryAnswersRequired === 1 ? '' : 's'} must be resolved or kept as outstanding.`
+    : attention ? `${attention} item${attention === 1 ? '' : 's'} still need resolving.` : (checked === safe.length && safe.length ? 'Ready to create Depot notes.' : 'Confirm the proposal above.');
   $('confirmationStatus').className = 'status';
-  $('writeOptionBtn').disabled = answersRequired > 0 || attention > 0 || (safe.length > 0 && checked !== safe.length);
+  $('writeOptionBtn').disabled = answersRequired > 0 || advisoryAnswersRequired > 0 || attention > 0 || (safe.length > 0 && checked !== safe.length);
 }
 async function confirmOverallUnderstanding() {
   if (!selectedOption) return;
@@ -770,7 +815,7 @@ async function handover() {
       confirmedChecklistItems: confirmedItems,
       uncertainties: technicalUncertainties,
       surveyorEditedNotes: notes,
-      customerAdvisories: selectedOption.customerAdvisories || []
+      customerAdvisories: customerAdvisoriesForOutput(selectedOption, optionChecklists.get(selectedOption.id))
     }) });
     const customerSource = handoverDocuments.customer.map(section => ({ name: section.heading, text: section.text }));
     const engineerSource = handoverDocuments.engineer.map(section => ({ name: section.heading, text: section.bullets.map(value => `• ${value}`).join('\n') }));

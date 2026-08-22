@@ -266,9 +266,17 @@ export function auditPipelineOutput({ confirmedItems = [], depotSections = [], h
   const unresolved = confirmedItems.filter(item => item.evidenceState === 'uncertain');
   const unresolvedSection = handover?.engineer?.find(section => section.heading === 'Unresolved points');
   if (unresolved.length && /No information recorded/i.test((unresolvedSection?.bullets || []).join(' '))) errors.push({ code: 'lost_uncertainty' });
-  const current = confirmedItems.filter(item => item.evidenceState !== 'uncertain').map(item => clean(item.text)).join(' ').toLowerCase();
-  if (/\bgas\b/.test(current) && /(?:upgrade|new)\b.{0,50}\bgas\b|\bgas\b.{0,50}(?:upgrade|new)/.test(current) &&
-      /(?:retain|use existing)\b.{0,50}\bgas\b|\bgas\b.{0,50}(?:retain|use existing)/.test(current)) {
+  const currentItems = confirmedItems.filter(item => item.evidenceState !== 'uncertain');
+  const current = currentItems.map(item => clean(item.text)).join(' ').toLowerCase();
+  // Detect conflicts within gas-scoped facts only. Searching the concatenated
+  // Visit text allowed an unrelated following item (for example "New
+  // Condensate") to be mistaken for a new gas supply.
+  const gasStatements = currentItems
+    .filter(item => /\bgas\b/i.test(`${item.category || ''} ${item.targetSection || ''} ${item.text || ''}`))
+    .map(item => clean(item.text).toLowerCase());
+  const gasUpgrade = gasStatements.some(value => /\b(?:upgrade|replace|install new|new gas)\b/.test(value));
+  const gasRetain = gasStatements.some(value => /\b(?:retain|use existing|existing gas supply is adequate)\b/.test(value));
+  if (gasUpgrade && gasRetain) {
     errors.push({ code: 'contradictory_selected_scope', subject: 'gas supply' });
   }
   if (/(?:install|replace with).{0,40}\bcombi\b/.test(current) && /(?:install|replace with).{0,40}\bsystem boiler\b/.test(current)) {

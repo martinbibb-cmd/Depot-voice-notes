@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildVisualSpecification, componentIcon, proposalRowNeedsAnswer, VISUAL_COMPONENTS, visualSelectionText } from '../js/specificationVisuals.js';
+import { buildVisualSpecification, choicesForVisualRow, componentIcon, proposalRowNeedsAnswer, VISUAL_COMPONENTS, visualSelectionText } from '../js/specificationVisuals.js';
 
 test('boiler SVG grammar uses the mandatory composable mappings', () => {
   assert.match(componentIcon('boiler', 'regular'), /data-primitives="flame"/);
@@ -38,6 +38,12 @@ test('flue location action remains separate from the flue type icon', () => {
   const row = buildVisualSpecification(interpretation, option).find(item => item.component === 'flue');
   assert.equal(row.subtype, 'fanned');
   assert.equal(row.action, 'New hole');
+});
+
+test('a grounded flue does not offer invented alternative designs', () => {
+  const row = { component:'flue' };
+  assert.deepEqual(choicesForVisualRow(row, 'type', VISUAL_COMPONENTS.flue.typeChoices, 'fanned'), [['fanned','Fanned']]);
+  assert.deepEqual(choicesForVisualRow(row, 'action', VISUAL_COMPONENTS.flue.actions, 'Same hole'), [['Same hole','Existing opening']]);
 });
 
 test('powerflush uses a machine primitive rather than a generic droplet', () => {

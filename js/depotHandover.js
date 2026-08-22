@@ -5,7 +5,7 @@ import { inferredPrimaryRequirement, pipeRequirement, suggestPackage } from './b
 import { trustworthyTransferredFacts } from './transferEvidence.js';
 import { buildDepotSections, auditPipelineOutput } from './pipelineInvariants.js';
 import { buildVisitBrief, confirmationGroup, confirmationPriority, evidenceStateLabel, uncertaintyPrompt, REVIEW_GROUPS } from './reviewPresentation.js';
-import { buildVisualSpecification, componentIcon, proposalRowNeedsAnswer, VISUAL_COMPONENTS, visualSelectionText } from './specificationVisuals.js';
+import { buildVisualSpecification, choicesForVisualRow, componentIcon, proposalRowNeedsAnswer, VISUAL_COMPONENTS, visualSelectionText } from './specificationVisuals.js';
 import { hasStructuredSurvey, interpretationFromStructuredVisit, interpretationRequiresRefresh, structuredEvidence } from './structuredVisit.js';
 import { buildCustomerAdvisories, proposalWithVisualSelections } from './customerAdvisories.js';
 import { addSurveyorProposal, proposalMissing } from './proposalWorkflow.js';
@@ -401,8 +401,8 @@ function renderProposalBoard(option, target = 'confirmProposalBoard') {
       });
       tile.append(group);
     };
-    addChoiceGroup('type', row.component === 'gas' ? (row.action === 'Replace' ? 'Required size' : 'Pipe size') : 'Type', config.typeChoices,row.subtype);
-    addChoiceGroup('action','Action',config.actions,row.action);
+    addChoiceGroup('type', row.component === 'gas' ? (row.action === 'Replace' ? 'Required size' : 'Pipe size') : 'Type', choicesForVisualRow(row, 'type', config.typeChoices, row.subtype),row.subtype);
+    addChoiceGroup('action','Action',choicesForVisualRow(row, 'action', config.actions, row.action),row.action);
     const evidence = document.createElement('details'); evidence.className = 'proposal-evidence';
     const evidenceSummary = document.createElement('summary'); evidenceSummary.textContent = `Supporting evidence (${row.facts.length})`; evidence.append(evidenceSummary);
     const list = document.createElement('ul'); row.facts.forEach(fact => {
@@ -643,11 +643,18 @@ function updateConfirmationStatus(state) {
   const answersRequired = selectedOption ? proposalAnswersRequired(selectedOption, state) : 0;
   const advisoryAnswersRequired = (selectedOption?.customerAdvisories || []).filter(item => item.class === 'needsConfirmation' && !advisoryDecision(state, item.id)).length;
   $('confirmationStatus').className = 'status';
-  $('confirmationStatus').textContent = advisoryAnswersRequired
-    ? `${advisoryAnswersRequired} customer point${advisoryAnswersRequired === 1 ? '' : 's'} must be resolved or kept as outstanding.`
-    : attention ? `${attention} item${attention === 1 ? '' : 's'} still need resolving.` : (checked === safe.length && safe.length ? 'Ready to create Depot notes.' : 'Confirm the proposal above.');
+  $('confirmationStatus').textContent = answersRequired
+    ? `${answersRequired} proposal answer${answersRequired === 1 ? '' : 's'} required above.`
+    : checked !== safe.length
+      ? 'Confirm the proposal above.'
+      : advisoryAnswersRequired || attention
+        ? `Ready to create Depot notes. ${advisoryAnswersRequired + attention} outstanding point${advisoryAnswersRequired + attention === 1 ? '' : 's'} will remain clearly identified.`
+        : 'Ready to create Depot notes.';
   $('confirmationStatus').className = 'status';
-  $('writeOptionBtn').disabled = answersRequired > 0 || advisoryAnswersRequired > 0 || attention > 0 || (safe.length > 0 && checked !== safe.length);
+  // Approved product behaviour permits unresolved matters to proceed into the
+  // notes provided they remain explicit. Only missing proposal selections and
+  // an unconfirmed proposal block generation.
+  $('writeOptionBtn').disabled = answersRequired > 0 || (safe.length > 0 && checked !== safe.length);
 }
 async function confirmOverallUnderstanding() {
   if (!selectedOption) return;

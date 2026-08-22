@@ -63,6 +63,11 @@ export const VISUAL_COMPONENTS = {
   scaffold: { actions:[['Required','Required'],['Not required','Not required']], section:'Working at heights' }
 };
 
+export function choicesForVisualRow(row, field, choices, selected) {
+  if (row.component !== 'flue' || !selected || selected === 'Unresolved') return choices;
+  return choices.filter(choice => (Array.isArray(choice) ? choice[0] : choice) === selected);
+}
+
 const definitions = [
   { id:'boiler', label:'Boiler', pattern:/\bboiler\b/i },
   { id:'cylinder', label:'Cylinder', pattern:/\bcylinder\b|stored hot water/i },

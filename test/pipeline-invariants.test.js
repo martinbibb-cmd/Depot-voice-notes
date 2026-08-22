@@ -88,3 +88,13 @@ test('generation fails contradictory selected gas or boiler scope', () => {
   const boilers = [fact('b1', 'Install combi boiler.', 'New boiler and controls'), fact('b2', 'Install system boiler.', 'New boiler and controls')];
   assert(auditPipelineOutput({ confirmedItems: boilers, depotSections: buildDepotSections(boilers), handover: buildHandoverDocuments({ confirmedChecklistItems: boilers }) }).some(x => x.subject === 'boiler type'));
 });
+
+test('new condensate beside retained gas is not a gas-scope contradiction', () => {
+  const facts = [
+    fact('gas', 'Retain Gas.', 'Pipe work', { category:'Gas supply' }),
+    fact('condensate', 'Install new condensate.', 'Pipe work', { category:'Condensate' })
+  ];
+  const handover = buildHandoverDocuments({ confirmedChecklistItems:facts });
+  const errors = auditPipelineOutput({ confirmedItems:facts, depotSections:buildDepotSections(facts), handover });
+  assert(!errors.some(error => error.code === 'contradictory_selected_scope' && error.subject === 'gas supply'));
+});

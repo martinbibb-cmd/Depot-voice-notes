@@ -2,6 +2,20 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { hasStructuredSurvey, interpretationFromStructuredVisit, structuredEvidence } from '../js/structuredVisit.js';
 
+test('structured discharge remains separate from condensate and maps to installation pipework', () => {
+  const payload = { schemaVersion:3, structuredVisit:{ existing:[], customer:[], measurements:[], evidence:[], proposals:[{
+    id:'option-1', name:'Option 1', isSelected:true, components:[
+      { id:'cond', section:'condensate', action:'retain', selectedNotes:[] },
+      { id:'discharge', section:'discharge', action:'replace', selectedNotes:[{ id:'note', confirmed:true, text:'Alter existing discharge pipework.' }] }
+    ]
+  }] } };
+  const result = interpretationFromStructuredVisit(payload);
+  const option = result.options[0];
+  assert(option.facts.some(item => item.category === 'Condensate' && /Retain/.test(item.canonicalMeaning)));
+  assert(option.facts.some(item => item.category === 'Discharge' && /Alter existing discharge/.test(item.canonicalMeaning)));
+  assert(option.facts.filter(item => item.category === 'Discharge').every(item => item.targetSection === 'Pipe work'));
+});
+
 function payload() {
   return {
     schemaVersion: 3,

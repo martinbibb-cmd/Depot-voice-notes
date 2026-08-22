@@ -1,7 +1,7 @@
 const sectionTargets = {
   boiler: 'New boiler and controls', hotWater: 'System characteristics', flue: 'Flue',
   gas: 'Pipe work', heating: 'Pipe work', controls: 'New boiler and controls',
-  condensate: 'Pipe work', water: 'System characteristics', emitters: 'Pipe work',
+  condensate: 'Pipe work', discharge: 'Pipe work', water: 'System characteristics', emitters: 'Pipe work',
   electrical: 'New boiler and controls', access: 'Restrictions to work',
   systemTreatment: 'Pipe work', other: 'Office notes'
 };

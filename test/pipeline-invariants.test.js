@@ -98,3 +98,70 @@ test('new condensate beside retained gas is not a gas-scope contradiction', () =
   const errors = auditPipelineOutput({ confirmedItems:facts, depotSections:buildDepotSections(facts), handover });
   assert(!errors.some(error => error.code === 'contradictory_selected_scope' && error.subject === 'gas supply'));
 });
+
+test('customer handover relates confirmed priorities to the selected recommendation', () => {
+  const handover = buildHandoverDocuments({
+    selectedProposal:{ id:'system-option', name:'System boiler replacement' },
+    customerContext:[{
+      id:'space-priority', topic:'spaceAppearance', priority:'mostImportant', confirmed:true,
+      text:'Gain cupboard space by removing the hot-water cylinder.'
+    }],
+    customerAdvisories:[{
+      id:'system-option:customer_priority_tradeoff', flagType:'customer_priority_tradeoff',
+      heading:'How this option matches your priorities', class:'advisory',
+      text:'This option does not fully achieve the stated space-saving aim because the stored-hot-water equipment is retained.',
+      support:{ customerFactIds:['customer:space-priority'], existingFactIds:[], measurementIds:[], proposedComponentIds:['proposal:system-option:cylinder'] }
+    }]
+  });
+  const relationship = handover.customer.find(section => section.heading === 'How the recommendation relates to your priorities');
+  assert.match(relationship.text, /Most important: Gain cupboard space/);
+  assert.match(relationship.text, /does not fully achieve/i);
+  assert.equal(relationship.proposalOptionId, 'system-option');
+  assert.deepEqual(relationship.customerIds, ['space-priority']);
+  assert(!handover.customer.some(section => section.heading === 'How this option matches your priorities'));
+});
+
+test('handover does not claim an unsupported priority is met', () => {
+  const handover = buildHandoverDocuments({
+    selectedProposal:{ id:'option-1' },
+    customerContext:[{
+      id:'budget', topic:'budget', priority:'important', confirmed:true,
+      text:'Best long-term value is important.'
+    }],
+    customerAdvisories:[]
+  });
+  const relationship = handover.customer.find(section => section.heading === 'How the recommendation relates to your priorities');
+  assert.match(relationship.text, /does not yet contain enough structured information/i);
+  assert.doesNotMatch(relationship.text, /meets|satisfies/i);
+});
+
+test('recommendation relationship contains only the supplied selected-option advisory', () => {
+  const handover = buildHandoverDocuments({
+    selectedProposal:{ id:'system-option' },
+    customerContext:[{ id:'space', topic:'spaceAppearance', priority:'important', confirmed:true, text:'Gain cupboard space.' }],
+    customerAdvisories:[{
+      id:'system-option:tradeoff', flagType:'customer_priority_tradeoff', heading:'How this option matches your priorities',
+      text:'The cylinder is retained for this option.', support:{ customerFactIds:['customer:space'] }
+    }]
+  });
+  const text = handover.customer.find(section => section.heading === 'How the recommendation relates to your priorities').text;
+  assert.match(text, /cylinder is retained/i);
+  assert.doesNotMatch(text, /cylinder is removed/i);
+});
+
+test('customer hot-water use is related to measured recommendation advice without repetition', () => {
+  const advisory = {
+    id:'combi:outlet-mismatch', flagType:'combi_multi_outlet_mismatch', heading:'Things to be aware of',
+    text:'The recorded water performance supports one hot-water outlet at a time, which may not meet the confirmed simultaneous-use requirement.',
+    support:{ customerFactIds:['customer:simultaneous'], measurementIds:['measurement:flow','measurement:dynamic'] }
+  };
+  const handover = buildHandoverDocuments({
+    selectedProposal:{ id:'combi' },
+    customerContext:[{ id:'simultaneous', topic:'hotWater', priority:'mostImportant', confirmed:true, text:'Two hot-water outlets are sometimes used together.' }],
+    customerAdvisories:[advisory]
+  });
+  const relationship = handover.customer.find(section => section.heading === 'How the recommendation relates to your priorities');
+  assert.match(relationship.text, /one hot-water outlet at a time/i);
+  assert.equal(handover.customer.flatMap(section => section.advisoryIds || []).filter(id => id === advisory.id).length, 1);
+  assert(!handover.customer.some(section => section.heading === 'Things to be aware of'));
+});

@@ -815,9 +815,12 @@ async function handover() {
     const relevantWantsNeeds = confirmedItems.filter(item => item.targetSection === 'Needs');
     const technicalUncertainties = confirmedItems.filter(item => item.evidenceState === 'uncertain' || /to confirm|unknown|unresolved|uncertain/i.test(item.text));
     const confirmedFacts = confirmedItems.map(item => ({ id: item.id, category: item.targetSection, text: item.text, evidenceQuote: item.evidenceQuote, evidenceSource: item.evidenceSource, evidenceState: item.evidenceState }));
+    const structuredSurvey = transferPayload?.structuredVisit;
+    const structuredProposal = structuredSurvey?.proposals?.find(option => option.id === selectedOption.id) || null;
     handoverDocuments = await api('/handover-documents', { method: 'POST', body: JSON.stringify({
       sharedFacts: confirmedFacts,
-      selectedProposal: { id: selectedOption.id, title: `Confirmed option ${selectedOption.number}`, facts: confirmedFacts },
+      selectedProposal: structuredProposal || { id: selectedOption.id, title: `Confirmed option ${selectedOption.number}`, facts: confirmedFacts },
+      customerContext: structuredSurvey?.customer || [],
       relevantWantsNeeds,
       confirmedChecklistItems: confirmedItems,
       uncertainties: technicalUncertainties,

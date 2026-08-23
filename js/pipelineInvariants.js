@@ -140,7 +140,59 @@ function engineerSection(item) {
   return 'Heating, hot water and pipe routes';
 }
 
-export function buildHandoverDocuments({ confirmedChecklistItems = [], uncertainties = [], customerAdvisories = [] } = {}) {
+const CUSTOMER_PRIORITY_LABELS = Object.freeze({
+  mostImportant: 'Most important', important: 'Important', niceToHave: 'Nice to have'
+});
+
+function advisoryCustomerIds(item) {
+  return new Set((item?.support?.customerFactIds || []).map(id => String(id).replace(/^customer:/, '')));
+}
+
+function recommendationRelationship({ customerContext = [], customerAdvisories = [], selectedProposal = null } = {}) {
+  const confirmed = customerContext.filter(item => item?.confirmed !== false && clean(item?.text));
+  const priorityItems = confirmed.filter(item => CUSTOMER_PRIORITY_LABELS[item.priority]);
+  const relationshipAdvisories = customerAdvisories.filter(item =>
+    advisoryCustomerIds(item).size > 0 || item?.heading === 'How this option matches your priorities');
+  const lines = [];
+  const advisoryIds = new Set();
+  const customerIds = new Set();
+
+  for (const item of priorityItems) {
+    const related = relationshipAdvisories.filter(advisory => advisoryCustomerIds(advisory).has(String(item.id)));
+    customerIds.add(item.id);
+    const prefix = `${CUSTOMER_PRIORITY_LABELS[item.priority]}: ${sentence(item.text)}`;
+    if (related.length) {
+      related.forEach(advisory => advisoryIds.add(advisory.id));
+      const explanations = [...new Set(related.map(advisory => sentence(advisory.text)))];
+      lines.push(`${prefix} ${explanations.join(' ')}`);
+    } else {
+      lines.push(`${prefix} The confirmed recommendation does not yet contain enough structured information to show how this priority is addressed.`);
+    }
+  }
+
+  // Older structured Visits may contain confirmed customer objectives without a
+  // priority. Preserve a proven relationship when the deterministic advisory
+  // engine has explicitly linked that evidence to this selected proposal.
+  for (const advisory of relationshipAdvisories) {
+    if (advisoryIds.has(advisory.id)) continue;
+    const ids = advisoryCustomerIds(advisory);
+    const relatedCustomers = confirmed.filter(item => ids.has(String(item.id)));
+    if (!relatedCustomers.length) continue;
+    relatedCustomers.forEach(item => customerIds.add(item.id));
+    advisoryIds.add(advisory.id);
+    lines.push(sentence(advisory.text));
+  }
+
+  if (!lines.length) return null;
+  return {
+    heading: 'How the recommendation relates to your priorities',
+    text: lines.join(' '),
+    proposalOptionId: selectedProposal?.id || null,
+    customerIds: [...customerIds], advisoryIds: [...advisoryIds], factIds: []
+  };
+}
+
+export function buildHandoverDocuments({ confirmedChecklistItems = [], uncertainties = [], customerAdvisories = [], customerContext = [], selectedProposal = null } = {}) {
   const confirmed = confirmedChecklistItems.map((item, index) => presentationFact({ ...item, targetSection: sectionForFact(item) }, index));
   const unresolved = uncertainties.filter(item => item?.text).map((item, index) => presentationFact({
     ...item, id: item.id || `uncertainty-${index + 1}`, targetSection: 'Office notes', evidenceState: 'uncertain', surveyorConfirmed:false
@@ -213,13 +265,18 @@ export function buildHandoverDocuments({ confirmedChecklistItems = [], uncertain
   };
   proposalParts.sort((a,b) => proposalRank(a) - proposalRank(b));
   const proposalFactIds = [...new Set(proposalParts.flatMap(item => item.combinedFactIds || [item.id]))];
-  const advisorySections = [...new Set(customerAdvisories.map(item => item.heading))].map(heading => {
-    const matching = customerAdvisories.filter(item => item.heading === heading);
+  const relationship = recommendationRelationship({ customerContext, customerAdvisories, selectedProposal });
+  const relatedAdvisoryIds = new Set(relationship?.advisoryIds || []);
+  const remainingAdvisories = customerAdvisories.filter(item =>
+    item.heading !== 'How this option matches your priorities' && !relatedAdvisoryIds.has(item.id));
+  const advisorySections = [...new Set(remainingAdvisories.map(item => item.heading))].map(heading => {
+    const matching = remainingAdvisories.filter(item => item.heading === heading);
     return { heading, text: matching.map(item => item.text).join(' '), advisoryIds: matching.map(item => item.id), factIds: [] };
   });
   const customer = [
     { heading: 'What we are proposing', text: proposalParts.length ? proposalParts.map(item => item.displayText).join(' ') : 'No proposed work has been recorded.', factIds: proposalFactIds },
     { heading: 'Why this suits your home', text: narrative || (needs.length ? needs.map(item => item.displayText).join(' ') : 'No specific customer objective or confirmed requirement has been recorded.'), factIds: [...new Set([...needs, selectedBoiler, combiConstraint, waterEvidence].filter(Boolean).map(item => item.id))] },
+    ...(relationship ? [relationship] : []),
     ...advisorySections,
     { heading: 'What to expect during the work', text: disruption.length ? disruption.map(item => item.displayText).join(' ') : 'No specific job disruption has been confirmed.', factIds: disruption.map(item => item.id) },
     { heading: 'Getting ready', text: prep.length ? prep.map(item => item.displayText).join(' ') : 'No customer preparation has been confirmed.', factIds: prep.map(item => item.id) },

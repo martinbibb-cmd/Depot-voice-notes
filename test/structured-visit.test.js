@@ -55,6 +55,17 @@ test('structured survey is a primary interpretation source with Wants and Needs 
   assert.ok(!result.sharedFacts.some(fact => fact.text.includes('hide every pipe')));
 });
 
+test('structured customer topic and priority survive into auditable PWA evidence', () => {
+  const payload = { schemaVersion:3, structuredVisit:{ existing:[], measurements:[], evidence:[], proposals:[{ id:'one', name:'Option 1', components:[] }], customer:[
+    { id:'priority', kind:'statedNeed', text:'The household sometimes needs two hot-water outlets at the same time.', origin:'structuredSelection', confirmed:true, topic:'hotWater', priority:'mostImportant' }
+  ] } };
+  const lines = structuredEvidence(payload);
+  assert.match(lines.join(' '), /Hot Water/);
+  assert.match(lines.join(' '), /Most Important/);
+  const interpretation = interpretationFromStructuredVisit(payload);
+  assert.match(interpretation.sharedFacts.find(item => item.id.includes('priority')).sourceQuote, /Most Important/);
+});
+
 test('a transcript-era processing state cannot shadow a newer structured Visit', () => {
   const input = payload();
   const stale = {

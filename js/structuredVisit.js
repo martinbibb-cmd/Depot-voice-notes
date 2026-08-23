@@ -10,6 +10,7 @@ const sectionTargets = {
 
 const title = value => String(value || '').replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^./, c => c.toUpperCase());
 const clean = value => String(value || '').trim();
+const customerContext = item => [item.topic ? title(item.topic) : '', item.priority ? title(item.priority) : ''].filter(Boolean).join(' · ');
 
 export function hasStructuredSurvey(payload) {
   const survey = payload?.structuredVisit;
@@ -44,7 +45,7 @@ export function structuredEvidence(payload) {
     if (detail) lines.push(`Existing — ${title(item.section)}: ${detail}`);
   }
   for (const item of survey.customer || []) {
-    if (clean(item.text)) lines.push(`Customer — ${title(item.kind)} [${title(item.origin)}]: ${clean(item.text)}`);
+    if (clean(item.text)) lines.push(`Customer — ${title(item.kind)} [${[title(item.origin), customerContext(item)].filter(Boolean).join(' · ')}]: ${clean(item.text)}`);
   }
   for (const item of survey.measurements || []) {
     const scope = item.proposalOptionID ? `Proposal ${item.proposalOptionID}` : title(item.layer);
@@ -76,7 +77,7 @@ function customerFacts(survey) {
   return (survey.customer || []).flatMap((item, index) => {
     if (!clean(item.text) || item.confirmed === false) return [];
     const kind = title(item.kind);
-    const quote = `Customer — ${kind} [${title(item.origin)}]: ${clean(item.text)}`;
+    const quote = `Customer — ${kind} [${[title(item.origin), customerContext(item)].filter(Boolean).join(' · ')}]: ${clean(item.text)}`;
     return [fact(`structured-customer-${item.id || index}`, kind, clean(item.text), 'Needs', quote)];
   });
 }

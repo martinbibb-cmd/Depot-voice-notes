@@ -5,7 +5,7 @@ import { inferredPrimaryRequirement, pipeRequirement, suggestPackage } from './b
 import { trustworthyTransferredFacts } from './transferEvidence.js';
 import { buildDepotSections, auditPipelineOutput } from './pipelineInvariants.js';
 import { buildVisitBrief, confirmationGroup, confirmationPriority, evidenceStateLabel, uncertaintyPrompt, REVIEW_GROUPS } from './reviewPresentation.js';
-import { buildVisualSpecification, choicesForVisualRow, componentIcon, proposalRowNeedsAnswer, VISUAL_COMPONENTS, visualSelectionText } from './specificationVisuals.js';
+import { buildVisualSpecification, choicesForVisualRow, componentIcon, proposalRowNeedsAnswer, VISUAL_COMPONENTS, visualSelectionAllowed, visualSelectionText } from './specificationVisuals.js';
 import { hasStructuredSurvey, interpretationFromStructuredVisit, interpretationRequiresRefresh, structuredEvidence } from './structuredVisit.js';
 import { buildCustomerAdvisories, proposalWithVisualSelections } from './customerAdvisories.js';
 import { addSurveyorProposal, proposalMissing } from './proposalWorkflow.js';
@@ -162,7 +162,7 @@ async function loadPhotos(visitId, photos) {
   $('savePhotosBtn').disabled = surveyPhotos.length === 0;
 }
 
-const expectedSections = ['Needs','System characteristics','New boiler and controls','Flue','Pipe work','Restrictions to work','Disruption','Customer actions','Future plans','Office notes'];
+const expectedSections = ['Needs','System characteristics','New boiler and controls','Flue','Pipe work','Restrictions to work','Disruption','Customer actions','Delivery notes','Future plans','Office notes'];
 const sectionPosition = new Map(expectedSections.map((name, index) => [name.toLowerCase(), index]));
 function orderedNotes(source) {
   return [...source].sort((left, right) => {
@@ -669,7 +669,9 @@ function checklistChanged() {
   persistProcessingState().catch(error => $('confirmationStatus').textContent = error.message);
 }
 function confirmedItemsForSelectedOption() {
-  const items = confirmedChecklistItems(optionChecklists.get(selectedOption?.id));
+  const checklist = optionChecklists.get(selectedOption?.id);
+  const rows = buildVisualSpecification(interpretation, selectedOption, checklist);
+  const items = confirmedChecklistItems(checklist).filter(item => visualSelectionAllowed(rows, item));
   const canonical = new Map([
     ...(interpretation?.sharedFacts || []),
     ...(interpretation?.customerIntent?.wants || []),
@@ -718,7 +720,9 @@ function renderEditableNotes() {
     const copy = document.createElement('button'); copy.textContent = 'Copy'; copy.onclick = async () => {
       await navigator.clipboard.writeText(depotCopyText(note.text)); copy.textContent = 'Copied'; setTimeout(() => copy.textContent = 'Copy', 1200);
     };
-    const area = document.createElement('textarea'); area.value = note.text; area.oninput = () => {
+    const area = document.createElement('textarea'); area.value = note.text;
+    if (note.name === 'Delivery notes') area.setAttribute('aria-describedby', `delivery-hint-${index}`);
+    area.oninput = () => {
       if (!note.originalText) note.originalText = note.text;
       note.text = area.value;
       note.provenance = 'surveyorEdited';
@@ -742,7 +746,14 @@ function renderEditableNotes() {
       } catch (error) { $('draftStatus').textContent = error.message; }
       finally { improve.disabled = false; improve.textContent = 'Improve'; }
     };
-    promptRow.append(prompt, improve); head.append(title, copy); card.append(head, area, promptRow); $('notes').append(card);
+    promptRow.append(prompt, improve); head.append(title, copy); card.append(head);
+    if (note.name === 'Delivery notes') {
+      const hint = document.createElement('p'); hint.id = `delivery-hint-${index}`; hint.className = 'hint';
+      hint.textContent = 'Add only useful delivery details: parking or unloading point, material access route, restrictions, and when access is available.';
+      card.append(hint);
+      prompt.placeholder = 'Add or clarify confirmed delivery information';
+    }
+    card.append(area, promptRow); $('notes').append(card);
   });
 }
 function beginDraft() {

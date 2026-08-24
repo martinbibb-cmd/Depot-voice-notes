@@ -64,13 +64,14 @@ export const VISUAL_COMPONENTS = {
 };
 
 export function choicesForVisualRow(row, field, choices, selected) {
+  if (row.actionLocked && field === 'action') return choices.filter(choice => (Array.isArray(choice) ? choice[0] : choice) === selected);
   if (row.component !== 'flue' || !selected || selected === 'Unresolved') return choices;
   return choices.filter(choice => (Array.isArray(choice) ? choice[0] : choice) === selected);
 }
 
 const definitions = [
   { id:'boiler', label:'Boiler', pattern:/\bboiler\b/i },
-  { id:'cylinder', label:'Cylinder', pattern:/\bcylinder\b|stored hot water/i },
+  { id:'cylinder', label:'Cylinder', pattern:/\bcylinder\b|stored hot water|hot-water arrangement/i },
   { id:'flue', label:'Flue', pattern:/\bflu(?:e)?\b|terminal|plume/i },
   { id:'control', label:'Controls', pattern:/\bcontrol|thermostat|programmer|hive/i },
   { id:'gas', label:'Gas supply', pattern:/\bgas\b/i },
@@ -78,10 +79,10 @@ const definitions = [
   { id:'powerflush', label:'Powerflush', pattern:/powerflush|power flush/i },
   { id:'condensate', label:'Condensate', pattern:/condens/i },
   { id:'discharge', label:'Discharge', pattern:/\bdischarge\b|pressure relief|\bprv\b|tundish/i },
-  { id:'radiator', label:'Radiators', pattern:/radiator/i },
+  { id:'radiator', label:'Radiators', pattern:/radiator|\bemitters?\b/i },
   { id:'pump', label:'Pump', pattern:/\bpump\b/i },
   { id:'valve', label:'Motorised valve', pattern:/motorised valve|motor valve|zone valve/i },
-  { id:'pipe', label:'Pipework', pattern:/\bpipework\b|\bpipe route\b|\bprimar(?:y|ies)\b/i },
+  { id:'pipe', label:'Pipework', pattern:/\bpipework\b|\bpipe route\b|\bprimar(?:y|ies)\b|heating flow and return/i },
   { id:'electrical', label:'Electrical supply', pattern:/electrical|electric|consumer unit|fused spur/i },
   { id:'scaffold', label:'Access at height', pattern:/scaffold|working at height|ladder access/i }
 ];
@@ -110,7 +111,7 @@ function componentAction(kind, text) {
     if (/\b(?:not required|not needed|exclude)\b/i.test(text)) return 'Not required';
     if (/\b(?:required|include|powerflush|power flush)\b/i.test(text)) return 'Include';
   }
-  if (kind === 'scaffold' && /\bscaffold.{0,40}(?:required|needed)|(?:required|needed|need to use).{0,40}(?:a\s+)?scaffold\b/i.test(text)) return 'Include';
+  if (kind === 'scaffold' && /\b(?:scaffold|ladder).{0,40}(?:required|needed)|(?:required|needed|need to use).{0,40}(?:a\s+)?(?:scaffold|ladder)\b/i.test(text)) return 'Required';
   return actionFor(text);
 }
 
@@ -182,21 +183,29 @@ export function buildVisualSpecification(interpretation, option, checklist = nul
     const action = proposalAction !== 'Unresolved' ? proposalAction : componentAction(definition.id, sharedDecisionText);
     const proposalSubtype = typeFor(definition.id, proposalText);
     const typeOverride = (checklist?.items || []).find(item => !item.removed && item.visualComponent === definition.id && item.visualField === 'type');
-    const actionOverride = (checklist?.items || []).find(item => !item.removed && item.visualComponent === definition.id && item.visualField === 'action');
+    const storedActionOverride = (checklist?.items || []).find(item => !item.removed && item.visualComponent === definition.id && item.visualField === 'action');
     const inferredSubtype = proposalSubtype || typeFor(definition.id, sharedDecisionText);
     const existingSubtype = typeFor(definition.id, sharedExistingText);
     const inferredAction = action;
+    const actionLocked = definition.id === 'boiler' && proposalAction === 'Replace';
+    const actionOverride = actionLocked && storedActionOverride?.visualValue !== proposalAction ? null : storedActionOverride;
     const finalAction = actionOverride?.visualValue || inferredAction;
-    return [{ component: definition.id, label: definition.label, subtype: typeOverride?.visualValue || inferredSubtype, existingSubtype, specification: definition.id === 'gas' ? (typeOverride?.visualValue || inferredSubtype || existingSubtype) : '', typeRequired: ['boiler', 'flue'].includes(definition.id) || (definition.id === 'gas' && finalAction === 'Replace'), action: finalAction, inferredSubtype, inferredAction, facts, proposalId: option?.id || null }];
+    return [{ component: definition.id, label: definition.label, subtype: typeOverride?.visualValue || inferredSubtype, existingSubtype, specification: definition.id === 'gas' ? (typeOverride?.visualValue || inferredSubtype || existingSubtype) : '', typeRequired: ['boiler', 'flue'].includes(definition.id) || (definition.id === 'gas' && finalAction === 'Replace'), action: finalAction, inferredSubtype, inferredAction, actionLocked, facts, proposalId: option?.id || null }];
   });
 }
 
+export function visualSelectionAllowed(rows, item) {
+  if (!item?.visualComponent || !item?.visualField) return true;
+  const row = rows.find(value => value.component === item.visualComponent);
+  return !(row?.actionLocked && item.visualField === 'action' && item.visualValue !== row.inferredAction);
+}
+
 export function visualSelectionText(component, field, value) {
-  const names = { boiler:'boiler', cylinder:'cylinder', flue:'flue', control:'controls', gas:'gas supply', filter:'magnetic filter', powerflush:'powerflush', condensate:'condensate', radiator:'radiators', pump:'pump', valve:'motorised valve', pipe:'pipework', electrical:'electrical supply', scaffold:'scaffold access' };
+  const names = { boiler:'boiler', cylinder:'cylinder', flue:'flue', control:'controls', gas:'gas supply', filter:'magnetic filter', powerflush:'powerflush', condensate:'condensate', discharge:'discharge route', radiator:'radiators', pump:'pump', valve:'motorised valve', pipe:'heating flow and return pipework', electrical:'electrical supply', scaffold:'access at height' };
   const name = names[component] || component;
   if (field === 'type') return component === 'gas' ? `${value} gas supply recorded.` : `${value[0].toUpperCase()}${value.slice(1)} ${name}.`;
   const phrases = {
-    'Already done':`${name[0].toUpperCase()}${name.slice(1)} work already completed.`, Retain:component === 'gas' ? 'The existing gas supply is adequate for this proposal and will be retained.' : `Retain existing ${name}.`, Replace:`Replace existing ${name}.`, Remove:`Remove existing ${name}.`, New:`Install new ${name}.`, Include:`Include ${name}.`, 'Not required':`${name[0].toUpperCase()}${name.slice(1)} not required.`, Required:`${name[0].toUpperCase()}${name.slice(1)} required.`, 'Same hole':'Install flue through the existing opening.', 'New hole':'Install flue through a new opening.', 'Seal old opening':'Seal the old flue opening.', Unresolved:`${name[0].toUpperCase()}${name.slice(1)} remains unresolved.`
+    'Already done':`${name[0].toUpperCase()}${name.slice(1)} work already completed.`, Retain:component === 'gas' ? 'The existing gas supply is adequate for this proposal and will be retained.' : `Retain existing ${name}.`, Replace:`Replace existing ${name}.`, Remove:`Remove existing ${name}.`, New:`Install new ${name}.`, Include:`Include ${name}.`, 'Not required':`${name[0].toUpperCase()}${name.slice(1)} not required.`, Required:component === 'scaffold' ? 'Access at height is required for the proposed work.' : `${name[0].toUpperCase()}${name.slice(1)} required.`, 'Same hole':'Install flue through the existing opening.', 'New hole':'Install flue through a new opening.', 'Seal old opening':'Seal the old flue opening.', Unresolved:`${name[0].toUpperCase()}${name.slice(1)} remains unresolved.`
   };
   return phrases[value] || `${name}: ${value}.`;
 }

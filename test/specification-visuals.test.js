@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildVisualSpecification, choicesForVisualRow, componentIcon, proposalRowNeedsAnswer, VISUAL_COMPONENTS, visualSelectionText } from '../js/specificationVisuals.js';
+import { buildVisualSpecification, choicesForVisualRow, componentIcon, proposalRowNeedsAnswer, VISUAL_COMPONENTS, visualSelectionAllowed, visualSelectionText } from '../js/specificationVisuals.js';
 
 test('boiler SVG grammar uses the mandatory composable mappings', () => {
   assert.match(componentIcon('boiler', 'regular'), /data-primitives="flame"/);
@@ -59,7 +59,7 @@ test('shared confirmed actions are not downgraded to unresolved', () => {
   ] };
   const rows = buildVisualSpecification(interpretation, { id:'selected', facts:[] });
   assert.equal(rows.find(row => row.component === 'gas').action, 'Retain');
-  assert.equal(rows.find(row => row.component === 'scaffold').action, 'Include');
+  assert.equal(rows.find(row => row.component === 'scaffold').action, 'Required');
   assert.equal(rows.find(row => row.component === 'condensate').action, 'New');
 });
 
@@ -197,4 +197,37 @@ test('gas alteration requires the replacement size while adequate existing gas d
 test('completed survey editor offers no unresolved or not-established outcome', () => {
   const labels = Object.values(VISUAL_COMPONENTS).flatMap(component => component.actions || []).flatMap(choice => Array.isArray(choice) ? choice : [choice]);
   assert(!labels.some(value => /unresolved|not established/i.test(value)));
+});
+
+test('a boiler replacement proposal does not offer retain or install-new boiler actions', () => {
+  const option = { id:'replacement', facts:[
+    { id:'boiler', category:'Boiler', text:'Replace the existing system boiler with a new system boiler in the same position.' }
+  ] };
+  const row = buildVisualSpecification({ sharedFacts:[] }, option).find(item => item.component === 'boiler');
+  const choices = choicesForVisualRow(row, 'action', VISUAL_COMPONENTS.boiler.actions, row.action);
+  assert.deepEqual(choices, [['Replace','Replace']]);
+});
+
+test('a stale retained-boiler visual correction cannot override a structured replacement', () => {
+  const option = { id:'replacement', facts:[
+    { id:'boiler', category:'Boiler', text:'Replace the existing system boiler with a new system boiler in the same position.' }
+  ] };
+  const stale = { visualComponent:'boiler', visualField:'action', visualValue:'Retain', removed:false };
+  const rows = buildVisualSpecification({ sharedFacts:[] }, option, { items:[stale] });
+  const boiler = rows.find(item => item.component === 'boiler');
+  assert.equal(boiler.action, 'Replace');
+  assert.equal(visualSelectionAllowed(rows, stale), false);
+});
+
+test('existing hot-water, emitter and heating records expose their reuse controls', () => {
+  const rows = buildVisualSpecification({ sharedFacts:[
+    { id:'cylinder', category:'Existing Hot water', text:'Existing vented hot-water arrangement.' },
+    { id:'emitters', category:'Existing Emitters', text:'Existing emitters are radiators.' },
+    { id:'heating', category:'Existing Heating', text:'Existing heating flow and return pipework.' }
+  ] }, { id:'selected', facts:[] });
+  for (const component of ['cylinder','radiator','pipe']) {
+    const row = rows.find(item => item.component === component);
+    assert(row, `${component} row should exist`);
+    assert(VISUAL_COMPONENTS[component].actions.some(([value]) => value === 'Retain'));
+  }
 });

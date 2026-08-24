@@ -1,4 +1,4 @@
-export const DEPOT_SECTIONS = ['Needs','System characteristics','New boiler and controls','Flue','Pipe work','Restrictions to work','Disruption','Customer actions','Future plans','Office notes'];
+export const DEPOT_SECTIONS = ['Needs','System characteristics','New boiler and controls','Flue','Pipe work','Restrictions to work','Disruption','Customer actions','Delivery notes','Future plans','Office notes'];
 export const ENGINEER_SECTIONS = ['Job overview','Existing system','Boiler and equipment','Flue','Condensate and discharge','Gas supply','Heating, hot water and pipe routes','Controls and electrical','Access and enabling work','Disruption and customer arrangements','Unresolved points'];
 
 const uncertainty = /\b(?:about|approx(?:imately)?|around|could|may|might|likely|suggest(?:ed|ion)?|provisional|possible|questioned|reported|appears?|no visual indication|not established|not sure|unknown|uncertain|to confirm|subject to)\b/i;
@@ -9,6 +9,16 @@ const numeric = value => String(value || '').match(/\d+(?:\.\d+)?/g) || [];
 const clean = value => String(value || '').trim();
 const sentence = value => { const text = clean(value).replace(/^[-•]\s*/, ''); return text && !/[.!?]$/.test(text) ? `${text}.` : text; };
 const capitalise = value => value ? `${value[0].toUpperCase()}${value.slice(1)}` : value;
+const normalisedDisplay = value => clean(value).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+const uniqueDisplayText = values => {
+  const seen = new Set();
+  return values.filter(value => {
+    const key = normalisedDisplay(value);
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
 
 export function displayTextForFact(item) {
   const canonical = clean(item?.canonicalMeaning || item?.text);
@@ -94,7 +104,8 @@ export function sectionForFact(item) {
   if (/\b(?:proposal|boiler)\b/.test(clean(item?.category).toLowerCase()) && /new boiler|replace.*boiler|install.*boiler|proposed boiler/.test(value)) return 'New boiler and controls';
   if (/control|thermostat|programmer|electrical|consumer unit|fused spur/.test(value)) return 'New boiler and controls';
   if (/customer action|customer prep|customer to|agreed to clear/.test(value)) return 'Customer actions';
-  if (/access|restrict|hazard|floor|boxing|cupboard|furniture|drill|scaffold/.test(value)) return 'Restrictions to work';
+  if (/deliver|unload|materials drop|parking for (?:the )?delivery|delivery access/.test(value)) return 'Delivery notes';
+  if (/access|restrict|hazard|floor|boxing|cupboard|furniture|drill|scaffold|ladder|working at height/.test(value)) return 'Restrictions to work';
   if (/disruption|making good|visible|loss of/.test(value)) return 'Disruption';
   if (/future/.test(value)) return 'Future plans';
   if (/existing|current|pressure|flow|system type|pump|valve|cylinder|radiator.*heat/.test(value)) return 'System characteristics';
@@ -113,11 +124,12 @@ export function buildDepotSections(confirmedItems) {
   }
   return DEPOT_SECTIONS.map(name => {
     const facts = grouped.get(name);
+    const display = uniqueDisplayText(facts.map(item => item.displayText));
     return {
       section: name,
       factIds: facts.map(item => item.id || item.factId).filter(Boolean),
-      plainText: facts.length ? facts.map(item => `${item.displayText.replace(/;$/, '')};`).join('\n') : 'No information recorded.;',
-      naturalLanguage: facts.length ? facts.map(item => `• ${item.displayText}`).join('\n') : '• No information recorded.'
+      plainText: display.length ? display.map(text => `${text.replace(/;$/, '')};`).join('\n') : 'No information recorded.;',
+      naturalLanguage: display.length ? display.map(text => `• ${text}`).join('\n') : '• No information recorded.'
     };
   });
 }
@@ -202,7 +214,7 @@ export function buildHandoverDocuments({ confirmedChecklistItems = [], uncertain
   all.forEach(item => grouped.get(engineerSection(item)).push(item));
   const engineer = ENGINEER_SECTIONS.map(heading => {
     const facts = grouped.get(heading);
-    let bullets = facts.map(item => item.displayText);
+    let bullets = uniqueDisplayText(facts.map(item => item.displayText));
     if (heading === 'Flue') {
       const typeIndex = bullets.findIndex(text => /^(?:Fanned|Balanced) flue\.$/i.test(text));
       const actionIndex = bullets.findIndex(text => /Install flue through/i.test(text));

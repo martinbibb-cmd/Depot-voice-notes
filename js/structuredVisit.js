@@ -26,7 +26,7 @@ export function interpretationRequiresRefresh(payload, interpreted) {
     // A schema-3 Visit is authoritative. A transcript-era interpretation must
     // never be allowed to shadow structured Existing/Customer/Proposed state,
     // even when the legacy interpretation itself has a current legacy version.
-    return interpreted.sourceMode !== 'structuredVisit' || version < 14;
+    return interpreted.sourceMode !== 'structuredVisit' || version < 15;
   }
   return version < 12;
 }
@@ -94,11 +94,85 @@ function sharedMeasurementFacts(survey) {
 }
 
 function proposedText(item) {
-  const component = title(item.section || item.component);
+  const section = clean(item.section || item.component);
+  const component = title(section);
+  const actionKey = clean(item.action).toLowerCase();
   const action = title(item.action);
   const detail = [item.type, item.specification].map(clean).filter(Boolean).join(' ');
   const location = clean(item.positionOrRoute);
-  return [action, detail, component, location ? `— ${location}` : ''].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
+  const locationSuffix = location ? ` ${location}.` : '.';
+  const templates = {
+    boiler: {
+      retain: `Retain the existing ${detail || 'boiler'}${locationSuffix}`,
+      replace: `Replace the existing boiler${detail ? ` with a new ${detail}` : ''}${locationSuffix}`,
+      remove: `Remove the existing boiler${locationSuffix}`,
+      new: `Install a new ${detail || 'boiler'}${locationSuffix}`
+    },
+    hotWater: {
+      retain: `Retain the existing ${detail || 'hot-water arrangement'}${locationSuffix}`,
+      replace: `Replace the existing ${detail || 'hot-water cylinder'}${locationSuffix}`,
+      remove: `Remove the existing ${detail || 'hot-water cylinder'}${locationSuffix}`,
+      new: `Install a new ${detail || 'hot-water cylinder'}${locationSuffix}`
+    },
+    heating: {
+      retain: `Retain the existing heating flow and return pipework${locationSuffix}`,
+      replace: `Alter the existing heating flow and return pipework${locationSuffix}`,
+      remove: `Remove the redundant heating pipework where accessible${locationSuffix}`,
+      new: `Install new heating flow and return pipework${locationSuffix}`
+    },
+    controls: {
+      retain: `Retain the existing heating controls${locationSuffix}`,
+      replace: `Replace the existing heating controls${detail ? ` with ${detail}` : ''}${locationSuffix}`,
+      remove: `Remove the redundant heating controls${locationSuffix}`,
+      new: `Install new ${detail || 'heating controls'}${locationSuffix}`
+    },
+    gas: {
+      retain: `Retain the existing gas supply${detail ? ` (${detail})` : ''}${locationSuffix}`,
+      replace: `Upgrade or replace the gas supply${detail ? ` with ${detail}` : ''}${locationSuffix}`,
+      remove: `Remove redundant gas pipework where accessible${locationSuffix}`,
+      new: `Install a new gas supply${detail ? ` (${detail})` : ''}${locationSuffix}`
+    },
+    condensate: {
+      retain: `Retain the existing condensate route${locationSuffix}`,
+      replace: `Alter or replace the existing condensate route${locationSuffix}`,
+      remove: `Remove redundant condensate pipework where accessible${locationSuffix}`,
+      new: `Install a new condensate route${locationSuffix}`
+    },
+    discharge: {
+      retain: `Retain the existing discharge route${locationSuffix}`,
+      replace: `Alter the existing discharge route${locationSuffix}`,
+      remove: `Remove redundant discharge pipework where accessible${locationSuffix}`,
+      new: `Install a new discharge route${locationSuffix}`
+    }
+  };
+  if (section === 'access') {
+    const access = `${detail} ${location}`.toLowerCase();
+    if (/scaffold/.test(access)) return 'Scaffold access is required for the proposed work at height.';
+    if (/ladder/.test(access)) return 'Ladder access is required for the proposed work at height.';
+  }
+  return templates[section]?.[actionKey] || [action, detail, component, location ? `— ${location}` : ''].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
+}
+
+function approvedNoteMatches(item, note) {
+  if (note.isCustom || !clean(note.libraryID)) return true;
+  const id = clean(note.libraryID).toLowerCase();
+  const action = clean(item.action).toLowerCase();
+  const type = clean(item.type).toLowerCase();
+  const idAction = ['retain','replace','remove','new'].find(value => new RegExp(`(?:^|[.-])${value}(?:$|[.-])`).test(id));
+  if (idAction && action && idAction !== action) return false;
+  if (item.section === 'boiler') {
+    const noteType = ['regular','system','combi'].find(value => id.includes(value));
+    if (noteType && type && !type.includes(noteType)) return false;
+  }
+  if (item.section === 'hotWater') {
+    const noteType = ['unvented','vented'].find(value => id.includes(value));
+    const capturedType = type.includes('unvented') ? 'unvented' : type.includes('vented') ? 'vented' : '';
+    if (noteType && capturedType && noteType !== capturedType) return false;
+  }
+  if (item.section === 'controls' && type) {
+    if (type.includes('hive') && /programmer|thermostat/.test(id) && !id.includes('hive')) return false;
+  }
+  return true;
 }
 
 function optionFacts(option, optionIndex) {
@@ -107,9 +181,12 @@ function optionFacts(option, optionIndex) {
     const direct = proposedText(item);
     const quote = `${option.name} — ${title(item.section)}: ${[title(item.action), item.type, item.specification, item.positionOrRoute].map(clean).filter(Boolean).join(' · ')}`;
     const base = fact(`structured-option-${option.id || optionIndex}-${item.id || index}`, title(item.section), direct, sectionTargets[item.section] || 'Office notes', quote);
-    const approved = (item.selectedNotes || []).filter(note => note.confirmed && clean(note.text)).map((note, noteIndex) =>
+    const approved = (item.selectedNotes || []).filter(note => note.confirmed && clean(note.text) && approvedNoteMatches(item, note)).map((note, noteIndex) =>
       fact(`structured-note-${option.id || optionIndex}-${note.id || noteIndex}`, title(item.section), clean(note.text), sectionTargets[item.section] || 'Office notes', `${option.name} — approved note: ${clean(note.text)}`));
-    return [base, ...approved];
+    // Confirmed approved notes are the controlled installation wording for the
+    // structured state. Emitting both the generic state sentence and its note
+    // duplicates the same work in Depot notes and handover.
+    return approved.length ? approved : [base];
   });
   return componentFacts;
 }
@@ -119,7 +196,7 @@ export function interpretationFromStructuredVisit(payload) {
   const survey = payload.structuredVisit;
   const advisoryOptions = new Map(buildVisitCustomerAdvisories(survey).map(item => [item.proposalOptionId, item.advisories]));
   return {
-    interpretationVersion: 14,
+    interpretationVersion: 15,
     sourceMode: 'structuredVisit',
     sharedFacts: [...existingFacts(survey), ...customerFacts(survey), ...sharedMeasurementFacts(survey)],
     options: (survey.proposals || []).map((option, index) => ({

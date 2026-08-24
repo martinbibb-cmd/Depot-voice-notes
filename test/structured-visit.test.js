@@ -16,6 +16,67 @@ test('structured discharge remains separate from condensate and maps to installa
   assert(option.facts.filter(item => item.category === 'Discharge').every(item => item.targetSection === 'Pipe work'));
 });
 
+test('generic structured heating state becomes an installation instruction rather than New Heating', () => {
+  const input = { schemaVersion:3, structuredVisit:{ existing:[], customer:[], measurements:[], evidence:[], proposals:[{
+    id:'option-1', name:'Option 1', isSelected:true, components:[
+      { id:'heating', section:'heating', action:'new', positionOrRoute:'Across the first floor', selectedNotes:[] }
+    ]
+  }] } };
+  const text = interpretationFromStructuredVisit(input).options[0].facts.map(item => item.text).join(' ');
+  assert.match(text, /Install new heating flow and return pipework across the first floor\./i);
+  assert.notEqual(text, 'New Heating');
+});
+
+test('confirmed approved wording replaces its generic structured duplicate', () => {
+  const input = { schemaVersion:3, structuredVisit:{ existing:[], customer:[], measurements:[], evidence:[], proposals:[{
+    id:'option-1', name:'Option 1', isSelected:true, components:[
+      { id:'boiler', section:'boiler', type:'System boiler', action:'replace', positionOrRoute:'Same position', selectedNotes:[
+        { id:'approved', confirmed:true, text:'Replace existing boiler with new system boiler in the same position.' }
+      ] }
+    ]
+  }] } };
+  const facts = interpretationFromStructuredVisit(input).options[0].facts;
+  assert.equal(facts.length, 1);
+  assert.equal(facts[0].text, 'Replace existing boiler with new system boiler in the same position.');
+});
+
+test('stale approved notes that contradict the final action or type cannot enter output', () => {
+  const input = { schemaVersion:3, structuredVisit:{ existing:[], customer:[], measurements:[], evidence:[], proposals:[{
+    id:'option-1', name:'Option 1', isSelected:true, components:[
+      { id:'boiler', section:'boiler', type:'Combi', action:'replace', selectedNotes:[
+        { id:'combi', libraryID:'boiler.replace-combi', confirmed:true, text:'Replace existing boiler with new combination boiler in the same position.' },
+        { id:'regular', libraryID:'boiler.replace-regular', confirmed:true, text:'Replace existing boiler with new regular boiler in the same position.' }
+      ] },
+      { id:'cylinder', section:'hotWater', type:'Unvented cylinder', action:'retain', selectedNotes:[
+        { id:'stale', libraryID:'cylinder.replace-vented', confirmed:true, text:'Replace existing cylinder with new vented cylinder.' }
+      ] },
+      { id:'controls', section:'controls', type:'Hive', action:'replace', selectedNotes:[
+        { id:'hive', libraryID:'controls.replace-hive', confirmed:true, text:'Replace existing controls with Hive.' },
+        { id:'programmer', libraryID:'controls.replace-programmer', confirmed:true, text:'Replace existing programmer.' }
+      ] }
+    ]
+  }] } };
+  const facts = interpretationFromStructuredVisit(input).options[0].facts.map(item => item.text);
+  assert(facts.includes('Replace existing boiler with new combination boiler in the same position.'));
+  assert(!facts.some(text => /regular boiler/i.test(text)));
+  assert(facts.some(text => /Retain the existing Unvented cylinder/i.test(text)));
+  assert(!facts.some(text => /new vented cylinder/i.test(text)));
+  assert(facts.includes('Replace existing controls with Hive.'));
+  assert(!facts.includes('Replace existing programmer.'));
+});
+
+test('selected scaffold and ladder access become explicit access restrictions', () => {
+  const input = { schemaVersion:3, structuredVisit:{ existing:[], customer:[], measurements:[], evidence:[], proposals:[{
+    id:'option-1', name:'Option 1', isSelected:true, components:[
+      { id:'scaffold', section:'access', action:'new', specification:'Scaffold' },
+      { id:'ladder', section:'access', action:'new', specification:'Ladder' }
+    ]
+  }] } };
+  const facts = interpretationFromStructuredVisit(input).options[0].facts;
+  assert(facts.some(item => item.text === 'Scaffold access is required for the proposed work at height.' && item.targetSection === 'Restrictions to work'));
+  assert(facts.some(item => item.text === 'Ladder access is required for the proposed work at height.' && item.targetSection === 'Restrictions to work'));
+});
+
 function payload() {
   return {
     schemaVersion: 3,
@@ -133,7 +194,7 @@ test('structured interpretation attaches deterministic advisories to their propo
   const result = interpretationFromStructuredVisit(input);
   const system = result.options.find(option => option.id === 'system');
   const combi = result.options.find(option => option.id === 'combi');
-  assert.equal(result.interpretationVersion, 14);
+  assert.equal(result.interpretationVersion, 15);
   assert(system.customerAdvisories.some(item => item.flagType === 'gas_supply_retained'));
   assert(!system.customerAdvisories.some(item => item.flagType === 'gas_supply_upgrade_required'));
   assert(combi.customerAdvisories.some(item => item.flagType === 'gas_supply_upgrade_required'));

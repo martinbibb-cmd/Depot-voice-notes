@@ -18,6 +18,34 @@ test('every confirmed fact reaches Depot and engineer output without false empty
   assert(!handover.engineer.find(x => x.heading === 'Gas supply').bullets.includes('No information recorded.'));
 });
 
+test('delivery is retained as a fixed Depot section and grounded delivery evidence maps to it', () => {
+  const delivery = fact('delivery', 'Materials can be unloaded on the driveway beside the side access.', 'Office notes', { category:'Delivery access' });
+  const sections = buildDepotSections([delivery]);
+  const output = sections.find(section => section.section === 'Delivery notes');
+  assert(output);
+  assert.match(output.plainText, /unloaded on the driveway/i);
+  assert(!output.plainText.includes('No information recorded'));
+});
+
+test('duplicate confirmed wording renders once without losing either provenance id', () => {
+  const facts = [
+    fact('structured', 'Retain existing gas supply.', 'Pipe work'),
+    fact('approved', 'Retain existing gas supply.', 'Pipe work')
+  ];
+  const section = buildDepotSections(facts).find(item => item.factIds.includes('structured'));
+  assert.equal(section.naturalLanguage.match(/Retain existing gas supply\./g)?.length, 1);
+  assert.deepEqual(section.factIds, ['structured','approved']);
+});
+
+test('ladder and scaffold evidence are access restrictions rather than detached equipment notes', () => {
+  const sections = buildDepotSections([
+    fact('ladder', 'Ladder access is required for the proposed work at height.', 'Office notes'),
+    fact('scaffold', 'Scaffold access is required for the proposed work at height.', 'Office notes')
+  ]);
+  const restrictions = sections.find(item => item.section === 'Restrictions to work');
+  assert.deepEqual(restrictions.factIds, ['ladder','scaffold']);
+});
+
 test('claim checks reject numeric drift, certainty promotion and lost negation', () => {
   assert(claimIntegrityErrors({ text: 'Flow is 13 L/min.', evidenceQuote: 'Flow was about 10 L/min.' }).some(x => /numeric/.test(x)));
   assert(claimIntegrityErrors({ text: 'Flow is 10 L/min.', evidenceQuote: 'Flow was about 10 L/min.' }).some(x => /uncertainty/.test(x)));
